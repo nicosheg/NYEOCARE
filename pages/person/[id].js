@@ -20,8 +20,7 @@ useEffect(()=>{if(!id||!token)return;let alive=true;setLoading(true);setError(''
 if(loading)return <Layout><div style={wrap}>Loading person…</div></Layout>;
 if(error)return <Layout><div style={wrap}><div style={errorBox}>{error}</div></div></Layout>;
 if(!person)return <Layout><div style={wrap}>Person not found.</div></Layout>;
-const name=title(person);
-const initials=`${person.first_name?.[0]||person.display_name?.[0]||'?'}${person.last_name?.[0]||''}`.toUpperCase();
+const name=title(person),initials=`${person.first_name?.[0]||person.display_name?.[0]||'?'}${person.last_name?.[0]||''}`.toUpperCase();
 return <Layout><div style={wrap}>
 <div style={header}><div style={avatar}>{initials}</div><div style={{minWidth:0}}><h1 style={nameStyle}>{name}</h1><div style={muted}>{person.phone||'No phone'}{person.email?` · ${person.email}`:''}</div></div></div>
 <div style={grid}>
@@ -32,7 +31,7 @@ return <Layout><div style={wrap}>
 <Section title="Memory">{person.memory?.length?person.memory.map(x=><div key={x.id} style={itemBlock}><b>{x.content}</b><span style={muted}>{x.memory_type} · {x.importance} · {x.source} · {percent(Number(x.confidence)*100)}</span></div>):<Empty/>}</Section>
 <Section title="Aliases">{person.aliases?.length?person.aliases.map(x=><div key={x.id} style={row}><b>{x.alias}</b><span style={muted}>{date(x.created_at)}</span></div>):<Empty/>}</Section>
 <Section title="Roles">{person.roles?.length?person.roles.map(x=><div key={x.id} style={row}><b>{x.role}</b><span style={muted}>{x.status}{x.start_date?` · ${date(x.start_date)}`:''}</span></div>):<Empty/>}</Section>
-<Section title="Groups & Memberships">{person.groups?.length?person.groups.map(x=><div key={x.id} style={row}><b>{x.group_name||'Unnamed group'}</b><span style={muted}>{x.group_type}{x.membership_role?` · ${x.membership_role}`:''}{x.membership_status?` · ${x.membership_status}`:''}</span></div>):<Empty/>}</Section>
+<Section title="Groups & Memberships">{person.groups?.length?person.groups.map(x=><div key={x.id} style={row}><b>{x.name||'Unnamed group'}</b><span style={muted}>{x.group_type}{x.membership_role?` · ${x.membership_role}`:''}{x.membership_status?` · ${x.membership_status}`:''}</span></div>):<Empty/>}</Section>
 <Section title="Relationships">{person.relationships?.length?person.relationships.map(x=><div key={x.id} style={row}><b>{title({first_name:x.related_first_name,last_name:x.related_last_name,display_name:x.related_display_name})}</b><span style={muted}>{x.relationship_type}{x.strength!=null?` · ${Math.round(Number(x.strength)*100)}%`:''}</span></div>):<Empty/>}</Section>
 <Section title="Custom Fields">{person.fields?.length?person.fields.map(x=><div key={x.id} style={row}><b>{x.field_name}</b><span style={muted}>{jsonValue(x.value)}</span></div>):<Empty/>}</Section>
 <Section title="Journey">{person.lifecycle?.length?person.lifecycle.map(x=><div key={x.id} style={row}><b>{x.stage_name}</b><span style={muted}>{date(x.started_at)}{x.ended_at?` → ${date(x.ended_at)}`:' · current'}</span></div>):<Empty/>}</Section>

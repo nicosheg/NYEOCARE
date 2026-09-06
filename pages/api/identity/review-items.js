@@ -1,214 +1,39 @@
-// pages/api/identity/resolve.js
-import pool from '../../../lib/db';
-import { withAdmin } from '../../../lib/apiHelpers';
-import { normalizeName } from '../../../lib/scanValidation';
+// pages/api/identity/review-items.js
+import pool from'../../../lib/db';
+import{withAdmin}from'../../../lib/apiHelpers';
 
-async function handler(req, res) {
-    if (req.method !== 'POST') return res.status(405).end();
-
-    const {
-        scan_job_id,
-        extracted_name,
-        action,
-        target_person_id,
-        new_name,
-        new_phone,
-    } = req.body;
-
-    if (!scan_job_id || !extracted_name || !action) {
-        return res.status(400).json({
-            error: 'Missing required fields',
-        });
-    }
-
-    const orgId = req.org.id;
-
-    // The scan job must belong to the authenticated organization.
-    const jobRes = await pool.query(
-        `SELECT organization_id, result
-         FROM scan_jobs
-         WHERE id = $1
-           AND organization_id = $2`,
-        [scan_job_id, orgId]
-    );
-
-    if (jobRes.rows.length === 0) {
-        return res.status(404).json({
-            error: 'Scan job not found',
-        });
-    }
-
-    const result = jobRes.rows[0].result || {};
-    const needsReview = Array.isArray(result.needs_review)
-        ? result.needs_review
-        : [];
-
-    const itemIndex = needsReview.findIndex(
-        item => item.extracted_name === extracted_name
-    );
-
-    if (itemIndex === -1) {
-        return res.status(404).json({
-            error: 'Review item not found',
-        });
-    }
-
-    const item = needsReview[itemIndex];
-
-    if (item.resolved) {
-        return res.status(400).json({
-            error: 'Already resolved',
-        });
-    }
-
-    let resolvedPersonId = null;
-    let resolutionAction = action;
-
-    if (action === 'confirm') {
-        if (!target_person_id) {
-            return res.status(400).json({
-                error: 'target_person_id required for confirm',
-            });
-        }
-
-        // Confirmation may only target an active person in this organization.
-        const personCheck = await pool.query(
-            `SELECT id, first_name
-             FROM people
-             WHERE id = $1
-               AND organization_id = $2
-               AND status = 'active'`,
-            [target_person_id, orgId]
-        );
-
-        if (personCheck.rows.length === 0) {
-            return res.status(404).json({
-                error: 'Person not found',
-            });
-        }
-
-        resolvedPersonId = target_person_id;
-
-        /*
-         * A human-confirmed alternate spelling/name becomes an alias.
-         * This improves future identity matching without changing the
-         * canonical person's name.
-         */
-        const existingName = personCheck.rows[0].first_name;
-
-        if (
-            normalizeName(existingName) !==
-            normalizeName(extracted_name)
-        ) {
-            await pool.query(
-                `INSERT INTO person_aliases
-                 (
-                    organization_id,
-                    person_id,
-                    alias,
-                    source,
-                    confidence
-                 )
-                 VALUES ($1,$2,$3,'human_confirmed',$4)`,
-                [
-                    orgId,
-                    target_person_id,
-                    extracted_name,
-                    item.confidence || 85,
-                ]
-            );
-        }
-
-        // Human confirmation clears the pending identity uncertainty.
-        await pool.query(
-            `UPDATE people
-             SET living_truth = NULL
-             WHERE id = $1
-               AND organization_id = $2`,
-            [target_person_id, orgId]
-        );
-    } else if (action === 'keep_new') {
-        // Create a genuinely new person from the reviewed scan item.
-        const insertRes = await pool.query(
-            `INSERT INTO people
-             (
-                organization_id,
-                first_name,
-                phone,
-                type,
-                status,
-                confidence,
-                source
-             )
-             VALUES ($1,$2,$3,'visitor','active',$4,'scan')
-             RETURNING id`,
-            [
-                orgId,
-                new_name || extracted_name,
-                new_phone || item.extracted_phone,
-                item.confidence || 70,
-            ]
-        );
-
-        resolvedPersonId = insertRes.rows[0].id;
-    } else if (action === 'edit') {
-        // Edited scan data is explicitly accepted as a new identity.
-        const updatedName = new_name || extracted_name;
-        const updatedPhone =
-            new_phone || item.extracted_phone;
-
-        const insertRes = await pool.query(
-            `INSERT INTO people
-             (
-                organization_id,
-                first_name,
-                phone,
-                type,
-                status,
-                confidence,
-                source
-             )
-             VALUES ($1,$2,$3,'visitor','active',$4,'scan')
-             RETURNING id`,
-            [
-                orgId,
-                updatedName,
-                updatedPhone,
-                item.confidence || 70,
-            ]
-        );
-
-        resolvedPersonId = insertRes.rows[0].id;
-        resolutionAction = 'edit_keep_new';
-    } else {
-        return res.status(400).json({
-            error: `Unsupported action: ${action}`,
-        });
-    }
-
-    // Persist the resolution on the originating scan job.
-    needsReview[itemIndex] = {
-        ...item,
-        resolved: true,
-        resolved_person_id: resolvedPersonId,
-        resolution_action: resolutionAction,
-        resolved_at: new Date().toISOString(),
-    };
-
-    result.needs_review = needsReview;
-
-    await pool.query(
-        `UPDATE scan_jobs
-         SET result = $1
-         WHERE id = $2
-           AND organization_id = $3`,
-        [result, scan_job_id, orgId]
-    );
-
-    return res.status(200).json({
-        success: true,
-        resolved: needsReview[itemIndex],
-    });
+export default withAdmin(async function handler(req,res){
+if(req.method!=='GET')return res.status(405).json({error:'Method not allowed'});
+const orgId=req.org.id;
+try{
+const r=await pool.query(`SELECT id,created_at,result FROM scan_jobs WHERE organization_id=$1 AND status='complete' AND result IS NOT NULL ORDER BY created_at DESC LIMIT 50`,[orgId]);
+const items=[];
+for(const row of r.rows){
+const list=Array.isArray(row.result?.needs_review)?row.result.needs_review:[];
+list.forEach((x,index)=>{
+if(x?.resolved)return;
+const candidates=Array.isArray(x.candidates)?x.candidates:[];
+const best=candidates[0]||null;
+items.push({
+id:`${row.id}:${index}`,
+scan_job_id:row.id,
+review_index:index,
+extracted_name:x.extracted_name||x.name||'Unknown person',
+extracted_phone:x.extracted_phone||null,
+status:x.status||'needs_decision',
+confidence:x.confidence??null,
+score:best?.score??x.score??0,
+reasons:x.reasons||[],
+evidence:x.evidence||[],
+candidates,
+best_candidate_id:x.best_candidate_id||best?.id||null,
+created_at:row.created_at
+});
+});
 }
-
-export default withAdmin(handler);
+return res.status(200).json({items,stats:{total:items.length,needs_decision:items.filter(x=>x.status==='needs_decision').length,conflict:items.filter(x=>x.status==='conflict').length}});
+}catch(e){
+console.error('[REVIEW ITEMS]',e);
+return res.status(500).json({error:'Unable to load identity reviews.'});
+}
+});

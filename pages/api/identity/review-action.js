@@ -1,366 +1,51 @@
 // pages/api/identity/review-action.js
-import pool from '../../../lib/db';
-import { withAdmin } from '../../../lib/apiHelpers';
+import pool from'../../../lib/db';
+import{withAdmin}from'../../../lib/apiHelpers';
 
-const MIN_MERGE_SCORE = 70;
+export default withAdmin(async function handler(req,res){
+if(req.method!=='POST')return res.status(405).json({error:'Method not allowed'});
+const{scan_job_id,review_index,action,target_person_id,new_name,new_phone}=req.body||{};
+if(!scan_job_id||review_index===undefined||!action)return res.status(400).json({error:'scan_job_id, review_index and action are required.'});
+if(!['confirm','keep_new'].includes(action))return res.status(400).json({error:'Invalid review action.'});
+const orgId=req.org.id,client=await pool.connect();
 
-async function mergePeople(
-    client,
-    survivorId,
-    mergedId,
-    orgId,
-    resolvedBy,
-    action
-) {
-    // Both people must belong to this organization and neither may already be merged.
-    const check = await client.query(
-        `SELECT id, status, living_truth
-         FROM people
-         WHERE id = ANY($1)
-           AND organization_id = $2`,
-        [[survivorId, mergedId], orgId]
-    );
+try{
+await client.query('BEGIN');
+const job=await client.query(`SELECT id,result FROM scan_jobs WHERE id=$1 AND organization_id=$2 AND status='complete' FOR UPDATE`,[scan_job_id,orgId]);
+if(!job.rows.length){await client.query('ROLLBACK');return res.status(404).json({error:'Scan review not found.'})}
+const result=job.rows[0].result||{},list=Array.isArray(result.needs_review)?result.needs_review:[];
+const index=Number(review_index);
+if(!Number.isInteger(index)||index<0||index>=list.length){await client.query('ROLLBACK');return res.status(404).json({error:'Review item not found.'})}
+const item=list[index];
+if(item?.resolved){await client.query('ROLLBACK');return res.status(400).json({error:'This review has already been resolved.'})}
 
-    if (check.rows.length !== 2) {
-        throw new Error('One or both persons not found');
-    }
+let personId=null;
 
-    for (const row of check.rows) {
-        if (row.status === 'merged') {
-            throw new Error(`Person ${row.id} is already merged`);
-        }
-
-        if (row.living_truth?.merged_into) {
-            throw new Error(`Person ${row.id} is already merged`);
-        }
-    }
-
-    /*
-     * Preserve historical participation under the surviving identity.
-     * The participation schema uses person_id as the identity reference.
-     */
-    await client.query(
-        `UPDATE participation_records
-         SET person_id = $1
-         WHERE person_id = $2
-           AND organization_id = $3`,
-        [survivorId, mergedId, orgId]
-    );
-
-    // Preserve historical timeline events under the surviving identity.
-    await client.query(
-        `UPDATE timeline_events
-         SET people_id = $1
-         WHERE people_id = $2
-           AND organization_id = $3`,
-        [survivorId, mergedId, orgId]
-    );
-
-    // Preserve confirmed identity aliases.
-    await client.query(
-        `UPDATE person_aliases
-         SET person_id = $1
-         WHERE person_id = $2
-           AND organization_id = $3`,
-        [survivorId, mergedId, orgId]
-    );
-
-    // Mark the duplicate identity as merged.
-    await client.query(
-        `UPDATE people
-         SET status = 'merged'
-         WHERE id = $1
-           AND organization_id = $2`,
-        [mergedId, orgId]
-    );
-
-    // Record the canonical survivor state.
-    const survivorTruth = {
-        status: 'alive',
-        confidence: 100,
-        resolved_by_human: true,
-        resolved_at: new Date().toISOString(),
-        resolved_by: resolvedBy,
-        action_taken: action,
-        merged_from: mergedId,
-        source: 'human_resolved',
-    };
-
-    await client.query(
-        `UPDATE people
-         SET living_truth = $1
-         WHERE id = $2
-           AND organization_id = $3`,
-        [survivorTruth, survivorId, orgId]
-    );
-
-    // Keep an explicit historical record on the merged identity.
-    const mergedTruth = {
-        status: 'merged',
-        merged_into: survivorId,
-        resolved_by_human: true,
-        resolved_at: new Date().toISOString(),
-        resolved_by: resolvedBy,
-        action_taken: action,
-        source: 'human_resolved',
-    };
-
-    await client.query(
-        `UPDATE people
-         SET living_truth = $1
-         WHERE id = $2
-           AND organization_id = $3`,
-        [mergedTruth, mergedId, orgId]
-    );
+if(action==='confirm'){
+if(!target_person_id){await client.query('ROLLBACK');return res.status(400).json({error:'Choose the person this scan belongs to.'})}
+const p=await client.query(`SELECT id,first_name,last_name FROM people WHERE id=$1 AND organization_id=$2 AND status='active' LIMIT 1`,[target_person_id,orgId]);
+if(!p.rows.length){await client.query('ROLLBACK');return res.status(404).json({error:'Selected person was not found.'})}
+personId=target_person_id;
+const alias=String(item.extracted_name||'').trim();
+if(alias){
+await client.query(`INSERT INTO person_aliases(organization_id,person_id,alias,created_by) SELECT $1,$2,$3,$4 WHERE NOT EXISTS(SELECT 1 FROM person_aliases WHERE organization_id=$1 AND person_id=$2 AND lower(alias)=lower($3))`,[orgId,personId,alias,req.user.id]);
+}
+await client.query(`UPDATE people SET confidence=GREATEST(confidence,90),updated_at=NOW() WHERE id=$1 AND organization_id=$2`,[personId,orgId]);
+}else{
+const cleanName=String(new_name||item.extracted_name||'').trim();
+if(!cleanName||cleanName.length>160){await client.query('ROLLBACK');return res.status(400).json({error:'A valid name is required.'})}
+const p=await client.query(`INSERT INTO people(organization_id,first_name,phone,type,status,confidence,source,created_by,last_scan_job_id,living_truth) VALUES($1,$2,$3,'visitor','active',$4,'scan',$5,$6,$7) RETURNING id`,[orgId,cleanName,String(new_phone||item.extracted_phone||'').trim()||null,Number(item.confidence)||70,req.user.id,scan_job_id,JSON.stringify({status:'alive',source:'human_review',updated_at:new Date().toISOString()})]);
+personId=p.rows[0].id;
 }
 
-async function keepSeparate(
-    client,
-    personId,
-    matchedId,
-    orgId,
-    resolvedBy,
-    action
-) {
-    const check = await client.query(
-        `SELECT id, status
-         FROM people
-         WHERE id = ANY($1)
-           AND organization_id = $2`,
-        [[personId, matchedId], orgId]
-    );
-
-    if (check.rows.length !== 2) {
-        throw new Error('One or both persons not found');
-    }
-
-    for (const row of check.rows) {
-        if (row.status === 'merged') {
-            throw new Error(`Person ${row.id} is already merged`);
-        }
-    }
-
-    const resolvedAt = new Date().toISOString();
-
-    const keepTruth = (otherId) => ({
-        status: 'alive',
-        confidence: 100,
-        resolved_by_human: true,
-        resolved_at: resolvedAt,
-        resolved_by: resolvedBy,
-        action_taken: action,
-        source: 'human_resolved',
-        reviewed_with: otherId,
-    });
-
-    await client.query(
-        `UPDATE people
-         SET living_truth = $1
-         WHERE id = $2
-           AND organization_id = $3`,
-        [keepTruth(matchedId), personId, orgId]
-    );
-
-    await client.query(
-        `UPDATE people
-         SET living_truth = $1
-         WHERE id = $2
-           AND organization_id = $3`,
-        [keepTruth(personId), matchedId, orgId]
-    );
-}
-
-async function handler(req, res) {
-    if (req.method !== 'POST') return res.status(405).end();
-
-    const {
-        person_id,
-        matched_person_id,
-        action,
-        resolved_by,
-    } = req.body;
-
-    if (!person_id || !matched_person_id || !action) {
-        return res.status(400).json({
-            error: 'Missing required fields',
-        });
-    }
-
-    if (person_id === matched_person_id) {
-        return res.status(400).json({
-            error: 'A person cannot be matched with themselves',
-        });
-    }
-
-    if (!['merge', 'keep_separate'].includes(action)) {
-        return res.status(400).json({
-            error: 'Invalid action',
-        });
-    }
-
-    const orgId = req.org.id;
-    const resolver = resolved_by || req.user?.name || 'system';
-    const client = await pool.connect();
-
-    try {
-        await client.query('BEGIN');
-
-        // Fetch both identities within the authenticated organization.
-        const personRes = await client.query(
-            `SELECT living_truth, status
-             FROM people
-             WHERE id = $1
-               AND organization_id = $2`,
-            [person_id, orgId]
-        );
-
-        const matchedRes = await client.query(
-            `SELECT living_truth, status
-             FROM people
-             WHERE id = $1
-               AND organization_id = $2`,
-            [matched_person_id, orgId]
-        );
-
-        if (
-            personRes.rows.length === 0 ||
-            matchedRes.rows.length === 0
-        ) {
-            await client.query('ROLLBACK');
-            return res.status(404).json({
-                error: 'Person not found',
-            });
-        }
-
-        const personLT = personRes.rows[0].living_truth;
-        const matchedLT = matchedRes.rows[0].living_truth;
-        const personStatus = personRes.rows[0].status;
-        const matchedStatus = matchedRes.rows[0].status;
-
-        if (
-            personStatus === 'merged' ||
-            matchedStatus === 'merged'
-        ) {
-            await client.query('ROLLBACK');
-            return res.status(400).json({
-                error: 'One of the persons is already merged',
-            });
-        }
-
-        const review =
-            personLT?.review ||
-            matchedLT?.review ||
-            {};
-
-        const score = review.score || 0;
-        const reasons = review.reasons || [];
-        const evidence = review.evidence || [];
-        const ariaDecision =
-            personLT?.status ||
-            matchedLT?.status ||
-            'needs_decision';
-
-        // High-confidence merge requires evidence.
-        if (action === 'merge') {
-            if (score < MIN_MERGE_SCORE) {
-                await client.query('ROLLBACK');
-                return res.status(400).json({
-                    error: `Merge blocked: confidence score (${score}) below minimum (${MIN_MERGE_SCORE}). Please review manually.`,
-                });
-            }
-
-            if (reasons.length === 0) {
-                await client.query('ROLLBACK');
-                return res.status(400).json({
-                    error: 'Merge blocked: no evidence provided. Cannot merge without evidence.',
-                });
-            }
-        }
-
-        // Store the human identity-resolution decision for future learning.
-        await client.query(
-            `INSERT INTO aria_learning
-             (
-                organization_id,
-                source_person_id,
-                candidate_person_id,
-                aria_score,
-                aria_decision,
-                human_decision,
-                reviewed_at,
-                resolved_by,
-                evidence,
-                reasons
-             )
-             VALUES ($1,$2,$3,$4,$5,$6,NOW(),$7,$8,$9)`,
-            [
-                orgId,
-                person_id,
-                matched_person_id,
-                score,
-                ariaDecision,
-                action,
-                resolver,
-                JSON.stringify(evidence),
-                JSON.stringify(reasons),
-            ]
-        );
-
-        if (action === 'merge') {
-            await mergePeople(
-                client,
-                person_id,
-                matched_person_id,
-                orgId,
-                resolver,
-                action
-            );
-        } else {
-            await keepSeparate(
-                client,
-                person_id,
-                matched_person_id,
-                orgId,
-                resolver,
-                action
-            );
-        }
-
-        // Identity resolution closes unresolved engagement cases for both identities.
-        await client.query(
-            `UPDATE engagement_cases
-             SET resolved = true,
-                 updated_at = NOW()
-             WHERE person_id = ANY($1)
-               AND organization_id = $2
-               AND resolved = false`,
-            [[person_id, matched_person_id], orgId]
-        );
-
-        await client.query('COMMIT');
-
-        return res.status(200).json({
-            success: true,
-            action,
-        });
-    } catch (err) {
-        try {
-            await client.query('ROLLBACK');
-        } catch (rollbackError) {
-            console.error(
-                'Identity review rollback failed:',
-                rollbackError
-            );
-        }
-
-        console.error('Review action error:', err);
-
-        return res.status(500).json({
-            error: err.message,
-        });
-    } finally {
-        client.release();
-    }
-}
-
-export default withAdmin(handler);
+list[index]={...item,resolved:true,resolved_person_id:personId,resolution_action:action,resolved_at:new Date().toISOString()};
+result.needs_review=list;
+await client.query(`UPDATE scan_jobs SET result=$1 WHERE id=$2 AND organization_id=$3`,[result,scan_job_id,orgId]);
+await client.query('COMMIT');
+return res.status(200).json({success:true,resolved:list[index]});
+}catch(e){
+try{await client.query('ROLLBACK')}catch{}
+console.error('[REVIEW ACTION]',e);
+return res.status(500).json({error:'Unable to resolve this identity review.'});
+}finally{client.release()}
+});

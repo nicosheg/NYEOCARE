@@ -22,8 +22,7 @@ fetch('/api/daily-briefing/latest',{headers:h}),
 fetch('/api/attendance/active-session',{headers:h}),
 fetch('/api/identity/review-items',{headers:h})
 ]);
-if(!a.ok)throw Error('ARIA Today failed to load');
-setData(await a.json());
+if(a.ok)setData(await a.json());
 if(b.ok){const d=await b.json();setLive(!!d.active)}
 if(c.ok){const d=await c.json();setReviewCount(Number(d.stats?.total)||d.items?.length||0)}
 }catch(e){console.error('[ARIA Today]',e)}finally{setLoading(false)}
@@ -97,7 +96,7 @@ return <Layout>
 }
 
 function ActionButton({icon,title,detail,onClick,active,attention}){
-return <button style={{...tool, ...(active?toolActive:{}),...(attention?toolAttention:{})}} onClick={onClick}>
+return <button style={{...tool,...(active?toolActive:{}),...(attention?toolAttention:{})}} onClick={onClick}>
 <span style={toolIcon}>{icon}</span>
 <span style={{flex:1,textAlign:'left'}}><b>{title}</b><small>{detail}</small></span>
 <span style={toolArrow}>›</span>
@@ -108,10 +107,22 @@ function AriaExperience({data,briefing,brief,setBrief,onClose}){
 const items=data.briefing?.items||[];
 return <div style={overlay}>
 <div style={experience}>
-<header style={header}><button style={close} onClick={onClose}>×</button><div><div style={eyebrow}>ARIA · TODAY</div><div style={org}>{data.organization?.name||'Your organization'}</div></div></header>
+<header style={header}>
+<button style={close} onClick={onClose}>×</button>
+<div><div style={eyebrow}>ARIA · TODAY</div><div style={org}>{data.organization?.name||'Your organization'}</div></div>
+</header>
 <div style={content}>
-{!brief&&<section style={ask}><div style={ariaMark}>ARIA</div><h1>{data.notification?.hasSomething?'I have something for you today.':'I’m keeping watch today.'}</h1><p>{data.briefing?.headline||'Nothing needs your immediate attention right now.'}</p>{data.notification?.hasSomething?<div style={choice}><button style={primary} onClick={()=>setBrief(true)}>Yes, brief me</button><button style={secondary} onClick={onClose}>Not now</button></div>:<button style={secondary} onClick={onClose}>Close</button>}</section>}
-{brief&&<section><div style={briefHeader}><div style={ariaMark}>ARIA</div><div><div style={small}>DAILY BRIEFING</div><h1>Here is what matters today.</h1></div></div><AriaVoice briefingText={briefing}/><div style={queue}>{items.map((item,i)=><Priority key={`${item.category||'item'}:${item.id||item.person_id||i}`} item={item} index={i}/>)}{!items.length&&<div style={quiet}>ARIA has nothing urgent to bring to you right now. I’ll keep watching.</div>}</div></section>}
+{!brief&&<section style={ask}>
+<div style={ariaMark}>ARIA</div>
+<h1>{data.notification?.hasSomething?'I have something for you today.':'I’m keeping watch today.'}</h1>
+<p>{data.briefing?.headline||'Nothing needs your immediate attention right now.'}</p>
+{data.notification?.hasSomething?<div style={choice}><button style={primary} onClick={()=>setBrief(true)}>Yes, brief me</button><button style={secondary} onClick={onClose}>Not now</button></div>:<button style={secondary} onClick={onClose}>Close</button>}
+</section>}
+{brief&&<section>
+<div style={briefHeader}><div style={ariaMark}>ARIA</div><div><div style={small}>DAILY BRIEFING</div><h1>Here is what matters today.</h1></div></div>
+<AriaVoice briefingText={briefing}/>
+<div style={queue}>{items.map((item,i)=><Priority key={`${item.category||'item'}:${item.id||item.person_id||i}`} item={item} index={i}/>)}{!items.length&&<div style={quiet}>ARIA has nothing urgent to bring to you right now. I’ll keep watching.</div>}</div>
+</section>}
 </div>
 </div>
 </div>
@@ -121,7 +132,14 @@ function Priority({item,index}){
 const name=item.first_name||item.last_name?`${item.first_name||''} ${item.last_name||''}`.trim():'';
 const category=item.category==='care'?'CARE':item.category==='relationship'?'RELATIONSHIP':'PEOPLE';
 const detail=item.evidence?.summary||item.metadata?.summary||item.action_metadata?.summary||item.type||'ARIA noticed something worth your attention.';
-return <article style={priorityCard}><div style={number}>{String(index+1).padStart(2,'0')}</div><div style={{flex:1}}><div style={label}>{category}</div><h2>{name||'Something needs attention'}</h2><p>{detail}</p></div></article>
+return <article style={priorityCard}>
+<div style={number}>{String(index+1).padStart(2,'0')}</div>
+<div style={{flex:1}}>
+<div style={label}>{category}</div>
+<h2>{name||'Something needs attention'}</h2>
+<p>{detail}</p>
+</div>
+</article>
 }
 
 const shell={maxWidth:860,margin:'0 auto',padding:'34px 20px 90px',minHeight:'calc(100vh - 80px)'};
@@ -143,9 +161,8 @@ const toolActive={background:'rgba(255,255,255,.08)',borderColor:'rgba(255,255,2
 const toolAttention={borderColor:'rgba(212,175,55,.3)'};
 const toolIcon={width:31,height:31,borderRadius:11,display:'grid',placeItems:'center',background:'rgba(255,255,255,.06)',color:'rgba(255,255,255,.7)',fontSize:17,flexShrink:0};
 const toolArrow={fontSize:20,color:'rgba(255,255,255,.25)'};
-const comingSoon={margin:'34px 0 0;padding:'26px 22px;border-radius:26px;border:1px solid rgba(143,183,255,.1);background:linear-gradient(145deg,rgba(143,183,255,.045),rgba(255,255,255,.018))};
+const comingSoon={margin:'34px 0 0',padding:'26px 22px',borderRadius:26,border:'1px solid rgba(143,183,255,.1)',background:'linear-gradient(145deg,rgba(143,183,255,.045),rgba(255,255,255,.018))'};
 const comingEyebrow={fontSize:10,letterSpacing:2,color:'#8fb7ff'};
-const comingSoonH={};
 const modalOverlay={position:'fixed',inset:0,zIndex:3000,background:'rgba(2,5,12,.78)',backdropFilter:'blur(18px)',padding:12};
 const reviewShell={height:'100%',maxWidth:960,margin:'0 auto',overflow:'auto'};
 const overlay={position:'fixed',inset:0,zIndex:2000,background:'rgba(3,7,18,.82)',backdropFilter:'blur(22px)',padding:12};
@@ -155,7 +172,6 @@ const close={width:40,height:40,border:0,borderRadius:'50%',background:'rgba(255
 const org={fontSize:15,color:'#f5f5f5',fontWeight:550};
 const content={padding:'30px 22px 70px'};
 const ask={maxWidth:680,margin:'9vh auto 0'};
-const ariaMark={fontSize:12,letterSpacing:2,textTransform:'uppercase',color:'rgba(255,255,255,.38)',marginBottom:12};
 const choice={display:'flex',gap:10,flexWrap:'wrap',marginTop:26};
 const primary={border:0,borderRadius:999,padding:'12px 20px',background:'#f5f5f5',color:'#0a1128',fontWeight:600,cursor:'pointer'};
 const secondary={border:'1px solid rgba(255,255,255,.12)',borderRadius:999,padding:'12px 20px',background:'rgba(255,255,255,.05)',color:'#fff',cursor:'pointer'};

@@ -1,69 +1,69 @@
 // components/Layout.js
-import Link from'next/link';
-import{useRouter}from'next/router';
+import Link from 'next/link';
+import { useRouter } from 'next/router';
 
-export default function Layout({children}){
-const router=useRouter();
-const isActive=path=>router.pathname===path||(path!=='/'&&router.pathname.startsWith(path));
-return <>
-<svg width="0" height="0" aria-hidden="true" style={{position:'absolute'}}>
-<defs>
-<filter id="nyoGoo" x="-50%" y="-50%" width="200%" height="200%" colorInterpolationFilters="sRGB">
-<feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur"/>
-<feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0 24 -10" result="goo"/>
-<feBlend in="goo" in2="SourceGraphic" mode="normal"/>
-</filter>
-<filter id="nyoGlow" x="-100%" y="-100%" width="300%" height="300%">
-<feGaussianBlur stdDeviation="7" result="blur"/>
-<feColorMatrix in="blur" type="matrix" values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 .8 0"/>
-</filter>
-</defs>
-</svg>
+export default function Layout({ children }) {
+  const router = useRouter();
+  const isActive = path => router.pathname === path || (path !== '/' && router.pathname.startsWith(path));
+  return <>
+    <svg width="0" height="0" aria-hidden="true" style={{ position: 'absolute' }}>
+      <defs>
+        {/* stronger blur + sharper alpha cutoff = thicker, more pronounced liquid pinch */}
+        <filter id="nyoGoo" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="13" result="blur" />
+          <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 26 -11" result="goo" />
+          <feComposite in="SourceGraphic" in2="goo" operator="atop" />
+        </filter>
+      </defs>
+    </svg>
 
-<div className="livingCanvas" aria-hidden="true"><div className="skyGlow"/><div className="cloud cloudA"/><div className="cloud cloudB"/><div className="cloud cloudC"/><div className="cloud cloudD"/><div className="skyVignette"/></div>
+    <div className="livingCanvas" aria-hidden="true"><div className="skyGlow" /><div className="cloud cloudA" /><div className="cloud cloudB" /><div className="cloud cloudC" /><div className="cloud cloudD" /><div className="skyVignette" /></div>
 
-<div className="ariaBrand" aria-hidden="true">ARIA</div>
+    <div className="ariaBrand" aria-hidden="true">ARIA</div>
 
-<nav className="ariaNav" aria-label="Primary navigation">
-<div className="ariaNavInner">
+    <nav className="ariaNav" aria-label="Primary navigation">
+      <div className="ariaNavInner">
 
-<div className="gooFusion" aria-hidden="true">
-<span className={`gooNode gooNodeLeft ${isActive('/')?'active':''}`}><span className="gooShine"/><span className="gooRim"/></span>
-<span className={`gooNode gooNodeCenter ${isActive('/people')?'active':''}`}><span className="gooShine"/><span className="gooRim"/></span>
-<span className={`gooNode gooNodeRight ${isActive('/profile')?'active':''}`}><span className="gooShine"/><span className="gooRim"/></span>
-</div>
+        {/* GLASS LAYER — the real visible bubbles, goo-fused into one liquid shape */}
+        <div className="gooFusion" aria-hidden="true">
+          <span className="gooNode gooNodeLeft" />
+          <span className="gooNode gooNodeCenter" />
+          <span className="gooNode gooNodeRight" />
+        </div>
 
-<div className="gooAmbient" aria-hidden="true">
-<span className="ambientLeft"/>
-<span className="ambientCenter"/>
-<span className="ambientRight"/>
-</div>
+        {/* ICON LAYER — transparent, sits exactly on top of the glass layer via matching flex geometry */}
+        <div className="navIconRow">
+          <Link href="/" aria-label="Home" className={`navBubble navBubbleLeft ${isActive('/') ? 'active' : ''}`}>
+            <span className="navRay" /><span className="navCore" />
+            <span className="navIcon">
+              <svg viewBox="0 0 24 24"><path d="M3.5 10.8 12 3.7l8.5 7.1M5.5 9.5v10h13v-10M9.2 19.5v-5.8h5.6v5.8" /></svg>
+            </span>
+          </Link>
 
-<Link href="/" aria-label="Home" className={`navBubble navBubbleLeft ${isActive('/')?'active':''}`}>
-<span className="navIcon">
-<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 10.8 12 3.7l8.5 7.1M5.5 9.5v10h13v-10M9.2 19.5v-5.8h5.6v5.8"/></svg>
-</span>
-</Link>
+          <Link href="/people" aria-label="People" className={`navBubble navBubbleCenter ${isActive('/people') ? 'active' : ''}`}>
+            <span className="navRay" /><span className="navCore" />
+            <span className="navIcon">
+              {/* two overlapping figures — reads clearly as "people", distinct from Profile's single figure */}
+              <svg viewBox="0 0 24 24"><circle cx="8.5" cy="8" r="2.6" /><path d="M3.5 19c.5-3.2 2.3-4.8 5-4.8s4.5 1.6 5 4.8" /><circle cx="16.2" cy="9" r="2.1" /><path d="M14.3 14.6c.5-.3 1.1-.4 1.9-.4 2.4 0 3.9 1.4 4.3 4" /></svg>
+            </span>
+            <span className="ariaHalo" />
+          </Link>
 
-<Link href="/people" aria-label="People" className={`navBubble navBubbleCenter ${isActive('/people')?'active':''}`}>
-<span className="navIcon">
-<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8.5" r="3"/><path d="M3.5 19c.5-3.2 2.4-5 5.5-5s5 1.8 5.5 5"/><path d="M15.4 6.5a2.6 2.6 0 1 1 0 5.2"/><path d="M15.2 14c2.5.3 4.1 1.8 4.8 5"/></svg>
-</span>
-<span className="ariaHalo"/>
-</Link>
+          <Link href="/profile" aria-label="Profile" className={`navBubble navBubbleRight ${isActive('/profile') ? 'active' : ''}`}>
+            <span className="navRay" /><span className="navCore" />
+            <span className="navIcon">
+              {/* pointing hand — "you", the pointing-finger gesture translated to line art */}
+              <svg viewBox="0 0 24 24"><path d="M9 12.5V5.2a1.6 1.6 0 0 1 3.2 0v6.3M12.2 11.3V4.4a1.6 1.6 0 0 1 3.2 0v7M15.4 11.6V6.6a1.6 1.6 0 0 1 3.2 0v8.4c0 4-2.6 6.5-6.4 6.5-2.2 0-3.6-.7-4.9-2.3l-3.4-4.2a1.5 1.5 0 0 1 2.3-1.9l1.8 1.9" /></svg>
+            </span>
+          </Link>
+        </div>
 
-<Link href="/profile" aria-label="Profile" className={`navBubble navBubbleRight ${isActive('/profile')?'active':''}`}>
-<span className="navIcon navHand">
-<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11.1 5.2c0-1 .7-1.8 1.7-1.8s1.7.8 1.7 1.8v5.1l.7-1.1c.5-.8 1.6-1.1 2.4-.6.8.5 1 1.5.6 2.3l-1.1 2c-.5.9-.7 1.4-.7 2.1 0 2.4-1.9 4.3-4.3 4.3h-1.2c-1.4 0-2.7-.5-3.7-1.5l-3.6-3.6c-.7-.7-.7-1.8 0-2.5.7-.7 1.8-.7 2.5 0l2.1 2.1V7.5c0-1 .7-1.8 1.7-1.8s1.7.8 1.7 1.8v2.1-4.4Z"/><path d="M14.5 10.4V7.1c0-1 .7-1.8 1.7-1.8s1.7.8 1.7 1.8v4.1"/><path d="M8.8 13.8V6.8c0-1 .7-1.8 1.7-1.8s1.7.8 1.7 1.8v4.9"/></svg>
-</span>
-</Link>
+      </div>
+    </nav>
 
-</div>
-</nav>
+    <main className="mainContent">{children}</main>
 
-<main className="mainContent">{children}</main>
-
-<style jsx global>{`
+    <style jsx global>{`
 *{box-sizing:border-box}
 html,body,#__next{min-height:100%;margin:0}
 body{background:#050a14;color:#edf3fb}
@@ -79,47 +79,37 @@ body{background:#050a14;color:#edf3fb}
 
 .ariaBrand{position:fixed;top:105px;left:50%;transform:translateX(-50%);z-index:2;pointer-events:none;user-select:none;font-size:clamp(42px,11vw,92px);line-height:1;font-weight:700;letter-spacing:.16em;padding-left:.16em;color:rgba(229,236,248,.13);-webkit-text-stroke:1px rgba(255,255,255,.08);text-shadow:0 0 18px rgba(180,205,235,.06),0 0 48px rgba(91,130,180,.045);opacity:.85;animation:ariaBreath 18s ease-in-out infinite}
 
-.ariaNav{position:fixed;top:14px;left:0;right:0;z-index:999;width:100%;height:92px;display:flex;justify-content:center;align-items:center;pointer-events:none;animation:ariaFlight 11s ease-in-out infinite}
-.ariaNavInner{position:relative;width:226px;height:88px;display:flex;align-items:center;justify-content:center;pointer-events:auto}
+.ariaNav{position:fixed;top:14px;left:0;right:0;z-index:999;width:100%;height:88px;display:flex;justify-content:center;align-items:center;pointer-events:none}
+.ariaNavInner{position:relative;width:210px;height:86px;display:flex;align-items:center;justify-content:center;pointer-events:auto}
 
-.gooFusion{position:absolute;z-index:1;left:50%;top:50%;width:226px;height:88px;transform:translate(-50%,-50%);pointer-events:none;filter:url(#nyoGoo);overflow:visible}
-.gooNode{position:absolute;display:block;border-radius:50%;box-shadow:inset 8px 9px 19px rgba(255,255,255,.2),inset -10px -12px 24px rgba(0,0,0,.34),inset 0 -3px 10px rgba(11,25,43,.2),0 9px 28px rgba(0,0,0,.25);will-change:transform}
-.gooNodeLeft{left:4px;top:7px;width:78px;height:78px;background:radial-gradient(circle at 31% 23%,rgba(255,255,255,.48) 0,rgba(221,239,255,.3) 13%,rgba(158,193,226,.2) 29%,rgba(69,105,145,.22) 57%,rgba(17,34,56,.58) 82%,rgba(3,9,18,.72) 100%);animation:gooFloatLeft 7.8s ease-in-out infinite}
-.gooNodeCenter{left:69px;top:3px;width:86px;height:86px;background:radial-gradient(circle at 36% 24%,rgba(255,255,255,.5) 0,rgba(240,244,250,.28) 13%,rgba(185,207,230,.22) 30%,rgba(76,111,148,.22) 57%,rgba(18,34,54,.56) 82%,rgba(3,9,18,.72) 100%);animation:gooFloatCenter 8.6s ease-in-out infinite}
-.gooNodeRight{right:4px;top:7px;width:78px;height:78px;background:radial-gradient(circle at 31% 23%,rgba(255,255,255,.48) 0,rgba(221,239,255,.3) 13%,rgba(158,193,226,.2) 29%,rgba(69,105,145,.22) 57%,rgba(17,34,56,.58) 82%,rgba(3,9,18,.72) 100%);animation:gooFloatRight 8.2s ease-in-out infinite}
+/* GLASS LAYER: real spherical bubbles, fused via goo filter. Overlap increased (-30px) for a true pinched liquid waist. */
+.gooFusion{position:absolute;z-index:1;inset:0;display:flex;align-items:center;justify-content:center;filter:url(#nyoGoo);pointer-events:none}
+.gooNode{position:relative;flex:0 0 auto;border-radius:50%;background:radial-gradient(circle at 30% 22%,rgba(255,255,255,.55) 0%,rgba(255,255,255,.22) 8%,transparent 16%),radial-gradient(circle at 38% 30%,rgba(210,228,248,.28),rgba(120,155,196,.16) 40%,rgba(40,62,92,.32) 72%,rgba(4,10,20,.55) 100%);box-shadow:inset 9px 10px 20px rgba(255,255,255,.16),inset -10px -14px 26px rgba(0,0,0,.4),inset 0 0 3px rgba(255,255,255,.5),0 10px 32px rgba(0,0,0,.3)}
+.gooNodeLeft,.gooNodeRight{width:76px;height:76px;animation:bobA 7.5s ease-in-out infinite}
+.gooNodeRight{animation-name:bobC;animation-duration:9.5s}
+.gooNodeCenter{width:82px;height:82px;margin:0 -30px;background:radial-gradient(circle at 32% 24%,rgba(255,250,225,.6) 0%,rgba(255,244,190,.25) 9%,transparent 17%),radial-gradient(circle at 45% 40%,rgba(255,246,198,.2),rgba(150,125,60,.14) 42%,rgba(30,25,12,.32) 74%,rgba(4,8,16,.5) 100%);box-shadow:inset 9px 10px 20px rgba(255,255,255,.18),inset -10px -14px 26px rgba(0,0,0,.36),inset 0 0 3px rgba(255,247,214,.55),0 10px 32px rgba(0,0,0,.3);animation:bobB 8.5s ease-in-out infinite}
 
-.gooNode::before{content:"";position:absolute;inset:3px;border-radius:50%;background:radial-gradient(circle at 72% 78%,rgba(1,7,15,.36),transparent 48%),radial-gradient(circle at 38% 30%,rgba(255,255,255,.12),transparent 34%);pointer-events:none}
-.gooNode::after{content:"";position:absolute;inset:1px;border-radius:50%;border:1px solid rgba(239,248,255,.28);box-shadow:inset 0 1px 2px rgba(255,255,255,.25),0 0 12px rgba(143,188,231,.08);pointer-events:none}
-.gooNode.active{box-shadow:inset 8px 9px 19px rgba(255,255,255,.24),inset -10px -12px 24px rgba(0,0,0,.28),inset 0 0 25px rgba(212,175,55,.16),0 0 16px rgba(212,175,55,.3),0 10px 30px rgba(0,0,0,.26)}
-.gooNode.active::after{border-color:rgba(247,225,150,.55);box-shadow:inset 0 1px 2px rgba(255,255,255,.3),0 0 17px rgba(212,175,55,.18)}
+/* ICON LAYER: transparent, mirrors the flex geometry above exactly so icons land centered on each fused shape */
+.navIconRow{position:absolute;z-index:3;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.navBubble{position:relative;flex:0 0 auto;display:flex;align-items:center;justify-content:center;border-radius:50%;text-decoration:none;cursor:pointer;pointer-events:auto;width:76px;height:76px;background:transparent;transition:transform .35s cubic-bezier(.2,.8,.2,1)}
+.navBubbleLeft{animation:bobA 7.5s ease-in-out infinite}
+.navBubbleCenter{width:82px;height:82px;margin:0 -30px;animation:bobB 8.5s ease-in-out infinite}
+.navBubbleRight{animation:bobC 9.5s ease-in-out infinite}
+.navBubble:active{transform:scale(.93)}
 
-.gooShine{position:absolute;z-index:2;left:19%;top:13%;width:28%;height:13%;border-radius:50%;background:rgba(255,255,255,.34);filter:blur(3px);transform:rotate(-23deg);pointer-events:none}
-.gooNodeCenter .gooShine{left:21%;top:12%;width:27%;height:12%}
-.gooRim{position:absolute;z-index:2;inset:7%;border-radius:50%;border:1px solid rgba(214,235,255,.09);box-shadow:inset 2px 2px 6px rgba(255,255,255,.08);pointer-events:none}
+.navCore{position:absolute;z-index:1;left:50%;top:50%;width:43%;height:43%;transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(circle,rgba(255,249,211,.98),rgba(245,214,112,.86) 18%,rgba(212,175,55,.4) 44%,rgba(212,175,55,.1) 68%,transparent 100%);filter:blur(2.5px);opacity:.025;transition:opacity .45s ease,transform .45s ease}
+.navBubble.active .navCore{opacity:.98;transform:translate(-50%,-50%) scale(1.25)}
 
-.gooAmbient{position:absolute;z-index:0;left:50%;top:50%;width:226px;height:88px;transform:translate(-50%,-50%);pointer-events:none}
-.gooAmbient span{position:absolute;border-radius:50%;filter:blur(15px);background:rgba(83,135,190,.09);animation:ambientPulse 6s ease-in-out infinite}
-.ambientLeft{left:7px;top:13px;width:72px;height:72px}
-.ambientCenter{left:75px;top:8px;width:78px;height:78px;animation-delay:-2s!important}
-.ambientRight{right:7px;top:13px;width:72px;height:72px;animation-delay:-4s!important}
+.navRay{position:absolute;z-index:1;inset:-30%;border-radius:50%;pointer-events:none;opacity:0;background:conic-gradient(from 0deg,transparent 0deg,rgba(212,175,55,.2) 12deg,transparent 25deg,transparent 75deg,rgba(255,242,177,.13) 91deg,transparent 110deg,transparent 180deg,rgba(212,175,55,.17) 198deg,transparent 220deg,transparent 285deg,rgba(255,244,190,.12) 300deg,transparent 322deg,transparent 360deg);filter:blur(1px);transition:opacity .4s ease}
+.navBubble.active .navRay{opacity:1;animation:rotateRays 8s linear infinite}
 
-.navBubble{position:absolute;z-index:5;top:50%;display:flex;align-items:center;justify-content:center;width:78px;height:78px;border:0;border-radius:50%;background:transparent;box-shadow:none;text-decoration:none;cursor:pointer;overflow:visible;transform:translateY(-50%);outline:none;-webkit-tap-highlight-color:transparent}
-.navBubbleLeft{left:4px;animation:linkFloatLeft 7.8s ease-in-out infinite}
-.navBubbleCenter{left:112px;width:86px;height:86px;transform:translate(-50%,-50%);animation:linkFloatCenter 8.6s ease-in-out infinite}
-.navBubbleRight{right:4px;animation:linkFloatRight 8.2s ease-in-out infinite}
-.navBubble:focus-visible{outline:2px solid rgba(245,220,132,.8);outline-offset:5px}
-.navBubble:active{transform:translateY(-50%) scale(.94)}
-.navBubbleCenter:active{transform:translate(-50%,-50%) scale(.94)}
-
-.navIcon{position:relative;z-index:8;width:25px;height:25px;display:flex;align-items:center;justify-content:center;color:rgba(232,241,251,.86);transition:color .35s ease,filter .35s ease,transform .45s cubic-bezier(.2,.8,.2,1)}
-.navBubbleCenter .navIcon{width:29px;height:29px}
-.navHand{width:28px;height:28px}
+.navIcon{position:relative;z-index:5;width:25px;height:25px;display:flex;align-items:center;justify-content:center;color:rgba(224,235,248,.78);transition:color .35s ease,filter .35s ease,transform .35s ease}
+.navBubbleCenter .navIcon{width:27px;height:27px}
 .navIcon svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.55;stroke-linecap:round;stroke-linejoin:round}
-.navHand svg{fill:currentColor;stroke:none}
 .navBubble.active .navIcon{color:#fff3bd;filter:drop-shadow(0 0 8px rgba(255,247,214,.95)) drop-shadow(0 0 20px rgba(212,175,55,.72)) drop-shadow(0 0 34px rgba(212,175,55,.3));transform:scale(1.08)}
 
-.ariaHalo{position:absolute;z-index:1;inset:-10px;border-radius:50%;border:1px solid rgba(212,175,55,.035);box-shadow:0 0 24px rgba(212,175,55,.04);pointer-events:none;transition:all .5s ease}
-.navBubbleCenter.active .ariaHalo{inset:-14px;border-color:rgba(212,175,55,.2);box-shadow:0 0 28px rgba(212,175,55,.16),0 0 54px rgba(212,175,55,.08)}
+.ariaHalo{position:absolute;z-index:0;inset:-12px;border-radius:50%;border:1px solid rgba(212,175,55,.04);box-shadow:0 0 26px rgba(212,175,55,.05);pointer-events:none;transition:all .5s ease}
+.navBubbleCenter.active .ariaHalo{inset:-15px;border-color:rgba(212,175,55,.2);box-shadow:0 0 28px rgba(212,175,55,.16),0 0 54px rgba(212,175,55,.08)}
 
 .mainContent{position:relative;z-index:1;width:100%;min-height:100vh;padding:130px max(18px,4vw) 80px}
 
@@ -137,14 +127,10 @@ body{background:#050a14;color:#edf3fb}
 .aria-speaks{color:#e9e4d5;font-weight:400;line-height:1.7;letter-spacing:.01em}
 .shimmer{background:linear-gradient(90deg,rgba(255,255,255,.025) 25%,rgba(255,255,255,.075) 50%,rgba(255,255,255,.025) 75%);background-size:200% 100%;animation:shimmer 1.8s ease-in-out infinite}
 
-@keyframes ariaFlight{0%,100%{transform:translate3d(0,0,0)}50%{transform:translate3d(0,-5px,0)}}
-@keyframes gooFloatLeft{0%,100%{transform:translate3d(0,0,0) rotate(-1deg)}50%{transform:translate3d(1px,-2px,0) rotate(1deg)}}
-@keyframes gooFloatCenter{0%,100%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(0,-3px,0) scale(1.018)}}
-@keyframes gooFloatRight{0%,100%{transform:translate3d(0,0,0) rotate(1deg)}50%{transform:translate3d(-1px,-2px,0) rotate(-1deg)}}
-@keyframes linkFloatLeft{0%,100%{transform:translateY(-50%) rotate(-1deg)}50%{transform:translate3d(1px,-2px,0) translateY(-50%) rotate(1deg)}}
-@keyframes linkFloatCenter{0%,100%{transform:translate(-50%,-50%) scale(1)}50%{transform:translate(-50%,calc(-50% - 3px)) scale(1.018)}}
-@keyframes linkFloatRight{0%,100%{transform:translateY(-50%) rotate(1deg)}50%{transform:translate3d(-1px,-2px,0) translateY(-50%) rotate(-1deg)}}
-@keyframes ambientPulse{0%,100%{opacity:.45;transform:scale(.94)}50%{opacity:.8;transform:scale(1.05)}}
+/* independent, unsynchronized bob per bubble — different durations so they never move in unison */
+@keyframes bobA{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@keyframes bobB{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes bobC{0%,100%{transform:translateY(0)}50%{transform:translateY(-3.5px)}}
 @keyframes rotateRays{to{transform:rotate(360deg)}}
 @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
 @keyframes skyDrift{0%{transform:translate3d(-2%,-1%,0) scale(1.08)}50%{transform:translate3d(2%,1%,0) scale(1.1)}100%{transform:translate3d(-2%,-1%,0) scale(1.08)}}
@@ -158,28 +144,19 @@ body{background:#050a14;color:#edf3fb}
 
 @media(max-width:600px){
 .ariaNav{top:8px;height:78px}
-.ariaNavInner{width:190px;height:72px}
-.gooFusion{width:190px;height:72px}
-.gooNodeLeft{left:3px;top:5px;width:64px;height:64px}
-.gooNodeCenter{left:58px;top:2px;width:70px;height:70px}
-.gooNodeRight{right:3px;top:5px;width:64px;height:64px}
-.gooAmbient{width:190px;height:72px}
-.ambientLeft{left:5px;top:9px;width:60px;height:60px}
-.ambientCenter{left:63px;top:5px;width:64px;height:64px}
-.ambientRight{right:5px;top:9px;width:60px;height:60px}
+.ariaNavInner{width:178px;height:76px}
+.gooNodeLeft,.gooNodeRight{width:64px;height:64px}
+.gooNodeCenter{width:70px;height:70px;margin:0 -26px}
 .navBubble{width:64px;height:64px}
-.navBubbleLeft{left:3px}
-.navBubbleCenter{left:95px;width:70px;height:70px}
-.navBubbleRight{right:3px}
+.navBubbleCenter{width:70px;height:70px;margin:0 -26px}
 .navIcon{width:22px;height:22px}
-.navBubbleCenter .navIcon{width:24px;height:24px}
-.navHand{width:25px;height:25px}
+.navBubbleCenter .navIcon{width:23px;height:23px}
 .ariaBrand{top:92px;font-size:44px}
 .mainContent{padding:112px 16px 70px}
 .fiducia-card{padding:20px;border-radius:24px}
 }
-
 @media(min-width:601px){.ariaNavInner{transform:scale(1.05)}}
 `}</style>
-</>
-  }
+  </>
+    }
+    

@@ -1,24 +1,23 @@
 // components/ScanModal.js
 import{useState,useRef,useEffect,useCallback}from'react';
+import{useRouter}from'next/router';
 import{supabase}from'../lib/supabaseClient';
 import{getScanState,setScanState,clearScanState}from'../lib/scanStore';
 
 export default function ScanModal({isOpen,onClose}){
-const camera=useRef(null),photos=useRef(null),files=useRef(null),poll=useRef(null),timer=useRef(null);
-const[state,setState]=useState(getScanState()),[program,setProgram]=useState('GIBEON'),[message,setMessage]=useState(''),[seconds,setSeconds]=useState(0);
+const router=useRouter(),fileInputRef=useRef(null),pollRef=useRef(null),timerRef=useRef(null);
+const[programName,setProgramName]=useState('GIBEON'),[scanState,setScanStateLocal]=useState(getScanState()),[progressMessage,setProgressMessage]=useState(''),[elapsedSeconds,setElapsedSeconds]=useState(0);
 
-const stop=useCallback(()=>{if(poll.current)clearInterval(poll.current);if(timer.current)clearInterval(timer.current);poll.current=null;timer.current=null},[]);
-
-const reset=useCallback(()=>{stop();clearScanState();setState(getScanState());setMessage('');setSeconds(0)},[stop]);
-
-const update=useCallback(v=>{setScanState(v);setState(getScanState())},[]);
+const sync=useCallback(()=>setScanStateLocal(getScanState()),[]);
+const stop=useCallback(()=>{if(pollRef.current)clearInterval(pollRef.current);if(timerRef.current)clearInterval(timerRef.current);pollRef.current=null;timerRef.current=null},[]);
+const update=useCallback(v=>{setScanState(v);sync()},[sync]);
 
 const startPolling=useCallback(jobId=>{
 stop();
-let n=0;
-setSeconds(0);
-timer.current=setInterval(()=>{n+=1;setSeconds(n)},1000);
-poll.current=setInterval(async()=>{
+let seconds=0;
+setElapsedSeconds(0);
+timerRef.current=setInterval(()=>{seconds+=1;setElapsedSeconds(seconds)},1000);
+pollRef.current=setInterval(async()=>{
 try{
 const{data:{session}}=await supabase.auth.getSession();
 if(!session)return;
@@ -26,44 +25,43 @@ const r=await fetch(`/api/scan/status?job_id=${encodeURIComponent(jobId)}`,{head
 if(!r.ok)return;
 const d=await r.json();
 if(['pending','processing','retrying'].includes(d.status)){
-const msgs={enhancing:'ARIA is preparing the image…',reading_handwriting:'ARIA is reading the register…',validating:'ARIA is checking every row…',matching_community:'ARIA is comparing with your people…',retrying:'ARIA is verifying the scan…'};
-setMessage(msgs[d.progress]||d.message||'ARIA is working…');
+const messages={queued:'ARIA is preparing the register…',enhancing:'ARIA is preparing the image…',reading_handwriting:'ARIA is reading the register…',validating:'ARIA is checking every row…',matching_community:'ARIA is comparing with your people…',retrying:'ARIA is verifying the scan…'};
+setProgressMessage(messages[d.progress]||d.message||'ARIA is working…');
 }else if(d.status==='complete'){
 stop();
 const x=d.result||{};
-update({stage:'complete',summary:{total:x.total_extracted??x.total_valid??x.people?.length??0,newVisitors:x.new_members||0,returning:x.updated||0,needsReview:x.needs_review?.length||0}});
+update({stage:'complete',summary:{total:x.total_extracted??x.total_valid??x.people?.length??0,newVisitors:x.new_members||0,returning:x.updated||0,duplicates:x.duplicates||0,needsReview:x.needs_review?.length||0}});
 }else if(d.status==='failed'){
 stop();
-update({stage:'error',message:d.message||'Scan failed'});
+update({stage:'error',message:d.message||'ARIA was unable to read the register.'});
 }
-}catch(e){console.error('[SCAN POLL]',e)}
+}catch(err){console.error('[SCAN POLL]',err)}
 },1500);
 },[stop,update]);
 
-useEffect(()=>{if(!isOpen)return;setState(getScanState());return()=>stop()},[isOpen,stop]);
-useEffect(()=>()=>stop(),[stop]);
+useEffect(()=>{const current=getScanState();setScanStateLocal(current);if(current.stage==='processing'&&current.jobId)startPolling(current.jobId);return()=>stop()},[startPolling,stop]);
 
-const preprocess=file=>new Promise((resolve,reject)=>{
-if(!file||!file.type?.startsWith('image/'))return reject(Error('Please select an image.'));
+const preprocessImage=file=>new Promise((resolve,reject)=>{
+if(!file||!file.type?.startsWith('image/'))return reject(Error('Please select an image of the register.'));
 const reader=new FileReader();
 reader.onload=e=>{
 const img=new Image();
 img.onload=()=>{
-const max=2800,scale=Math.min(1,max/Math.max(img.width,img.height)),w=Math.max(1,Math.round(img.width*scale)),h=Math.max(1,Math.round(img.height*scale)),canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');
+const max=2800,scale=Math.min(1,max/Math.max(img.width,img.height)),width=Math.max(1,Math.round(img.width*scale)),height=Math.max(1,Math.round(img.height*scale)),canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');
 if(!ctx)return reject(Error('Image preparation failed.'));
-canvas.width=w;
-canvas.height=h;
+canvas.width=width;
+canvas.height=height;
 ctx.imageSmoothingEnabled=true;
 ctx.imageSmoothingQuality='high';
-ctx.drawImage(img,0,0,w,h);
-const data=canvas.toDataURL('image/jpeg',.94).split(',')[1];
-if(!data)return reject(Error('Image encoding failed.'));
-resolve(data);
+ctx.drawImage(img,0,0,width,height);
+const base64=canvas.toDataURL('image/jpeg',.94).split(',')[1];
+if(!base64||base64.length<100)return reject(Error('Image encoding failed.'));
+resolve(base64);
 };
-img.onerror=()=>reject(Error('Could not read this image.'));
+img.onerror=()=>reject(Error('Could not read the selected image.'));
 img.src=e.target.result;
 };
-reader.onerror=()=>reject(Error('Could not read this file.'));
+reader.onerror=()=>reject(Error('Could not read the selected file.'));
 reader.readAsDataURL(file);
 });
 
@@ -71,86 +69,110 @@ const handleFile=async e=>{
 const file=e.target.files?.[0];
 e.target.value='';
 if(!file)return;
-setScanState({stage:'processing',jobId:null,scanningLine:false,message:''});
-setState(getScanState());
-setMessage('ARIA is preparing the image…');
+update({stage:'processing',scanningLine:true,jobId:null,message:''});
+setProgressMessage('ARIA is preparing the image…');
 try{
-const base64=await preprocess(file);
+const base64=await preprocessImage(file);
 const{data:{session}}=await supabase.auth.getSession();
-if(!session)throw Error('You must be logged in.');
-const r=await fetch('/api/scan/start',{
-method:'POST',
-headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},
-body:JSON.stringify({image_base64:base64,program_name:program.trim()||'GIBEON'})
-});
-const d=await r.json();
-if(!r.ok)throw Error(d.error||'Could not start scan.');
-update({stage:'processing',jobId:d.job_id,scanningLine:true});
-startPolling(d.job_id);
-}catch(e){
-console.error('[SCAN START]',e);
-update({stage:'error',message:e.message||'Could not process the image.'});
+if(!session)throw Error('You must be logged in to scan.');
+const r=await fetch('/api/scan/start',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},body:JSON.stringify({image_base64:base64,program_name:programName.trim()||'GIBEON'})});
+const data=await r.json();
+if(!r.ok)throw Error(data.error||'Failed to start scan.');
+if(!data.job_id)throw Error('ARIA did not return a scan job.');
+update({stage:'processing',jobId:data.job_id,scanningLine:true});
+startPolling(data.job_id);
+}catch(err){
+console.error('[SCAN START]',err);
+stop();
+update({stage:'error',message:err.message||'ARIA could not process the register.'});
 }
 };
 
+const handleClose=()=>{stop();clearScanState();onClose()};
 if(!isOpen)return null;
-const s=state||{},summary=s.summary;
 
-return <div style={overlay}>
-<div style={modal}>
-<button style={close} onClick={()=>{reset();onClose()}}>×</button>
-<div style={inner}>
-{s.stage==='idle'&&<>
-<div style={eyebrow}>NYEOCARE · SCAN</div>
-<h1 style={title}>Add a register.</h1>
-<p style={sub}>Choose how you want to give ARIA the register.</p>
-<input value={program} onChange={e=>setProgram(e.target.value)} placeholder="Program / event name" style={inputStyle}/>
-<div style={sourceGrid}>
-<button style={source} onClick={()=>camera.current?.click()}><span style={sourceIcon}>⌾</span><strong>Camera</strong><small>Take a new photo</small></button>
-<button style={source} onClick={()=>photos.current?.click()}><span style={sourceIcon}>▧</span><strong>Photos</strong><small>Choose from gallery</small></button>
-<button style={source} onClick={()=>files.current?.click()}><span style={sourceIcon}>□</span><strong>Files</strong><small>Choose an image file</small></button>
+const{stage,summary,message}=scanState;
+
+return <div className="scan-modal-overlay" onClick={handleClose}>
+<div className="scan-modal" onClick={e=>e.stopPropagation()}>
+<button className="scan-modal-close" onClick={handleClose}>×</button>
+<div className="scan-content">
+<div className="scan-eyebrow">ARIA · SCAN</div>
+<h1>Remember people.</h1>
+<p className="scan-subtitle">Capture the full register clearly. ARIA will verify what it sees.</p>
+
+{stage==='idle'&&<>
+<div className="program-wrap">
+<label>Program / Event Name</label>
+<input type="text" value={programName} onChange={e=>setProgramName(e.target.value)} placeholder="e.g. GIBEON"/>
 </div>
-<input ref={camera} type="file" accept="image/*" capture="environment" onChange={handleFile} hidden/>
-<input ref={photos} type="file" accept="image/*" onChange={handleFile} hidden/>
-<input ref={files} type="file" accept="image/*,.jpg,.jpeg,.png,.webp" onChange={handleFile} hidden/>
-<p style={hint}>Photos, screenshots and supported image files are all accepted.</p>
+<div className="scan-tip">Ensure the full page is visible — no torn, folded, or cut-off edges — and good lighting.</div>
+<button className="scan-primary" onClick={()=>fileInputRef.current?.click()}>Take Photo of Register</button>
+<input ref={fileInputRef} type="file" accept="image/*" onChange={handleFile} hidden/>
+<p className="scan-hint">Chrome will open its normal camera and file chooser.</p>
 </>}
-{s.stage==='processing'&&<div style={status}>
-<div style={pulse}>A</div>
-<strong>{message||'ARIA is working…'}</strong>
-<span>{seconds}s</span>
-</div>}
-{s.stage==='complete'&&summary&&<div style={result}>
-<div style={success}>People memory updated.</div>
-<strong>{summary.total} people processed.</strong>
-<span>{summary.newVisitors} new · {summary.returning} recognised{summary.needsReview?` · ${summary.needsReview} need review`:''}</span>
-<button style={secondary} onClick={reset}>Scan another</button>
-</div>}
-{s.stage==='error'&&<div style={result}>
-<div style={error}>Scan could not be completed.</div>
-<p>{s.message||'Please try again with a clearer image.'}</p>
-<button style={secondary} onClick={reset}>Try again</button>
-</div>}
-</div>
-</div>
-</div>
-}
 
-const overlay={position:'fixed',inset:0,zIndex:4000,background:'rgba(2,6,16,.82)',backdropFilter:'blur(20px)',padding:14};
-const modal={position:'relative',height:'100%',maxWidth:620,margin:'0 auto',borderRadius:30,border:'1px solid rgba(255,255,255,.1)',background:'#0a1128',overflow:'auto',color:'#fff'};
-const close={position:'absolute',right:18,top:18,width:40,height:40,border:0,borderRadius:'50%',background:'rgba(255,255,255,.07)',color:'#fff',fontSize:25,cursor:'pointer'};
-const inner={maxWidth:500,margin:'0 auto',padding:'70px 24px 50px',textAlign:'center'};
-const eyebrow={fontSize:10,letterSpacing:2.5,color:'rgba(255,255,255,.35)',marginBottom:12};
-const title={fontSize:'clamp(36px,9vw,52px)',letterSpacing:'-.04em',margin:'0 0 10px',fontWeight:600};
-const sub={color:'rgba(255,255,255,.45)',lineHeight:1.6,margin:'0 auto 22px'};
-const inputStyle={width:'100%',padding:'14px 16px',margin:'0 0 22px',borderRadius:15,border:'1px solid rgba(255,255,255,.1)',background:'rgba(255,255,255,.04)',color:'#fff',outline:'none',boxSizing:'border-box'};
-const sourceGrid={display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10};
-const source={minHeight:150,padding:'20px 10px',borderRadius:22,border:'1px solid rgba(255,255,255,.09)',background:'rgba(255,255,255,.035)',color:'#fff',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8,cursor:'pointer'};
-const sourceIcon={width:50,height:50,borderRadius:18,display:'grid',placeItems:'center',background:'rgba(255,255,255,.065)',border:'1px solid rgba(255,255,255,.08)',fontSize:25,color:'rgba(255,255,255,.75)'};
-const hint={fontSize:12,color:'rgba(255,255,255,.28)',marginTop:18,lineHeight:1.5};
-const status={marginTop:35,padding:30,borderRadius:25,background:'rgba(255,255,255,.035)',display:'grid',gap:12,justifyItems:'center'};
-const pulse={width:70,height:70,borderRadius:'50%',display:'grid',placeItems:'center',background:'rgba(212,175,55,.1)',border:'1px solid rgba(212,175,55,.3)',color:'#d4af37',fontSize:22};
-const result={marginTop:35,padding:28,borderRadius:25,background:'rgba(255,255,255,.035)',display:'grid',gap:12};
-const success={color:'#8fd7b4',fontSize:18};
-const error={color:'#ff9d9d',fontSize:18};
-const secondary={marginTop:10,padding:'11px 18px',borderRadius:999,border:'1px solid rgba(255,255,255,.12)',background:'rgba(255,255,255,.05)',color:'#fff',cursor:'pointer'};
+{stage==='processing'&&<div className="scan-card scan-processing">
+<div className="aria-orb"><span/></div>
+<p className="aria-message">{progressMessage||'ARIA is working…'}</p>
+{elapsedSeconds>5&&<p className="elapsed">{elapsedSeconds}s elapsed</p>}
+<p className="leave-note">You can leave this page — ARIA will keep working.</p>
+</div>}
+
+{stage==='complete'&&summary&&<div className="scan-card scan-result">
+<div className="result-title">Memory updated</div>
+<p className="result-total">{summary.total} lives remembered.</p>
+<div className="result-stats">
+{summary.newVisitors>0&&<div>{summary.newVisitors} first-time visitors</div>}
+{summary.returning>0&&<div>{summary.returning} familiar faces returning</div>}
+{summary.duplicates>0&&<div>{summary.duplicates} familiar faces recognised</div>}
+{summary.needsReview>0&&<div>{summary.needsReview} need your attention</div>}
+</div>
+<p className="aria-message">ARIA has finished preparing your community.</p>
+<button className="scan-primary wide" onClick={()=>router.push('/people?tab=community')}>View Community</button>
+</div>}
+
+{stage==='error'&&<div className="scan-card scan-error">
+<p>{message||'ARIA was unable to read the register. Please try again with a clearer photo.'}</p>
+<button className="scan-secondary" onClick={()=>{clearScanState();sync()}}>Try Again</button>
+</div>}
+</div>
+
+<style jsx>{`
+.scan-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(8px);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px}
+.scan-modal{background:#0A0F1A;border-radius:32px;max-width:700px;width:100%;max-height:90vh;overflow-y:auto;padding:40px 20px 20px;border:1px solid rgba(255,255,255,.05);position:relative;color:#fff}
+.scan-modal-close{position:absolute;top:16px;right:20px;background:none;border:0;color:rgba(255,255,255,.5);font-size:28px;cursor:pointer}
+.scan-content{max-width:600px;margin:0 auto;padding:0 20px;text-align:center}
+.scan-eyebrow{font-size:10px;letter-spacing:2.5px;color:rgba(255,255,255,.35);margin-bottom:12px}
+.scan-content h1{font-size:28px;font-weight:700;color:#f0f0f0;margin:0 0 8px}
+.scan-subtitle{color:rgba(255,255,255,.6);margin:0 0 25px;line-height:1.6}
+.program-wrap{margin-bottom:20px}
+.program-wrap label{font-weight:600;display:block;margin-bottom:8px;color:#f0f0f0}
+.program-wrap input{padding:12px 16px;font-size:16px;border-radius:12px;border:1px solid rgba(255,255,255,.06);background:rgba(20,25,40,.8);color:#fff;width:100%;max-width:300px;text-align:center;outline:none}
+.scan-tip{background:rgba(20,25,40,.9);border-radius:20px;border:1px solid rgba(255,255,255,.05);padding:14px 16px;margin-bottom:25px;text-align:left;font-size:14px;color:rgba(255,255,255,.6);line-height:1.5}
+.scan-primary{border:0;padding:16px 36px;border-radius:30px;background:rgba(212,175,55,.95);color:#0A0F1A;font-weight:700;font-size:18px;cursor:pointer;transition:transform .15s,box-shadow .2s}
+.scan-primary:hover{transform:translateY(-1px);box-shadow:0 8px 30px rgba(212,175,55,.18)}
+.scan-primary.wide{width:100%;font-size:15px}
+.scan-hint{font-size:12px;color:rgba(255,255,255,.3);margin-top:14px}
+.scan-card{background:rgba(20,25,40,.9);border-radius:26px;border:1px solid rgba(255,255,255,.05);padding:24px;margin-top:20px}
+.scan-processing{padding:30px}
+.aria-orb{width:80px;height:80px;border-radius:50%;margin:0 auto 20px;background:radial-gradient(circle,rgba(212,175,55,.15) 0%,transparent 70%);animation:breathe 3s ease-in-out infinite;position:relative}
+.aria-orb span{position:absolute;width:16px;height:16px;border-radius:50%;background:#D4AF37;top:50%;left:50%;transform:translate(-50%,-50%);box-shadow:0 0 20px rgba(212,175,55,.4);animation:pulse 2s ease-in-out infinite}
+.aria-message{font-size:16px;margin:0 0 8px}
+.elapsed,.leave-note{color:rgba(255,255,255,.4);font-size:13px}
+.leave-note{font-size:12px;margin-top:8px;color:rgba(255,255,255,.3)}
+.scan-result{text-align:left}
+.result-title{font-size:24px;color:#D4AF37;margin-bottom:12px}
+.result-total{color:#f0f0f0;font-size:18px;margin-bottom:16px}
+.result-stats{display:flex;flex-direction:column;gap:6px;margin-bottom:20px;color:rgba(255,255,255,.65);font-size:15px}
+.scan-result .aria-message{font-size:14px;margin-bottom:20px}
+.scan-error{text-align:left}
+.scan-error p{color:#EF4444;margin-bottom:12px}
+.scan-secondary{border:1px solid rgba(255,255,255,.12);padding:10px 20px;border-radius:30px;background:rgba(255,255,255,.05);color:#fff;cursor:pointer}
+@keyframes breathe{0%{transform:scale(.95);opacity:.8}50%{transform:scale(1.05);opacity:1}100%{transform:scale(.95);opacity:.8}}
+@keyframes pulse{0%{transform:translate(-50%,-50%) scale(1);opacity:.8}50%{transform:translate(-50%,-50%) scale(1.4);opacity:1}100%{transform:translate(-50%,-50%) scale(1);opacity:.8}}
+@media(max-width:520px){.scan-modal{border-radius:26px;padding:40px 12px 16px}.scan-content{padding:0 12px}.scan-content h1{font-size:26px}.scan-primary{width:100%;padding:15px 20px}}
+`}</style>
+</div>
+</div>
+  }

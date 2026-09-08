@@ -1,6 +1,7 @@
 // pages/index.js
 import{useEffect,useState}from'react';
 import{useRouter}from'next/router';
+import{createPortal}from'react-dom';
 import{supabase}from'../lib/supabaseClient';
 import Layout from'../components/Layout';
 import ScanModal from'../components/ScanModal';
@@ -33,8 +34,8 @@ if(!data)return <Layout><main style={shell}><section style={unavailable}><div st
 const notification=data.notification||{},items=data.briefing?.items||[],count=Number(notification.count)||items.length;
 
 const handleBriefAction=item=>{
-const action=item?.action;
 setBriefOpen(false);
+const action=item?.action;
 if(action?.type==='review'){setReview(true);return}
 if(action?.href)router.push(action.href);
 };
@@ -47,24 +48,25 @@ return <Layout><main style={shell}>
 {briefOpen&&<BriefingModal data={data} onClose={()=>setBriefOpen(false)} onAction={handleBriefAction}/>}
 <ScanModal isOpen={scan} onClose={()=>{setScan(false);load()}}/>
 <AttendanceModal isOpen={attendance} onClose={()=>{setAttendance(false);load()}}/>
-{review&&<div style={modalOverlay}><div style={reviewShell}><ReviewCenterTab modal onClose={()=>{setReview(false);load()}}/></div></div>}
+{review&&<ModalPortal><div style={modalOverlay}><div style={reviewShell}><ReviewCenterTab modal onClose={()=>{setReview(false);load()}}/></div></div></ModalPortal>}
 </main></Layout>
 }
+
+function ModalPortal({children}){if(typeof document==='undefined')return null;return createPortal(children,document.body)}
 
 function ActionButton({icon,title,onClick,active,attention}){return <button style={{...tool,...(active?toolActive:{}),...(attention?toolAttention:{})}} onClick={onClick}><span style={toolIcon}>{icon}</span><span>{title}</span><b>›</b></button>}
 
 function BriefingModal({data,onClose,onAction}){
 const items=data.briefing?.items||[];
-return <div style={modalOverlay}><div style={briefingModal}><header style={modalHeader}><div><div style={eyebrow}>ARIA · TODAY</div><h2>Daily briefing</h2></div><button style={close} onClick={onClose}>×</button></header><section style={briefingBody}><div style={briefLead}>{data.briefing?.headline||'ARIA is keeping watch.'}</div>{items.length?<div style={briefList}>{items.map((item,i)=><BriefItem key={`${item.id||item.person_id||i}`} item={item} index={i} onAction={()=>onAction(item)}/>)}</div>:<div style={quiet}>Nothing needs your immediate attention right now. I’ll keep watching.</div>}</section></div></div>
+return <ModalPortal><div style={modalOverlay}><div style={briefingModal}><header style={modalHeader}><div><div style={eyebrow}>ARIA · TODAY</div><h2>Daily briefing</h2></div><button style={close} onClick={onClose}>×</button></header><section style={briefingBody}><div style={briefLead}>{data.briefing?.headline||'ARIA is keeping watch.'}</div>{items.length?<div style={briefList}>{items.map((item,i)=><BriefItem key={`${item.id||item.person_id||i}`} item={item} index={i} onAction={()=>onAction(item)}/>)}</div>:<div style={quiet}>Nothing needs your immediate attention right now. I’ll keep watching.</div>}</section></div></div></ModalPortal>
 }
 
 function BriefItem({item,index,onAction}){
-const label=item.label||'ARIA';
-return <article style={briefItem} role="button" tabIndex={0} onClick={onAction} onKeyDown={e=>{if(e.key==='Enter'||e.key===' ')onAction()}}><span style={number}>{String(index+1).padStart(2,'0')}</span><div style={briefContent}><small>{label}</small><strong>{item.title||'ARIA attention'}</strong><p>{item.message||'Open this item to see the next step.'}</p><span style={actionText}>{item.action?.label||'Open'} →</span></div></article>
+return <button style={briefItem} onClick={onAction}><span style={number}>{String(index+1).padStart(2,'0')}</span><div style={briefContent}><small>{item.label||'ARIA'}</small><strong>{item.title||'ARIA attention'}</strong><p>{item.message||'Open this item to see the next step.'}</p><span style={actionText}>{item.action?.label||'Open'} →</span></div></button>
 }
 
 const shell={maxWidth:760,margin:'0 auto',padding:'42px 22px 110px',minHeight:'calc(100vh - 80px)'};
-const welcome={padding:'34px 8px 30px};
+const welcome={padding:'34px 8px 30px'};
 const eyebrow={fontSize:10,letterSpacing:2.2,textTransform:'uppercase',color:'rgba(255,255,255,.32)',marginBottom:10};
 const heading={fontSize:'clamp(40px,10vw,60px)',lineHeight:1.02,letterSpacing:'-.045em',color:'#f7f7f7',margin:0,fontWeight:600};
 const subheading={margin:'10px 0 0',fontSize:16,color:'rgba(255,255,255,.42)'};
@@ -80,7 +82,7 @@ const toolActive={background:'rgba(255,255,255,.07)',borderColor:'rgba(255,255,2
 const toolAttention={borderColor:'rgba(212,175,55,.3)'};
 const toolIcon={fontSize:14,color:'rgba(255,255,255,.55)'};
 const coming={marginTop:150,textAlign:'center',maxWidth:430,marginLeft:'auto',marginRight:'auto',padding:'0 10px'};
-const modalOverlay={position:'fixed',inset:0,zIndex:3000,background:'rgba(2,5,12,.8)',backdropFilter:'blur(20px)',padding:12};
+const modalOverlay={position:'fixed',inset:0,zIndex:100000,background:'rgba(2,5,12,.8)',backdropFilter:'blur(20px)',padding:12};
 const reviewShell={height:'100%',maxWidth:960,margin:'0 auto',overflow:'auto'};
 const briefingModal={height:'100%',maxWidth:720,margin:'0 auto',borderRadius:26,background:'#0a1128',border:'1px solid rgba(255,255,255,.1)',overflow:'auto',boxShadow:'0 30px 100px rgba(0,0,0,.45)'};
 const modalHeader={position:'sticky',top:0,zIndex:2,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 18px',background:'rgba(10,17,40,.9)',backdropFilter:'blur(18px)',borderBottom:'1px solid rgba(255,255,255,.06)'};
@@ -88,8 +90,8 @@ const close={width:38,height:38,border:0,borderRadius:'50%',background:'rgba(255
 const briefingBody={padding:'20px 18px 45px'};
 const briefLead={fontSize:16,lineHeight:1.4,color:'#f5f5f5',marginBottom:15};
 const briefList={display:'grid',gap:7};
-const briefItem={display:'flex',gap:11,padding:'12px 13px',borderRadius:16,border:'1px solid rgba(255,255,255,.075)',background:'rgba(255,255,255,.035)',cursor:'pointer',outline:'none'};
-const number={fontSize:10,color:'rgba(255,255,255,.25)',paddingTop:3};
+const briefItem={width:'100%',display:'flex',gap:11,padding:'12px 13px',borderRadius:16,border:'1px solid rgba(255,255,255,.075)',background:'rgba(255,255,255,.035)',cursor:'pointer',outline:'none',color:'#fff',textAlign:'left'};
+const number={fontSize:10,color:'rgba(255,255,255,.25)',paddingTop:3,flexShrink:0};
 const briefContent={minWidth:0,display:'grid',gap:3};
 const actionText={fontSize:11,color:'rgba(143,183,255,.9)',fontWeight:600,marginTop:3};
 const quiet={padding:'30px 10px',textAlign:'center',color:'rgba(255,255,255,.4)',lineHeight:1.6};

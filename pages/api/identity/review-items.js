@@ -12,19 +12,26 @@ pool.query(`SELECT id,created_at,result FROM scan_jobs WHERE organization_id=$1 
 pool.query(`SELECT id,first_name,last_name,display_name,phone FROM people WHERE organization_id=$1 AND status='active'`,[orgId])
 ]);
 const people=p.rows,items=[];
+
 for(const row of r.rows){
 const list=Array.isArray(row.result?.needs_review)?row.result.needs_review:[];
 list.forEach((x,index)=>{
 if(x?.resolved)return;
-const extractedName=x.extracted_name||x.name||'Unknown person';
+const incoming=x?.incoming||{};
+const extractedName=String(x?.extracted_name||incoming.name||x?.name||'Unknown person').trim();
+const extractedPhone=x?.extracted_phone||incoming.phone||null;
 const key=normalizeName(extractedName);
-const candidates=key?people.map(person=>({id:person.id,name:person.display_name||[person.first_name,person.last_name].filter(Boolean).join(' '),phone:person.phone,score:Math.round(fuzzyMatch(key,person.display_name||[person.first_name,person.last_name].filter(Boolean).join(' '))*100),method:'name'})).filter(x=>x.score>=72).sort((a,b)=>b.score-a.score).slice(0,5):[];
+const candidates=key?people.map(person=>{
+const name=person.display_name||[person.first_name,person.last_name].filter(Boolean).join(' ');
+return{id:person.id,name,phone:person.phone,score:Math.round(fuzzyMatch(key,name)*100),method:'name'};
+}).filter(x=>x.score>=72).sort((a,b)=>b.score-a.score).slice(0,5):[];
+
 items.push({
 id:`${row.id}:${index}`,
 scan_job_id:row.id,
 review_index:index,
 extracted_name:extractedName,
-extracted_phone:x.extracted_phone||null,
+extracted_phone:extractedPhone,
 status:x.status||'needs_decision',
 confidence:x.confidence??null,
 score:candidates[0]?.score??x.score??0,
@@ -34,10 +41,12 @@ verification_alternatives:x.verification_alternatives||null,
 candidates,
 best_candidate_id:x.best_candidate_id||candidates[0]?.id||null,
 evidence_url:`/api/scan/evidence?job_id=${encodeURIComponent(row.id)}`,
-created_at:row.created_at
+created_at:row.created_at,
+row_number:x.row_number??incoming.row_number??null
 });
 });
 }
+
 return res.status(200).json({items,stats:{total:items.length,needs_decision:items.filter(x=>x.status==='needs_decision').length,conflict:items.filter(x=>x.status==='conflict').length}});
 }catch(e){
 console.error('[REVIEW ITEMS]',e);

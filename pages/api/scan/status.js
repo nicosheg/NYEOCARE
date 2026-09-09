@@ -15,23 +15,12 @@ async function handler(req,res){
    const startMs=new Date(job.started_at).getTime();
    elapsed=job.duration_ms!=null?Math.max(0,Math.round(Number(job.duration_ms)/1000)):Number.isFinite(startMs)?Math.max(0,Math.round((Date.now()-startMs)/1000)):0;
   }
-  const messages={
-   queued:'ARIA is preparing to read the register…',
-   enhancing:'ARIA is preparing the image…',
-   layout_analysis:'ARIA is examining the register structure…',
-   reading_handwriting:'ARIA is reviewing the handwriting…',
-   verifying_rows:'ARIA is checking that every phone number belongs to the correct row…',
-   validating:'ARIA is validating the extracted records…',
-   matching_community:'ARIA is comparing with your community…',
-   building_memory:'ARIA is remembering the verified people…',
-   retrying:'ARIA is taking a little longer than usual…',
-   complete:'Scan complete.'
-  };
+  const messages={queued:'ARIA is preparing to read the register…',preparing_image:'ARIA is preparing the image…',reading_page:'ARIA is examining the register structure…',rereading_original:'ARIA is carefully rereading the register…',reading_handwriting:'ARIA is reviewing the handwriting…',finalizing_scan:'ARIA is finalizing the reading…',validating:'ARIA is validating the extracted records…',matching_community:'ARIA is comparing with your community…',building_memory:'ARIA is remembering the verified people…',provider_wait:'ARIA is waiting briefly for its vision provider…',retrying:'ARIA is taking another careful pass…',complete:'Scan complete.'};
   let message=messages[job.progress]||messages[job.status]||'ARIA is working…',error=null;
   if(job.status==='failed'){
    const err=resultObj?.error;
    message=err?.userMessage||resultObj?.error||'ARIA could not complete this scan safely.';
-   if(/rate limit|token|capacity/i.test(message))message='ARIA does not have enough provider capacity to safely finish this scan yet. Nothing was saved.';
+   if(/rate limit|token|capacity/i.test(err?.message||message))message='ARIA is taking another careful pass because the vision provider is busy. Nothing was saved from this attempt.';
    error=err?{code:err.code||'UNKNOWN_ERROR',stage:err.stage||'unknown',details:err.details||null}:null;
   }
   if(job.status==='processing'&&elapsed>180)message='This scan appears to have stalled. Your existing data is safe. You can try again.';

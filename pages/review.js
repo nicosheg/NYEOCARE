@@ -5,7 +5,7 @@ import{supabase}from'../lib/supabaseClient';
 
 export default function ReviewPage(){
  const router=useRouter();
- const[items,setItems]=useState([]),[loading,setLoading]=useState(true),[active,setActive]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[editName,setEditName]=useState(''),[editPhone,setEditPhone]=useState('');
+ const[items,setItems]=useState([]),[loading,setLoading]=useState(true),[active,setActive]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[editName,setEditName]=useState(''),[editPhones,setEditPhones]=useState(['','']);
  async function load(){
   setLoading(true);setError('');
   try{
@@ -17,14 +17,22 @@ export default function ReviewPage(){
   }catch(e){setError(e.message||'Review Center could not load.')}finally{setLoading(false)}
  }
  useEffect(()=>{load()},[]);
- function open(item){setActive(item);setEditName(item.name||'');setEditPhone(item.phone||'')}
+ function open(item){
+  setActive(item);setEditName(item.name||'');
+  const phones=Array.isArray(item.phones)?item.phones.map(x=>typeof x==='string'?x:x?.normalized||x?.raw||''):item.phone?[item.phone]:[];
+  setEditPhones([phones[0]||'',phones[1]||'']);
+ }
+ function phoneText(item){
+  const phones=Array.isArray(item.phones)?item.phones.map(x=>typeof x==='string'?x:x?.normalized||x?.raw).filter(Boolean):[];
+  return phones.join(' · ')||item.phone||'No phone safely read';
+ }
  async function act(action){
   if(!active)return;
   setBusy(true);setError('');
   try{
    const{data:{session}}=await supabase.auth.getSession();
    if(!session)throw new Error('You must be logged in.');
-   const r=await fetch('/api/review/resolve',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},body:JSON.stringify({id:active.id,action,name:editName,phone:editPhone})}),d=await r.json();
+   const r=await fetch('/api/review/resolve',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},body:JSON.stringify({id:active.id,action,name:editName,phones:editPhones.filter(Boolean)})}),d=await r.json();
    if(!r.ok)throw new Error(d.error||'Review action failed.');
    setActive(null);await load();
   }catch(e){setError(e.message||'Review action failed.')}finally{setBusy(false)}
@@ -34,7 +42,7 @@ export default function ReviewPage(){
    <button style={s.back} onClick={()=>router.back()}>‹</button>
    <div style={s.eyebrow}>ARIA · REVIEW CENTER</div>
    <h1 style={s.title}>{items.length?`${items.length} need your attention.`:'Everything looks good.'}</h1>
-   <p style={s.sub}>{items.length?'ARIA preserved the uncertain records and explains exactly what needs checking.':'There are no unresolved scan records waiting for you.'}</p>
+   <p style={s.sub}>{items.length?'ARIA paused these records because it wants you to decide what is true.':'There are no unresolved scan records waiting for you.'}</p>
    {loading&&<div style={s.empty}>Loading review center…</div>}
    {!loading&&!items.length&&!error&&<div style={s.empty}>Nothing is waiting for review.</div>}
    {error&&<div style={s.error}>{error}</div>}
@@ -43,8 +51,8 @@ export default function ReviewPage(){
      <div style={s.avatar}>{(item.name||'?').charAt(0).toUpperCase()}</div>
      <div style={s.cardBody}>
       <div style={s.cardTop}><strong>{item.name||'Unnamed person'}</strong><span style={s.dot}>●</span></div>
+      <div style={s.phone}>{phoneText(item)}</div>
       <div style={s.reason}>{item.reason}</div>
-      <div style={s.suggestion}>{item.suggestion}</div>
      </div>
      <span style={s.chevron}>›</span>
     </button>)}
@@ -53,27 +61,21 @@ export default function ReviewPage(){
   {active&&<div style={s.overlay} onMouseDown={e=>e.target===e.currentTarget&&!busy&&setActive(null)}>
    <div style={s.sheet}>
     <button style={s.x} onClick={()=>!busy&&setActive(null)}>×</button>
-    <div style={s.eyebrow}>ARIA FOUND SOMETHING</div>
+    <div style={s.eyebrow}>ARIA NEEDS YOU</div>
     <h2 style={s.sheetTitle}>{active.name||'Unnamed person'}</h2>
-    <div style={s.detail}>
-     <span style={s.detailLabel}>Why ARIA paused</span>
-     <strong style={s.detailValue}>{active.reason}</strong>
-    </div>
-    <div style={s.detail}>
-     <span style={s.detailLabel}>ARIA suggests</span>
-     <strong style={s.detailValue}>{active.suggestion}</strong>
-    </div>
+    <div style={s.detail}><span style={s.detailLabel}>Why ARIA paused</span><strong style={s.detailValue}>{active.reason}</strong></div>
+    <div style={s.detail}><span style={s.detailLabel}>What to check</span><strong style={s.detailValue}>{active.suggestion}</strong></div>
     <div style={s.evidence}>
-     <div style={s.evidenceRow}><span style={s.evidenceLabel}>Extracted name</span><b style={s.evidenceValue}>{active.name||'—'}</b></div>
-     <div style={s.evidenceRow}><span style={s.evidenceLabel}>Phone</span><b style={s.evidenceValue}>{active.phone||'Not safely read'}</b></div>
-     <div style={s.evidenceRow}><span style={s.evidenceLabel}>Extraction confidence</span><b style={s.evidenceValue}>{active.confidence??'—'}%</b></div>
+     <div style={s.evidenceRow}><span style={s.evidenceLabel}>Name ARIA read</span><b style={s.evidenceValue}>{active.name||'—'}</b></div>
+     <div style={s.evidenceRow}><span style={s.evidenceLabel}>Phone ARIA read</span><b style={s.evidenceValue}>{phoneText(active)}</b></div>
      {active.raw_name&&<div style={s.evidenceRow}><span style={s.evidenceLabel}>Original writing</span><b style={s.evidenceValue}>{active.raw_name}</b></div>}
     </div>
     <input value={editName} onChange={e=>setEditName(e.target.value)} placeholder="Name" style={s.input}/>
-    <input value={editPhone} onChange={e=>setEditPhone(e.target.value)} placeholder="Phone number" style={s.input}/>
-    <button disabled={busy} style={s.primary} onClick={()=>act('approve')}>Confirm & remember</button>
-    <button disabled={busy} style={s.secondary} onClick={()=>act('edit')}>Save correction, keep in review</button>
-    <button disabled={busy} style={s.dismiss} onClick={()=>act('dismiss')}>Dismiss</button>
+    <input value={editPhones[0]} onChange={e=>setEditPhones(v=>[e.target.value,v[1]])} placeholder="Phone number" style={s.input}/>
+    <input value={editPhones[1]} onChange={e=>setEditPhones(v=>[v[0],e.target.value])} placeholder="Second phone number (optional)" style={s.input}/>
+    <button disabled={busy} style={s.primary} onClick={()=>act('approve')}>Accept & remember</button>
+    <button disabled={busy} style={s.secondary} onClick={()=>act('edit')}>Edit & remember</button>
+    <button disabled={busy} style={s.deleteButton} onClick={()=>act('delete')}>Delete</button>
    </div>
   </div>}
   <style jsx>{`@keyframes reviewIn{from{opacity:0;transform:translateY(-7px) scale(.99)}to{opacity:1;transform:none}}`}</style>
@@ -93,8 +95,8 @@ avatar:{width:37,height:37,borderRadius:'50%',display:'grid',placeItems:'center'
 cardBody:{minWidth:0,flex:1},
 cardTop:{display:'flex',alignItems:'center',gap:7,fontSize:13},
 dot:{fontSize:7,color:'#d4af37'},
-reason:{fontSize:12,color:'rgba(255,255,255,.7)',marginTop:3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'},
-suggestion:{fontSize:10,color:'rgba(255,255,255,.32)',marginTop:2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'},
+phone:{fontSize:12,color:'rgba(255,255,255,.58)',marginTop:3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'},
+reason:{fontSize:11,color:'rgba(255,255,255,.35)',marginTop:3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'},
 chevron:{fontSize:21,color:'rgba(255,255,255,.3)'},
 empty:{padding:'45px 10px',textAlign:'center',color:'rgba(255,255,255,.35)'},
 error:{padding:14,borderRadius:15,background:'rgba(255,80,80,.08)',color:'#ffb0b0',fontSize:13,marginBottom:15},
@@ -108,9 +110,9 @@ detailValue:{fontSize:13,lineHeight:1.45,fontWeight:500},
 evidence:{display:'grid',gap:8,padding:'16px 0'},
 evidenceRow:{display:'flex',justifyContent:'space-between',gap:15,fontSize:12},
 evidenceLabel:{color:'rgba(255,255,255,.32)'},
-evidenceValue:{fontWeight:500,textAlign:'right'},
+evidenceValue:{fontWeight:500,textAlign:'right',wordBreak:'break-word'},
 input:{width:'100%',boxSizing:'border-box',padding:'13px 14px',borderRadius:14,border:'1px solid rgba(255,255,255,.1)',background:'rgba(255,255,255,.045)',color:'#fff',marginTop:8,outline:'none'},
 primary:{width:'100%',padding:14,border:0,borderRadius:999,background:'#f4f4f4',color:'#07101e',fontWeight:700,cursor:'pointer',marginTop:14},
 secondary:{width:'100%',padding:12,borderRadius:999,border:'1px solid rgba(255,255,255,.1)',background:'rgba(255,255,255,.05)',color:'#fff',cursor:'pointer',marginTop:8},
-dismiss:{width:'100%',padding:10,border:0,background:'transparent',color:'rgba(255,255,255,.35)',cursor:'pointer',marginTop:5}
-  }
+deleteButton:{width:'100%',padding:10,border:0,background:'transparent',color:'rgba(255,255,255,.35)',cursor:'pointer',marginTop:7}
+};

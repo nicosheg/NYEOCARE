@@ -2,6 +2,7 @@
 import{OnboardingProvider}from'../components/OnboardingProvider';
 import AriaAutoSync from'../components/AriaAutoSync';
 import NyeoEnvironment from'../components/NyeoEnvironment';
+import '../styles/people-sizing.css';
 
 export default function App({Component,pageProps}){
 return(

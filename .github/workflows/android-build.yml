@@ -1,0 +1,78 @@
+name: NYEOCARE Android APK
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    env:
+      NYEOCARE_URL: ${{ vars.NYEOCARE_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Validate Next.js application build
+        run: npm run build
+
+      - name: Require deployed NYEOCARE URL
+        run: |
+          if [ -z "$NYEOCARE_URL" ]; then
+            echo "Missing repository variable NYEOCARE_URL. Set it to the live HTTPS URL of the deployed NYEOCARE web app."
+            exit 1
+          fi
+          case "$NYEOCARE_URL" in
+            https://*) ;;
+            *) echo "NYEOCARE_URL must start with https://"; exit 1 ;;
+          esac
+
+      - name: Prepare Capacitor web shell
+        run: |
+          rm -rf out
+          mkdir -p out
+          cat > out/index.html <<'HTML'
+          <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><p>Opening NYEOCARE…</p></body></html>
+          HTML
+          node - <<'NODE'
+          const fs=require('fs');
+          const p='capacitor.config.json';
+          const c=JSON.parse(fs.readFileSync(p,'utf8'));
+          c.server={...(c.server||{}),url:process.env.NYEOCARE_URL,cleartext:false};
+          fs.writeFileSync(p,JSON.stringify(c,null,2)+'\n');
+          NODE
+
+      - name: Add Android platform
+        run: npx cap add android
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: NYEOCARE-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error

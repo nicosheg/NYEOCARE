@@ -2,6 +2,7 @@
 import{OnboardingProvider}from'../components/OnboardingProvider';
 import AriaAutoSync from'../components/AriaAutoSync';
 import NyeoEnvironment from'../components/NyeoEnvironment';
+import PersonAriaConversation from'../components/PersonAriaConversation';
 import '../styles/people-sizing.css';
 
 export default function App({Component,pageProps}){
@@ -22,6 +23,7 @@ html[data-nyeo-weather="clear"]{--ny-cloud-opacity:.035}html[data-nyeo-weather="
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition:none!important}}
 `}</style>
 <Component {...pageProps}/>
+<PersonAriaConversation/>
 </OnboardingProvider>
 );
 }

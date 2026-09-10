@@ -3,7 +3,9 @@ import{useEffect,useState}from'react';
 import{useRouter}from'next/router';
 import{createPortal}from'react-dom';
 import{supabase}from'../lib/supabaseClient';
+import{useOnboarding}from'../components/OnboardingProvider';
 import Layout from'../components/Layout';
+import FirstExperience from'../components/FirstExperience';
 import ScanModal from'../components/ScanModal';
 import AttendanceModal from'../components/AttendanceModal';
 import ReviewCenterTab from'../components/ReviewCenterTab';
@@ -12,6 +14,7 @@ const greeting=()=>{const h=new Date().getHours();return h>=5&&h<12?'Good mornin
 
 export default function ARIAHome(){
 const router=useRouter();
+const onboarding=useOnboarding();
 const[data,setData]=useState(null),[loading,setLoading]=useState(true),[briefOpen,setBriefOpen]=useState(false),[scan,setScan]=useState(false),[attendance,setAttendance]=useState(false),[review,setReview]=useState(false),[live,setLive]=useState(false),[reviewCount,setReviewCount]=useState(0),[timeGreeting,setTimeGreeting]=useState(greeting());
 
 const load=async()=>{
@@ -26,12 +29,21 @@ if(c.ok){const d=await c.json();setReviewCount(Number(d.stats?.total)||d.items?.
 }catch(e){console.error('[ARIA Today]',e)}finally{setLoading(false)}
 };
 
-useEffect(()=>{let active=true;const run=()=>{if(active){setTimeGreeting(greeting());load()}};run();const t=setInterval(run,30000);return()=>{active=false;clearInterval(t)}},[]);
+useEffect(()=>{
+let active=true;
+const run=()=>{if(active){setTimeGreeting(greeting());load()}};
+run();
+const t=setInterval(run,30000);
+return()=>{active=false;clearInterval(t)};
+},[]);
 
 if(loading)return <Layout><main style={shell}><div style={loadingBlock}/></main></Layout>;
 if(!data)return <Layout><main style={shell}><section style={unavailable}><div style={ariaWord}>ARIA</div><h1>ARIA is unavailable right now.</h1><button style={retry} onClick={()=>{setLoading(true);load()}}>Try again</button></section></main></Layout>;
 
 const notification=data.notification||{},items=data.briefing?.items||[],count=Number(notification.count)||items.length;
+const showHome=onboarding?.loaded&&onboarding.enabled&&!onboarding.isExperienced('home');
+const showScan=onboarding?.loaded&&onboarding.enabled&&!onboarding.isExperienced('scan')&&!scan;
+const showReview=onboarding?.loaded&&onboarding.enabled&&!onboarding.isExperienced('review')&&!review;
 
 const handleBriefAction=item=>{
 setBriefOpen(false);
@@ -41,10 +53,21 @@ if(action?.href)router.push(action.href);
 };
 
 return <Layout><main style={shell}>
+{showHome&&<FirstExperience experience="home" onComplete={()=>onboarding.completeExperience('home')}/>}
+{showScan&&<FirstExperience experience="scan" onComplete={()=>onboarding.completeExperience('scan')} onAction={()=>setScan(true)}/>}
+{showReview&&<FirstExperience experience="review" onComplete={()=>onboarding.completeExperience('review')} onAction={()=>setReview(true)}/>}
+
 <section style={welcome}><div style={eyebrow}>NYEOCARE</div><h1 style={heading}>{timeGreeting}</h1><p style={subheading}>ARIA is here.</p></section>
 <button style={briefCard} onClick={()=>setBriefOpen(true)}><div style={briefOrb}>A</div><div style={briefCopy}><div style={ariaLabel}>ARIA</div><strong>{notification.hasSomething?'I have something concrete for you today.':'I’m keeping watch today.'}</strong><span>{count?`${count} item${count===1?'':'s'} with a clear next step.`:'Nothing needs your attention right now.'}</span></div><div style={arrow}>›</div></button>
-<section style={tools}><div style={toolGrid}><ActionButton icon="＋" title="Scan" onClick={()=>setScan(true)}/><ActionButton icon="◉" title={live?'Attendance · LIVE':'Attendance'} onClick={()=>setAttendance(true)} active={live}/><ActionButton icon="✓" title={reviewCount?`Review · ${reviewCount}`:'Review'} onClick={()=>setReview(true)} attention={reviewCount>0}/></div></section>
+
+<section style={tools}><div style={toolGrid}>
+<ActionButton icon="＋" title="Scan" onClick={()=>setScan(true)}/>
+<ActionButton icon="◉" title={live?'Attendance · LIVE':'Attendance'} onClick={()=>setAttendance(true)} active={live}/>
+<ActionButton icon="✓" title={reviewCount?`Review · ${reviewCount}`:'Review'} onClick={()=>setReview(true)} attention={reviewCount>0}/>
+</div></section>
+
 <section style={coming}><span>ARIA · COMING SOON</span><p>Soon, you won’t have to search for what matters. You’ll just talk to her.</p></section>
+
 {briefOpen&&<BriefingModal data={data} onClose={()=>setBriefOpen(false)} onAction={handleBriefAction}/>}
 <ScanModal isOpen={scan} onClose={()=>{setScan(false);load()}}/>
 <AttendanceModal isOpen={attendance} onClose={()=>{setAttendance(false);load()}}/>
@@ -61,9 +84,7 @@ const items=data.briefing?.items||[];
 return <ModalPortal><div style={modalOverlay}><div style={briefingModal}><header style={modalHeader}><div><div style={eyebrow}>ARIA · TODAY</div><h2>Daily briefing</h2></div><button style={close} onClick={onClose}>×</button></header><section style={briefingBody}><div style={briefLead}>{data.briefing?.headline||'ARIA is keeping watch.'}</div>{items.length?<div style={briefList}>{items.map((item,i)=><BriefItem key={`${item.id||item.person_id||i}`} item={item} index={i} onAction={()=>onAction(item)}/>)}</div>:<div style={quiet}>Nothing needs your immediate attention right now. I’ll keep watching.</div>}</section></div></div></ModalPortal>
 }
 
-function BriefItem({item,index,onAction}){
-return <button style={briefItem} onClick={onAction}><span style={number}>{String(index+1).padStart(2,'0')}</span><div style={briefContent}><small>{item.label||'ARIA'}</small><strong>{item.title||'ARIA attention'}</strong><p>{item.message||'Open this item to see the next step.'}</p><span style={actionText}>{item.action?.label||'Open'} →</span></div></button>
-}
+function BriefItem({item,index,onAction}){return <button style={briefItem} onClick={onAction}><span style={number}>{String(index+1).padStart(2,'0')}</span><div style={briefContent}><small>{item.label||'ARIA'}</small><strong>{item.title||'ARIA attention'}</strong><p>{item.message||'Open this item to see the next step.'}</p><span style={actionText}>{item.action?.label||'Open'} →</span></div></button>}
 
 const shell={maxWidth:760,margin:'0 auto',padding:'42px 22px 110px',minHeight:'calc(100vh - 80px)'};
 const welcome={padding:'34px 8px 30px'};

@@ -17,9 +17,9 @@ html[data-nyeo-time="dawn"]{--ny-sky-light:.55;--ny-sky-warm:.35;--ny-sky-cool:.
 html[data-nyeo-weather="clear"]{--ny-cloud-opacity:.035}html[data-nyeo-weather="cloudy"]{--ny-cloud-opacity:.16}html[data-nyeo-weather="rain"]{--ny-cloud-opacity:.20;--ny-rain-opacity:.08}html[data-nyeo-weather="storm"]{--ny-cloud-opacity:.25;--ny-rain-opacity:.12;--ny-storm-opacity:.16}html[data-nyeo-weather="unknown"]{--ny-cloud-opacity:.10}
 .mainContent{min-height:100dvh;padding-bottom:env(safe-area-inset-bottom)}
 .mainContent>main[style*="100dvh"]{height:auto!important;min-height:calc(100dvh - 80px)!important;overflow:visible!important}
-.mainContent>main[style*="100dvh"] .ariaMaterial{margin-bottom:10px}
+.mainContent>main[style*="100dvh"] .coming{position:relative!important;left:auto!important;right:auto!important;bottom:auto!important;margin:38px auto 0!important}
 @media(max-width:380px){.mainContent>main[style*="100dvh"]{padding-left:15px!important;padding-right:15px!important}.ariaNavInner{transform:scale(.92)}}
-@media(max-height:700px){.mainContent>main[style*="100dvh"]{padding-bottom:112px!important}}
+@media(max-height:700px){.mainContent>main[style*="100dvh"]{padding-bottom:112px!important}.mainContent>main[style*="100dvh"] .coming{margin-top:28px!important}}
 .ariaBrand{font-size:0!important;letter-spacing:.12em!important;white-space:nowrap}.ariaBrand::after{content:"NYEOCARE";font-size:clamp(34px,9vw,78px);font-weight:700;letter-spacing:.18em;padding-left:.18em}
 @keyframes nySkyLife{0%,100%{opacity:.72;transform:scale(1)}50%{opacity:1;transform:scale(1.035)}}@keyframes nyAtmosphere{0%,100%{transform:translate3d(-1%,0,0)}50%{transform:translate3d(1%,1%,0)}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition:none!important}}

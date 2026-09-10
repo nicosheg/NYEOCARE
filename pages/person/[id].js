@@ -4,6 +4,7 @@ import{useEffect,useMemo,useState}from'react';
 import Layout from'../../components/Layout';
 import FirstExperience from'../../components/FirstExperience';
 import{supabase}from'../../lib/supabaseClient';
+import{useOnboarding}from'../../components/OnboardingProvider';
 
 const title=p=>[p?.first_name,p?.last_name].filter(Boolean).join(' ')||p?.display_name||'Person';
 const date=v=>v?new Date(v).toLocaleDateString():null;
@@ -15,7 +16,7 @@ const evidence=v=>{if(v==null)return'No evidence recorded';if(typeof v==='string
 const when=v=>{const t=new Date(v||0).getTime(),n=Date.now();return !t||Number.isNaN(t)?'unknown':t>n?'future':t>=n-365*86400000?'present':'past'};
 
 export default function PersonStory(){
-const router=useRouter(),{id}=router.query,onboarding=(()=>{try{return require('../../components/OnboardingProvider').useOnboarding()}catch{return null}})();
+const router=useRouter(),{id}=router.query,onboarding=useOnboarding();
 const[person,setPerson]=useState(null),[token,setToken]=useState(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[suggestions,setSuggestions]=useState([]),[acting,setActing]=useState(false),[message,setMessage]=useState('');
 useEffect(()=>{let alive=true;supabase.auth.getSession().then(({data:{session}})=>{if(!alive)return;if(!session){setLoading(false);return}setToken(session.access_token)}).catch(e=>{if(alive){setError(e.message||'Unable to authenticate');setLoading(false)}});return()=>{alive=false}},[]);
 useEffect(()=>{if(!id||!token)return;let alive=true;setLoading(true);setError('');Promise.all([
@@ -33,7 +34,7 @@ return <Layout><div style={wrap}>
 <div style={topbar}><button onClick={()=>router.back()} style={back}>← People</button><span style={system}>ARIA · PERSON JOURNEY</span></div>
 <div style={header}><div style={avatar}>{initials}</div><div style={{minWidth:0,flex:1}}><h1 style={nameStyle}>{name}</h1><div style={muted}>{person.phone||'No phone'}{person.email?` · ${person.email}`:''}</div><div style={truth}>{person.living_truth?.status==='alive'?'Identity confirmed':person.living_truth?.status==='conflict'?'Identity conflict':person.living_truth?.status==='needs_decision'?'Identity needs evidence':'Identity status unknown'}{person.confidence!=null?` · ${percent(person.confidence)} confidence`:''}</div></div></div>
 {message&&<div style={notice}>{message}</div>}
-<div style={director}><div><span style={directorDot}/><b>ARIA Director</b></div><span style={muted}>{person.attention_level||'watching'} · {person.open_observation_count||0} open observations · {person.open_action_count||0} open actions</span><p>ARIA is connecting what is known about {person.first_name||'this person'} across their past, present and what may come next.</p></div>
+<div style={director}><div><span style={directorDot}/><b>ARIA Director</b></div><span style={muted}>{person.attention_level||'watching'} · {person.open_observation_count||0} open observations · {person.open_action_count||0} open actions</span><p style={{color:'rgba(255,255,255,.62)',fontSize:13,lineHeight:1.6,margin:'9px 0 0'}}>ARIA is connecting what is known about {person.first_name||'this person'} across their past, present and what may come next.</p></div>
 {suggestions.length>0&&<Section title="What ARIA can prepare now" wide><div style={actionGrid}>{suggestions.map((x,i)=><button key={`${x.type}-${i}`} onClick={()=>prepareAction(x)} disabled={acting} style={actionCard}><b>{x.label}</b><span>{x.description}</span><small>{x.type==='draft'?'Prepare message':'Prepare care action'} · human approval required</small></button>)}</div></Section>}
 <div style={grid}>
 <Section title="Identity"><Item k="Type" v={person.type}/><Item k="Status" v={person.status}/><Item k="Birthday" v={date(person.birthday)}/><Item k="Source" v={person.source}/><Item k="Confidence" v={percent(person.confidence)}/><Item k="Living Truth" v={person.living_truth?.status}/></Section>

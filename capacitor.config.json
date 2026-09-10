@@ -1,0 +1,8 @@
+{
+  "appId":"com.nyeocare.app",
+  "appName":"NYEOCARE",
+  "webDir":"out",
+  "server":{
+    "url":"https://YOUR-NYEOCARE-URL.example"
+  }
+}

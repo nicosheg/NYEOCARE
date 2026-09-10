@@ -3,6 +3,6 @@
   "appName":"NYEOCARE",
   "webDir":"out",
   "server":{
-    "url":"https://YOUR-NYEOCARE-URL.example"
+    "url":"https://church-os-j72h.onrender.com"
   }
 }

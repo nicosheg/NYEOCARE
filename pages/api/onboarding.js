@@ -3,15 +3,11 @@ import pool from'../../lib/db';
 import{withOrg}from'../../lib/apiHelpers';
 
 const REQUIRED_EXPERIENCES=['home','scan','people','review','profile'];
+const ALLOWED_EXPERIENCES=[...REQUIRED_EXPERIENCES,'person-journey'];
 
 function normalizeExperienced(value){
-return{
-home:value?.home===true,
-scan:value?.scan===true,
-people:value?.people===true,
-review:value?.review===true,
-profile:value?.profile===true
-};
+const source=value&&typeof value==='object'?value:{};
+return{...source,home:source.home===true,scan:source.scan===true,people:source.people===true,review:source.review===true,profile:source.profile===true,'person-journey':source['person-journey']===true};
 }
 
 function organizationOnboarding(settings){
@@ -65,7 +61,7 @@ const organization=organizationOnboarding(result.rows[0].settings);
 
 if(action==='experience_completed'){
 if(!organization.enabled)return res.status(200).json({success:true,onboarding:{enabled:false,completed:true}});
-if(!REQUIRED_EXPERIENCES.includes(experience))return res.status(400).json({error:'Invalid onboarding experience'});
+if(!ALLOWED_EXPERIENCES.includes(experience))return res.status(400).json({error:'Invalid onboarding experience'});
 
 const current=await pool.query(
 `SELECT onboarding_experienced FROM public.users WHERE id=$1 AND organization_id=$2 AND active=true LIMIT 1`,

@@ -5,7 +5,8 @@ import{supabase}from'../lib/supabaseClient';
 const EXPERIENCE_COPY={
 home:{eyebrow:'A small beginning',title:'Let ARIA help you remember.',body:'Start with the people in your organization. ARIA will help you notice what matters and what may need your attention.',action:'Start with your people'},
 scan:{eyebrow:'Your first step',title:'Give ARIA your register.',body:'Take a clear photo of your register. ARIA will turn it into a living memory of the people you know.',action:'Scan the register'},
-people:{eyebrow:'Your people',title:'This is where your people live.',body:'Every person ARIA remembers belongs here. You can explore people, attendance and things that need review.',action:'Got it'},
+people:{eyebrow:'Your people',title:'This is where your people live.',body:'Every person ARIA remembers belongs here. Tap a person to enter their journey. ARIA keeps their history, present state and what may come next connected.',action:'Explore your people'},
+'person-journey':{eyebrow:'A person, not a card',title:'Meet the journey ARIA remembers.',body:'This is the living record for one person. Confirmed facts, memories, observations, relationships, participation and prepared actions stay connected here. ARIA does not invent what it does not know.',action:'Continue'},
 review:{eyebrow:'When ARIA is unsure',title:'You stay in control.',body:'When something needs your decision, ARIA brings it here. Nothing important is silently changed without you.',action:'Got it'},
 profile:{eyebrow:'Make ARIA yours',title:'Tell ARIA what to keep in mind.',body:'You can give ARIA a simple message about your organization. You can change it whenever your needs change.',action:'Continue'}
 };

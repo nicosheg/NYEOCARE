@@ -1,6 +1,7 @@
 // pages/people.js
 import{useState,useEffect,useRef,useCallback}from'react';
 import Link from'next/link';
+import{useRouter}from'next/router';
 import Layout from'../components/Layout';
 import FirstExperience from'../components/FirstExperience';
 import BirthdayPicker from'../components/BirthdayPicker';
@@ -17,7 +18,7 @@ importIcon:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#
 check:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#34D399" strokeWidth="2"><path d="M20 6L9 17l-5-5"/></svg>,
 trash:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>,
 edit:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l1-4L16.5 3.5z"/></svg>,
-chevron:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+chevron:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 6 15 12 9 18"/></svg>
 };
 
 const getNextBirthday=b=>{
@@ -39,13 +40,14 @@ const panelStyle={marginTop:12,background:'rgba(20,25,40,.9)',borderRadius:12,pa
 function LoadingSkeleton(){
 return <div style={{maxWidth:1100,margin:'0 auto',padding:20}}>
 <div style={{height:36,width:'30%',borderRadius:8,marginBottom:25,background:'rgba(255,255,255,.04)'}}/>
-<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(270px,1fr))',gap:20}}>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(270px,1fr))',gap:12}}>
 {[1,2,3,4,5,6].map(i=><div key={i} className="fiducia-card shimmer" style={{padding:24,height:180}}/>)}
 </div>
 </div>;
 }
 
 export default function PeoplePage(){
+const router=useRouter();
 const onboarding=useOnboarding();
 const[people,setPeople]=useState([]);
 const[search,setSearch]=useState('');
@@ -160,11 +162,12 @@ return next;
 return;
 }
 if(editingId===id)return;
-setExpandedId(prev=>prev===id?null:id);
+setExpandedId(null);
 setAddingNote(false);
 setImportingConv(false);
 setNoteText('');
 setConvText('');
+router.push(`/person/${id}`);
 };
 
 const selectAll=()=>setSelectedIds(new Set(filtered.map(p=>p.id)));
@@ -380,16 +383,16 @@ return <Layout>
 
 {msg&&<div className="fiducia-card" style={{padding:10,marginBottom:15,color:'#34D399',textAlign:'center'}}>{msg}</div>}
 
-<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(270px,1fr))',gap:20}}>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(270px,1fr))',gap:12}}>
 {filtered.length===0?<div className="empty-state"><div style={{fontSize:18,color:'#f0f0f0',marginBottom:8}}>{search||roleFilter!=='all'?'No people found':'No people yet'}</div><div style={{fontSize:13,color:'rgba(255,255,255,.35)',maxWidth:420}}>{search||roleFilter!=='all'?'Try a different search or filter.':'Add your first person or use Scan to begin building the people your organization knows.'}</div></div>:filtered.map(person=>{
 const truth=person.living_truth;
 const status=truth?.status||null;
 const label=statusLabel(status);
 const explanation=statusExplanation(status,truth?.confidence);
-const expanded=expandedId===person.id;
+const expanded=false;
 const editing=editingId===person.id;
 const fullName=[person.first_name,person.last_name].filter(Boolean).join(' ')||person.display_name||'Unnamed person';
-return <div key={person.id} className={`fiducia-card person-card ${expanded?'expanded-card':''}`} onPointerDown={()=>beginLongPress(person.id)} onPointerUp={endLongPress} onPointerCancel={endLongPress} onPointerLeave={endLongPress} onClick={()=>handleCardClick(person.id)} style={{cursor:'pointer',border:selectedIds.has(person.id)?'1px solid #D4AF37':undefined,background:selectedIds.has(person.id)?'rgba(212,175,55,.08)':undefined,userSelect:'none',WebkitUserSelect:'none',position:'relative'}}>
+return <div key={person.id} className="fiducia-card person-card" onPointerDown={()=>beginLongPress(person.id)} onPointerUp={endLongPress} onPointerCancel={endLongPress} onPointerLeave={endLongPress} onClick={()=>handleCardClick(person.id)} style={{cursor:'pointer',border:selectedIds.has(person.id)?'1px solid #D4AF37':undefined,background:selectedIds.has(person.id)?'rgba(212,175,55,.08)':undefined,userSelect:'none',WebkitUserSelect:'none',position:'relative'}}>
 {selectMode&&<div style={{position:'absolute',top:12,right:12,width:22,height:22,borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',background:selectedIds.has(person.id)?'rgba(212,175,55,.12)':'rgba(255,255,255,.03)',border:selectedIds.has(person.id)?'1px solid rgba(212,175,55,.4)':'1px solid rgba(255,255,255,.18)'}}>{selectedIds.has(person.id)?ICONS.check:null}</div>}
 {editing?<div onClick={e=>e.stopPropagation()} style={{display:'flex',flexDirection:'column',gap:8}}>
 <input value={editName} onChange={e=>setEditName(e.target.value)} style={inputStyle} placeholder="Full Name"/>
@@ -411,42 +414,13 @@ return <div key={person.id} className={`fiducia-card person-card ${expanded?'exp
 </div>
 <div style={{display:'flex',alignItems:'center',gap:7,flexShrink:0}}>
 <span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'rgba(212,175,55,.15)',color:'#D4AF37',display:'flex',alignItems:'center',gap:4}}>{ICONS.visitor}{person.type||'visitor'}</span>
-<span style={{color:'rgba(255,255,255,.35)',display:'flex',transform:expanded?'rotate(180deg)':'rotate(0deg)',transition:'transform .2s'}}>{ICONS.chevron}</span>
+<span style={{color:'rgba(255,255,255,.35)',display:'flex'}}>{ICONS.chevron}</span>
 </div>
 </div>
 <div style={{color:'rgba(255,255,255,.5)',fontSize:13,marginTop:10,display:'flex',alignItems:'center',gap:4}}>{ICONS.phone}{person.phone||'No phone'}</div>
 {person.email&&<div style={{color:'rgba(255,255,255,.35)',fontSize:12,marginTop:6,display:'flex',alignItems:'center',gap:4}}>{ICONS.mail}{person.email}</div>}
-{!expanded&&person.last_attended_date&&<div style={{color:'rgba(255,255,255,.35)',fontSize:12,marginTop:6,display:'flex',alignItems:'center',gap:4}}>{ICONS.calendar}Last attended: {new Date(person.last_attended_date).toLocaleDateString()}</div>}
-{expanded&&<div onClick={e=>e.stopPropagation()} style={{marginTop:16}}>
-{explanation&&<div style={{fontSize:12,color:'rgba(255,255,255,.6)',marginBottom:10,fontStyle:'italic'}}>{explanation}</div>}
-{person.birthday&&<div style={{color:'rgba(255,255,255,.4)',fontSize:12,marginBottom:6,display:'flex',alignItems:'center',gap:4}}><span style={{color:'#D4AF37',fontSize:10}}>●</span>Birthday: {new Date(`${person.birthday}T00:00:00`).toLocaleDateString()}<span style={{color:'rgba(255,255,255,.2)',fontSize:10,marginLeft:4}}>(in {getNextBirthday(person.birthday)} days)</span></div>}
-{person.last_attended_date&&<div style={{color:'rgba(255,255,255,.4)',fontSize:12,marginBottom:6,display:'flex',alignItems:'center',gap:4}}>{ICONS.calendar}Last attended: {new Date(person.last_attended_date).toLocaleDateString()}</div>}
-{person.last_contacted&&<div style={{color:'rgba(255,255,255,.4)',fontSize:12,marginBottom:10,display:'flex',alignItems:'center',gap:4}}>{ICONS.mail}Last contacted: {new Date(person.last_contacted).toLocaleDateString()}</div>}
-<div style={{display:'flex',flexWrap:'wrap',gap:8,marginBottom:10}}>
-<button onClick={e=>{e.stopPropagation();generateDraft(person.id)}} className="fiducia-button fiducia-button-primary" style={{padding:'6px 12px',fontSize:12,display:'flex',alignItems:'center',gap:6}}>{ICONS.mail}Draft & Send WhatsApp</button>
-<Link href={`/person/${person.id}`} onClick={e=>e.stopPropagation()} className="fiducia-button fiducia-button-secondary" style={{padding:'6px 12px',fontSize:12}}>Journey →</Link>
-<button onClick={e=>{e.stopPropagation();startEdit(person)}} className="fiducia-button fiducia-button-ghost" style={{padding:'6px 12px',fontSize:12,display:'flex',alignItems:'center',gap:6}}>{ICONS.edit}Edit</button>
-<button onClick={e=>{e.stopPropagation();setAddingNote(true);setImportingConv(false)}} className="fiducia-button fiducia-button-ghost" style={{padding:'6px 12px',fontSize:12,display:'flex',alignItems:'center',gap:6}}>{ICONS.note}Add pastoral note</button>
-<button onClick={e=>{e.stopPropagation();setImportingConv(true);setAddingNote(false)}} className="fiducia-button fiducia-button-ghost" style={{padding:'6px 12px',fontSize:12,display:'flex',alignItems:'center',gap:6}}>{ICONS.importIcon}Import Conversation</button>
-</div>
-<button onClick={e=>deletePerson(person.id,e)} className="fiducia-button fiducia-button-ghost danger-button" style={{padding:'6px 12px',fontSize:12,display:'flex',alignItems:'center',gap:6}}>{ICONS.trash}Remove</button>
-{addingNote&&<div style={panelStyle}>
-<p style={{fontSize:14,color:'rgba(255,255,255,.6)',margin:'0 0 8px'}}>What happened today?</p>
-<textarea value={noteText} onChange={e=>setNoteText(e.target.value)} placeholder="Write a note..." rows={4} style={{width:'100%',padding:8,borderRadius:8,border:'1px solid rgba(255,255,255,.06)',background:'rgba(255,255,255,.03)',color:'#fff',resize:'vertical',outline:'none',marginBottom:8}}/>
-<div style={{display:'flex',gap:8}}>
-<button onClick={()=>saveNote(person)} className="fiducia-button fiducia-button-primary" style={{padding:'6px 12px',fontSize:12}}>Save note</button>
-<button onClick={()=>{setAddingNote(false);setNoteText('')}} className="fiducia-button fiducia-button-ghost" style={{padding:'6px 12px',fontSize:12}}>Cancel</button>
-</div>
-</div>}
-{importingConv&&<div style={panelStyle}>
-<p style={{fontSize:14,color:'rgba(255,255,255,.6)',margin:'0 0 8px'}}>Import a conversation</p>
-<textarea value={convText} onChange={e=>setConvText(e.target.value)} placeholder="Paste the conversation here..." rows={7} style={{width:'100%',padding:8,borderRadius:8,border:'1px solid rgba(255,255,255,.06)',background:'rgba(255,255,255,.03)',color:'#fff',resize:'vertical',outline:'none',marginBottom:8}}/>
-<div style={{display:'flex',gap:8}}>
-<button onClick={()=>importConversation(person)} className="fiducia-button fiducia-button-primary" style={{padding:'6px 12px',fontSize:12}}>Import</button>
-<button onClick={()=>{setImportingConv(false);setConvText('')}} className="fiducia-button fiducia-button-ghost" style={{padding:'6px 12px',fontSize:12}}>Cancel</button>
-</div>
-</div>}
-</div>}
+{person.last_attended_date&&<div style={{color:'rgba(255,255,255,.35)',fontSize:12,marginTop:6,display:'flex',alignItems:'center',gap:4}}>{ICONS.calendar}Last attended: {new Date(person.last_attended_date).toLocaleDateString()}</div>}
+{explanation&&<div style={{fontSize:11,color:'rgba(255,255,255,.38)',marginTop:9,lineHeight:1.45}}>{explanation}</div>}
 </>}
 </div>
 })}

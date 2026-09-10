@@ -1,23 +1,26 @@
 {
-  "name": "nyeocare",
-  "version": "1.0.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "create-owner": "node scripts/create-owner.js"
+  "name":"nyeocare",
+  "version":"1.0.0",
+  "private":true,
+  "scripts":{
+    "dev":"next dev",
+    "build":"next build",
+    "start":"next start",
+    "create-owner":"node scripts/create-owner.js"
   },
-  "dependencies": {
-    "next": "14.1.0",
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
-    "@supabase/supabase-js": "^2.39.8",
-    "fuse.js": "^7.0.0",
-    "twilio": "^4.23.0",
-    "formidable": "^3.5.1",
-    "openai": "^4.28.0",
-    "googleapis": "^133.0.0",
-    "pg": "^8.13.0"
+  "dependencies":{
+    "next":"14.1.0",
+    "react":"18.2.0",
+    "react-dom":"18.2.0",
+    "@supabase/supabase-js":"^2.39.8",
+    "fuse.js":"^7.0.0",
+    "twilio":"^4.23.0",
+    "formidable":"^3.5.1",
+    "openai":"^4.28.0",
+    "googleapis":"^133.0.0",
+    "pg":"^8.13.0",
+    "@capacitor/core":"^8.0.0",
+    "@capacitor/cli":"^8.0.0",
+    "@capacitor/android":"^8.0.0"
   }
 }

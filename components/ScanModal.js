@@ -6,7 +6,6 @@ import{supabase}from'../lib/supabaseClient'
 import{getScanState,setScanState,clearScanState}from'../lib/scanStore'
 import{useOnboarding}from'./OnboardingProvider'
 
-const DEFAULT_PROGRAM='GIBEON'
 const MAX_IMAGE_BYTES=3500000
 const MAX_DIMENSION=2200
 const POLL_MS=1200
@@ -15,19 +14,31 @@ const messageForProgress=(progress,status)=>({queued:'ARIA is preparing the regi
 
 export default function ScanModal({isOpen,onClose}){
  const router=useRouter()
- const cameraInput=useRef(null),uploadInput=useRef(null),pollRef=useRef(null),pollingJob=useRef(null)
+ const cameraInput=useRef(null),uploadInput=useRef(null),galleryInput=useRef(null),videoRef=useRef(null),streamRef=useRef(null),pollRef=useRef(null),pollingJob=useRef(null)
  const onboarding=useOnboarding()
  const[mounted,setMounted]=useState(false)
- const[programName,setProgramName]=useState(DEFAULT_PROGRAM)
+ const[programName,setProgramName]=useState('')
  const[scanState,setScanStateLocal]=useState(getScanState())
  const[progressMessage,setProgressMessage]=useState('')
  const[elapsedSeconds,setElapsedSeconds]=useState(0)
  const[completionTimestamp,setCompletionTimestamp]=useState(null)
  const[celebration,setCelebration]=useState(false)
+ const[cameraOpen,setCameraOpen]=useState(false)
+ const[cameraError,setCameraError]=useState('')
 
  useEffect(()=>{setMounted(true);return()=>setMounted(false)},[])
  const sync=useCallback(next=>{setScanState(next);setScanStateLocal(getScanState())},[])
- const stopPolling=useCallback(()=>{if(pollRef.current){clearInterval(pollRef.current);pollRef.current=null}pollingJob.current=null},[])
+ const stopCamera=useCallback(()=>{if(streamRef.current){streamRef.current.getTracks().forEach(track=>track.stop());streamRef.current=null}if(videoRef.current)videoRef.current.srcObject=null},[])
+ const startCamera=useCallback(async()=>{
+  setCameraError('')
+  stopCamera()
+  try{
+   if(!navigator.mediaDevices?.getUserMedia)throw new Error('Live camera capture is not available in this browser.')
+   const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false})
+   streamRef.current=stream
+   if(videoRef.current){videoRef.current.srcObject=stream;await videoRef.current.play().catch(()=>{})}
+  }catch(error){console.error('[SCAN] Camera error:',error);setCameraError(error?.message||'Camera access was unavailable. You can still choose an image below.');stopCamera()}
+ },[stopCamera])
  const completeOnboarding=useCallback(async()=>{if(!onboarding?.enabled||onboarding.isExperienced('scan'))return;try{const{data:{session}}=await supabase.auth.getSession();if(!session)return;const r=await fetch('/api/onboarding',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},body:JSON.stringify({action:'experience_completed',experience:'scan'})});if(r.ok)onboarding.completeExperience('scan')}catch{}},[onboarding])
 
  const pollJob=useCallback(jobId=>{
@@ -80,9 +91,9 @@ export default function ScanModal({isOpen,onClose}){
   if(current.stage==='processing'&&current.jobId){setProgressMessage(current.message||'ARIA is continuing your scan…');pollJob(current.jobId)}
   return()=>stopPolling()
  },[isOpen,pollJob,stopPolling])
-
  useEffect(()=>{if(!isOpen||!mounted)return;const previous=document.body.style.overflow;document.body.style.overflow='hidden';return()=>{document.body.style.overflow=previous}},[isOpen,mounted])
  useEffect(()=>{if(!isOpen)return;const handler=e=>{if(e.key==='Escape'&&scanState.stage!=='processing')onClose?.()};window.addEventListener('keydown',handler);return()=>window.removeEventListener('keydown',handler)},[isOpen,onClose,scanState.stage])
+ useEffect(()=>{if(cameraOpen&&isOpen&&scanState.stage==='idle')startCamera();else stopCamera();return()=>stopCamera()},[cameraOpen,isOpen,scanState.stage,startCamera,stopCamera])
 
  const preprocessImage=useCallback(file=>new Promise((resolve,reject)=>{
   if(!file)return reject(new Error('No image selected.'))
@@ -111,26 +122,43 @@ export default function ScanModal({isOpen,onClose}){
 
  const handleFile=useCallback(async file=>{
   if(!file||scanState.stage==='processing')return
+  const name=normalizeName(programName)
+  if(!name){setCameraError('Enter the event or program name before scanning.');setCameraOpen(false);return}
+  stopCamera();setCameraOpen(false)
   sync({stage:'processing',scanningLine:true,progress:'enhancing',message:'ARIA is preparing the image…'})
   setProgressMessage('ARIA is preparing the image…');setElapsedSeconds(0)
   try{
    const image_base64=await preprocessImage(file)
    const{data:{session}}=await supabase.auth.getSession()
    if(!session)throw new Error('You must be logged in to scan.')
-   const r=await fetch('/api/scan/start',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},body:JSON.stringify({image_base64,program_name:normalizeName(programName)||DEFAULT_PROGRAM})})
+   const r=await fetch('/api/scan/start',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},body:JSON.stringify({image_base64,program_name:name})})
    const data=await r.json().catch(()=>({}))
    if(!r.ok)throw new Error(data.error||'ARIA could not start the scan.')
    if(!data.job_id)throw new Error('ARIA did not return a scan job.')
    sync({stage:'processing',jobId:data.job_id,scanningLine:true,progress:data.progress||'queued',message:data.message||'ARIA is preparing to read the register…'})
    setProgressMessage(data.message||'ARIA is preparing to read the register…');pollJob(data.job_id)
   }catch(error){stopPolling();sync({stage:'error',message:error.message||'Failed to start scan.'});setProgressMessage(error.message||'Failed to start scan.')}
- },[pollJob,preprocessImage,programName,scanState.stage,stopPolling,sync])
+ },[pollJob,preprocessImage,programName,scanState.stage,stopCamera,stopPolling,sync])
 
  const handleFileInput=useCallback(e=>{const file=e.target.files?.[0];e.target.value='';if(file)handleFile(file)},[handleFile])
+ const snapAndScan=useCallback(async()=>{
+  if(!videoRef.current||scanState.stage==='processing')return
+  const name=normalizeName(programName)
+  if(!name){setCameraError('Enter the event or program name before scanning.');return}
+  const video=videoRef.current
+  if(!video.videoWidth||!video.videoHeight){setCameraError('Camera is still starting. Hold on for a moment and try again.');return}
+  const canvas=document.createElement('canvas'),scale=Math.min(1,MAX_DIMENSION/Math.max(video.videoWidth,video.videoHeight))
+  canvas.width=Math.max(1,Math.round(video.videoWidth*scale));canvas.height=Math.max(1,Math.round(video.videoHeight*scale))
+  const ctx=canvas.getContext('2d',{alpha:false})
+  if(!ctx){setCameraError('Camera capture is unavailable on this device.');return}
+  ctx.drawImage(video,0,0,canvas.width,canvas.height)
+  canvas.toBlob(blob=>{if(!blob){setCameraError('The photo could not be captured. Please try again.');return}handleFile(new File([blob],`nyeocare-scan-${Date.now()}.jpg`,{type:'image/jpeg'}))},'image/jpeg',.9)
+ },[handleFile,programName,scanState.stage])
 
  if(!isOpen||!mounted)return null
- const close=()=>{if(scanState.stage==='processing')return;stopPolling();clearScanState();setScanStateLocal(getScanState());setProgressMessage('');onClose?.()}
- const reset=()=>{stopPolling();clearScanState();setScanStateLocal(getScanState());setProgressMessage('');setElapsedSeconds(0);setCompletionTimestamp(null);setCelebration(false)}
+ const close=()=>{if(scanState.stage==='processing')return;stopPolling();stopCamera();setCameraOpen(false);clearScanState();setScanStateLocal(getScanState());setProgressMessage('');onClose?.()}
+ const reset=()=>{stopPolling();stopCamera();setCameraOpen(false);clearScanState();setScanStateLocal(getScanState());setProgressMessage('');setElapsedSeconds(0);setCompletionTimestamp(null);setCelebration(false);setCameraError('')}
+ const openCamera=()=>{if(!normalizeName(programName)){setCameraError('Enter the event or program name first.');return}setCameraError('');setCameraOpen(true)}
  const{stage,summary,message}=scanState
  const result=scanState.results||{}
  const count=summary?.total??result.total_extracted??result.total_valid??result.people?.length??0
@@ -139,19 +167,38 @@ export default function ScanModal({isOpen,onClose}){
  const phase=phases[scanState.progress]||phases.queued
 
  const content=<div style={styles.overlay} onMouseDown={e=>{if(e.target===e.currentTarget&&stage!=='processing')close()}}>
-  <div style={styles.modal} role="dialog" aria-modal="true" aria-label="ARIA Scan" onMouseDown={e=>e.stopPropagation()}>
+  <div style={styles.modal} role="dialog" aria-modal="true" aria-label="NYEOCARE Scan" onMouseDown={e=>e.stopPropagation()}>
    <button style={styles.close} onClick={close} disabled={stage==='processing'} aria-label="Close">×</button>
    <div style={styles.inner}>
-    <div style={styles.eyebrow}>ARIA · SCAN</div>
-    <h2 style={styles.title}>Remember people.</h2>
-    <p style={styles.sub}>ARIA reads the register as intelligently as possible, cleans the presentation, and sends anything uncertain to Review Center instead of throwing it away.</p>
+    <div style={styles.eyebrow}>NYEOCARE · SCAN</div>
+    {stage==='idle'&&!cameraOpen&&<>
+     <h2 style={styles.title}>Remember people.</h2>
+     <p style={styles.sub}>Tell NYEOCARE what this register is for, then open the camera to scan it.</p>
+     <div style={styles.idle}>
+      <input value={programName} onChange={e=>{setProgramName(e.target.value);setCameraError('')}} placeholder="Event or program name" autoComplete="off" style={styles.input}/>
+      <button style={styles.capture} onClick={openCamera}>Open camera</button>
+      {cameraError&&<div style={styles.cameraError}>{cameraError}</div>}
+      <div style={styles.hint}>You choose the event name. NYEOCARE never pre-fills it for you.</div>
+     </div>
+    </>}
 
-    {stage==='idle'&&<div style={styles.idle}>
-     <input value={programName} onChange={e=>setProgramName(e.target.value)} placeholder="Program name" style={styles.input}/>
-     <label style={styles.capture}>Take photo<input ref={cameraInput} type="file" accept="image/*" capture="environment" hidden onChange={handleFileInput}/></label>
-     <button style={styles.secondary} onClick={()=>uploadInput.current?.click()}>Upload image</button>
+    {stage==='idle'&&cameraOpen&&<div style={styles.cameraPage}>
+     <div style={styles.cameraTop}><button style={styles.back} onClick={()=>{stopCamera();setCameraOpen(false);setCameraError('')}}>‹</button><div><strong>Scan register</strong><span>{normalizeName(programName)}</span></div><span style={styles.cameraDot}/></div>
+     <div style={styles.previewWrap}>
+      <video ref={videoRef} playsInline muted autoPlay style={styles.video}/>
+      <div style={styles.frame}><i/><i/><i/><i/></div>
+      {cameraError&&<div style={styles.cameraOverlay}>{cameraError}</div>}
+     </div>
+     <div style={styles.cameraActions}>
+      <button style={styles.cameraOption} onClick={()=>uploadInput.current?.click()}><span>↑</span>Upload</button>
+      <button style={styles.shutter} onClick={snapAndScan} aria-label="Snap and scan"><span/></button>
+      <button style={styles.cameraOption} onClick={()=>galleryInput.current?.click()}><span>▣</span>Gallery</button>
+     </div>
      <input ref={uploadInput} type="file" accept="image/*,.png,.jpg,.jpeg,.webp" hidden onChange={handleFileInput}/>
-     <div style={styles.hint}>One clear photo of the complete register works best. ARIA will preserve uncertain rows for review.</div>
+     <input ref={galleryInput} type="file" accept="image/*" hidden onChange={handleFileInput}/>
+     <input ref={cameraInput} type="file" accept="image/*" capture="environment" hidden onChange={handleFileInput}/>
+     <div style={styles.cameraHint}>Fit the complete register inside the frame. Snap & scan sends the photo directly to ARIA.</div>
+     {!navigator.mediaDevices?.getUserMedia&&<button style={styles.fallback} onClick={()=>cameraInput.current?.click()}>Use device camera</button>}
     </div>}
 
     {stage==='processing'&&<div style={styles.status}>
@@ -194,10 +241,26 @@ const styles={
  sub:{margin:'0 auto',maxWidth:440,color:'rgba(255,255,255,.45)',lineHeight:1.6,fontSize:14},
  idle:{marginTop:20},
  input:{width:'100%',boxSizing:'border-box',padding:'14px 16px',margin:'22px 0 14px',borderRadius:15,border:'1px solid rgba(255,255,255,.1)',background:'rgba(255,255,255,.04)',color:'#fff',outline:'none',fontSize:15},
- capture:{display:'inline-block',padding:'15px 24px',borderRadius:999,background:'#f4f4f4',color:'#07101e',fontWeight:700,cursor:'pointer',fontSize:14},
+ capture:{display:'block',width:'100%',boxSizing:'border-box',padding:'15px 24px',border:0,borderRadius:999,background:'#f4f4f4',color:'#07101e',fontWeight:700,cursor:'pointer',fontSize:14},
  primary:{display:'block',width:'100%',margin:'10px auto 0',padding:'12px 18px',border:0,borderRadius:999,background:'#f4f4f4',color:'#07101e',fontWeight:700,cursor:'pointer',fontSize:13},
  secondary:{display:'block',margin:'10px auto 0',padding:'11px 18px',borderRadius:999,border:'1px solid rgba(255,255,255,.12)',background:'rgba(255,255,255,.05)',color:'#fff',cursor:'pointer',fontSize:13},
  hint:{fontSize:12,color:'rgba(255,255,255,.3)',marginTop:14,lineHeight:1.5},
+ cameraError:{marginTop:12,color:'#ffb1b1',fontSize:12,lineHeight:1.45},
+ cameraPage:{display:'flex',flexDirection:'column',gap:14,minHeight:'62vh'},
+ cameraTop:{display:'flex',alignItems:'center',gap:12,textAlign:'left',padding:'4px 2px 10px'},
+ back:{width:38,height:38,borderRadius:'50%',border:'1px solid rgba(255,255,255,.1)',background:'rgba(255,255,255,.06)',color:'#fff',fontSize:28,lineHeight:1,cursor:'pointer'},
+ cameraTopText:{display:'grid',gap:2},
+ cameraDot:{marginLeft:'auto',width:8,height:8,borderRadius:'50%',background:'#8fd7b4',boxShadow:'0 0 14px rgba(143,215,180,.6)'},
+ previewWrap:{position:'relative',width:'100%',height:'min(52vh,520px)',minHeight:320,overflow:'hidden',borderRadius:24,background:'#020711',border:'1px solid rgba(255,255,255,.1)'},
+ video:{width:'100%',height:'100%',objectFit:'cover',display:'block'},
+ frame:{position:'absolute',inset:'9%',border:'1px solid rgba(255,255,255,.65)',borderRadius:18,pointerEvents:'none'},
+ cameraOverlay:{position:'absolute',left:14,right:14,bottom:14,padding:'11px 13px',borderRadius:14,background:'rgba(2,7,17,.82)',color:'#ffd0d0',fontSize:12,lineHeight:1.4},
+ cameraActions:{display:'grid',gridTemplateColumns:'1fr auto 1fr',alignItems:'center',gap:12},
+ cameraOption:{border:0,background:'transparent',color:'rgba(255,255,255,.78)',fontSize:12,cursor:'pointer',display:'grid',justifyItems:'center',gap:5},
+ shutter:{width:76,height:76,borderRadius:'50%',border:'5px solid rgba(255,255,255,.9)',background:'transparent',display:'grid',placeItems:'center',cursor:'pointer',boxShadow:'0 0 0 7px rgba(255,255,255,.08)'},
+ shutterInner:{width:56,height:56,borderRadius:'50%',background:'#fff'},
+ cameraHint:{fontSize:11,color:'rgba(255,255,255,.35)',lineHeight:1.45},
+ fallback:{alignSelf:'center',border:'1px solid rgba(255,255,255,.12)',borderRadius:999,padding:'10px 16px',background:'rgba(255,255,255,.05)',color:'#fff',cursor:'pointer'},
  status:{marginTop:28,padding:28,borderRadius:25,background:'rgba(255,255,255,.035)',display:'grid',gap:12,justifyItems:'center'},
  pulse:{width:68,height:68,borderRadius:'50%',display:'grid',placeItems:'center',background:'rgba(212,175,55,.1)',border:'1px solid rgba(212,175,55,.3)',color:'#d4af37',fontSize:22,animation:'ariaPulse 2s ease-in-out infinite'},
  statusTitle:{fontSize:14,minHeight:20},
@@ -209,4 +272,4 @@ const styles={
  success:{color:'#8fd7b4',fontSize:18},
  error:{color:'#ff9d9d',fontSize:18},
  resultText:{fontSize:13,color:'rgba(255,255,255,.55)',lineHeight:1.55}
-                                              }
+}

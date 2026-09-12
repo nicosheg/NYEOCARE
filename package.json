@@ -21,6 +21,7 @@
     "pg":"^8.13.0",
     "@capacitor/core":"^8.0.0",
     "@capacitor/cli":"^8.0.0",
-    "@capacitor/android":"^8.0.0"
+    "@capacitor/android":"^8.0.0",
+    "pdfjs-dist":"^4.10.38"
   }
 }

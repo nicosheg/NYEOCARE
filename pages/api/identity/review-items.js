@@ -1,55 +1,11 @@
 // pages/api/identity/review-items.js
 import pool from'../../../lib/db';
-import{withAdmin}from'../../../lib/apiHelpers';
-import{fuzzyMatch,normalizeName}from'../../../lib/scanValidation';
-
-export default withAdmin(async function handler(req,res){
-if(req.method!=='GET')return res.status(405).json({error:'Method not allowed'});
-const orgId=req.org.id;
-try{
-const[r,p]=await Promise.all([
-pool.query(`SELECT id,created_at,result FROM scan_jobs WHERE organization_id=$1 AND status='complete' AND result IS NOT NULL ORDER BY created_at DESC LIMIT 50`,[orgId]),
-pool.query(`SELECT id,first_name,last_name,display_name,phone FROM people WHERE organization_id=$1 AND status='active'`,[orgId])
-]);
-const people=p.rows,items=[];
-
-for(const row of r.rows){
-const list=Array.isArray(row.result?.needs_review)?row.result.needs_review:[];
-list.forEach((x,index)=>{
-if(x?.resolved)return;
-const incoming=x?.incoming||{};
-const extractedName=String(x?.extracted_name||incoming.name||x?.name||'Unknown person').trim();
-const extractedPhone=x?.extracted_phone||incoming.phone||null;
-const key=normalizeName(extractedName);
-const candidates=key?people.map(person=>{
-const name=person.display_name||[person.first_name,person.last_name].filter(Boolean).join(' ');
-return{id:person.id,name,phone:person.phone,score:Math.round(fuzzyMatch(key,name)*100),method:'name'};
-}).filter(x=>x.score>=72).sort((a,b)=>b.score-a.score).slice(0,5):[];
-
-items.push({
-id:`${row.id}:${index}`,
-scan_job_id:row.id,
-review_index:index,
-extracted_name:extractedName,
-extracted_phone:extractedPhone,
-status:x.status||'needs_decision',
-confidence:x.confidence??null,
-score:candidates[0]?.score??x.score??0,
-reasons:Array.isArray(x.reasons)?x.reasons:[],
-evidence:x.evidence||null,
-verification_alternatives:x.verification_alternatives||null,
-candidates,
-best_candidate_id:x.best_candidate_id||candidates[0]?.id||null,
-evidence_url:`/api/scan/evidence?job_id=${encodeURIComponent(row.id)}`,
-created_at:row.created_at,
-row_number:x.row_number??incoming.row_number??null
-});
-});
-}
-
-return res.status(200).json({items,stats:{total:items.length,needs_decision:items.filter(x=>x.status==='needs_decision').length,conflict:items.filter(x=>x.status==='conflict').length}});
-}catch(e){
-console.error('[REVIEW ITEMS]',e);
-return res.status(500).json({error:'Unable to load identity reviews.'});
-}
+import{withOrg}from'../../../lib/apiHelpers';
+export default withOrg(async function handler(req,res){
+ if(req.method!=='GET')return res.status(405).json({error:'Method not allowed'});
+ try{
+  const{rows}=await pool.query(`SELECT id,living_truth,metadata FROM people WHERE organization_id=$1 AND status='active' AND living_truth->>'status' IN ('needs_decision','conflict') ORDER BY updated_at DESC,created_at DESC`,[req.org.id]);
+  const items=rows.map(x=>({id:x.id,status:x.living_truth?.status||'needs_decision',name_suggestions:x.metadata?.name_suggestions||[],candidate_ids:x.metadata?.candidate_ids||[]}));
+  return res.status(200).json({items,stats:{total:items.length,needs_decision:items.filter(x=>x.status==='needs_decision').length,conflict:items.filter(x=>x.status==='conflict').length}});
+ }catch(e){console.error('[REVIEW ITEMS]',e);return res.status(500).json({error:'Unable to load identity reviews.'})}
 });

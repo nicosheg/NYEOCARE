@@ -18,7 +18,7 @@ importIcon:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#
 check:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#34D399" strokeWidth="2"><path d="M20 6L9 17l-5-5"/></svg>,
 trash:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>,
 edit:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l1-4L16.5 3.5z"/></svg>,
-chevron:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 6 15 12 9 18"/></svg>
+dots:<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>
 };
 
 const getNextBirthday=b=>{
@@ -35,7 +35,6 @@ const statusExplanation=(s,c)=>s==='alive'?`ARIA is highly confident this identi
 const inputStyle={padding:'10px 12px',borderRadius:10,border:'1px solid rgba(255,255,255,.06)',background:'rgba(20,25,40,.6)',color:'#fff',outline:'none',width:'100%'};
 const labelStyle={display:'block',fontSize:13,color:'rgba(255,255,255,.5)',marginBottom:4};
 const birthdayButtonStyle=value=>({width:'100%',padding:'12px 16px',borderRadius:10,border:'1px solid rgba(255,255,255,.06)',background:'rgba(20,25,40,.6)',color:value?'#f0f0f0':'rgba(255,255,255,.3)',fontSize:15,textAlign:'left',cursor:'pointer',outline:'none'});
-const panelStyle={marginTop:12,background:'rgba(20,25,40,.9)',borderRadius:12,padding:12,border:'1px solid rgba(255,255,255,.05)'};
 
 function LoadingSkeleton(){
 return <div style={{maxWidth:1100,margin:'0 auto',padding:20}}>
@@ -74,6 +73,7 @@ const[selectedIds,setSelectedIds]=useState(new Set());
 const[reviewItems,setReviewItems]=useState([]);
 const[showReviewPanel,setShowReviewPanel]=useState(false);
 const[accessToken,setAccessToken]=useState(null);
+const[contextMenuId,setContextMenuId]=useState(null);
 const longPressTimer=useRef(null);
 const longPressTriggered=useRef(false);
 
@@ -137,6 +137,7 @@ longPressTriggered.current=true;
 setSelectMode(true);
 setSelectedIds(prev=>new Set(prev).add(id));
 setExpandedId(null);
+setContextMenuId(null);
 if(navigator.vibrate)navigator.vibrate(50);
 },650);
 };
@@ -152,6 +153,7 @@ const enterSelectMode=()=>{
 setSelectMode(true);
 setExpandedId(null);
 setEditingId(null);
+setContextMenuId(null);
 };
 
 const toggleSelected=id=>{
@@ -171,6 +173,7 @@ if(selectMode){
  toggleSelected(id);
 return;
 }
+if(contextMenuId){setContextMenuId(null);if(contextMenuId===id)return;}
 if(editingId===id)return;
 setExpandedId(null);
 setAddingNote(false);
@@ -189,6 +192,7 @@ longPressTriggered.current=false;
 };
 
 const startEdit=person=>{
+setContextMenuId(null);
 setExpandedId(person.id);
 setEditingId(person.id);
 setEditName([person.first_name,person.last_name].filter(Boolean).join(' ')||person.display_name||'');
@@ -400,6 +404,7 @@ const label=statusLabel(status);
 const explanation=statusExplanation(status,truth?.confidence);
 const editing=editingId===person.id;
 const fullName=[person.first_name,person.last_name].filter(Boolean).join(' ')||person.display_name||'Unnamed person';
+const menuOpen=contextMenuId===person.id;
 return <div key={person.id} className="fiducia-card person-card" onPointerDown={()=>beginLongPress(person.id)} onPointerUp={endLongPress} onPointerCancel={endLongPress} onPointerLeave={endLongPress} onClick={()=>handleCardClick(person.id)} style={{cursor:editing?'default':'pointer',border:selectedIds.has(person.id)?'1px solid #D4AF37':undefined,background:selectedIds.has(person.id)?'rgba(212,175,55,.08)':undefined,userSelect:'none',WebkitUserSelect:'none',position:'relative'}}>
 {selectMode&&<button type="button" aria-label={selectedIds.has(person.id)?`Deselect ${fullName}`:`Select ${fullName}`} onClick={e=>{e.stopPropagation();toggleSelected(person.id)}} style={{position:'absolute',top:12,right:12,width:28,height:28,borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',background:selectedIds.has(person.id)?'rgba(212,175,55,.16)':'rgba(255,255,255,.04)',border:selectedIds.has(person.id)?'1px solid rgba(212,175,55,.5)':'1px solid rgba(255,255,255,.18)',color:'#fff',cursor:'pointer'}}>{selectedIds.has(person.id)?ICONS.check:null}</button>}
 {editing?<div onClick={e=>e.stopPropagation()} style={{display:'flex',flexDirection:'column',gap:8}}>
@@ -415,16 +420,21 @@ return <div key={person.id} className="fiducia-card person-card" onPointerDown={
 <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
 <button type="button" onClick={e=>{e.stopPropagation();saveEdit(person.id)}} className="fiducia-button fiducia-button-primary" style={{padding:'6px 12px',fontSize:13}}>Save changes</button>
 <button type="button" onClick={e=>{e.stopPropagation();cancelEdit()}} className="fiducia-button fiducia-button-ghost" style={{padding:'6px 12px',fontSize:13}}>Cancel</button>
-<button type="button" onClick={e=>deletePerson(person.id,e)} className="fiducia-button fiducia-button-ghost danger-button" style={{padding:'6px 12px',fontSize:13,display:'inline-flex',alignItems:'center',gap:6}}>{ICONS.trash}Delete</button>
 </div>
 </div>:<>
 <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:10}}>
-<div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',minWidth:0,paddingRight:selectMode?30:0}}>
+<div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',minWidth:0,paddingRight:selectMode?34:0}}>
 <span style={{fontWeight:600,fontSize:17,color:'#f0f0f0',overflow:'hidden',textOverflow:'ellipsis'}}>{fullName}</span>
 {status&&<span style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:11,padding:'2px 10px 2px 6px',borderRadius:20,background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.08)',fontWeight:500,color:status==='alive'||status==='conflict'?'#8FB7FF':'#D4AF37'}}><span style={{display:'inline-block',width:9,height:9,borderRadius:'50%',background:statusColor(status),animation:'pulse 2.5s ease-in-out infinite'}}/>{label}</span>}
 </div>
 <div style={{display:'flex',alignItems:'center',gap:7,flexShrink:0}}>
 <span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'rgba(212,175,55,.15)',color:'#D4AF37',display:'flex',alignItems:'center',gap:4}}>{ICONS.visitor}{person.type||'visitor'}</span>
+{!selectMode&&<div style={{position:'relative'}} onClick={e=>e.stopPropagation()} onPointerDown={e=>e.stopPropagation()}>
+<button type="button" aria-label={`More options for ${fullName}`} aria-expanded={menuOpen} onClick={()=>setContextMenuId(menuOpen?null:person.id)} style={{width:30,height:30,borderRadius:9,border:'1px solid rgba(255,255,255,.07)',background:'rgba(255,255,255,.025)',color:'rgba(255,255,255,.45)',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}>{ICONS.dots}</button>
+{menuOpen&&<div style={{position:'absolute',right:0,top:36,zIndex:20,minWidth:150,padding:5,borderRadius:12,background:'rgba(12,16,28,.98)',border:'1px solid rgba(255,255,255,.08)',boxShadow:'0 12px 30px rgba(0,0,0,.35)',backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)'}}>
+<button type="button" onClick={()=>startEdit(person)} className="fiducia-button fiducia-button-ghost" style={{width:'100%',justifyContent:'flex-start',padding:'8px 10px',fontSize:12,display:'flex',alignItems:'center',gap:7}}>{ICONS.edit}Edit details</button>
+</div>}
+</div>}
 </div>
 </div>
 <div style={{color:'rgba(255,255,255,.5)',fontSize:13,marginTop:10,display:'flex',alignItems:'center',gap:4}}>{ICONS.phone}{person.phone||'No phone'}</div>
@@ -432,10 +442,6 @@ return <div key={person.id} className="fiducia-card person-card" onPointerDown={
 {person.birthday&&<div style={{color:'rgba(255,255,255,.35)',fontSize:12,marginTop:6,display:'flex',alignItems:'center',gap:4}}>{ICONS.calendar}Date of birth: {new Date(`${person.birthday}T00:00:00`).toLocaleDateString()}</div>}
 {person.last_attended_date&&<div style={{color:'rgba(255,255,255,.35)',fontSize:12,marginTop:6,display:'flex',alignItems:'center',gap:4}}>{ICONS.calendar}Last attended: {new Date(person.last_attended_date).toLocaleDateString()}</div>}
 {explanation&&<div style={{fontSize:11,color:'rgba(255,255,255,.38)',marginTop:9,lineHeight:1.45}}>{explanation}</div>}
-<div onClick={e=>e.stopPropagation()} style={{display:'flex',gap:7,marginTop:12,paddingTop:10,borderTop:'1px solid rgba(255,255,255,.05)',flexWrap:'wrap'}}>
-<button type="button" onClick={e=>{e.stopPropagation();startEdit(person)}} className="fiducia-button fiducia-button-ghost" style={{padding:'6px 10px',fontSize:12,display:'inline-flex',alignItems:'center',gap:5}}>{ICONS.edit}Edit</button>
-<button type="button" onClick={e=>deletePerson(person.id,e)} className="fiducia-button fiducia-button-ghost danger-button" style={{padding:'6px 10px',fontSize:12,display:'inline-flex',alignItems:'center',gap:5}}>{ICONS.trash}Delete</button>
-</div>
 </>}
 </div>
 })}

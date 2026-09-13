@@ -148,17 +148,27 @@ longPressTimer.current=null;
 }
 };
 
+const enterSelectMode=()=>{
+setSelectMode(true);
+setExpandedId(null);
+setEditingId(null);
+};
+
+const toggleSelected=id=>{
+setSelectedIds(prev=>{
+const next=new Set(prev);
+if(next.has(id))next.delete(id);else next.add(id);
+return next;
+});
+};
+
 const handleCardClick=id=>{
 if(longPressTriggered.current){
 longPressTriggered.current=false;
 return;
 }
 if(selectMode){
-setSelectedIds(prev=>{
-const next=new Set(prev);
-if(next.has(id))next.delete(id);else next.add(id);
-return next;
-});
+ toggleSelected(id);
 return;
 }
 if(editingId===id)return;
@@ -171,6 +181,7 @@ router.push(`/person/${id}`);
 };
 
 const selectAll=()=>setSelectedIds(new Set(filtered.map(p=>p.id)));
+const clearSelection=()=>setSelectedIds(new Set());
 const cancelSelect=()=>{
 setSelectMode(false);
 setSelectedIds(new Set());
@@ -230,6 +241,7 @@ const data=await res.json();
 if(!res.ok||!data.success)throw new Error(data.error||'Remove failed');
 setPeople(prev=>prev.filter(p=>!data.deleted_ids.includes(p.id)));
 if(expandedId===id)setExpandedId(null);
+if(editingId===id)cancelEdit();
 flash('Person removed');
 }catch(err){flash(err.message||'Error removing person')}
 };
@@ -308,21 +320,17 @@ conflict:reviewItems.filter(i=>i.status==='conflict').length
 };
 
 const showPeopleExperience=onboarding?.loaded&&onboarding.enabled&&!onboarding.isExperienced('people');
+const allFilteredSelected=filtered.length>0&&filtered.every(p=>selectedIds.has(p.id));
 
 return <Layout>
-<div style={{maxWidth:1100,margin:'0 auto',padding:20}}>
+<div style={{maxWidth:1100,margin:'0 auto',padding:20,paddingBottom:selectMode?100:20}}>
 {showPeopleExperience&&<FirstExperience experience="people" onComplete={()=>onboarding.completeExperience('people')}/>}
 
-<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:16,marginBottom:25}}>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:16,marginBottom:25,flexWrap:'wrap'}}>
 <div>
 <h1 style={{fontSize:28,fontWeight:600,color:'#f0f0f0',margin:0}}>{people.length} lives remembered</h1>
 <p style={{fontSize:13,color:'rgba(255,255,255,.35)',margin:'7px 0 0'}}>Everyone your organization knows.</p>
 </div>
-{selectMode&&<div style={{display:'flex',gap:8,flexWrap:'wrap',justifyContent:'flex-end'}}>
-<button onClick={selectAll} className="fiducia-button fiducia-button-ghost" style={{padding:'7px 12px',fontSize:13}}>Select all</button>
-<button onClick={cancelSelect} className="fiducia-button fiducia-button-ghost" style={{padding:'7px 12px',fontSize:13}}>Cancel</button>
-{selectedIds.size>0&&<button onClick={bulkDelete} className="fiducia-button fiducia-button-ghost danger-button" style={{padding:'7px 12px',fontSize:13}}>Remove {selectedIds.size}</button>}
-</div>}
 </div>
 
 <div style={{marginBottom:20}}>
@@ -360,6 +368,7 @@ return <Layout>
 </select>
 <button className={`fiducia-button ${showLivingTruthOnly?'fiducia-button-primary':'fiducia-button-ghost'}`} style={{padding:'6px 12px',fontSize:12}} onClick={()=>setShowLivingTruthOnly(v=>!v)}>{showLivingTruthOnly?'All':'Living Truth'}</button>
 <button onClick={()=>setShowAdd(v=>!v)} className="fiducia-button fiducia-button-primary">Add Person</button>
+<button onClick={enterSelectMode} className="fiducia-button fiducia-button-ghost">Select</button>
 </div>
 
 {showAdd&&<form onSubmit={addPerson} className="fiducia-card add-form" style={{display:'grid',gap:10,marginBottom:20}}>
@@ -389,44 +398,57 @@ const truth=person.living_truth;
 const status=truth?.status||null;
 const label=statusLabel(status);
 const explanation=statusExplanation(status,truth?.confidence);
-const expanded=false;
 const editing=editingId===person.id;
 const fullName=[person.first_name,person.last_name].filter(Boolean).join(' ')||person.display_name||'Unnamed person';
-return <div key={person.id} className="fiducia-card person-card" onPointerDown={()=>beginLongPress(person.id)} onPointerUp={endLongPress} onPointerCancel={endLongPress} onPointerLeave={endLongPress} onClick={()=>handleCardClick(person.id)} style={{cursor:'pointer',border:selectedIds.has(person.id)?'1px solid #D4AF37':undefined,background:selectedIds.has(person.id)?'rgba(212,175,55,.08)':undefined,userSelect:'none',WebkitUserSelect:'none',position:'relative'}}>
-{selectMode&&<div style={{position:'absolute',top:12,right:12,width:22,height:22,borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',background:selectedIds.has(person.id)?'rgba(212,175,55,.12)':'rgba(255,255,255,.03)',border:selectedIds.has(person.id)?'1px solid rgba(212,175,55,.4)':'1px solid rgba(255,255,255,.18)'}}>{selectedIds.has(person.id)?ICONS.check:null}</div>}
+return <div key={person.id} className="fiducia-card person-card" onPointerDown={()=>beginLongPress(person.id)} onPointerUp={endLongPress} onPointerCancel={endLongPress} onPointerLeave={endLongPress} onClick={()=>handleCardClick(person.id)} style={{cursor:editing?'default':'pointer',border:selectedIds.has(person.id)?'1px solid #D4AF37':undefined,background:selectedIds.has(person.id)?'rgba(212,175,55,.08)':undefined,userSelect:'none',WebkitUserSelect:'none',position:'relative'}}>
+{selectMode&&<button type="button" aria-label={selectedIds.has(person.id)?`Deselect ${fullName}`:`Select ${fullName}`} onClick={e=>{e.stopPropagation();toggleSelected(person.id)}} style={{position:'absolute',top:12,right:12,width:28,height:28,borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',background:selectedIds.has(person.id)?'rgba(212,175,55,.16)':'rgba(255,255,255,.04)',border:selectedIds.has(person.id)?'1px solid rgba(212,175,55,.5)':'1px solid rgba(255,255,255,.18)',color:'#fff',cursor:'pointer'}}>{selectedIds.has(person.id)?ICONS.check:null}</button>}
 {editing?<div onClick={e=>e.stopPropagation()} style={{display:'flex',flexDirection:'column',gap:8}}>
-<input value={editName} onChange={e=>setEditName(e.target.value)} style={inputStyle} placeholder="Full Name"/>
-<input value={editPhone} onChange={e=>setEditPhone(e.target.value)} style={inputStyle} placeholder="Phone"/>
+<div style={{fontSize:12,color:'rgba(255,255,255,.45)',marginBottom:2}}>Edit person</div>
+<input value={editName} onChange={e=>setEditName(e.target.value)} style={inputStyle} placeholder="Full Name" autoFocus/>
+<input value={editPhone} onChange={e=>setEditPhone(e.target.value)} style={inputStyle} placeholder="Phone" inputMode="tel"/>
 <input type="email" value={editEmail} onChange={e=>setEditEmail(e.target.value)} style={inputStyle} placeholder="Email"/>
 <div>
-<label style={labelStyle}>Birthday</label>
-<button type="button" onClick={()=>{setPickerTarget('edit');setShowPicker(true)}} style={birthdayButtonStyle(editBirthday)}>{editBirthday?new Date(`${editBirthday}T00:00:00`).toLocaleDateString():'Add birthday'}</button>
+<label style={labelStyle}>Date of birth</label>
+<button type="button" onClick={()=>{setPickerTarget('edit');setShowPicker(true)}} style={birthdayButtonStyle(editBirthday)}>{editBirthday?new Date(`${editBirthday}T00:00:00`).toLocaleDateString():'Add date of birth'}</button>
+{editBirthday&&<div style={{fontSize:12,color:'rgba(255,255,255,.3)',marginTop:4}}>Next birthday in {getNextBirthday(editBirthday)} days</div>}
 </div>
-<div style={{display:'flex',gap:8}}>
-<button onClick={e=>{e.stopPropagation();saveEdit(person.id)}} className="fiducia-button fiducia-button-primary" style={{padding:'6px 12px',fontSize:13}}>Save</button>
-<button onClick={e=>{e.stopPropagation();cancelEdit()}} className="fiducia-button fiducia-button-ghost" style={{padding:'6px 12px',fontSize:13}}>Cancel</button>
+<div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+<button type="button" onClick={e=>{e.stopPropagation();saveEdit(person.id)}} className="fiducia-button fiducia-button-primary" style={{padding:'6px 12px',fontSize:13}}>Save changes</button>
+<button type="button" onClick={e=>{e.stopPropagation();cancelEdit()}} className="fiducia-button fiducia-button-ghost" style={{padding:'6px 12px',fontSize:13}}>Cancel</button>
+<button type="button" onClick={e=>deletePerson(person.id,e)} className="fiducia-button fiducia-button-ghost danger-button" style={{padding:'6px 12px',fontSize:13,display:'inline-flex',alignItems:'center',gap:6}}>{ICONS.trash}Delete</button>
 </div>
 </div>:<>
 <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:10}}>
-<div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',minWidth:0}}>
+<div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',minWidth:0,paddingRight:selectMode?30:0}}>
 <span style={{fontWeight:600,fontSize:17,color:'#f0f0f0',overflow:'hidden',textOverflow:'ellipsis'}}>{fullName}</span>
 {status&&<span style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:11,padding:'2px 10px 2px 6px',borderRadius:20,background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.08)',fontWeight:500,color:status==='alive'||status==='conflict'?'#8FB7FF':'#D4AF37'}}><span style={{display:'inline-block',width:9,height:9,borderRadius:'50%',background:statusColor(status),animation:'pulse 2.5s ease-in-out infinite'}}/>{label}</span>}
 </div>
 <div style={{display:'flex',alignItems:'center',gap:7,flexShrink:0}}>
 <span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'rgba(212,175,55,.15)',color:'#D4AF37',display:'flex',alignItems:'center',gap:4}}>{ICONS.visitor}{person.type||'visitor'}</span>
-<span style={{color:'rgba(255,255,255,.35)',display:'flex'}}>{ICONS.chevron}</span>
 </div>
 </div>
 <div style={{color:'rgba(255,255,255,.5)',fontSize:13,marginTop:10,display:'flex',alignItems:'center',gap:4}}>{ICONS.phone}{person.phone||'No phone'}</div>
 {person.email&&<div style={{color:'rgba(255,255,255,.35)',fontSize:12,marginTop:6,display:'flex',alignItems:'center',gap:4}}>{ICONS.mail}{person.email}</div>}
+{person.birthday&&<div style={{color:'rgba(255,255,255,.35)',fontSize:12,marginTop:6,display:'flex',alignItems:'center',gap:4}}>{ICONS.calendar}Date of birth: {new Date(`${person.birthday}T00:00:00`).toLocaleDateString()}</div>}
 {person.last_attended_date&&<div style={{color:'rgba(255,255,255,.35)',fontSize:12,marginTop:6,display:'flex',alignItems:'center',gap:4}}>{ICONS.calendar}Last attended: {new Date(person.last_attended_date).toLocaleDateString()}</div>}
 {explanation&&<div style={{fontSize:11,color:'rgba(255,255,255,.38)',marginTop:9,lineHeight:1.45}}>{explanation}</div>}
+<div onClick={e=>e.stopPropagation()} style={{display:'flex',gap:7,marginTop:12,paddingTop:10,borderTop:'1px solid rgba(255,255,255,.05)',flexWrap:'wrap'}}>
+<button type="button" onClick={e=>{e.stopPropagation();startEdit(person)}} className="fiducia-button fiducia-button-ghost" style={{padding:'6px 10px',fontSize:12,display:'inline-flex',alignItems:'center',gap:5}}>{ICONS.edit}Edit</button>
+<button type="button" onClick={e=>deletePerson(person.id,e)} className="fiducia-button fiducia-button-ghost danger-button" style={{padding:'6px 10px',fontSize:12,display:'inline-flex',alignItems:'center',gap:5}}>{ICONS.trash}Delete</button>
+</div>
 </>}
 </div>
 })}
 </div>
 
+{selectMode&&<div style={{position:'fixed',left:12,right:12,bottom:'calc(12px + env(safe-area-inset-bottom))',zIndex:1000,display:'flex',alignItems:'center',gap:8,padding:10,borderRadius:16,background:'rgba(12,16,28,.96)',border:'1px solid rgba(212,175,55,.22)',boxShadow:'0 12px 40px rgba(0,0,0,.35)',backdropFilter:'blur(18px)',WebkitBackdropFilter:'blur(18px)',flexWrap:'wrap'}}>
+<div style={{fontSize:13,color:'#f0f0f0',fontWeight:600,marginRight:'auto'}}>{selectedIds.size} selected</div>
+{filtered.length>0&&<button onClick={allFilteredSelected?clearSelection:selectAll} className="fiducia-button fiducia-button-ghost" style={{padding:'7px 11px',fontSize:12}}>{allFilteredSelected?'Clear all':'Select all'}</button>}
+{selectedIds.size>0&&<button onClick={bulkDelete} className="fiducia-button fiducia-button-ghost danger-button" style={{padding:'7px 11px',fontSize:12,display:'inline-flex',alignItems:'center',gap:5}}>{ICONS.trash}Delete {selectedIds.size}</button>}
+<button onClick={cancelSelect} className="fiducia-button fiducia-button-ghost" style={{padding:'7px 11px',fontSize:12}}>Cancel</button>
+</div>}
+
 {showPicker&&<BirthdayPicker isOpen={showPicker} value={pickerTarget==='add'?form.birthday:editBirthday} onSave={value=>{if(pickerTarget==='add')setForm(f=>({...f,birthday:value||''}));else setEditBirthday(value||'');setShowPicker(false)}} onCancel={()=>setShowPicker(false)}/>}
 </div>
 </Layout>;
-  }
+}

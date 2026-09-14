@@ -10,6 +10,18 @@ if(error?.error_description)return error.error_description;
 return'Something went wrong. Please try again.';
 }
 
+async function diagnoseLogin(email){
+try{
+const response=await fetch('/api/auth/diagnose-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+if(!response.ok)return null;
+const data=await response.json();
+return typeof data.accountExists==='boolean'?data.accountExists:null;
+}catch(error){
+console.error('Login diagnosis failed:',error);
+return null;
+}
+}
+
 export default function Login(){
 const router=useRouter();
 const mountedRef=useRef(true);
@@ -61,7 +73,13 @@ setLoading(true);
 setMessage('');
 try{
 const{data,error}=await supabase.auth.signInWithPassword({email:cleanEmail,password});
-if(error){showMessage(getErrorMessage(error));return}
+if(error){
+const accountExists=await diagnoseLogin(cleanEmail);
+if(accountExists===false)showMessage('No NYEOCARE account was found for this email. Check the email or create an account.');
+else if(accountExists===true)showMessage('The password is incorrect. Check your password or reset it if you have forgotten it.');
+else showMessage('We could not complete sign in. Please check your email and password and try again.');
+return;
+}
 if(data?.session)await router.replace('/');
 else showMessage('Sign in completed, but no session was created. Please try again.');
 }catch(error){

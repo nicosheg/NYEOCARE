@@ -4,18 +4,18 @@
 .person-card>div:first-of-type{gap:7px!important}
 .person-card>div:first-of-type>div:first-child{gap:5px!important;padding-right:0!important}
 .person-card>div:first-of-type>div:first-child>span:first-child{font-size:16px!important;line-height:1.2!important}
-/* Living Truth is a persistent dot only. */
 .person-card>div:first-of-type>div:first-child>span:nth-child(2){font-size:0!important;padding:0!important;width:9px!important;height:9px!important;border:0!important;background:transparent!important;gap:0!important;flex:0 0 9px!important}
 .person-card>div:first-of-type>div:first-child>span:nth-child(2)>span{width:8px!important;height:8px!important;flex:0 0 8px!important}
-/* Keep only the simple Visitor/Member tag beside the name. */
+/* Only keep the Visitor/Member tag beside the name. */
 .person-card>div:first-of-type>div:last-child{display:flex!important;align-items:center!important;gap:0!important;margin-left:auto!important;padding:2px 7px!important;border-radius:999px!important;font-size:9px!important;line-height:1.1!important;white-space:nowrap!important;opacity:.75!important}
 /* Phone. */
 .person-card>div:nth-of-type(2){font-size:12px!important;margin-top:6px!important;gap:4px!important}
-/* Last attended comes from the real attendance/participation history. */
-.person-card>div:nth-of-type(5),.person-card>div[style*="margin-top:9px"]{display:flex!important;font-size:11px!important;margin-top:4px!important;gap:4px!important}
-/* Secondary profile details belong in Journey. */
-.person-card>div:nth-of-type(3),.person-card>div:nth-of-type(4),.person-card>div:nth-of-type(6){display:none!important}
-/* Defensive selectors for internal confidence/Living Truth explanations. */
+/* Hide email rows. */
+.person-card>div:has(>svg rect[x="2"][y="4"][width="20"]){display:none!important}
+/* Hide birthday calendar rows but always keep the final calendar row, which is Last attended. */
+.person-card>div:has(>svg rect[x="3"][y="4"][width="18"]):not(:nth-last-child(1 of div:has(>svg rect[x="3"][y="4"][width="18"]))){display:none!important}
+.person-card>div:nth-last-child(1 of div:has(>svg rect[x="3"][y="4"][width="18"])){display:flex!important;font-size:11px!important;margin-top:4px!important;gap:4px!important}
+/* Confidence/Living Truth explanation remains internal. */
 .person-card .living-truth-explanation,.person-card [data-confidence],.person-card .confidence{display:none!important}
 .shimmer{min-height:0!important;height:auto!important}
 .skyGlow{display:none!important}

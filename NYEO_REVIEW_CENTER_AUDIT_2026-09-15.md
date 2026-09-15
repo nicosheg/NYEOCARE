@@ -1,71 +1,94 @@
-# NYEOCARE — Review Center Hardening Record
+# NYEOCARE — Canonical Scan + Review Center Contract
 **Date:** 15 September 2026
 **Status:** Implemented against the live repository and live Supabase database
 
-## Finding
-The first successful 14-person scan was being presented as 14 Review Center decisions even though the scan had completed successfully. This was a review-policy bug, not proof that all 14 identities were wrong.
+## Core decision
+Groq vision confidence is accepted as a real evidence signal because the model sees the register image and its reasoning is explicitly instructed to inspect the visual evidence. It is **not** blindly accepted as truth: deterministic local validation remains the safety regulator for malformed data, duplicate phones, row conflicts and impossible states.
 
-## Root cause
-The vision compactor converted omitted `nc`, `pc`, and `rc` evidence scores into numeric zeroes. The validator then interpreted those synthetic zeroes as weak evidence and created `low_name_evidence` / `low_phone_evidence` review flags. It also treated an absent model row number as `row_evidence_needs_verification`.
+Therefore:
+- **Model confidence = visual evidence.**
+- **Local validation = safety boundary.**
+- **Human review = final authority when visual evidence is genuinely uncertain.**
+- Unfamiliar name != wrong name.
+- Name suggestion != review by itself.
+- Nigerian-number plausibility != proof of correct digits.
+- Extraction success != human identity verification.
 
-For the successful production scan, the model did not provide a row number for these people. The validator therefore over-flagged the entire result set.
+## Canonical flow
+`REGISTER IMAGE → GROQ QWEN 3.8 VISION + REASONING → LOCAL EVIDENCE REGULATOR → ACCEPT or NEEDS_REVIEW → HUMAN DECISION → LIVING TRUTH`
 
-## Permanent review contract
-`needs_review` must be evidence-targeted.
+## Groq visual contract
+The production prompt requires ARIA/Groq to:
+- reconstruct physical rows, columns and name/phone ownership;
+- recognize Nigerian, African and English names broadly, including Igbo, Yoruba, Hausa, Edo, Efik, Ibibio, Urhobo, Itsekiri, Tiv, Ghanaian and other African naming patterns;
+- preserve uncommon but visually supported names instead of replacing them with familiar names;
+- use `ns`, `ps`, `rs` visual evidence states: `clear`, `ambiguous`, `unreadable`;
+- provide `nc`, `pc`, `rc` confidence scores only when honestly supported;
+- provide up to three visually supported name alternatives when useful;
+- flag possible phone digit uncertainty, missing/extra digits, continuation uncertainty, row ownership uncertainty or visible number corruption;
+- copy phone digits literally and never repair them merely to satisfy Nigerian number formatting.
 
-A missing optional model evidence field is **not** the same as low evidence.
+The model may recognize a name it did not previously know. The system does not require a name to exist in a fixed dictionary before accepting it.
 
-A missing optional model row number is **not** automatically a row conflict. When the model returns records in extraction order, that order remains the deterministic row sequence; a supplied duplicate/invalid row number is the actual row conflict condition.
+## Review thresholds
+When Groq supplies visual confidence, the local regulator uses it as evidence:
+- name confidence `< 80` → review;
+- phone confidence `< 90` → review;
+- name↔phone pairing confidence `< 85` → review.
 
-Review should be created for concrete uncertainty or conflict such as:
-- malformed/unreadable phone;
-- missing phone where one is expected;
-- shared or duplicate phone identity;
-- corrupted/unreadable name;
-- explicitly weak model name/phone/pair evidence when the model actually supplied a score;
-- duplicate model row numbers;
-- explicit identity conflict/candidate ambiguity.
+The explicit visual states also matter:
+- `name ambiguous/unreadable` → review;
+- `phone ambiguous/unreadable` → review;
+- `pair ambiguous/unreadable` → review;
+- phone digit/continuation/number-corruption flags → review.
 
-A clean extraction with omitted optional confidence fields can pass without entering Review Center.
+Missing optional confidence fields do **not** become zero and do **not** automatically create review decisions.
 
-## Action reliability
-Review actions were also hardened:
-- Review API calls retry once after a 401 using Supabase session refresh.
-- Successful actions clear the active review state directly instead of attempting to close while `busy=true`.
-- `Edit before remembering` sends the edited name and phone values through the existing transactional resolver.
-- Database duplicate actions now execute immediately with the intended action instead of setting React state and then calling a function that could read stale state.
-- Duplicate merge/keep-separate remains protected by server-side evidence validation and database transactions.
+## Deterministic safety rules
+Always review/reject as appropriate for:
+- missing/unreadable phone;
+- malformed phone;
+- shared phone across rows;
+- duplicate identity within a scan;
+- corrupted name;
+- duplicate model row number;
+- explicit row ownership conflict.
 
-## Name intelligence
-The scan prompt now explicitly recognizes Nigerian, African and English naming patterns and tells the model to use cultural familiarity only as a reading aid, never as proof. Uncommon names must be preserved. High-confidence spelling suggestions can be surfaced in Review Center, but a suggestion is not ground truth.
+The regulator never silently truncates, pads, transposes, repairs or borrows phone digits.
 
-## Live database cleanup
-The 14 people created by successful job `97986786-5821-4785-8be4-bdc1f1ec510a` were previously marked `needs_decision` solely by the legacy blanket review policy. They were migrated to `living_truth.status='alive'` with `metadata.needs_review=false` and a migration marker `legacy_overflagged_2026_09_15`. Their identity verification status remains separate from this change; this does not manufacture human verification.
+## People state
+A genuinely uncertain extraction may be stored in People for durable memory, but its `living_truth.status` is `needs_decision` and its metadata records the exact evidence/reasons. Review Center is therefore not a separate temporary OCR database; it is the human decision layer over the stored extraction.
 
-Live database check after migration:
+A clean extraction can be stored as `alive` without becoming `identity_verification_status='verified'`. Human verification remains a separate state.
+
+Existing people detected during a new scan follow the same rule: a genuine new uncertainty moves the existing record to `needs_decision`; a clean observation does not.
+
+## Live remediation on 15 September 2026
+The earlier blanket-review migration was corrected rather than reused as truth. The successful 14-person scan was not re-flagged wholesale. Based on the existing visual audit, two of those legacy records were deliberately reopened for genuine visual uncertainty: one phone reading and one handwritten name. A separate pre-existing `needs_decision` record with a real phone-validation reason was also repaired so it is visible to Review Center.
+
+Current live DB check after canonicalization:
 - active People: 36
-- current Review Center queue under the new policy: 0
-- rows from the successful scan now in normal alive state: 14
+- genuine scan review queue: 3
+- all active `needs_decision`: 3
+- flagged review records: 3
 
-The remaining review system is therefore available for actual future uncertainties rather than replaying the old blanket flags.
+## Implementation
+- `lib/aiProviderCore.js` — Qwen 3.8 visual-reasoning prompt, visual evidence fields and confidence preservation; pipeline `v46-qwen38-visual-evidence-review-v3`.
+- `lib/scanValidation.js` — accepts model visual confidence as evidence while applying deterministic safety rules and targeted thresholds.
+- `lib/scanExtractionProcessor.js` — persists visual evidence and moves existing/new records into `needs_decision` when genuine uncertainty exists.
+- `pages/api/review/index.js` — returns every active `needs_decision` record that actually contains review reasons, preventing orphaned review states.
+- `components/ReviewCenterTab.js` — existing transactional review UI remains the human correction surface.
 
-## Implementation files
-- `lib/scanValidation.js` — evidence-targeted review generation; absent confidence is not treated as zero.
-- `lib/aiProviderCore.js` — preserve omitted confidence fields and harden name-reading instructions; pipeline `v45-qwen38-single-pass-review-v2`.
-- `lib/scanExtractionProcessor.js` — persist actual review evidence fields for future Review Center decisions.
-- `lib/nameIntelligence.js` — broader Nigerian/African/English familiar-name suggestions.
-- `pages/api/review/index.js` — only explicit review-required scan records or conflicts are returned.
-- `components/ReviewCenterTab.js` — reliable save/refresh behavior, spelling suggestions and working duplicate actions.
-
-## Regression rule
-Before any future review change, test at minimum:
-1. clean extraction with no confidence fields → **not automatically review**;
-2. supplied low confidence → **review**;
-3. missing/invalid phone → **review**;
-4. duplicate/shared phone → **review**;
-5. corrupted name → **review**;
-6. duplicate model row → **review**;
-7. 401 during review action → refresh and retry;
-8. edited record → transaction commits, queue item disappears;
-9. duplicate merge / keep separate → intended action is actually sent;
-10. human confirmation remains distinct from extraction success.
+## Regression contract
+1. Clear Nigerian/African/English name + high visual confidence → accept.
+2. Unfamiliar but visually clear name → accept; never dictionary-reject it.
+3. Name alternative without visual ambiguity → accept; suggestion alone is not review.
+4. Ambiguous name / low name confidence → review.
+5. Clear unusual phone → accept; unusual format alone is not review.
+6. Ambiguous/missing/extra phone digit → review.
+7. Wrong-row phone ownership → review.
+8. Missing optional confidence → do not synthesize zero.
+9. Existing person with genuine new uncertainty → move to `needs_decision`.
+10. Human correction/approval → resolve transactionally and separately mark human verification.
+11. Failed/unsafe scan → no partial People mutation.
+12. Scan success never means attendance.

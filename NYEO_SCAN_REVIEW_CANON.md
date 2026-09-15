@@ -1,25 +1,22 @@
 # NYEOCARE — Canonical Scan & Review Contract
 
 ## Core principle
-ARIA may use model confidence because the vision model actually sees the register, but confidence is evidence, not truth. The final decision is deterministic: model evidence + explicit visual flags + structural validation + identity/phone conflicts.
+ARIA may use model confidence because the vision model sees the current register. The score is treated as visual evidence, not truth. The deterministic regulator combines model confidence, explicit visual evidence states, phone/row structure and identity conflicts. Missing scores do not become zero.
 
 ## Name reading
-ARIA recognizes Nigerian, African and English naming patterns. Unfamiliar names are not errors. A model suggestion is not ground truth. Human review is required only when there is genuine letter-level ambiguity, corrupted text, explicit low name evidence, or a learned-example conflict with the current image.
+ARIA reasons about Nigerian, African and English naming patterns, including diverse Nigerian regional patterns and other African naming conventions. An unfamiliar name is not an error. Human corrections can teach recurring organization-specific aliases/handwriting patterns and global generic visual confusions, but the current image always outranks learning.
 
 ## Phone reading
-Digits are treated literally. Nigerian formatting is only a sanity check. Missing, extra, ambiguous or suspicious digits trigger review. The system never repairs a model reading merely to produce a plausible phone number.
-
-## Pairing
-Name-to-phone ownership follows the physical page. Ambiguous row ownership triggers review. Second phones require visual support.
-
-## Confidence
-When Groq supplies `nc`, `pc`, or `rc`, the local regulator accepts those scores as model visual evidence. It does not invent missing scores. Current thresholds: name <75, phone <85, pair <80.
-
-## Learning
-Human corrections are stored as durable identity observations and may be used as priors for future extraction at both organization and global scope. They never override the current pixels. A current image conflict becomes review evidence rather than silent correction.
+Every visible digit is read literally. Nigerian formatting is sanity-checking only. Extra/missing/ambiguous digits, continuation uncertainty and row ownership uncertainty enter Review Center. A number is never repaired merely to become format-valid.
 
 ## Review Center
-Only unresolved scan evidence/conflicts and database duplicate groups appear. Clean extraction with no low-confidence/ambiguity/conflict evidence remains outside Review Center. Human verification is distinct from extraction success.
+Only genuine low-confidence or explicit ambiguity/conflict enters the queue: low name/phone/pair visual confidence; unreadable/ambiguous fields; suspicious phone-digit flags; shared phones; row conflicts; identity conflicts. Clean extraction with missing confidence metadata does not enter review.
+
+## Learning
+Human review creates durable learning. Organization scope may preserve exact aliases/observed spellings tied to the organization/person. Global scope must contain only generalized visual-pattern learning, never a person's phone number or private identity record. Both scopes can be supplied to future Groq scans as priors. Current pixels always win; conflicts become review evidence.
+
+## Verification state
+Extraction success and human identity verification are separate. A clean scan may enter People with `human_verified=false`. Review resolution explicitly marks human verification.
 
 ## Safety
-Failed or invalid scans do not partially mutate People. Review resolution is transactional. Phone collisions are blocked. Human corrections are retained as future learning evidence.
+Failed scans do not partially mutate People. Review actions are transactional. Phone collisions are blocked. 

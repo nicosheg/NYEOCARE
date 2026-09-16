@@ -1,0 +1,4 @@
+create table if not exists public.ai_provider_admission(provider text primary key,cooldown_until timestamptz not null default to_timestamp(0),lease_until timestamptz not null default to_timestamp(0),lease_id uuid,remaining_tokens bigint,remaining_requests bigint,reset_tokens_seconds numeric,reset_requests_seconds numeric,last_request_at timestamptz,updated_at timestamptz not null default now());
+insert into public.ai_provider_admission(provider) values('groq') on conflict(provider) do nothing;
+alter table public.scan_jobs add column if not exists actor_id text,add column if not exists program_name text,add column if not exists next_attempt_at timestamptz,add column if not exists provider_request_id text;
+create index if not exists scan_jobs_retry_idx on public.scan_jobs(status,next_attempt_at,created_at);

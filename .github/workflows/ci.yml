@@ -1,7 +1,7 @@
 name: NYEOCARE CI
 on:
   push:
-    branches: [main]
+    branches: [main, scan-v70-identity-foundation]
   pull_request:
     branches: [main]
 jobs:

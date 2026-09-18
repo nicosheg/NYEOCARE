@@ -3,11 +3,11 @@ import pool from'../../lib/db';
 import{withOrg}from'../../lib/apiHelpers';
 
 const REQUIRED_EXPERIENCES=['home','scan','people','review','profile'];
-const ALLOWED_EXPERIENCES=[...REQUIRED_EXPERIENCES,'person-journey'];
+const ALLOWED_EXPERIENCES=[...REQUIRED_EXPERIENCES,'person-journey','briefing'];
 
 function normalizeExperienced(value){
 const source=value&&typeof value==='object'?value:{};
-return{...source,home:source.home===true,scan:source.scan===true,people:source.people===true,review:source.review===true,profile:source.profile===true,'person-journey':source['person-journey']===true};
+return{...source,home:source.home===true,scan:source.scan===true,people:source.people===true,review:source.review===true,profile:source.profile===true,'person-journey':source['person-journey']===true,briefing:source.briefing===true};
 }
 
 function organizationOnboarding(settings){

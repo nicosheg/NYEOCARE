@@ -34,6 +34,8 @@ const[loading,setLoading]=useState(false);
 const[message,setMessage]=useState('');
 const[isLogin,setIsLogin]=useState(true);
 const[showPassword,setShowPassword]=useState(false);
+const passwordChecks={length:password.length>=8,lower:/[a-z]/.test(password),upper:/[A-Z]/.test(password),number:/\d/.test(password),symbol:/[^A-Za-z0-9]/.test(password)};
+const passwordReady=Object.values(passwordChecks).every(Boolean);
 
 useEffect(()=>{
 mountedRef.current=true;

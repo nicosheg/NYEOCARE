@@ -4,7 +4,7 @@ import{createPortal}from'react-dom';
 import{supabase}from'../lib/supabaseClient';
 
 export default function AttendanceModal({isOpen,onClose}){
-const[session,setSession]=useState(null),[people,setPeople]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[closing,setClosing]=useState(false),[error,setError]=useState(''),[query,setQuery]=useState(''),[sessionName,setSessionName]=useState('');
+const[session,setSession]=useState(null),[canDiscard,setCanDiscard]=useState(false),[people,setPeople]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[closing,setClosing]=useState(false),[error,setError]=useState(''),[query,setQuery]=useState(''),[sessionName,setSessionName]=useState('');
 const auth=async()=>{const{data:{session}}=await supabase.auth.getSession();return session};
 
 const load=useCallback(async(showLoading=true)=>{
@@ -17,7 +17,7 @@ const h={Authorization:`Bearer ${s.access_token}`};
 const sr=await fetch('/api/attendance/active-session',{headers:h}),sd=await sr.json();
 if(!sr.ok)throw Error(sd.error||'Could not load attendance session.');
 if(!sd.active){setSession(null);setPeople([]);setQuery('');return}
-setSession(sd);
+setSession(sd);setCanDiscard(sd.can_discard===true);
 const pr=await fetch(`/api/attendance/people?session_id=${encodeURIComponent(sd.session_id)}`,{headers:h}),pd=await pr.json();
 if(!pr.ok)throw Error(pd.error||'Could not load attendance people.');
 setPeople(Array.isArray(pd)?pd:[]);
@@ -138,7 +138,7 @@ const content=<div style={overlay} onMouseDown={e=>{if(e.target===e.currentTarge
 <div style={personInfo}><div style={{...avatar,...(p.marked?presentAvatar:{})}}>{(p.first_name||'?').charAt(0).toUpperCase()}</div><div><strong>{p.first_name} {p.last_name||''}</strong><small style={small}>{p.marked?`Present${p.marked_by_name?` · ${p.marked_by_name}`:''}`:(p.phone||'No phone')}</small></div></div>
 <button style={{...markButton,...(p.marked?doneButton:{})}} disabled={closing} onClick={()=>mark(p.id,!!p.marked)}>{p.marked?'✓ Unmark':'Mark present'}</button>
 </div>)}</div>
-<footer style={footer}><div style={live}><i/>Live attendance</div><div style={footerActions}><button style={leave} disabled={closing} onClick={leaveSession}>Leave</button><button style={keep} disabled={closing} onClick={keepSession}>{closing?'Saving...':'Keep session'}</button></div></footer>
+<footer style={footer}><div style={live}><i/>Live attendance</div><div style={footerActions}>{canDiscard&&<button style={leave} disabled={closing} onClick={leaveSession}>Discard</button>}<button style={keep} disabled={closing} onClick={keepSession}>{closing?'Saving...':'Keep session'}</button></div></footer>
 </>}
 </div></div>;
 

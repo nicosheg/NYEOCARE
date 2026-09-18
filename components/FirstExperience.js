@@ -2,7 +2,7 @@
 import{useEffect,useState}from'react';
 import{supabase}from'../lib/supabaseClient';
 
-const STEP_META={home:'1 of 3',scan:'2 of 3',review:'3 of 3',people:'1 of 1','person-journey':'1 of 1',profile:'1 of 1'};
+const STEP_META={home:'1 of 3',scan:'2 of 3',review:'3 of 3',people:'1 of 1','person-journey':'1 of 1',profile:'1 of 1',briefing:'ARIA · TODAY'};
 
 const EXPERIENCE_COPY={
 home:{eyebrow:'A small beginning',title:'Let ARIA help you remember.',body:'Start with the people in your organization. ARIA will help you notice what matters and what may need your attention.',action:'Start with your people'},
@@ -10,7 +10,8 @@ scan:{eyebrow:'Your first step',title:'Give ARIA your register.',body:'Take a cl
 people:{eyebrow:'Your people',title:'This is where your people live.',body:'Every person ARIA remembers belongs here. Tap a person to enter their journey. ARIA keeps their history, present state and what may come next connected.',action:'Explore your people'},
 'person-journey':{eyebrow:'A person, not a card',title:'Meet the journey ARIA remembers.',body:'This is the living record for one person. Confirmed facts, memories, observations, relationships, participation and prepared actions stay connected here. ARIA does not invent what it does not know.',action:'Continue'},
 review:{eyebrow:'When ARIA is unsure',title:'You stay in control.',body:'When something needs your decision, ARIA brings it here. Nothing important is silently changed without you.',action:'Got it'},
-profile:{eyebrow:'Make ARIA yours',title:'Tell ARIA what to keep in mind.',body:'You can give ARIA a simple message about your organization. You can change it whenever your needs change.',action:'Continue'}
+profile:{eyebrow:'Make ARIA yours',title:'Tell ARIA what to keep in mind.',body:'You can give ARIA a simple message about your organization. You can change it whenever your needs change.',action:'Continue'},
+briefing:{eyebrow:'ARIA · Today',title:'See what matters, without hunting.',body:'This is ARIA’s daily briefing: a short view of what changed, what needs your attention, and what can safely wait. When nothing needs you, it stays quiet.',action:'Show me today'}
 };
 
 export default function FirstExperience({experience,onComplete,onAction}){

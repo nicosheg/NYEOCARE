@@ -206,6 +206,62 @@ The vision pipeline has been hardened for difficult captures including:
 
 The current strategy uses independent vision reading/audit passes rather than making one huge schema do everything. Disagreement must produce uncertainty rather than hallucinated certainty.
 
+### Real-register scan benchmark — September 2026
+A real Carrillion handwritten register was used as a controlled benchmark because it contains difficult handwriting, Nigerian phone numbers, titles/prefixes, and a continuation phone number.
+
+Observed benchmark structure:
+- **22 people/rows**.
+- **23 phone-number observations**, because Sandra has two numbers and the second number is written on the following continuation line.
+- The continuation number must remain attached to Sandra rather than being assigned to the next named person.
+
+The hardened v71 full-page observer successfully extracted the register structure without the earlier catastrophic semantic field swap. In the audited result, the field-level result was approximately **93.3% exact** across the combined name + phone fields: **42/45 exact fields** (22 names + 23 phone values). The phone side was **23/23** on that benchmark; the remaining discrepancies were handwritten-name transcription issues, including small title/name readings such as `Sus` instead of the handwritten `Sis`.
+
+Two consecutive scans of real registers were also observed to complete successfully without unnecessary review/error behavior. This is evidence that the current pipeline is behaving more reliably in practice, but it is **not** a universal accuracy guarantee; every new register remains subject to deterministic validation and review when the pixels are genuinely ambiguous.
+
+### Why the scan currently avoids unnecessary errors
+The scan architecture deliberately separates responsibilities:
+
+```text
+FULL-PAGE Qwen OBSERVATION
+        ↓
+EXPLICIT NAME / PHONE SCHEMA
+        ↓
+PHYSICAL ROW RECONSTRUCTION
+        ↓
+DETERMINISTIC VALIDATION
+        ↓
+IDENTITY EVIDENCE / REVIEW
+        ↓
+SAFE PERSISTENCE
+```
+
+The important hardening choices are:
+- The model reads the **entire page first**, top-to-bottom, instead of blindly treating arbitrary crops as independent people.
+- The vision contract uses explicit fields such as `name`, `phones`, `name_evidence`, `phone_evidence`, and `row_evidence` instead of cryptic keys that previously encouraged semantic field swaps.
+- The prompt explicitly forbids putting a phone number in `name`, or a name in `phones` / evidence notes.
+- Physical placement, row lines, indentation and continuation layout determine name-to-phone ownership; proximity alone is not enough.
+- A blank continuation line can contribute a second phone to the preceding person only when the physical layout supports it.
+- The model is not allowed to invent, autocomplete or silently repair unreadable digits/names.
+- Identity resolution is downstream from observation, so uncertain handwriting does not become an automatic database merge.
+- Review is generated only when deterministic evidence says a human decision is actually needed.
+- A small deterministic v72 cleanup now handles only highly constrained common handwritten honorific variants such as `Sus` → `Sis`; it does **not** perform broad fuzzy name rewriting.
+- Raw observations remain conceptually separate from later identity decisions and learning.
+
+This is the definition of a “flawless” scan **case** in the current architecture: not that every handwritten character is magically readable, but that the system extracts what is visible, preserves physical ownership, avoids inventing information, and surfaces only genuine uncertainty. The benchmark above demonstrates that behavior on this register; future registers must still be measured independently.
+
+### Accuracy ceiling and safe-improvement rule
+The current benchmark does **not** justify claiming 98–99% field accuracy yet. The observed combined result is approximately 93.3%, and the safest current improvement path is constrained cleanup/validation rather than aggressive autocorrection. Broad fuzzy correction could make an apparently cleaner result less truthful and could damage uncommon Nigerian names.
+
+Therefore the scan must prefer:
+
+**93% truthful extraction + honest review**
+
+over
+
+**98% apparent extraction produced by unsafe guessing.**
+
+Future improvements toward 98–99% should come from additional evidence, better vision observation, regression-tested deterministic validation, or human corrections that become reusable learning — never from silently guessing ambiguous handwriting.
+
 ### Identity evidence
 Strongest evidence is a compatible combination of name + phone(s). Other evidence can be reviewable, but neither a phone alone nor a fuzzy name alone is sufficient justification for a merge.
 
@@ -721,7 +777,7 @@ The goal is not to build the most features.
 ---
 
 ## Documentary record
-**Last updated:** 14 September 2026
+**Last updated:** 18 September 2026
 
 This edition supersedes stale assumptions in earlier versions, especially around hosting, People-card presentation, attendance-derived Last attended, current scan hardening, current ARIA action safety, daily briefing behavior, and the current production-hardening phase.
 

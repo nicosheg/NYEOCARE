@@ -33,7 +33,7 @@ const[name,setName]=useState('');
 const[loading,setLoading]=useState(false);
 const[message,setMessage]=useState('');
 const[isLogin,setIsLogin]=useState(true);
-const[showPassword,setShowPassword]=useState(false);
+const[showPassword,setShowPassword]=useState(false);const[passwordFocused,setPasswordFocused]=useState(false);
 const passwordChecks={length:password.length>=8,lower:/[a-z]/.test(password),upper:/[A-Z]/.test(password),number:/\d/.test(password),symbol:/[^A-Za-z0-9]/.test(password)};
 const passwordReady=Object.values(passwordChecks).every(Boolean);
 
@@ -200,10 +200,10 @@ return(
 )}
 <input type="email" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} required className="auth-input" autoComplete="email" disabled={loading} inputMode="email" autoCapitalize="none" spellCheck="false"/>
 <div className="password-wrap">
-<input type={showPassword?'text':'password'} placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} required className="auth-input password-input" autoComplete={isLogin?'current-password':'new-password'} disabled={loading}/>
+<input type={showPassword?'text':'password'} placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} onFocus={()=>setPasswordFocused(true)} required className="auth-input password-input" autoComplete={isLogin?'current-password':'new-password'} disabled={loading}/>
 <button type="button" className="password-toggle" onClick={()=>setShowPassword(current=>!current)} disabled={loading}>{showPassword?'Hide':'Show'}</button>
 </div>
-{!isLogin&&<div className="password-guide" aria-live="polite"><div className="password-requirements"><PasswordRequirement ok={passwordChecks.length} text="8+"/><PasswordRequirement ok={passwordChecks.lower} text="a–z"/><PasswordRequirement ok={passwordChecks.upper} text="A–Z"/><PasswordRequirement ok={passwordChecks.number} text="0–9"/><PasswordRequirement ok={passwordChecks.symbol} text="symbol"/></div>{passwordReady&&<span className="password-strength ready">Ready</span>}</div>}
+{!isLogin&&passwordFocused&&<div className={"password-guide "+(passwordReady?"ready":"")} aria-live="polite">{passwordReady?'Password is ready.':'Password needs: 8 characters, a lowercase letter, an uppercase letter, a number, and a symbol.'}</div>}
 <button type="submit" disabled={loading} className="auth-button">{loading?(isLogin?'Signing in...':'Creating your space...'):(isLogin?'Sign In':'Create Account')}</button>
 </form>
 <div className="auth-divider">— or —</div>
@@ -237,7 +237,7 @@ return(
 .password-wrap .auth-input{padding-right:72px}
 .password-toggle{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:#e6b93f;font-size:13px;font-weight:500;padding:7px 8px;border-radius:7px;cursor:pointer}
 .password-toggle:disabled{opacity:.5}
-.password-guide{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:-4px 2px 0;min-height:20px}.password-requirements{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.password-requirement{display:inline-flex;align-items:center;gap:4px;color:rgba(239,107,107,.92);font-size:10.5px;line-height:1;white-space:nowrap;transition:color .18s ease}.password-requirement.ok{color:#69d6a0}.requirement-dot{display:grid;place-items:center;width:9px;height:9px;border:1px solid currentColor;border-radius:50%;font-size:7px;line-height:1}.password-strength{font-size:10px;color:#69d6a0;white-space:nowrap}
+.password-guide{margin:-4px 2px 0;min-height:17px;color:#ef5b63;font-size:11px;line-height:1.4;letter-spacing:.005em;transition:color .18s ease}.password-guide.ready{color:#69d6a0}
 .auth-button{width:100%;padding:14px;border-radius:12px;border:0;background:#e6b93f;color:#080d18;font-weight:600;font-size:16px;cursor:pointer;box-shadow:0 0 22px rgba(230,185,63,.16)}
 .auth-button:disabled{opacity:.6;cursor:not-allowed}
 .auth-divider{text-align:center;color:rgba(255,255,255,.2);font-size:13px;margin:16px 0}

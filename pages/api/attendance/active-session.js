@@ -56,6 +56,7 @@ export default withOrg(async function handler(req, res) {
     }
 
     const row = result.rows[0];
+    const canDiscard = ['owner','admin'].includes(req.user.role);
 
     return res.status(200).json({
       active: true,
@@ -66,6 +67,7 @@ export default withOrg(async function handler(req, res) {
       started_at: row.started_at,
       joined: row.joined,
       participant_count: Number(row.participant_count) || 0,
+      can_discard: canDiscard,
     });
 
   } catch (err) {

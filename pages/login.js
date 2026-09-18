@@ -3,6 +3,8 @@ import{useEffect,useRef,useState}from'react';
 import{useRouter}from'next/router';
 import{supabase}from'../lib/supabaseClient';
 
+function PasswordRequirement({ok,text}){return <div className={`password-requirement ${ok?'ok':''}`}><span className="requirement-dot" aria-hidden="true">{ok?'✓':'·'}</span><span>{text}</span></div>}
+
 function getErrorMessage(error){
 if(typeof error==='string')return error;
 if(error?.message)return error.message;
@@ -98,7 +100,7 @@ const cleanEmail=email.trim().toLowerCase();
 if(!cleanName){showMessage('Please enter your display name.');return}
 if(cleanName.length>120){showMessage('Your display name is too long.');return}
 if(!cleanEmail){showMessage('Please enter your email.');return}
-if(password.length<8||!/[a-z]/.test(password)||!/[A-Z]/.test(password)||!/[0-9]/.test(password)||!/[!@#$%^&*()_+\-=\[\]{};':"|<>?,./`~]/.test(password)){
+if(!passwordReady){
 showMessage('Your password must be at least 8 characters and include lowercase, uppercase, a number, and a symbol.');
 return;
 }
@@ -191,7 +193,7 @@ return(
 <input type={showPassword?'text':'password'} placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} required minLength={8} className="auth-input password-input" autoComplete={isLogin?'current-password':'new-password'} disabled={loading}/>
 <button type="button" className="password-toggle" onClick={()=>setShowPassword(current=>!current)} disabled={loading}>{showPassword?'Hide':'Show'}</button>
 </div>
-{!isLogin&&<p className="password-hint">Password must be at least 8 characters and include lowercase, uppercase, a number, and a symbol.</p>}
+{!isLogin&&<div className={`password-guide ${passwordReady?'ready':''}`} aria-live="polite"><div className="password-guide-title">Password requirements</div><div className="password-requirements"><PasswordRequirement ok={passwordChecks.length} text="At least 8 characters"/><PasswordRequirement ok={passwordChecks.lower} text="One lowercase letter"/><PasswordRequirement ok={passwordChecks.upper} text="One uppercase letter"/><PasswordRequirement ok={passwordChecks.number} text="One number"/><PasswordRequirement ok={passwordChecks.symbol} text="One symbol"/></div><div className={`password-strength ${passwordReady?'ready':''}`}>{passwordReady?'Password meets all requirements.':'Complete the requirements above.'}</div></div>}
 <button type="submit" disabled={loading} className="auth-button">{loading?(isLogin?'Signing in...':'Creating your space...'):(isLogin?'Sign In':'Create Account')}</button>
 </form>
 <div className="auth-divider">— or —</div>
@@ -225,7 +227,7 @@ return(
 .password-wrap .auth-input{padding-right:72px}
 .password-toggle{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:#e6b93f;font-size:13px;font-weight:500;padding:7px 8px;border-radius:7px;cursor:pointer}
 .password-toggle:disabled{opacity:.5}
-.password-hint{margin:-5px 2px 0;color:rgba(255,255,255,.35);font-size:12px;line-height:1.5}
+.password-guide{margin:-3px 2px 1px;padding:12px 13px;border-radius:13px;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.025)}\n.password-guide-title{font-size:11px;color:rgba(255,255,255,.5);margin-bottom:8px;font-weight:600;letter-spacing:.02em}\n.password-requirements{display:grid;grid-template-columns:1fr 1fr;gap:5px 10px}\n.password-requirement{display:flex;align-items:center;gap:7px;color:#ef6b6b;font-size:11.5px;line-height:1.4;transition:color .2s ease}\n.password-requirement.ok{color:#69d6a0}\n.requirement-dot{display:grid;place-items:center;width:15px;height:15px;border-radius:50%;border:1px solid currentColor;font-size:10px;flex:0 0 15px}\n.password-strength{margin-top:9px;font-size:10.5px;color:#ef6b6b;transition:color .2s ease}\n.password-strength.ready{color:#69d6a0}\n@media(max-width:360px){.password-requirements{grid-template-columns:1fr}}
 .auth-button{width:100%;padding:14px;border-radius:12px;border:0;background:#e6b93f;color:#080d18;font-weight:600;font-size:16px;cursor:pointer;box-shadow:0 0 22px rgba(230,185,63,.16)}
 .auth-button:disabled{opacity:.6;cursor:not-allowed}
 .auth-divider{text-align:center;color:rgba(255,255,255,.2);font-size:13px;margin:16px 0}

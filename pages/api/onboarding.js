@@ -83,7 +83,7 @@ await pool.query(
 return res.status(200).json({success:true,onboarding:{enabled:true,experienced,completed}});
 }
 
-if(action==='save_aria_instructions'){
+if(action==='save_aria_instructions'){if(!['owner','admin'].includes(req.user.role))return res.status(403).json({error:'Only owners and admins can update ARIA instructions.'});
 if(ariaInstructions!==null&&ariaInstructions!==undefined&&typeof ariaInstructions!=='string'){
 return res.status(400).json({error:'ARIA instructions must be text'});
 }

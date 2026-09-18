@@ -2,6 +2,8 @@
 import{useEffect,useState}from'react';
 import{supabase}from'../lib/supabaseClient';
 
+const STEP_META={home:'1 of 3',scan:'2 of 3',review:'3 of 3',people:'1 of 1','person-journey':'1 of 1',profile:'1 of 1'};
+
 const EXPERIENCE_COPY={
 home:{eyebrow:'A small beginning',title:'Let ARIA help you remember.',body:'Start with the people in your organization. ARIA will help you notice what matters and what may need your attention.',action:'Start with your people'},
 scan:{eyebrow:'Your first step',title:'Give ARIA your register.',body:'Take a clear photo of your register. ARIA will turn it into a living memory of the people you know.',action:'Scan the register'},
@@ -56,17 +58,17 @@ return <div className="experienceOverlay">
 </div>
 </div>
 <style jsx>{`
-.experienceOverlay{position:fixed;inset:0;z-index:9500;display:flex;align-items:flex-end;justify-content:center;padding:24px;pointer-events:none}
-.experienceCard{position:relative;width:min(620px,100%);overflow:hidden;pointer-events:auto;border:1px solid rgba(255,255,255,.08);border-radius:28px;background:rgba(12,17,29,.96);backdrop-filter:blur(30px);box-shadow:0 30px 100px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.04);animation:experienceIn .55s cubic-bezier(.22,1,.36,1)}
-.experienceGlow{position:absolute;width:280px;height:280px;top:-180px;left:50%;transform:translateX(-50%);border-radius:50%;background:rgba(212,175,55,.09);filter:blur(30px)}
-.experienceContent{position:relative;padding:32px}
-.eyebrow{color:#d4af37;font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;margin-bottom:12px}
-h2{color:#f4f4f4;font-size:27px;line-height:1.2;margin:0 0 12px;font-weight:600}
-p{color:rgba(255,255,255,.64);font-size:16px;line-height:1.7;margin:0 0 24px;max-width:520px}
-.experienceButton{border:1px solid rgba(212,175,55,.25);background:rgba(212,175,55,.1);color:#d4af37;border-radius:28px;padding:13px 22px;font-size:15px;font-weight:500;cursor:pointer}
+.experienceOverlay{position:fixed;inset:0;z-index:9500;display:flex;align-items:center;justify-content:center;padding:18px;pointer-events:none;background:rgba(3,7,16,.68);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);animation:experienceBackdropIn .35s ease-out}
+.experienceCard{position:relative;width:min(540px,100%);overflow:hidden;pointer-events:auto;border:1px solid rgba(255,255,255,.11);border-radius:30px;background:linear-gradient(155deg,rgba(17,25,42,.98),rgba(8,13,24,.98));box-shadow:0 34px 110px rgba(0,0,0,.58),inset 0 1px 0 rgba(255,255,255,.06);animation:experienceIn .55s cubic-bezier(.22,1,.36,1)}
+.experienceGlow{position:absolute;width:330px;height:330px;top:-235px;left:50%;transform:translateX(-50%);border-radius:50%;background:rgba(214,184,106,.12);filter:blur(36px)}\n.experienceMark{position:absolute;top:22px;right:22px;width:38px;height:38px;border-radius:13px;display:grid;place-items:center;border:1px solid rgba(214,184,106,.18);background:rgba(214,184,106,.07);color:#e8d49a;font-size:12px;letter-spacing:2px;box-shadow:0 0 24px rgba(214,184,106,.07)}
+.experienceContent{position:relative;padding:34px 32px 32px}.experienceTop{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-right:48px}.step{font-size:10px;color:rgba(255,255,255,.32);letter-spacing:.08em;white-space:nowrap}
+.eyebrow{color:#d6b86a;font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;margin-bottom:0}
+h2{color:#f4f4f4;font-size:clamp(25px,6vw,31px);line-height:1.12;letter-spacing:-.025em;margin:18px 0 12px;font-weight:620}
+p{color:rgba(255,255,255,.64);font-size:15px;line-height:1.7;margin:0 0 26px;max-width:520px}
+.experienceButton{border:1px solid rgba(214,184,106,.34);background:linear-gradient(180deg,rgba(214,184,106,.16),rgba(214,184,106,.08));color:#ead79f;border-radius:999px;padding:13px 22px;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 8px 26px rgba(0,0,0,.18);transition:transform .2s ease,background .2s ease,border-color .2s ease}.experienceButton:hover{transform:translateY(-1px);background:rgba(214,184,106,.2);border-color:rgba(214,184,106,.5)}
 .experienceButton:disabled{opacity:.5;cursor:default}
-@keyframes experienceIn{from{opacity:0;transform:translateY(30px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
-@media(max-width:600px){.experienceOverlay{padding:14px}.experienceContent{padding:26px 22px}h2{font-size:24px}}
+@keyframes experienceBackdropIn{from{opacity:0}to{opacity:1}}\n@keyframes experienceIn{from{opacity:0;transform:translateY(24px) scale(.975)}to{opacity:1;transform:translateY(0) scale(1)}}
+@media(max-width:600px){.experienceOverlay{padding:14px}.experienceCard{border-radius:26px}.experienceContent{padding:30px 22px 24px}.experienceMark{top:18px;right:18px;width:34px;height:34px}.experienceTop{padding-right:42px}h2{font-size:25px;margin-top:16px}.experienceButton{width:100%;padding:14px 20px}}
 `}</style>
 </div>;
   }

@@ -49,8 +49,16 @@ const checkSession=async()=>{
 try{
 const{data:{session},error}=await supabase.auth.getSession();
 if(!active||!mountedRef.current)return;
-if(error){console.error('Auth session check failed:',error);return}
-if(session)await router.replace('/');
+if(error){console.error('Auth session check failed:',error);try{await supabase.auth.signOut({scope:'local'})}catch{}return}
+if(!session)return;
+const{data:{user},error:userError}=await supabase.auth.getUser(session.access_token);
+if(!active||!mountedRef.current)return;
+if(userError||!user){
+console.warn('[AUTH] Stored session is no longer valid. Clearing local session.');
+try{await supabase.auth.signOut({scope:'local'})}catch{}
+return;
+}
+await router.replace('/');
 }catch(error){
 if(active&&mountedRef.current)console.error('Auth initialization failed:',error);
 }

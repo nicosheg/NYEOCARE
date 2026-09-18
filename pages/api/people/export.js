@@ -1,4 +1,27 @@
-import pool from'../../../lib/db';import{withAdmin}from'../../../lib/apiHelpers';
-const esc=v=>{const s=v===null||v===undefined?'':String(v);return/[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
-async function handler(req,res){if(req.method!=='GET'){res.setHeader('Allow','GET');return res.status(405).json({error:'Method not allowed'});}try{const{rows}=await pool.query(\`SELECT p.id,p.first_name,p.last_name,p.display_name,p.phone,p.email,p.type,p.status,p.birthday,p.source,p.created_at,p.updated_at,pi.lifecycle_state AS intelligence_lifecycle,pi.engagement_score,pi.churn_probability,pi.attention_score,pi.attention_level,pi.next_best_action FROM people p LEFT JOIN people_intelligence pi ON pi.organization_id=p.organization_id AND pi.person_id=p.id WHERE p.organization_id=$1 ORDER BY COALESCE(NULLIF(p.display_name,''),NULLIF(TRIM(CONCAT_WS(' ',p.first_name,p.last_name)),''),p.first_name) ASC\`,[req.org.id]);const headers=Object.keys(rows[0]||{id:'',first_name:'',last_name:'',display_name:'',phone:'',email:'',type:'',status:'',birthday:'',source:'',created_at:'',updated_at:'',intelligence_lifecycle:'',engagement_score:'',churn_probability:'',attention_score:'',attention_level:'',next_best_action:''});const body=[headers.join(','),...rows.map(r=>headers.map(h=>esc(r[h])).join(','))].join('\\r\\n');res.setHeader('Content-Type','text/csv; charset=utf-8');res.setHeader('Content-Disposition',\`attachment; filename="nyeocare-people-2026-09-18.csv"\`);return res.status(200).send(body);}catch(e){console.error('People export:',e);return res.status(500).json({error:'Unable to export people'});}}
+import pool from '../../../lib/db';
+import {withAdmin} from '../../../lib/apiHelpers';
+
+const esc=v=>{
+ const s=v===null||v===undefined?'':String(v);
+ return /[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;
+};
+
+async function handler(req,res){
+ if(req.method!=='GET'){
+  res.setHeader('Allow','GET');
+  return res.status(405).json({error:'Method not allowed'});
+ }
+ try{
+  const{rows}=await pool.query(`SELECT p.id,p.first_name,p.last_name,p.display_name,p.phone,p.email,p.type,p.status,p.birthday,p.source,p.created_at,p.updated_at,pi.lifecycle_state AS intelligence_lifecycle,pi.engagement_score,pi.churn_probability,pi.attention_score,pi.attention_level,pi.next_best_action FROM people p LEFT JOIN people_intelligence pi ON pi.organization_id=p.organization_id AND pi.person_id=p.id WHERE p.organization_id=$1 ORDER BY COALESCE(NULLIF(p.display_name,''),NULLIF(TRIM(CONCAT_WS(' ',p.first_name,p.last_name)),''),p.first_name) ASC`,[req.org.id]);
+  const headers=Object.keys(rows[0]||{id:'',first_name:'',last_name:'',display_name:'',phone:'',email:'',type:'',status:'',birthday:'',source:'',created_at:'',updated_at:'',intelligence_lifecycle:'',engagement_score:'',churn_probability:'',attention_score:'',attention_level:'',next_best_action:''});
+  const body=[headers.join(','),...rows.map(r=>headers.map(h=>esc(r[h])).join(','))].join('\r\n');
+  res.setHeader('Content-Type','text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition',`attachment; filename="nyeocare-people-${new Date().toISOString().slice(0,10)}.csv"`);
+  return res.status(200).send(body);
+ }catch(e){
+  console.error('People export:',e);
+  return res.status(500).json({error:'Unable to export people'});
+ }
+}
+
 export default withAdmin(handler);

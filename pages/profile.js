@@ -79,7 +79,7 @@ setSaving(false);
 
 const createInvite=async()=>{
 try{
-const{data:{session}}=await supabase.auth.getSession();
+const session=await getClientSession();
 if(!session)return router.replace('/login');
 const r=await fetch('/api/users/invite',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},body:JSON.stringify({role:inviteRole})});
 const d=await r.json();
@@ -97,13 +97,13 @@ try{await navigator.clipboard.writeText(invite.url);setMsg('Invite copied')}catc
 };
 
 
-const askAria=async()=>{const message=ariaInput.trim();if(!message||ariaSending)return;setAriaSending(true);setAriaInput('');setAriaMessages(m=>[...m,{role:'user',content:message}]);try{const{data:{session}}=await supabase.auth.getSession();if(!session)return router.replace('/login');const r=await fetch('/api/aria/chat',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},body:JSON.stringify({message,conversationId:ariaConversationId})});const d=await r.json();if(!r.ok)throw new Error(d.error||'ARIA could not process that.');if(d.conversationId)setAriaConversationId(d.conversationId);setAriaMessages(m=>[...m,{role:'assistant',content:d.text||'I have checked what I can safely access.'}]);}catch(e){setAriaMessages(m=>[...m,{role:'assistant',content:e.message||'I could not process that safely.'}]);}finally{setAriaSending(false)}};
+const askAria=async()=>{const message=ariaInput.trim();if(!message||ariaSending)return;setAriaSending(true);setAriaInput('');setAriaMessages(m=>[...m,{role:'user',content:message}]);try{const session=await getClientSession();if(!session)return router.replace('/login');const r=await fetch('/api/aria/chat',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},body:JSON.stringify({message,conversationId:ariaConversationId})});const d=await r.json();if(!r.ok)throw new Error(d.error||'ARIA could not process that.');if(d.conversationId)setAriaConversationId(d.conversationId);setAriaMessages(m=>[...m,{role:'assistant',content:d.text||'I have checked what I can safely access.'}]);}catch(e){setAriaMessages(m=>[...m,{role:'assistant',content:e.message||'I could not process that safely.'}]);}finally{setAriaSending(false)}};
 
 const resetPassword=async()=>{
 if(passwordLoading)return;
 setPasswordLoading(true);setPasswordEmail(false);setMsg('');
 try{
-const{data:{session}}=await supabase.auth.getSession();
+const session=await getClientSession();
 if(!session)return router.replace('/login');
 const r=await fetch('/api/profile/password-reset',{method:'POST',headers:{Authorization:`Bearer ${session.access_token}`}});
 const d=await r.json();
@@ -115,7 +115,7 @@ setPasswordEmail(true);
 const remove=async id=>{
 if(!confirm('Remove this user from the organization?'))return;
 try{
-const{data:{session}}=await supabase.auth.getSession();
+const session=await getClientSession();
 if(!session)return router.replace('/login');
 const r=await fetch(`/api/users/${id}`,{method:'DELETE',headers:{Authorization:`Bearer ${session.access_token}`}});
 if(r.ok){setUsers(prev=>prev.filter(x=>x.id!==id));publishDataChange('users')}else setMsg((await r.json()).error||'Unable to remove user.');
@@ -125,7 +125,7 @@ if(r.ok){setUsers(prev=>prev.filter(x=>x.id!==id));publishDataChange('users')}el
 const transfer=async id=>{
 if(!confirm('Transfer ownership to this user? You will become an Admin.'))return;
 try{
-const{data:{session}}=await supabase.auth.getSession();
+const session=await getClientSession();
 if(!session)return router.replace('/login');
 const r=await fetch(`/api/users/${id}`,{method:'PUT',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},body:JSON.stringify({role:'owner'})});
 if(r.ok){setUsers(prev=>prev.map(x=>x.id===id?{...x,role:'owner'}:x.id===profile?.user?.id?{...x,role:'admin'}:x));publishDataChange('users')}else setMsg((await r.json()).error||'Unable to transfer ownership.');

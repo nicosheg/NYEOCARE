@@ -2,6 +2,8 @@
 import{readFileSync}from'node:fs';
 
 const file=readFileSync('components/AttendanceModal.js','utf8');
+const home=readFileSync('pages/index.js','utf8');
+const activeApi=readFileSync('pages/api/attendance/active-session.js','utf8');
 const declaredStyles=new Set([...file.matchAll(/\b([A-Za-z_$][\w$]*)\s*=\s*\{/g)].map(m=>m[1]));
 const refs=new Set();
 for(const m of file.matchAll(/style=\{([A-Za-z_$][\w$]*)\}/g))refs.add(m[1]);
@@ -11,11 +13,18 @@ const forbidden=['/api/attendance/context','contextPerson','contextOverlay','con
 const forbiddenFound=forbidden.filter(x=>file.includes(x));
 const required=['normalizeSession','normalizePeople','readJson','loadSeq'];
 const absent=required.filter(x=>!file.includes(x));
-if(missing.length||forbiddenFound.length||absent.length){
+const semanticChecks=[
+ ['Attendance API marks LIVE only for status=active',/active:row\.status==='active'/.test(activeApi)],
+ ['Attendance loader accepts recoverable closed sessions',/if\(!sd\.active&&!sd\.recoverable\)/.test(file)],
+ ['Homepage LIVE cue requires an active session',/d\?\.active===true&&d\?\.status==='active'/.test(home)]
+];
+const semanticFailures=semanticChecks.filter(([,ok])=>!ok).map(([name])=>name);
+if(missing.length||forbiddenFound.length||absent.length||semanticFailures.length){
  console.error('[CRITICAL UI] Attendance regression guard failed.');
  if(missing.length)console.error('Undefined style identifiers:',missing.join(', '));
  if(forbiddenFound.length)console.error('Removed attendance-context remnants:',forbiddenFound.join(', '));
  if(absent.length)console.error('Missing hardening primitives:',absent.join(', '));
+ if(semanticFailures.length)console.error('Broken attendance lifecycle semantics:',semanticFailures.join(' | '));
  process.exit(1);
 }
 console.log('[CRITICAL UI] Attendance render/persistence guards passed.');

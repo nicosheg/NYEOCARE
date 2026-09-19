@@ -822,6 +822,16 @@ This edition supersedes stale assumptions in earlier versions, especially around
 **Current canonical product name in this repository:** NYEOCARE.
 
 
+## Attendance → ARIA → Daily Briefing contract
+
+Attendance processing is the authoritative producer of attendance-derived ARIA memory. A completed session must durably create its participation records, absence observations, and immediate human-review actions before processing is marked completed. Retries are idempotent through durable action keys.
+
+Daily Briefing is a read/presentation layer. It MUST NOT discover or insert attendance actions as a side effect. This prevents two independent decision paths from drifting apart.
+
+Immediate first-session absence is an observation, not a pattern claim. The corresponding follow-up is intentionally lightweight, requires human approval, and carries the source session in action metadata so later context and return events can connect to it.
+
+Human context supplied through Tell ARIA becomes durable attendance context. It can change future reasoning but is never treated as proof. A later recorded return resolves the relevant absence/context and can create a return observation and welcome-back action.
+
 ## Attendance state contract
 
 Attendance has two different states that must never be conflated in the UI or API:

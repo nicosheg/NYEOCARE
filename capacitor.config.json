@@ -1,7 +1,7 @@
 {
   "appId": "com.nyeocare.app",
   "appName": "NYEOCARE",
-  "webDir": "public",
+  "webDir": "out",
   "server": {
     "url": "https://nyeocare.vercel.app",
     "cleartext": false

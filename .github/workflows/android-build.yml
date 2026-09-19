@@ -8,7 +8,7 @@ jobs:
   build-android:
     runs-on: ubuntu-latest
     env:
-      NYEOCARE_URL: ${{ vars.NYEOCARE_URL }}
+      NYEOCARE_URL: ${{ vars.NYEOCARE_URL || 'https://nyeocare.vercel.app' }}
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
       DATABASE_URL: postgres://ci:ci@127.0.0.1:5432/ci

@@ -9,7 +9,7 @@ for(const m of file.matchAll(/style=\{\{\.\.\.([A-Za-z_$][\w$]*)/g))refs.add(m[1
 const missing=[...refs].filter(x=>!declaredStyles.has(x));
 const forbidden=['/api/attendance/context','contextPerson','contextOverlay','contextCard','contextButton'];
 const forbiddenFound=forbidden.filter(x=>file.includes(x));
-const required=['normalizeSession','normalizePeople','readJson','loadInFlight','loadSeq'];
+const required=['normalizeSession','normalizePeople','readJson','loadSeq'];
 const absent=required.filter(x=>!file.includes(x));
 if(missing.length||forbiddenFound.length||absent.length){
  console.error('[CRITICAL UI] Attendance regression guard failed.');

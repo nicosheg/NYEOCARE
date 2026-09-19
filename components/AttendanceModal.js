@@ -4,7 +4,7 @@ import{createPortal}from'react-dom';
 import{supabase}from'../lib/supabaseClient';
 
 export default function AttendanceModal({isOpen,onClose}){
-const[session,setSession]=useState(null),[canDiscard,setCanDiscard]=useState(false),[people,setPeople]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[closing,setClosing]=useState(false),[error,setError]=useState(''),[query,setQuery]=useState(''),[sessionName,setSessionName]=useState('');
+const[session,setSession]=useState(null),[canDiscard,setCanDiscard]=useState(false),[people,setPeople]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[closing,setClosing]=useState(false),[error,setError]=useState(''),[query,setQuery]=useState(''),[sessionName,setSessionName]=useState('');\nconst[contextPerson,setContextPerson]=useState(null),[contextReason,setContextReason]=useState('unknown'),[contextNote,setContextNote]=useState(''),[contextReturn,setContextReturn]=useState('unknown'),[contextDate,setContextDate]=useState(''),[contextSaving,setContextSaving]=useState(false);
 const auth=async()=>{const{data:{session}}=await supabase.auth.getSession();return session};
 
 const load=useCallback(async(showLoading=true)=>{
@@ -17,7 +17,7 @@ const h={Authorization:`Bearer ${s.access_token}`};
 const sr=await fetch('/api/attendance/active-session',{headers:h}),sd=await sr.json();
 if(!sr.ok)throw Error(sd.error||'Could not load attendance session.');
 if(!sd.active){setSession(null);setPeople([]);setQuery('');return}
-setSession(sd);setCanDiscard(sd.can_discard===true);
+setSession(sd);setCanDiscard(sd.can_discard===true);if(sd.status==='closed'&&sd.processing_status!=='completed')setError('Attendance is saved. ARIA has not finished processing it yet.');
 const pr=await fetch(`/api/attendance/people?session_id=${encodeURIComponent(sd.session_id)}`,{headers:h}),pd=await pr.json();
 if(!pr.ok)throw Error(pd.error||'Could not load attendance people.');
 setPeople(Array.isArray(pd)?pd:[]);
@@ -73,6 +73,8 @@ setPeople(current=>current.map(p=>p.id===id?{...p,marked:d.present===true,marked
 }catch(e){console.error('[ATTENDANCE] Mark/unmark error:',e);setPeople(previous);setError(e.message||'Could not update attendance.')}
 };
 
+const openContext=p=>{setContextPerson(p);setContextReason(p.absence_reason_code||'unknown');setContextNote(p.absence_reason_note||'');setContextReturn(p.expected_return_known?(p.expected_return_date?'specific_date':'next_gathering'):'unknown');setContextDate(p.expected_return_date||'')};
+const saveContext=async()=>{if(!contextPerson||contextSaving)return;setContextSaving(true);setError('');try{const s=await auth();if(!s)throw Error('You must be logged in.');const r=await fetch('/api/attendance/context',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.access_token},body:JSON.stringify({session_id:session.session_id,people_id:contextPerson.id,reason_code:contextReason,reason_note:contextNote,return_option:contextReturn,expected_return_date:contextDate||null})});const d=await r.json();if(!r.ok||!d.success)throw Error(d.error||'Could not save this context.');const x=d.context;setPeople(current=>current.map(p=>p.id===contextPerson.id?{...p,absence_context_id:x.id,absence_reason_code:x.reason_code,absence_reason_note:x.reason_note,expected_return_date:x.expected_return_date,expected_service_type:x.expected_service_type,expected_return_known:x.expected_return_known}:p));setContextPerson(null)}catch(e){console.error('[ATTENDANCE] Context save error:',e);setError(e.message||'Could not save this context.')}finally{setContextSaving(false)}};
 const retryAriaProcessing=async()=>{
 if(!session?.session_id||closing)return;
 setClosing(true);setError('');
@@ -98,7 +100,7 @@ const r=await fetch('/api/attendance/close-session',{
 method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.access_token}`},body:JSON.stringify({session_id:session.session_id})
 }),d=await r.json();
 if(!r.ok||!d.success){
-if(d.session)setSession(prev=>prev?{...prev,status:d.session.status||'closed',closed_at:d.session.closed_at||null}:prev);
+if(d.session)setSession(prev=>prev?{...prev,...d.session,status:d.session.status||'closed',closed_at:d.session.closed_at||null,processing_status:d.session.aria_processing_status||'failed',processing_error:d.session.aria_processing_error||null}:prev);
 throw Error(d.error||'Could not keep this session.');
 }
 setSession(null);setPeople([]);setQuery('');
@@ -155,8 +157,9 @@ const content=<div style={overlay} onMouseDown={e=>{if(e.target===e.currentTarge
 <div style={toolbar}><input style={search} value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search people..."/>{query&&<button style={clear} onClick={()=>setQuery('')} aria-label="Clear search">×</button>}</div>
 <div style={peopleBox}>{visible.length===0?<div style={empty}><strong>No people found</strong><span>{query?'Try another name or phone number.':'No active people are available yet.'}</span></div>:visible.map(p=><div style={{...personRow,...(p.marked?markedRow:{})}} key={p.id}>
 <div style={personInfo}><div style={{...avatar,...(p.marked?presentAvatar:{})}}>{(p.first_name||'?').charAt(0).toUpperCase()}</div><div><strong>{p.first_name} {p.last_name||''}</strong>{p.marked&&<small style={small}>{`Present${p.marked_by_name?` · ${p.marked_by_name}`:''}`}</small>}</div></div>
-<button style={{...markButton,...(p.marked?doneButton:{})}} disabled={closing||session.status!=='active'} onClick={()=>mark(p.id,!!p.marked)}>{p.marked?'✓ Unmark':'Mark present'}</button>
+<div style={rowActions}>{!p.marked&&session.status==='active'&&(p.absence_context_id?<span style={contextSaved}>Context saved</span>:<button style={contextButton} disabled={closing} onClick={()=>openContext(p)}>Context</button>)}<button style={{...markButton,...(p.marked?doneButton:{})}} disabled={closing||session.status!=='active'} onClick={()=>mark(p.id,!!p.marked)}>{p.marked?'✓ Unmark':'Mark present'}</button></div>
 </div>)}</div>
+{contextPerson&&<div style={contextOverlay}><div style={contextCard}><div style={contextHead}><div><div style={eyebrow}>ABSENCE CONTEXT</div><strong style={{fontSize:18}}>{contextPerson.first_name} {contextPerson.last_name||''}</strong><div style={contextHint}>Tell ARIA what you know. Nothing here is treated as a guess.</div></div><button style={contextClose} onClick={()=>setContextPerson(null)} aria-label="Close context">×</button></div><label style={fieldLabel}>Reason</label><select value={contextReason} onChange={e=>setContextReason(e.target.value)} style={contextInput}><option value="unknown">I don't know</option><option value="health">Health</option><option value="travel">Travel</option><option value="work_school">Work / school</option><option value="family">Family</option><option value="personal">Personal</option><option value="transport">Transport</option><option value="other">Other</option></select><label style={fieldLabel}>What did they tell you? <span>(optional)</span></label><textarea value={contextNote} onChange={e=>setContextNote(e.target.value)} placeholder="Optional detail worth remembering…" maxLength={1000} rows={3} style={contextTextarea}/><label style={fieldLabel}>Possible next time</label><select value={contextReturn} onChange={e=>setContextReturn(e.target.value)} style={contextInput}><option value="next_gathering">Next gathering</option><option value="specific_date">Specific date</option><option value="unknown">Don't know yet</option></select>{contextReturn==='specific_date'&&<input type="date" value={contextDate} onChange={e=>setContextDate(e.target.value)} style={contextInput}/>}<div style={contextExplain}>{contextReturn==='next_gathering'?'ARIA will watch for the next matching gathering and remind the organization when that time arrives.':contextReturn==='specific_date'?'ARIA will remind the organization on that date unless the person returns earlier.':'ARIA will keep observing without inventing a return date.'}</div><div style={contextActions}><button style={secondaryAction} disabled={contextSaving} onClick={()=>setContextPerson(null)}>Cancel</button><button style={primaryAction} disabled={contextSaving} onClick={saveContext}>{contextSaving?'Saving…':'Save context'}</button></div></div></div>}
 <footer style={footer}><div style={live}><i/>Live attendance</div><div style={footerActions}>{canDiscard&&session.status==='active'&&<button style={leave} disabled={closing} onClick={leaveSession}>Discard</button>}{session.status==='active'?<button style={keep} disabled={closing} onClick={keepSession}>{closing?'Saving...':'Keep session'}</button>:<button style={keep} disabled={closing} onClick={retryAriaProcessing}>{closing?'Processing...':'Retry ARIA'}</button>}</div></footer>
 </>}
 </div></div>;

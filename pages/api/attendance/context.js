@@ -1,6 +1,6 @@
 // pages/api/attendance/context.js
 import pool from'../../../lib/db';import{withOrg}from'../../../lib/apiHelpers';
-const REASONS=new Set(['health','travel','work_school','family','personal','transport','other','unknown']);
+const REASONS=new Set(['health','travel','work_school','family','personal','transport','other','unknown','not_attending']);
 function weekday(v){const n=new Date(v).getUTCDay();return n===0?7:n}
 function nextDate(start,service){const base=new Date(start),baseDay=weekday(start),m=String(service||'').match(/^weekday:(\d)$/);const target=m?Number(m[1]):baseDay,delta=((target-baseDay+7)%7)||7;base.setUTCDate(base.getUTCDate()+delta);return base.toISOString().slice(0,10)}
 export default withOrg(async function handler(req,res){

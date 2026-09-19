@@ -1,73 +1,48 @@
 // components/OnboardingProvider.js
 import{createContext,useContext,useEffect,useState,useCallback,useRef}from'react';
-import{supabase}from'../lib/supabaseClient';
+import{getClientSession}from'../lib/clientSession';
 
 const OnboardingContext=createContext(null);
 const INITIAL_STATE={loaded:false,enabled:false,experienced:{},ariaInstructions:''};
+const CACHE_TTL=300000;
+const cache=new Map();
+const inflight=new Map();
 
 export function OnboardingProvider({children}){
-const[state,setState]=useState(INITIAL_STATE);
-const mounted=useRef(true);
-
-useEffect(()=>{
-mounted.current=true;
-return()=>{mounted.current=false};
-},[]);
-
-const reset=useCallback(()=>{
-if(mounted.current)setState({...INITIAL_STATE,loaded:true});
-},[]);
-
-const load=useCallback(async(sessionOverride=null)=>{
-try{
-const{data:{session}}=sessionOverride?{data:{session:sessionOverride}}:await supabase.auth.getSession();
-if(!session){reset();return}
-const response=await fetch('/api/onboarding',{headers:{Authorization:`Bearer ${session.access_token}`}});
-if(!response.ok)throw new Error(`Onboarding request failed: ${response.status}`);
-const data=await response.json();
-if(!mounted.current)return;
-setState({
-loaded:true,
-enabled:data.onboarding?.enabled===true,
-experienced:data.onboarding?.experienced||{},
-ariaInstructions:data.ariaInstructions||''
-});
-}catch(error){
-console.error('[ONBOARDING] Load error:',error);
-if(mounted.current)setState(prev=>({...prev,loaded:true}));
+ const[state,setState]=useState(INITIAL_STATE),mounted=useRef(true);
+ useEffect(()=>{mounted.current=true;return()=>{mounted.current=false}},[]);
+ const reset=useCallback(()=>{if(mounted.current)setState({...INITIAL_STATE,loaded:true})},[]);
+ const load=useCallback(async(sessionOverride=null)=>{
+  try{
+   const session=sessionOverride||await getClientSession();
+   if(!session){reset();return}
+   const key=String(session.user?.id||'');
+   const cached=cache.get(key);
+   if(cached&&Date.now()-cached.at<CACHE_TTL){if(mounted.current)setState(cached.state);return}
+   if(inflight.has(key)){await inflight.get(key);return}
+   const task=(async()=>{
+    const response=await fetch('/api/onboarding',{headers:{Authorization:'Bearer '+session.access_token},cache:'no-store'});
+    if(!response.ok)throw new Error('Onboarding request failed: '+response.status);
+    const data=await response.json();
+    const next={loaded:true,enabled:data.onboarding?.enabled===true,experienced:data.onboarding?.experienced||{},ariaInstructions:data.ariaInstructions||''};
+    cache.set(key,{state:next,at:Date.now()});if(mounted.current)setState(next);
+   })();
+   inflight.set(key,task);
+   try{await task}finally{inflight.delete(key)}
+  }catch(error){console.error('[ONBOARDING] Load error:',error);if(mounted.current)setState(prev=>({...prev,loaded:true}))}
+ },[reset]);
+ useEffect(()=>{
+  let active=true;
+  load();
+  const{data:{subscription}}=require('../lib/supabaseClient').supabase.auth.onAuthStateChange((event,session)=>{
+   if(!active)return;
+   if(event==='SIGNED_OUT'||!session){reset();return}
+   if(event==='SIGNED_IN'||event==='USER_UPDATED')load(session);
+  });
+  return()=>{active=false;subscription.unsubscribe()};
+ },[load,reset]);
+ const completeExperience=useCallback(async experience=>{if(!experience)return false;setState(prev=>({...prev,experienced:{...prev.experienced,[experience]:true}}));return true},[]);
+ const isExperienced=useCallback(experience=>state.experienced?.[experience]===true,[state.experienced]);
+ return <OnboardingContext.Provider value={{...state,isExperienced,completeExperience,reload:load}}>{children}</OnboardingContext.Provider>;
 }
-},[reset]);
-
-useEffect(()=>{
-let active=true;
-const initialize=async()=>{
-if(active)await load();
-};
-initialize();
-const{data:{subscription}}=supabase.auth.onAuthStateChange((event,session)=>{
-if(!active)return;
-if(event==='SIGNED_OUT'||!session){reset();return}
-if(event==='SIGNED_IN'||event==='INITIAL_SESSION'||event==='USER_UPDATED'){
-setTimeout(()=>{if(active)load(session)},0);
-}
-});
-return()=>{
-active=false;
-subscription.unsubscribe();
-};
-},[load,reset]);
-
-const completeExperience=useCallback(async experience=>{
-if(!experience)return false;
-setState(prev=>({...prev,experienced:{...prev.experienced,[experience]:true}}));
-return true;
-},[]);
-
-const isExperienced=useCallback(experience=>state.experienced?.[experience]===true,[state.experienced]);
-
-return <OnboardingContext.Provider value={{...state,isExperienced,completeExperience,reload:load}}>{children}</OnboardingContext.Provider>;
-}
-
-export function useOnboarding(){
-return useContext(OnboardingContext);
-                                     }
+export function useOnboarding(){return useContext(OnboardingContext);}

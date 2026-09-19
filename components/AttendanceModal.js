@@ -30,26 +30,9 @@ setPeople(Array.isArray(pd)?pd:[]);
 useEffect(()=>{if(isOpen)load()},[isOpen,load]);
 
 useEffect(()=>{
-if(!isOpen||!session?.session_id||session.status!=='active')return;
-let timer=null,channel=null,poll=null;
-const refresh=()=>{clearTimeout(timer);timer=setTimeout(()=>load(false),120)};
-try{
- channel=supabase.channel(`attendance-live-${session.session_id}`).on('postgres_changes',{
- event:'*',schema:'public',table:'attendance_records',filter:`session_id=eq.${session.session_id}`
- },refresh).subscribe(status=>{
-  if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){
-   console.warn('[ATTENDANCE] Realtime unavailable; using safe polling.',status);
-   if(!poll)poll=setInterval(()=>load(false),5000);
-  }
- });
-}catch(e){
- console.warn('[ATTENDANCE] Realtime setup failed; using safe polling.',e?.message||e);
- poll=setInterval(()=>load(false),5000);
-}
-return()=>{
- clearTimeout(timer);if(poll)clearInterval(poll);
- try{if(channel)supabase.removeChannel(channel)}catch{}
-};
+ if(!isOpen||!session?.session_id||session.status!=='active')return;
+ const poll=setInterval(()=>load(false),5000);
+ return()=>clearInterval(poll);
 },[isOpen,session?.session_id,session?.status,load]);
 
 const createSession=async()=>{

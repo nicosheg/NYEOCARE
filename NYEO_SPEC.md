@@ -633,6 +633,12 @@ When the user sees the NYEOCARE client-error recovery screen:
 9. **Verification gate before promotion:** CI passes; Vercel deployment is `READY`; then run the exact production smoke sequence: open Attendance → create session → load people → mark/unmark → save → observe processing state → reopen/retry if needed → reload page → confirm saved state. Repeat once with an intentionally recoverable processing failure path.
 10. **Document recurrence.** Record the commit, exact root cause, regression check, verification result, and any remaining uncertainty in the engineering history. Never call a build “fixed forever” merely because it compiled once; the release is considered hardened only after the regression case passes.
 
+### September 19, 2026 recurrence record
+
+The client-error screen reappeared after the attendance context UI was removed. The root cause was a stale render reference: `AttendanceModal.js` still rendered `style={rowActions}` after the context cleanup, but the `rowActions` style declaration had been removed with the old context-related style block. This was a **client-side ReferenceError**, so Vercel server runtime telemetry did not show it and the global error boundary reduced it to the generic recovery screen.
+
+The permanent engineering lesson is that deleting a UI branch must include an explicit dependency sweep for every render reference it owned or exposed. Attendance now has a CI regression guard for undefined style identifiers and removed context remnants, plus a surface-level error boundary and client-error telemetry. The guard must remain mandatory for future attendance changes.
+
 ### Attendance-specific regression requirements
 
 The attendance surface must remain:

@@ -302,7 +302,7 @@ CARE
 There is no “Absent” button for ordinary users. Users record who they saw.
 
 ### Current processing behavior
-Closing a session now waits for ARIA participation processing instead of silently launching fragile background work. If processing fails, the attendance session can remain closed while the API reports processing failure so the processing endpoint can retry safely.
+Saving a session commits the attendance first. ARIA participation processing runs after the save response and has a durable lifecycle on the session (`pending` → `processing` → `completed` or `failed`). A processing failure must never roll back or hide saved attendance. The failure remains retryable from the persisted session, and the UI must surface the processing state without treating ARIA as part of the database commit itself.
 
 Participation records are idempotent per organization/person/session/attendance type.
 
@@ -616,11 +616,43 @@ Before merging a change, check:
 
 ---
 
+## 17A. CRITICAL-CLIENT FAILURE / FIXING PROCEDURE
+
+A client-side error on a critical NYEOCARE surface is an engineering incident, not a cosmetic UI issue. A green production build proves compilation; it does **not** prove that the live client can render the actual state returned by the database.
+
+When the user sees the NYEOCARE client-error recovery screen:
+
+1. **Stop the feature test.** Do not continue changing code while reproducing the same incident.
+2. **Preserve the exact state.** Record the route, exact user action, whether attendance was already saved, the visible message, timestamp, and current deployment/commit.
+3. **Capture the exact client exception.** The error boundary must log and report `message`, stack, React component stack, route, and surface to the server-side diagnostic endpoint. Do not rely on the generic recovery text as the diagnosis.
+4. **Check production telemetry first.** Inspect Vercel runtime errors/logs for the same window. Server-side API failures and client-render failures are different failure classes; do not infer one from the other.
+5. **Trace root cause through the full state path.** For attendance, inspect: authenticated session → active/closed session payload → people payload → normalization → render branch → event handler → persistence API → ARIA processing. Verify actual response shapes against the current database schema.
+6. **Fix the root cause, then add the regression guard.** Every client-render incident must leave behind a deterministic regression check for the failure class. For the attendance modal this includes static validation that every referenced style object exists and that removed parallel context UI does not return.
+7. **Isolate critical surfaces.** A render error in Attendance, Scan, Review, or another modal must not blank the entire application. Use a surface-level error boundary so the rest of NYEOCARE remains usable while the failing surface is recovered.
+8. **Protect persistence separately from presentation.** Attendance is saved on the server before ARIA processing. A client rendering failure must not be able to delete or roll back already-committed attendance.
+9. **Verification gate before promotion:** CI passes; Vercel deployment is `READY`; then run the exact production smoke sequence: open Attendance → create session → load people → mark/unmark → save → observe processing state → reopen/retry if needed → reload page → confirm saved state. Repeat once with an intentionally recoverable processing failure path.
+10. **Document recurrence.** Record the commit, exact root cause, regression check, verification result, and any remaining uncertainty in the engineering history. Never call a build “fixed forever” merely because it compiled once; the release is considered hardened only after the regression case passes.
+
+### Attendance-specific regression requirements
+
+The attendance surface must remain:
+
+**open safely → render safely → record safely → save durably → process independently → recover visibly.**
+
+The following are non-negotiable:
+- malformed or incomplete attendance API payloads are normalized or rejected before render;
+- stale concurrent loads cannot overwrite newer attendance state;
+- a slow ARIA process cannot block the attendance database commit;
+- a failed ARIA process is retryable and idempotent;
+- a client render error cannot replace the whole application with the generic global screen;
+- the exact client exception is observable to engineering;
+- the corresponding failure class has a CI regression check before another feature is layered onto the surface.
+
 # 18. CI / DEPLOYMENT STATUS
 
 A GitHub Actions CI workflow now exists and uses pinned action SHAs.
 
-The latest known CI failure was **environment configuration**, not a reported JavaScript compilation failure: the workflow lacked `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in its environment. Therefore CI must **not** be described as green until the required build-time variables are configured and a fresh run passes.
+The CI workflow now supplies non-production build-time Supabase placeholders. The latest main-branch CI run on 19 September 2026 completed successfully, including scan regression and `next build`. CI status must still be checked on every new critical-path change.
 
 Android workflow is also present with pinned GitHub actions and a repository `NYEOCARE_URL` variable.
 

@@ -820,3 +820,15 @@ The goal is not to build the most features.
 This edition supersedes stale assumptions in earlier versions, especially around hosting, People-card presentation, attendance-derived Last attended, current scan hardening, current ARIA action safety, daily briefing behavior, and the current production-hardening phase.
 
 **Current canonical product name in this repository:** NYEOCARE.
+
+
+## Attendance state contract
+
+Attendance has two different states that must never be conflated in the UI or API:
+
+- `active` / **LIVE** means a session is currently open and attendance can still be recorded.
+- `closed` with ARIA processing pending/processing/failed means attendance has already been saved; it is recoverable for processing, but it is **not LIVE**.
+
+The homepage LIVE cue must be derived from both the API's live flag and `status === 'active'`. A saved session may surface a separate ARIA processing notice while processing continues. Completion must remove that notice without reviving the LIVE cue.
+
+Regression test: save/close attendance while ARIA is still processing, return to Home immediately, verify the control does not say `Attendance · LIVE`; verify any processing notice clears after the session reaches `completed`. Also verify the discard → immediate new session path remains race-safe.

@@ -1,6 +1,6 @@
 // components/OnboardingProvider.js
 import{createContext,useContext,useEffect,useState,useCallback,useRef}from'react';
-import{getClientSession}from'../lib/clientSession';
+import{getClientSession}from'../lib/clientSession';import{supabase}from'../lib/supabaseClient';
 
 const OnboardingContext=createContext(null);
 const INITIAL_STATE={loaded:false,enabled:false,experienced:{},ariaInstructions:''};
@@ -34,7 +34,7 @@ export function OnboardingProvider({children}){
  useEffect(()=>{
   let active=true;
   load();
-  const{data:{subscription}}=require('../lib/supabaseClient').supabase.auth.onAuthStateChange((event,session)=>{
+  const{data:{subscription}}=supabase.auth.onAuthStateChange((event,session)=>{
    if(!active)return;
    if(event==='SIGNED_OUT'||!session){reset();return}
    if(event==='SIGNED_IN'||event==='USER_UPDATED')load(session);

@@ -4,7 +4,7 @@ const s={wrap:{width:'100%',maxWidth:720,margin:'0 auto',padding:'20px 14px 50px
 function phones(x){return normalizePhoneList(x,{limit:2})}
 function verified(x){return x?.verified===true||x?.verification_status==='verified'||x?.identity_verification_status==='verified'}
 function cleanEvidence(v){return Array.isArray(v)?v.map(String).filter(Boolean):[]}
-function displayPhone(v){const p=phones(v);return p.length?p.join(' · '):'Phone not available'}
+function displayPhone(v){const p=phones(v).map(x=>/^\+234\d{10}$/.test(x)?`+234 ${x.slice(4,7)} ${x.slice(7,10)} ${x.slice(10)}`:x);return p.length?p.join(' · '):'Phone not available'}
 export default function ReviewCenterTab({modal=false,onClose}){
  const[items,setItems]=useState([]),[meta,setMeta]=useState(null),[loading,setLoading]=useState(true),[active,setActive]=useState(null),[mode,setMode]=useState(null),[selected,setSelected]=useState(null),[name,setName]=useState(''),[phone,setPhone]=useState(''),[phone2,setPhone2]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
  async function auth(){let{data:{session}}=await supabase.auth.getSession();if(!session)throw Error('You must be logged in.');return session}

@@ -3,6 +3,9 @@ import{readFileSync}from'node:fs';
 
 const file=readFileSync('components/AttendanceModal.js','utf8');
 const home=readFileSync('pages/index.js','utf8');
+const homeStyleNames=new Set([...home.matchAll(/\b([A-Za-z_$][\w$]*)=\{/g)].map(m=>m[1]));
+const homeStyleRefs=[...new Set([...home.matchAll(/style=\{(?:\{\.\.\.)?([A-Za-z_$][\w$]*)/g)].map(m=>m[1]))];
+const missingHomeStyles=homeStyleRefs.filter(x=>!homeStyleNames.has(x));
 const activeApi=readFileSync('pages/api/attendance/active-session.js','utf8');
 const director=readFileSync('lib/aria/director.js','utf8');
 const eventProcessor=readFileSync('lib/aria/eventProcessor.js','utf8');
@@ -28,9 +31,10 @@ const semanticChecks=[
  ['Attendance processor owns first-session follow-up',/first_session_check_in/.test(participation)&&/session_id:sessionId/.test(participation)]
 ];
 const semanticFailures=semanticChecks.filter(([,ok])=>!ok).map(([name])=>name);
-if(missing.length||forbiddenFound.length||absent.length||semanticFailures.length){
+if(missing.length||missingHomeStyles.length||forbiddenFound.length||absent.length||semanticFailures.length){
  console.error('[CRITICAL UI] Attendance regression guard failed.');
- if(missing.length)console.error('Undefined style identifiers:',missing.join(', '));
+ if(missing.length)console.error('Undefined Attendance style identifiers:',missing.join(', '));
+ if(missingHomeStyles.length)console.error('Undefined Home style identifiers:',missingHomeStyles.join(', '));
  if(forbiddenFound.length)console.error('Removed attendance-context remnants:',forbiddenFound.join(', '));
  if(absent.length)console.error('Missing hardening primitives:',absent.join(', '));
  if(semanticFailures.length)console.error('Broken attendance lifecycle semantics:',semanticFailures.join(' | '));

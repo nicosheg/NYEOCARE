@@ -1,12 +1,14 @@
 // components/AttendanceModal.js
-import{useCallback,useEffect,useState}from'react';
+import{useCallback,useEffect,useRef,useState}from'react';
 import{createPortal}from'react-dom';
 import{supabase}from'../lib/supabaseClient';
 
 export default function AttendanceModal({isOpen,onClose}){
-const[session,setSession]=useState(null),[canDiscard,setCanDiscard]=useState(false),[people,setPeople]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[closing,setClosing]=useState(false),[error,setError]=useState(''),[query,setQuery]=useState(''),[sessionName,setSessionName]=useState('');
+const[session,setSession]=useState(null),[canDiscard,setCanDiscard]=useState(false),[people,setPeople]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[closing,setClosing]=useState(false),[error,setError]=useState(''),[query,setQuery]=useState(''),[sessionName,setSessionName]=useState('');const mounted=useRef(false);
 const[contextPerson,setContextPerson]=useState(null),[contextReason,setContextReason]=useState('unknown'),[contextNote,setContextNote]=useState(''),[contextReturn,setContextReturn]=useState('unknown'),[contextDate,setContextDate]=useState(''),[contextSaving,setContextSaving]=useState(false);
 const auth=async()=>{const{data:{session}}=await supabase.auth.getSession();return session};
+useEffect(()=>{mounted.current=true;return()=>{mounted.current=false}},[]);
+const finishClose=()=>{if(!mounted.current)return;setSession(null);setPeople([]);setQuery('');onClose()};
 
 const load=useCallback(async(showLoading=true)=>{
 if(showLoading)setLoading(true);
@@ -87,9 +89,9 @@ method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer $
 body:JSON.stringify({session_id:session.session_id})
 }),d=await r.json();
 if(!r.ok||!d.success)throw Error(d.error||'Unable to finish ARIA processing.');
-if(d.processing_failed){setSession(prev=>prev?{...prev,processing_status:'failed',processing_error:d.aria?.processing_error||null}:prev);setError(d.error||'Unable to finish ARIA processing.');return}
-setSession(null);setPeople([]);setQuery('');onClose();
-}catch(e){console.error('[ATTENDANCE] ARIA retry error:',e);setError(e.message||'Unable to finish ARIA processing.')}finally{setClosing(false)}
+if(d.processing_failed){if(mounted.current){setSession(prev=>prev?{...prev,processing_status:'failed',processing_error:null}:prev);setError(d.error||'Unable to finish ARIA processing.')}return}
+finishClose();
+}catch(e){console.error('[ATTENDANCE] ARIA retry error:',e);setError(e.message||'Unable to finish ARIA processing.')}finally{if(mounted.current)setClosing(false)}
 };
 
 const keepSession=async()=>{
@@ -101,7 +103,7 @@ if(!s)throw Error('You must be logged in.');
 const r=await fetch('/api/attendance/close-session',{
 method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.access_token}`},body:JSON.stringify({session_id:session.session_id})
 }),d=await r.json();
-if(d.processing_failed){if(d.session)setSession(prev=>prev?{...prev,...d.session,status:d.session.status||'closed',processing_status:d.session.aria_processing_status||'failed',processing_error:d.session.aria_processing_error||null}:prev);setError(d.error||'ARIA could not finish processing this attendance yet.');return}
+if(d.processing_failed){if(mounted.current){if(d.session)setSession(prev=>prev?{...prev,...d.session,status:d.session.status||'closed',processing_status:d.session.aria_processing_status||'failed',processing_error:null}:prev);setError(d.error||'ARIA could not finish processing this attendance yet.')}return}
 if(!r.ok||!d.success){
 if(d.session)setSession(prev=>prev?{...prev,...d.session,status:d.session.status||'closed',closed_at:d.session.closed_at||null,processing_status:d.session.aria_processing_status||'failed',processing_error:d.session.aria_processing_error||null}:prev);
 throw Error(d.error||'Could not keep this session.');

@@ -19,6 +19,7 @@ const semanticChecks=[
  ['Attendance API marks LIVE only for status=active',/active:row\.status==='active'/.test(activeApi)],
  ['Attendance loader accepts recoverable closed sessions',/if\(!sd\.active&&!sd\.recoverable\)/.test(file)],
  ['Homepage LIVE cue requires an active session',/d\?\.active===true&&d\?\.status==='active'/.test(home)],
+ ['Homepage fetches ARIA Today without cache',/daily-briefing\/latest',\{headers:h,cache:'no-store'\}/.test(home)],
  ['Daily briefing never creates attendance actions',!/INSERT INTO aria_actions/.test(briefing)],
  ['Daily briefing is explicitly uncached',/Cache-Control.*no-store/.test(briefing)],
  ['Daily briefing surfaces attendance actions first',/first_session_check_in/.test(briefing)],

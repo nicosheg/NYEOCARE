@@ -89,7 +89,7 @@ export default withOrg(async function handler(req, res) {
       id: session.id,
       session,
       sections: normalizedSections,
-      joined: true,
+      joined: true,can_discard:['owner','admin'].includes(req.user.role),
     });
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch {}

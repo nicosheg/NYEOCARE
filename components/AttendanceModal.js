@@ -1,7 +1,7 @@
 // components/AttendanceModal.js
 import{useCallback,useEffect,useRef,useState}from'react';
 import{createPortal}from'react-dom';
-import{getClientSession}from'../lib/clientSession';import{getCached,setCached,clearCached,publishDataChange}from'../lib/appData';
+import{getClientSession}from'../lib/clientSession';import{publishDataChange}from'../lib/appData';
 
 export default function AttendanceModal({isOpen,onClose}){
 const[session,setSession]=useState(null),[canDiscard,setCanDiscard]=useState(false),[people,setPeople]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[closing,setClosing]=useState(false),[error,setError]=useState(''),[query,setQuery]=useState(''),[sessionName,setSessionName]=useState('');const mounted=useRef(false),loadSeq=useRef(0);
@@ -12,11 +12,7 @@ const finishClose=()=>{if(!mounted.current)return;setSession(null);setPeople([])
 const load=useCallback(async(showLoading=true)=>{const seq=++loadSeq.current;if(showLoading&&mounted.current)setLoading(true);if(mounted.current)setError('');try{const s=await auth();if(!s)throw Error('You must be logged in.');const h={Authorization:'Bearer '+s.access_token};const sr=await fetch('/api/attendance/active-session',{headers:h,cache:'no-store'}),sd=await readJson(sr);if(!sr.ok)throw Error(sd.error||'Could not load attendance session.');if(!sd.active&&!sd.recoverable){if(seq===loadSeq.current&&mounted.current){setSession(null);setCanDiscard(false);setPeople([]);setQuery('')}return}const ns=normalizeSession(sd);if(!ns)throw Error('Attendance session response was incomplete.');if(ns.status==='closed'){if(seq===loadSeq.current&&mounted.current){setSession(null);setCanDiscard(false);setPeople([]);setQuery('');setError(ns.processing_status==='failed'?'ARIA could not finish the previous attendance. You can start a new session.':'Attendance processing is still finishing. You can start a new session.')}return}const pr=await fetch('/api/attendance/people?session_id='+encodeURIComponent(ns.session_id),{headers:h,cache:'no-store'}),pd=await readJson(pr);if(!pr.ok)throw Error(pd.error||'Could not load attendance people.');if(seq!==loadSeq.current||!mounted.current)return;setSession(ns);setCanDiscard(ns.can_discard===true);setPeople(normalizePeople(pd));}catch(e){console.error('[ATTENDANCE]',e);if(seq===loadSeq.current&&mounted.current)setError(String(e?.message||'Could not load attendance.'))}finally{if(seq===loadSeq.current&&showLoading&&mounted.current)setLoading(false)}},[]);
 useEffect(()=>{if(isOpen)load()},[isOpen,load]);
 
-useEffect(()=>{
- if(!isOpen||!session?.session_id||session.status!=='active')return;
- const poll=setInterval(()=>load(false),5000);
- return()=>clearInterval(poll);
-},[isOpen,session?.session_id,session?.status,load]);
+useEffect(()=>{if(!isOpen||session?.status!=='active')return;const onFocus=()=>load(false);window.addEventListener('focus',onFocus);return()=>window.removeEventListener('focus',onFocus)},[isOpen,session?.status,load]);
 
 const createSession=async()=>{
 const name=sessionName.trim();
@@ -47,7 +43,8 @@ method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer $
 body:JSON.stringify({session_id:session.session_id,people_id:id,present:next})
 }),d=await readJson(r);
 if(!r.ok||!d.success)throw Error(d.error||'Could not update attendance.');
-setPeople(current=>{const next=current.map(p=>p.id===id?{...p,marked:d.present===true,marked_by_name:d.present===true?(d.marked_by_name||'You'):null}:p);if(session?.session_id){const s=getCached('attendance:'+((session&&session.started_by&&typeof session.started_by==='string')?session.started_by:''))}return next});
+setPeople(current=>current.map(p=>p.id===id?{...p,marked:d.present===true,marked_by_name:d.present===true?(d.marked_by_name||'You'):null}:p));
+
 }catch(e){console.error('[ATTENDANCE] Mark/unmark error:',e);setPeople(previous);setError(e.message||'Could not update attendance.')}
 };
 
@@ -63,7 +60,7 @@ body:JSON.stringify({session_id:session.session_id})
 }),d=await readJson(r);
 if(!r.ok||!d.success)throw Error(d.error||'Unable to finish ARIA processing.');
 if(d.processing_failed){if(mounted.current){setSession(prev=>prev?{...prev,processing_status:'failed',processing_error:null}:prev);setError(d.error||'Unable to finish ARIA processing.')}return}
-finishClose();
+publishDataChange('attendance');finishClose();
 }catch(e){console.error('[ATTENDANCE] ARIA retry error:',e);setError(e.message||'Unable to finish ARIA processing.')}finally{if(mounted.current)setClosing(false)}
 };
 
@@ -81,7 +78,7 @@ if(!r.ok||!d.success){
 if(d.session)setSession(prev=>prev?{...prev,...d.session,status:d.session.status||'closed',closed_at:d.session.closed_at||null,processing_status:d.session.aria_processing_status||'failed',processing_error:d.session.aria_processing_error||null}:prev);
 throw Error(d.error||'Could not keep this session.');
 }
-setSession(null);setPeople([]);setQuery('');onClose();
+setSession(null);setPeople([]);setQuery('');publishDataChange('attendance');onClose();
 }catch(e){console.error('[ATTENDANCE] Keep error:',e);setError(e.message||'Could not keep this session.')}finally{setClosing(false)}
 };
 

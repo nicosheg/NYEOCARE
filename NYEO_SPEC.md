@@ -842,3 +842,25 @@ Attendance has two different states that must never be conflated in the UI or AP
 The homepage LIVE cue must be derived from both the API's live flag and `status === 'active'`. A saved session may surface a separate ARIA processing notice while processing continues. Completion must remove that notice without reviving the LIVE cue.
 
 Regression test: save/close attendance while ARIA is still processing, return to Home immediately, verify the control does not say `Attendance · LIVE`; verify any processing notice clears after the session reaches `completed`. Also verify the discard → immediate new session path remains race-safe.
+
+
+## ARIA Director contract
+
+ARIA is the canonical operating director of NYEOCARE. Scan, Review Center, People, Attendance, Care, and ARIA Today are capability surfaces; they are not independent intelligence systems.
+
+The canonical loop is:
+
+**Perception → Understanding → Memory → Reasoning → Permission → Action → Observation → Learning**
+
+Every meaningful system event should enter ARIA's durable event/observation/action pipeline. UI surfaces read and present that shared state.
+
+- **Scan:** ARIA reads the register, resolves identity, creates people only when safe, and creates durable review work when human confirmation is required.
+- **Review Center:** human corrections are evidence for ARIA learning and identity memory; Review Center does not make independent intelligence decisions.
+- **People:** the canonical person record is memory; ARIA state/intelligence explains what is known and what needs attention.
+- **Attendance:** attendance is evidence. ARIA converts it into participation, observations, context-aware reasoning, and human-approved next actions.
+- **ARIA Today:** is the director's read model. It must not invent or persist attendance/care decisions as a side effect.
+- **ARIA conversation:** is the natural control surface over the same capabilities and memory, not a separate brain.
+- **Human permission:** external or consequential actions remain proposed/approved rather than silently executed.
+
+A module may own its domain transaction, validation, or presentation. It must not create a competing intelligence pipeline for the same evidence.
+

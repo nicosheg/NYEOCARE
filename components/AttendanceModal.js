@@ -87,7 +87,7 @@ method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer $
 body:JSON.stringify({session_id:session.session_id})
 }),d=await r.json();
 if(!r.ok||!d.success)throw Error(d.error||'Unable to finish ARIA processing.');
-setSession(null);setPeople([]);setQuery('');
+setSession(null);setPeople([]);setQuery('');onClose();
 }catch(e){console.error('[ATTENDANCE] ARIA retry error:',e);setError(e.message||'Unable to finish ARIA processing.')}finally{setClosing(false)}
 };
 

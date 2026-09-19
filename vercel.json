@@ -1,1 +1,1 @@
-{"$schema":"https://openapi.vercel.sh/vercel.json","functions":{"pages/api/scan/start.js":{"maxDuration":45},"pages/api/scan/status.js":{"maxDuration":45},"pages/api/scan/cancel.js":{"maxDuration":10}}}
+{"$schema":"https://openapi.vercel.sh/vercel.json","regions":["cdg1"],"functions":{"pages/api/scan/start.js":{"maxDuration":45},"pages/api/scan/status.js":{"maxDuration":45},"pages/api/scan/cancel.js":{"maxDuration":10}}}

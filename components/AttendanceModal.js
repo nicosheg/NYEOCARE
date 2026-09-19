@@ -1,11 +1,11 @@
 // components/AttendanceModal.js
 import{useCallback,useEffect,useRef,useState}from'react';
 import{createPortal}from'react-dom';
-import{supabase}from'../lib/supabaseClient';
+import{getClientSession}from'../lib/clientSession';import{getCached,setCached,clearCached,publishDataChange}from'../lib/appData';
 
 export default function AttendanceModal({isOpen,onClose}){
 const[session,setSession]=useState(null),[canDiscard,setCanDiscard]=useState(false),[people,setPeople]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[closing,setClosing]=useState(false),[error,setError]=useState(''),[query,setQuery]=useState(''),[sessionName,setSessionName]=useState('');const mounted=useRef(false),loadSeq=useRef(0);
-const auth=async()=>{const{data:{session}}=await supabase.auth.getSession();return session};
+const auth=async()=>getClientSession();
 useEffect(()=>{mounted.current=true;return()=>{mounted.current=false}},[]);
 const finishClose=()=>{if(!mounted.current)return;setSession(null);setPeople([]);setQuery('');onClose()};
 
@@ -47,7 +47,7 @@ method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer $
 body:JSON.stringify({session_id:session.session_id,people_id:id,present:next})
 }),d=await readJson(r);
 if(!r.ok||!d.success)throw Error(d.error||'Could not update attendance.');
-setPeople(current=>current.map(p=>p.id===id?{...p,marked:d.present===true,marked_by_name:d.present===true?(d.marked_by_name||'You'):null}:p));
+setPeople(current=>{const next=current.map(p=>p.id===id?{...p,marked:d.present===true,marked_by_name:d.present===true?(d.marked_by_name||'You'):null}:p);if(session?.session_id){const s=getCached('attendance:'+((session&&session.started_by&&typeof session.started_by==='string')?session.started_by:''))}return next});
 }catch(e){console.error('[ATTENDANCE] Mark/unmark error:',e);setPeople(previous);setError(e.message||'Could not update attendance.')}
 };
 

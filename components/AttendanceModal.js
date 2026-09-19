@@ -4,7 +4,8 @@ import{createPortal}from'react-dom';
 import{supabase}from'../lib/supabaseClient';
 
 export default function AttendanceModal({isOpen,onClose}){
-const[session,setSession]=useState(null),[canDiscard,setCanDiscard]=useState(false),[people,setPeople]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[closing,setClosing]=useState(false),[error,setError]=useState(''),[query,setQuery]=useState(''),[sessionName,setSessionName]=useState('');\nconst[contextPerson,setContextPerson]=useState(null),[contextReason,setContextReason]=useState('unknown'),[contextNote,setContextNote]=useState(''),[contextReturn,setContextReturn]=useState('unknown'),[contextDate,setContextDate]=useState(''),[contextSaving,setContextSaving]=useState(false);
+const[session,setSession]=useState(null),[canDiscard,setCanDiscard]=useState(false),[people,setPeople]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[closing,setClosing]=useState(false),[error,setError]=useState(''),[query,setQuery]=useState(''),[sessionName,setSessionName]=useState('');
+const[contextPerson,setContextPerson]=useState(null),[contextReason,setContextReason]=useState('unknown'),[contextNote,setContextNote]=useState(''),[contextReturn,setContextReturn]=useState('unknown'),[contextDate,setContextDate]=useState(''),[contextSaving,setContextSaving]=useState(false);
 const auth=async()=>{const{data:{session}}=await supabase.auth.getSession();return session};
 
 const load=useCallback(async(showLoading=true)=>{

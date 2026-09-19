@@ -4,28 +4,12 @@ import{createPortal}from'react-dom';
 import{supabase}from'../lib/supabaseClient';
 
 export default function AttendanceModal({isOpen,onClose}){
-const[session,setSession]=useState(null),[canDiscard,setCanDiscard]=useState(false),[people,setPeople]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[closing,setClosing]=useState(false),[error,setError]=useState(''),[query,setQuery]=useState(''),[sessionName,setSessionName]=useState('');const mounted=useRef(false);
+const[session,setSession]=useState(null),[canDiscard,setCanDiscard]=useState(false),[people,setPeople]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[closing,setClosing]=useState(false),[error,setError]=useState(''),[query,setQuery]=useState(''),[sessionName,setSessionName]=useState('');const mounted=useRef(false),loadInFlight=useRef(false),loadSeq=useRef(0);
 const auth=async()=>{const{data:{session}}=await supabase.auth.getSession();return session};
 useEffect(()=>{mounted.current=true;return()=>{mounted.current=false}},[]);
 const finishClose=()=>{if(!mounted.current)return;setSession(null);setPeople([]);setQuery('');onClose()};
 
-const load=useCallback(async(showLoading=true)=>{
-if(showLoading)setLoading(true);
-setError('');
-try{
-const s=await auth();
-if(!s){setError('You must be logged in.');return}
-const h={Authorization:`Bearer ${s.access_token}`};
-const sr=await fetch('/api/attendance/active-session',{headers:h}),sd=await sr.json();
-if(!sr.ok)throw Error(sd.error||'Could not load attendance session.');
-if(!sd.active){setSession(null);setPeople([]);setQuery('');return}
-setSession(sd);setCanDiscard(sd.can_discard===true);if(sd.status==='closed'&&sd.processing_status!=='completed')setError('Attendance is saved. ARIA has not finished processing it yet.');
-const pr=await fetch(`/api/attendance/people?session_id=${encodeURIComponent(sd.session_id)}`,{headers:h}),pd=await pr.json();
-if(!pr.ok)throw Error(pd.error||'Could not load attendance people.');
-setPeople(Array.isArray(pd)?pd:[]);
-}catch(e){console.error('[ATTENDANCE]',e);setError(e.message||'Could not load attendance.')}finally{if(showLoading)setLoading(false)}
-},[]);
-
+const load=useCallback(async(showLoading=true)=>{if(loadInFlight.current)return;const seq=++loadSeq.current;loadInFlight.current=true;if(showLoading&&mounted.current)setLoading(true);if(mounted.current)setError('');try{const s=await auth();if(!s)throw Error('You must be logged in.');const h={Authorization:'Bearer '+s.access_token};const sr=await fetch('/api/attendance/active-session',{headers:h,cache:'no-store'}),sd=await readJson(sr);if(!sr.ok)throw Error(sd.error||'Could not load attendance session.');if(!sd.active){if(seq===loadSeq.current&&mounted.current){setSession(null);setCanDiscard(false);setPeople([]);setQuery('')}return}const ns=normalizeSession(sd);if(!ns)throw Error('Attendance session response was incomplete.');const pr=await fetch('/api/attendance/people?session_id='+encodeURIComponent(ns.session_id),{headers:h,cache:'no-store'}),pd=await readJson(pr);if(!pr.ok)throw Error(pd.error||'Could not load attendance people.');if(seq!==loadSeq.current||!mounted.current)return;setSession(ns);setCanDiscard(ns.can_discard===true);if(ns.status==='closed'&&ns.processing_status!=='completed')setError('Attendance is saved. ARIA has not finished processing it yet.');setPeople(normalizePeople(pd));}catch(e){console.error('[ATTENDANCE]',e);if(seq===loadSeq.current&&mounted.current)setError(String(e?.message||'Could not load attendance.'))}finally{loadInFlight.current=false;if(showLoading&&mounted.current)setLoading(false)}},[]);
 useEffect(()=>{if(isOpen)load()},[isOpen,load]);
 
 useEffect(()=>{
@@ -43,7 +27,7 @@ const s=await auth();
 if(!s)throw Error('You must be logged in.');
 const r=await fetch('/api/attendance/create-session',{
 method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.access_token}`},body:JSON.stringify({name})
-}),d=await r.json();
+}),d=await readJson(r);
 if(!r.ok||!d.success)throw Error(d.error||'Could not start attendance.');
 setSessionName('');
 await load();
@@ -61,7 +45,7 @@ if(!s)throw Error('You must be logged in.');
 const r=await fetch('/api/attendance/mark',{
 method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.access_token}`},
 body:JSON.stringify({session_id:session.session_id,people_id:id,present:next})
-}),d=await r.json();
+}),d=await readJson(r);
 if(!r.ok||!d.success)throw Error(d.error||'Could not update attendance.');
 setPeople(current=>current.map(p=>p.id===id?{...p,marked:d.present===true,marked_by_name:d.present===true?(d.marked_by_name||'You'):null}:p));
 }catch(e){console.error('[ATTENDANCE] Mark/unmark error:',e);setPeople(previous);setError(e.message||'Could not update attendance.')}
@@ -76,7 +60,7 @@ if(!s)throw Error('You must be logged in.');
 const r=await fetch('/api/attendance/process-session',{
 method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.access_token}`},
 body:JSON.stringify({session_id:session.session_id})
-}),d=await r.json();
+}),d=await readJson(r);
 if(!r.ok||!d.success)throw Error(d.error||'Unable to finish ARIA processing.');
 if(d.processing_failed){if(mounted.current){setSession(prev=>prev?{...prev,processing_status:'failed',processing_error:null}:prev);setError(d.error||'Unable to finish ARIA processing.')}return}
 finishClose();
@@ -91,7 +75,7 @@ const s=await auth();
 if(!s)throw Error('You must be logged in.');
 const r=await fetch('/api/attendance/close-session',{
 method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.access_token}`},body:JSON.stringify({session_id:session.session_id})
-}),d=await r.json();
+}),d=await readJson(r);
 if(d.processing_failed){if(mounted.current){if(d.session)setSession(prev=>prev?{...prev,...d.session,status:d.session.status||'closed',processing_status:d.session.aria_processing_status||'failed',processing_error:null}:prev);setError(d.error||'ARIA could not finish processing this attendance yet.')}return}
 if(!r.ok||!d.success){
 if(d.session)setSession(prev=>prev?{...prev,...d.session,status:d.session.status||'closed',closed_at:d.session.closed_at||null,processing_status:d.session.aria_processing_status||'failed',processing_error:d.session.aria_processing_error||null}:prev);
@@ -110,7 +94,7 @@ const s=await auth();
 if(!s)throw Error('You must be logged in.');
 const r=await fetch('/api/attendance/leave-session',{
 method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.access_token}`},body:JSON.stringify({session_id:session.session_id})
-}),d=await r.json();
+}),d=await readJson(r);
 if(!r.ok||!d.success)throw Error(d.error||'Could not leave this session.');
 setSession(null);setPeople([]);setQuery('');
 }catch(e){console.error('[ATTENDANCE] Leave error:',e);setError(e.message||'Could not leave this session.')}finally{setClosing(false)}
@@ -125,7 +109,7 @@ return()=>document.removeEventListener('keydown',esc);
 
 if(!isOpen||typeof document==='undefined')return null;
 
-const visible=people.filter(p=>`${p.first_name||''} ${p.last_name||''} ${p.phone||''}`.toLowerCase().includes(query.toLowerCase().trim()));
+const q=String(query||'').toLowerCase().trim(),visible=people.filter(p=>[p.first_name,p.last_name,p.phone].filter(Boolean).join(' ').toLowerCase().includes(q));
 const present=people.filter(p=>p.marked).length,percentage=people.length?Math.round(present/people.length*100):0;
 const ariaProcessingFailed=Boolean(session?.status==='closed'&&session?.processing_status==='failed');
 
@@ -159,6 +143,10 @@ const content=<div style={overlay} onMouseDown={e=>{if(e.target===e.currentTarge
 
 return createPortal(content,document.body);
 }
+
+const readJson=async r=>{const raw=await r.text();if(!raw)return{};try{return JSON.parse(raw)}catch{return{error:'Request failed ('+r.status+')'}}};
+const normalizeSession=d=>{const status=['active','closed'].includes(String(d?.status||''))?String(d.status):null;if(!d?.session_id||!status)return null;const processing_status=['pending','processing','completed','failed'].includes(String(d?.processing_status||d?.aria_processing_status||''))?String(d.processing_status||d.aria_processing_status):'pending';return{...d,session_id:String(d.session_id),name:String(d.name||'Attendance session'),status,processing_status,processing_error:d.processing_error?String(d.processing_error):null,can_discard:d.can_discard===true}};
+const normalizePeople=data=>Array.isArray(data)?data.filter(Boolean).map(p=>({id:String(p.id||''),first_name:String(p.first_name??p.display_name??'').trim()||'Unknown',last_name:String(p.last_name??'').trim(),phone:String(p.phone??'').trim(),marked:p.marked===true||p.marked==='true'||p.marked===1,marked_by_name:p.marked_by_name?String(p.marked_by_name).trim():null})).filter(p=>p.id):[];
 
 const overlay={position:'fixed',inset:0,zIndex:2147483000,background:'rgba(2,5,12,.68)',backdropFilter:'blur(18px)',display:'flex',alignItems:'center',justifyContent:'center',padding:12,overflow:'auto'};
 const modal={width:'min(1120px,94vw)',height:'min(86vh,820px)',minHeight:480,background:'linear-gradient(145deg,rgba(43,60,83,.96),rgba(10,18,33,.98))',border:'1px solid rgba(235,244,255,.2)',borderRadius:30,overflow:'hidden',display:'flex',flexDirection:'column',color:'#f5f7fb',boxShadow:'0 35px 110px rgba(0,0,0,.7)'};

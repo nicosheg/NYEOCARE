@@ -9,12 +9,13 @@ export default withAdmin(async function handler(req,res){
   if(!s.rows.length)return res.status(404).json({error:'Attendance session not found.'});
   if(s.rows[0].status!=='closed')return res.status(409).json({error:'Save the attendance session before processing ARIA.'});
   if(s.rows[0].aria_processing_status==='completed')return res.status(200).json({success:true,aria:{session_id,already_processed:true}});
-  const claimed=await pool.query('UPDATE sessions SET aria_processing_status=\'processing\',aria_processing_attempts=aria_processing_attempts+1,aria_processing_started_at=NOW(),aria_processing_error=NULL,aria_processing_completed_at=NULL WHERE id=$1 AND organization_id=$2 AND aria_processing_status IN(\'pending\',\'processing\',\'failed\') RETURNING id,aria_processing_attempts',[session_id,orgId]);
-  if(!claimed.rows.length){if(s.rows[0].aria_processing_status==='processing')return res.status(409).json({error:'ARIA is still processing this attendance. Please wait a moment.'});return res.status(409).json({error:'ARIA is already processing this attendance.'});
+  const stale=s.rows[0].aria_processing_status==='processing'&&s.rows[0].aria_processing_started_at&&new Date(s.rows[0].aria_processing_started_at).getTime()<Date.now()-120000;
+  const claimed=await pool.query("UPDATE sessions SET aria_processing_status='processing',aria_processing_attempts=aria_processing_attempts+1,aria_processing_started_at=NOW(),aria_processing_error=NULL,aria_processing_completed_at=NULL WHERE id=$1 AND organization_id=$2 AND(aria_processing_status IN('pending','failed') OR(aria_processing_status='processing' AND aria_processing_started_at IS NOT NULL AND aria_processing_started_at<NOW()-INTERVAL '2 minutes')) RETURNING id,aria_processing_attempts",[session_id,orgId]);
+  if(!claimed.rows.length){if(s.rows[0].aria_processing_status==='processing'&&!stale)return res.status(409).json({error:'ARIA is still processing this attendance. Please wait a moment.'});return res.status(409).json({error:'ARIA is already processing this attendance.'});}
   try{
    const aria=await generateParticipationFromSession(session_id,orgId);
    await pool.query('UPDATE sessions SET aria_processing_status=\'completed\',aria_processing_error=NULL,aria_processing_completed_at=NOW() WHERE id=$1 AND organization_id=$2',[session_id,orgId]);
-   return res.status(200).json({success:true,aria});
+   return res.status(200).json({success:true,processing_failed:false,aria});
   }catch(e){
    const internal=String(e.message||'Processing failed').slice(0,2000);console.error('[ATTENDANCE] Retry ARIA processing:',e);
    await pool.query('UPDATE sessions SET aria_processing_status=\'failed\',aria_processing_error=$1 WHERE id=$2 AND organization_id=$3',[internal,session_id,orgId]);

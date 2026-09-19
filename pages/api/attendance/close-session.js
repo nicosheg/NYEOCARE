@@ -1,5 +1,5 @@
 // pages/api/attendance/close-session.js
-import pool from'../../../lib/db';import{withAdmin}from'../../../lib/apiHelpers';import{generateParticipationFromSession}from'../../../lib/aria/participationGenerator';import{waitUntil}from'@vercel/functions';
+import pool from'../../../lib/db';import{withAdmin}from'../../../lib/apiHelpers';import{generateParticipationFromSession}from'../../../lib/aria/participationGenerator';import{directAriaEvent}from'../../../lib/aria/director';import{emitAriaEvent}from'../../../lib/aria/eventEmitter';import{waitUntil}from'@vercel/functions';
 const failMsg='ARIA could not finish processing this attendance yet. The saved session and attendance are preserved, and you can retry safely.';
 export default withAdmin(async function handler(req,res){
  if(req.method!=='POST')return res.status(405).json({error:'Method not allowed'});
@@ -19,7 +19,7 @@ export default withAdmin(async function handler(req,res){
     await pool.query("UPDATE sessions SET aria_processing_status='completed',aria_processing_error=NULL,aria_processing_completed_at=NOW() WHERE id=$1 AND organization_id=$2",[session_id,orgId]);
    }catch(e){
     const internal=String(e.message||'Processing failed').slice(0,2000);console.error('[ATTENDANCE] ARIA processing failed after close:',e);
-    try{await pool.query("UPDATE sessions SET aria_processing_status='failed',aria_processing_error=$1 WHERE id=$2 AND organization_id=$3",[internal,session_id,orgId])}catch(updateError){console.error('[ATTENDANCE] Could not persist processing failure:',updateError)}
+    try{await pool.query("UPDATE sessions SET aria_processing_status='failed',aria_processing_error=$1 WHERE id=$2 AND organization_id=$3",[internal,session_id,orgId]);const event=await emitAriaEvent({organizationId:orgId,type:'ATTENDANCE_PROCESSING_FAILED',source:'attendance',actorId:userId,metadata:{session_id,session_name:closed.rows[0]?.name||null,error:internal},eventKey:`attendance:${session_id}:aria_failed:${closed.rows[0]?.aria_processing_attempts||1}`});if(event)await directAriaEvent(event)}catch(updateError){console.error('[ATTENDANCE] Could not persist processing failure:',updateError)}
    }
   })());
   return res.status(200).json({success:true,processing_pending:true,error:null,session:{...closed.rows[0],aria_processing_status:'processing'}});

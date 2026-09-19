@@ -4,7 +4,7 @@ import{useRouter}from'next/router';
 import Layout from'../components/Layout';
 import FirstExperience from'../components/FirstExperience';
 import{useOnboarding}from'../components/OnboardingProvider';
-import{supabase}from'../lib/supabaseClient';
+import{supabase}from'../lib/supabaseClient';import{getClientSession}from'../lib/clientSession';import{getCached,setCached,cacheAge,publishDataChange}from'../lib/appData';
 
 const roleLabel=r=>r==='owner'?'Owner':r==='admin'?'Admin':'User';
 
@@ -35,36 +35,26 @@ const[ariaConversationId,setAriaConversationId]=useState(null);
 const[passwordLoading,setPasswordLoading]=useState(false);
 
 const load=async()=>{
-try{
-const{data:{session}}=await supabase.auth.getSession();
-if(!session)return router.replace('/login');
-const h={Authorization:`Bearer ${session.access_token}`};
-const[a,b]=await Promise.all([fetch('/api/profile',{headers:h}),fetch('/api/users',{headers:h})]);
-if(a.status===401||b.status===401)return router.replace('/login');
-if(!a.ok)throw new Error('Unable to load profile.');
-const d=await a.json();
-setProfile(d);
-setName(d.organization?.name||'');
-setUserName(d.user?.name||'');
-setAria(d.organization?.aria_instructions||'');
-if(b.ok){
-const data=await b.json();
-setUsers(Array.isArray(data)?data:(data.users||[]));
-}
-}catch(e){
-setMsg(e.message||'Unable to load profile.');
-}finally{
-setLoading(false);
-}
+ try{
+  const session=await getClientSession();
+  if(!session)return router.replace('/login');
+  const key='profile:'+session.user.id,cached=getCached(key);
+  if(cached){setProfile(cached.profile);setName(cached.profile?.organization?.name||'');setUserName(cached.profile?.user?.name||'');setAria(cached.profile?.organization?.aria_instructions||'');setUsers(cached.users||[]);setLoading(false);if(cacheAge(key)<15000)return}
+  const r=await fetch('/api/profile/bootstrap',{headers:{Authorization:'Bearer '+session.access_token},cache:'no-store'});
+  if(r.status===401)return router.replace('/login');
+  if(!r.ok)throw Error('Unable to load profile.');
+  const d=await r.json();
+  const profileData={user:d.user,organization:d.organization};
+  setProfile(profileData);setName(d.organization?.name||'');setUserName(d.user?.name||'');setAria(d.organization?.aria_instructions||'');setUsers(Array.isArray(d.users)?d.users:[]);setCached(key,{profile:profileData,users:Array.isArray(d.users)?d.users:[]});
+ }catch(e){setMsg(e.message||'Unable to load profile.')}finally{setLoading(false)}
 };
-
 useEffect(()=>{load()},[]);
 
 const save=async()=>{
 if(!profile)return;
 setSaving(true);setMsg('');
 try{
-const{data:{session}}=await supabase.auth.getSession();
+const session=await getClientSession();
 if(!session)return router.replace('/login');
 const body={userName};
 if(profile.user.role==='owner')body.name=name;
@@ -72,7 +62,7 @@ if(['owner','admin'].includes(profile.user.role))body.ariaInstructions=aria;
 const r=await fetch('/api/profile',{method:'PATCH',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},body:JSON.stringify(body)});
 const d=await r.json();
 if(!r.ok)return setMsg(d.error||'Unable to save.');
-setProfile(p=>({...p,user:d.user||p.user,organization:d.organization||p.organization}));
+setProfile(p=>{const next={...p,user:d.user||p.user,organization:d.organization||p.organization};if(session?.user?.id){const old=getCached('profile:'+session.user.id);setCached('profile:'+session.user.id,{profile:next,users:old?.users||users})}return next});
 if(d.user)setUserName(d.user.name||'');
 if(d.organization){
 setName(d.organization.name||'');
@@ -128,7 +118,7 @@ try{
 const{data:{session}}=await supabase.auth.getSession();
 if(!session)return router.replace('/login');
 const r=await fetch(`/api/users/${id}`,{method:'DELETE',headers:{Authorization:`Bearer ${session.access_token}`}});
-if(r.ok)load();else setMsg((await r.json()).error||'Unable to remove user.');
+if(r.ok){setUsers(prev=>prev.filter(x=>x.id!==id));publishDataChange('users')}else setMsg((await r.json()).error||'Unable to remove user.');
 }catch(e){setMsg('Unable to remove user.')}
 };
 
@@ -138,7 +128,7 @@ try{
 const{data:{session}}=await supabase.auth.getSession();
 if(!session)return router.replace('/login');
 const r=await fetch(`/api/users/${id}`,{method:'PUT',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},body:JSON.stringify({role:'owner'})});
-if(r.ok)load();else setMsg((await r.json()).error||'Unable to transfer ownership.');
+if(r.ok){setUsers(prev=>prev.map(x=>x.id===id?{...x,role:'owner'}:x.id===profile?.user?.id?{...x,role:'admin'}:x));publishDataChange('users')}else setMsg((await r.json()).error||'Unable to transfer ownership.');
 }catch(e){setMsg('Unable to transfer ownership.')}
 };
 

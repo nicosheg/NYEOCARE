@@ -15,11 +15,21 @@ lastRun.current=now;
 try{
 const{data:{session}}=await supabase.auth.getSession();
 if(!session){lastRun.current=0;return}
-const r=await fetch('/api/aria/cycle',{
+let r=await fetch('/api/aria/cycle',{
 method:'POST',
 headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},
 body:JSON.stringify({force})
 });
+if(r.status===401){
+const refreshed=await supabase.auth.refreshSession();
+if(refreshed.data.session){
+r=await fetch('/api/aria/cycle',{
+method:'POST',
+headers:{'Content-Type':'application/json',Authorization:`Bearer ${refreshed.data.session.access_token}`},
+body:JSON.stringify({force})
+});
+}
+}
 if(!r.ok){console.warn('[ARIA] auto-sync failed',r.status);return}
 if(!cancelled)window.dispatchEvent(new CustomEvent('aria:cycle-complete',{detail:{at:new Date().toISOString()}}));
 }catch(e){console.warn('[ARIA] auto-sync unavailable',e.message)}

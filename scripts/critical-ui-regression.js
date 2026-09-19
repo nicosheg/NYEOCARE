@@ -4,6 +4,8 @@ import{readFileSync}from'node:fs';
 const file=readFileSync('components/AttendanceModal.js','utf8');
 const home=readFileSync('pages/index.js','utf8');
 const activeApi=readFileSync('pages/api/attendance/active-session.js','utf8');
+const director=readFileSync('lib/aria/director.js','utf8');
+const eventProcessor=readFileSync('lib/aria/eventProcessor.js','utf8');
 const briefing=readFileSync('pages/api/daily-briefing/latest.js','utf8');
 const participation=readFileSync('lib/aria/participationGenerator.js','utf8');
 const declaredStyles=new Set([...file.matchAll(/\b([A-Za-z_$][\w$]*)\s*=\s*\{/g)].map(m=>m[1]));

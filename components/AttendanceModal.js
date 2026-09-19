@@ -104,7 +104,7 @@ if(!r.ok||!d.success){
 if(d.session)setSession(prev=>prev?{...prev,...d.session,status:d.session.status||'closed',closed_at:d.session.closed_at||null,processing_status:d.session.aria_processing_status||'failed',processing_error:d.session.aria_processing_error||null}:prev);
 throw Error(d.error||'Could not keep this session.');
 }
-setSession(null);setPeople([]);setQuery('');
+setSession(null);setPeople([]);setQuery('');onClose();
 }catch(e){console.error('[ATTENDANCE] Keep error:',e);setError(e.message||'Could not keep this session.')}finally{setClosing(false)}
 };
 

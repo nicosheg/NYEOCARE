@@ -20,4 +20,18 @@ export default function Layout({children}){const r=useRouter(),touch=useRef(null
 .homeActive .activeGlow{left:1px;opacity:1}.peopleActive .activeGlow{left:78px;width:76px;height:76px;top:-1px;opacity:1}.profileActive .activeGlow{left:151px;opacity:1}
 @keyframes skyStars{to{opacity:.58;transform:translateY(-2px)}}@keyframes skyClouds{to{transform:translate3d(3%,1%,0) scale(1.04)}}
 @media(max-width:480px){.navGlass{width:216px;height:72px}.liquidNav{display:block;transform:scale(.98);transform-origin:center}.navItem{width:64px;height:64px}.n1{left:4px}.n2{left:75px;width:72px;height:72px}.n3{right:4px}.activeGlow{width:68px;height:68px}.peopleActive .activeGlow{left:77px;width:74px;height:74px}.profileActive .activeGlow{left:148px}}
+html[data-nyeo-time="dawn"] .navItem,html[data-nyeo-time="evening"] .navItem{color:rgba(255,249,235,.9)}
+html[data-nyeo-time="morning"] .navItem,html[data-nyeo-time="afternoon"] .navItem{color:rgba(18,45,63,.86)}
+html[data-nyeo-time="night"] .navItem{color:rgba(245,249,255,.88)}
+html[data-nyeo-time="dawn"] .navItem::before{background:radial-gradient(circle at 32% 18%,rgba(255,255,255,.68),rgba(250,218,184,.34) 16%,rgba(103,113,130,.28) 42%,rgba(25,35,51,.84) 82%,rgba(8,14,25,.96))}
+html[data-nyeo-time="morning"] .navItem::before{background:radial-gradient(circle at 32% 18%,rgba(255,255,255,.82),rgba(224,243,249,.56) 16%,rgba(156,195,213,.5) 43%,rgba(87,129,149,.48) 68%,rgba(43,76,94,.7) 100%);border-color:rgba(255,255,255,.48);box-shadow:inset 0 1px 1px rgba(255,255,255,.5),inset 0 -12px 20px rgba(22,57,76,.16),0 7px 18px rgba(35,77,99,.2)}
+html[data-nyeo-time="afternoon"] .navItem::before{background:radial-gradient(circle at 32% 18%,rgba(255,255,255,.78),rgba(225,244,250,.5) 16%,rgba(151,195,218,.44) 43%,rgba(82,133,161,.48) 68%,rgba(39,75,96,.72) 100%);border-color:rgba(245,252,255,.46)}
+html[data-nyeo-time="evening"] .navItem::before{background:radial-gradient(circle at 32% 18%,rgba(255,255,255,.58),rgba(246,206,169,.26) 16%,rgba(109,126,157,.34) 42%,rgba(31,42,64,.85) 80%,rgba(9,14,25,.97))}
+html[data-nyeo-time="night"] .navItem::before{background:radial-gradient(circle at 32% 18%,rgba(255,255,255,.36),rgba(94,125,170,.18) 18%,rgba(32,53,86,.36) 46%,rgba(9,18,34,.9) 80%,rgba(3,8,16,.98))}
+html[data-nyeo-time="morning"] .navItem.sel,html[data-nyeo-time="afternoon"] .navItem.sel{color:#6c5424}
+html[data-nyeo-time="dawn"] .navItem.sel,html[data-nyeo-time="evening"] .navItem.sel{color:#fff6dc}
+html[data-nyeo-time="morning"] .navItem.sel::before,html[data-nyeo-time="afternoon"] .navItem.sel::before{box-shadow:inset 0 1px 1px rgba(255,255,255,.54),inset 0 -12px 20px rgba(22,57,76,.14),0 9px 25px rgba(30,73,97,.22),0 0 22px rgba(214,184,106,.17);border-color:rgba(214,184,106,.62)}
+.navGlass{animation:navFloat 8.5s ease-in-out infinite;will-change:transform}
+@keyframes navFloat{0%,100%{transform:translate3d(0,0,0)}50%{transform:translate3d(0,-2.5px,0)}}
+@media(prefers-reduced-motion:reduce){.navGlass{animation:none!important}}
 `}</style></>}

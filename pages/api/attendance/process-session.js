@@ -1,5 +1,5 @@
 // pages/api/attendance/process-session.js
-import pool from'../../../lib/db';import{withAdmin}from'../../../lib/apiHelpers';import{generateParticipationFromSession}from'../../../lib/aria/participationGenerator';
+import pool from'../../../lib/db';import{withAdmin}from'../../../lib/apiHelpers';import{generateParticipationFromSession}from'../../../lib/aria/participationGenerator';import{directAriaEvent}from'../../../lib/aria/director';import{emitAriaEvent}from'../../../lib/aria/eventEmitter';
 const failMsg='ARIA could not finish processing this attendance yet. The saved session and attendance are preserved, and you can retry safely.';
 export default withAdmin(async function handler(req,res){
  if(req.method!=='POST')return res.status(405).json({error:'Method not allowed'});
@@ -18,7 +18,7 @@ export default withAdmin(async function handler(req,res){
    return res.status(200).json({success:true,processing_failed:false,aria});
   }catch(e){
    const internal=String(e.message||'Processing failed').slice(0,2000);console.error('[ATTENDANCE] Retry ARIA processing:',e);
-   await pool.query('UPDATE sessions SET aria_processing_status=\'failed\',aria_processing_error=$1 WHERE id=$2 AND organization_id=$3',[internal,session_id,orgId]);
+   await pool.query('UPDATE sessions SET aria_processing_status=\'failed\',aria_processing_error=$1 WHERE id=$2 AND organization_id=$3',[internal,session_id,orgId]);const event=await emitAriaEvent({organizationId:orgId,type:'ATTENDANCE_PROCESSING_FAILED',source:'attendance',actorId:req.user.id,metadata:{session_id,error:internal},eventKey:`attendance:${session_id}:aria_failed:retry`});if(event)await directAriaEvent(event);
    return res.status(200).json({success:true,processing_failed:true,error:failMsg,aria:{session_id,processing_status:'failed'}});
   }
  }catch(e){console.error('[ATTENDANCE] Process session error:',e);return res.status(500).json({error:'Unable to process this attendance session.'});}

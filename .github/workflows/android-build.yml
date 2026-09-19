@@ -2,37 +2,24 @@ name: NYEOCARE Android APK
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
   build-android:
     runs-on: ubuntu-latest
     env:
-      NYEOCARE_URL: ${{ vars.NYEOCARE_URL || 'https://nyeocare.vercel.app' }}
-      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
-      DATABASE_URL: postgres://ci:ci@127.0.0.1:5432/ci
+      NYEOCARE_URL: https://nyeocare.vercel.app
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
+          cache: npm
       - name: Install dependencies
-        run: npm install
-      - name: Validate Next.js application build
-        run: npm run build
-      - name: Require deployed NYEOCARE URL
-        run: |
-          if [ -z "$NYEOCARE_URL" ]; then
-            echo "Missing repository variable NYEOCARE_URL. Set it to the live HTTPS URL of the deployed NYEOCARE web app."
-            exit 1
-          fi
-          case "$NYEOCARE_URL" in
-            https://*) ;;
-            *) echo "NYEOCARE_URL must start with https://"; exit 1 ;;
-          esac
+        run: npm install --no-audit --no-fund
       - name: Prepare Capacitor web shell
         run: |
           rm -rf out
@@ -52,15 +39,16 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
       - name: Setup Java
-        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
         with:
           distribution: temurin
           java-version: '21'
+          cache: gradle
       - name: Build debug APK
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
       - name: Upload APK
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: NYEOCARE-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk

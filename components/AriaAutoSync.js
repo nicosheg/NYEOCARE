@@ -1,5 +1,5 @@
 // components/AriaAutoSync.js
-import{useEffect,useRef}from'react';
+import{useEffect,useRef}from'react';import{supabase}from'../lib/supabaseClient';
 
 const COOLDOWN=60000;
 
@@ -13,7 +13,13 @@ const now=Date.now();
 if(!force&&now-lastRun.current<COOLDOWN)return;
 lastRun.current=now;
 try{
-const r=await fetch('/api/aria/cycle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({force}),credentials:'include'});
+const{data:{session}}=await supabase.auth.getSession();
+if(!session){lastRun.current=0;return}
+const r=await fetch('/api/aria/cycle',{
+method:'POST',
+headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},
+body:JSON.stringify({force})
+});
 if(!r.ok){console.warn('[ARIA] auto-sync failed',r.status);return}
 if(!cancelled)window.dispatchEvent(new CustomEvent('aria:cycle-complete',{detail:{at:new Date().toISOString()}}));
 }catch(e){console.warn('[ARIA] auto-sync unavailable',e.message)}

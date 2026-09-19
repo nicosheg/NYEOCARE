@@ -21,7 +21,7 @@ const load=useCallback(async(showLoading=true)=>{
   const sr=await fetch('/api/attendance/active-session',{headers:h,cache:'no-store'}),sd=await readJson(sr);
   if(!sr.ok)throw Error(sd.error||'Could not load attendance session.');
   if(!sd.active&&!sd.recoverable){if(seq===loadSeq.current&&mounted.current){setSession(null);setCanDiscard(false);setPeople([]);setQuery('');clearCached(cacheKey);setLoading(false)}return}
-  const ns=normalizeSession(sd);if(!ns)throw Error('Attendance session response was incomplete.');
+  const base=normalizeSession(sd);if(!base)throw Error('Attendance session response was incomplete.');const ns={...base,user_id:s.user.id};
   if(ns.status==='closed'){if(seq===loadSeq.current&&mounted.current){setSession(null);setCanDiscard(false);setPeople([]);setQuery('');clearCached(cacheKey);setError(ns.processing_status==='failed'?'ARIA could not finish the previous attendance. You can start a new session.':'Attendance processing is still finishing. You can start a new session.');setLoading(false)}return}
   if(seq===loadSeq.current&&mounted.current){setSession(ns);setCanDiscard(ns.can_discard===true)}
   const pr=await fetch('/api/attendance/people?session_id='+encodeURIComponent(ns.session_id),{headers:h,cache:'no-store'}),pd=await readJson(pr);
@@ -64,7 +64,7 @@ method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer $
 body:JSON.stringify({session_id:session.session_id,people_id:id,present:next})
 }),d=await readJson(r);
 if(!r.ok||!d.success)throw Error(d.error||'Could not update attendance.');
-setPeople(current=>{const next=current.map(p=>p.id===id?{...p,marked:d.present===true,marked_by_name:d.present===true?(d.marked_by_name||'You'):null}:p);return next});
+setPeople(current=>{const next=current.map(p=>p.id===id?{...p,marked:d.present===true,marked_by_name:d.present===true?(d.marked_by_name||'You'):null}:p);const cacheKey='attendance:'+String(session?.user_id||'');const cached=getCached(cacheKey);if(cached)setCached(cacheKey,{...cached,people:next});return next});
 
 }catch(e){console.error('[ATTENDANCE] Mark/unmark error:',e);setPeople(previous);setError(e.message||'Could not update attendance.')}
 };
@@ -81,7 +81,7 @@ body:JSON.stringify({session_id:session.session_id})
 }),d=await readJson(r);
 if(!r.ok||!d.success)throw Error(d.error||'Unable to finish ARIA processing.');
 if(d.processing_failed){if(mounted.current){setSession(prev=>prev?{...prev,processing_status:'failed',processing_error:null}:prev);setError(d.error||'Unable to finish ARIA processing.')}return}
-publishDataChange('attendance');finishClose();
+clearCached('attendance:'+String(session?.user_id||''));publishDataChange('attendance');finishClose();
 }catch(e){console.error('[ATTENDANCE] ARIA retry error:',e);setError(e.message||'Unable to finish ARIA processing.')}finally{if(mounted.current)setClosing(false)}
 };
 
@@ -115,7 +115,7 @@ method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer $
 }),d=await readJson(r);
 if(!r.ok||!d.success)throw Error(d.error||'Could not leave this session.');
 loadSeq.current++;
-setSession(null);setPeople([]);setQuery('');setError('');
+clearCached('attendance:'+String(session?.user_id||''));setSession(null);setPeople([]);setQuery('');setError('');
 }catch(e){console.error('[ATTENDANCE] Leave error:',e);setError(e.message||'Could not leave this session.')}finally{setClosing(false)}
 };
 

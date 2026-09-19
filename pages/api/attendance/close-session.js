@@ -23,7 +23,7 @@ export default withAdmin(async function handler(req,res){
   }catch(e){
    const internal=String(e.message||'Processing failed').slice(0,2000);console.error('[ATTENDANCE] ARIA processing failed after close:',e);
    try{await pool.query('UPDATE sessions SET aria_processing_status=\'failed\',aria_processing_error=$1 WHERE id=$2 AND organization_id=$3',[internal,session_id,orgId])}catch(updateError){console.error('[ATTENDANCE] Could not persist processing failure:',updateError)}
-   return res.status(500).json({error:failMsg,session:{...closed.rows[0],aria_processing_status:'failed',aria_processing_error:internal},processing_failed:true});
+   return res.status(200).json({success:true,processing_failed:true,error:failMsg,session:{...closed.rows[0],aria_processing_status:'failed',aria_processing_error:internal}});
   }
  }catch(err){
   try{await client.query('ROLLBACK')}catch{}console.error('[ATTENDANCE] Close session error:',err);return res.status(500).json({error:'Could not save attendance.'});

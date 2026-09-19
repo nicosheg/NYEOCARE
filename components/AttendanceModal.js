@@ -87,6 +87,7 @@ method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer $
 body:JSON.stringify({session_id:session.session_id})
 }),d=await r.json();
 if(!r.ok||!d.success)throw Error(d.error||'Unable to finish ARIA processing.');
+if(d.processing_failed){setSession(prev=>prev?{...prev,processing_status:'failed',processing_error:d.aria?.processing_error||null}:prev);setError(d.error||'Unable to finish ARIA processing.');return}
 setSession(null);setPeople([]);setQuery('');onClose();
 }catch(e){console.error('[ATTENDANCE] ARIA retry error:',e);setError(e.message||'Unable to finish ARIA processing.')}finally{setClosing(false)}
 };
@@ -100,6 +101,7 @@ if(!s)throw Error('You must be logged in.');
 const r=await fetch('/api/attendance/close-session',{
 method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.access_token}`},body:JSON.stringify({session_id:session.session_id})
 }),d=await r.json();
+if(d.processing_failed){if(d.session)setSession(prev=>prev?{...prev,...d.session,status:d.session.status||'closed',processing_status:d.session.aria_processing_status||'failed',processing_error:d.session.aria_processing_error||null}:prev);setError(d.error||'ARIA could not finish processing this attendance yet.');return}
 if(!r.ok||!d.success){
 if(d.session)setSession(prev=>prev?{...prev,...d.session,status:d.session.status||'closed',closed_at:d.session.closed_at||null,processing_status:d.session.aria_processing_status||'failed',processing_error:d.session.aria_processing_error||null}:prev);
 throw Error(d.error||'Could not keep this session.');
@@ -134,7 +136,7 @@ if(!isOpen||typeof document==='undefined')return null;
 
 const visible=people.filter(p=>`${p.first_name||''} ${p.last_name||''} ${p.phone||''}`.toLowerCase().includes(query.toLowerCase().trim()));
 const present=people.filter(p=>p.marked).length,percentage=people.length?Math.round(present/people.length*100):0;
-const ariaProcessingFailed=Boolean(session?.status==='closed'&&error);
+const ariaProcessingFailed=Boolean(session?.status==='closed'&&session?.processing_status==='failed');
 
 const content=<div style={overlay} onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}>
 <div style={modal} role="dialog" aria-modal="true" aria-label="Live attendance">

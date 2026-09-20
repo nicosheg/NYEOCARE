@@ -94,6 +94,35 @@ const load=useCallback(async(showLoading=true)=>{
 useEffect(()=>{if(isOpen)load()},[isOpen,load]);
 
 useEffect(()=>{
+ if(!isOpen||!session||session.status!=='active'||!peopleReady.current)return;
+ const seq=++peopleSeq.current;
+ const timer=window.setTimeout(async()=>{
+  try{
+   const s=await getClientSession();
+   if(!s)throw Error('You must be logged in.');
+   const params=new URLSearchParams({session_id:String(session.session_id),limit:'80'});
+   if(query.trim())params.set('q',query.trim());
+   const response=await fetch('/api/attendance/people?'+params.toString(),{headers:{Authorization:'Bearer '+s.access_token},cache:'no-store'});
+   const data=await readJson(response);
+   if(!response.ok)throw Error(data.error||'Could not search people.');
+   if(seq!==peopleSeq.current||!mounted.current)return;
+   const nextPeople=normalizePeople(data);
+   setPeople(nextPeople);setPeopleCursor(data.next_cursor||null);setPeopleHasMore(data.has_more===true);
+   setPeopleTotal(Number(data.organization_total)||0);setPresentCount(Number(data.present_count)||0);
+  }catch(e){if(seq===peopleSeq.current&&mounted.current)setError(e.message||'Could not search people.');}
+ },250);
+ return()=>window.clearTimeout(timer);
+},[isOpen,session?.session_id,session?.status,query]);
+
+const loadMorePeople=async()=>{
+ if(!session||session.status!=='active'||!peopleHasMore||peopleLoadingMore||!peopleCursor)return;
+ setPeopleLoadingMore(true);setError('');
+ try{await fetchPeoplePage(session,query,peopleCursor,true);}
+ catch(e){setError(e.message||'Could not load more people.');}
+ finally{if(mounted.current)setPeopleLoadingMore(false);}
+};
+
+useEffect(()=>{
  if(!isOpen)return;
  let cancelled=false,timer=null,channel=null;
  const refresh=()=>{if(cancelled||timer)return;timer=window.setTimeout(()=>{timer=null;if(!cancelled)load(false)},150);};
@@ -144,11 +173,9 @@ const createSession=async()=>{
   if(!created)throw Error('Attendance session response was incomplete.');
   const live={...created,user_id:s.user.id};
   setSessionName('');setSession(live);setCanDiscard(live.can_discard===true);setLoading(true);
-  const peopleRes=await fetch('/api/attendance/people?session_id='+encodeURIComponent(live.session_id),{headers:{Authorization:'Bearer '+s.access_token},cache:'no-store'});
-  const peopleData=await readJson(peopleRes);
-  if(!peopleRes.ok)throw Error(peopleData.error||'Could not load attendance people.');
-  const nextPeople=normalizePeople(peopleData);
-  setPeople(nextPeople);setCached('attendance:'+s.user.id,{session:live,people:nextPeople});setLoading(false);publishDataChange('attendance');
+  peopleReady.current=false;peopleSeq.current++;
+  await fetchPeoplePage(live,'',null,false);
+  setLoading(false);publishDataChange('attendance');
  }catch(e){
   console.error('[ATTENDANCE] Create error:',e);setError(e.message||'Could not start attendance.');
  }finally{setSaving(false);}
@@ -169,7 +196,9 @@ const mark=async(id,currentMarked)=>{
   });
   const data=await readJson(response);
   if(!response.ok||!data.success)throw Error(data.error||'Could not update attendance.');
-  setPeople(current=>{const nextPeople=current.map(p=>p.id===id?{...p,marked:data.present===true,marked_by_name:data.present===true?(data.marked_by_name||'You'):null}:p);const cacheKey='attendance:'+String(session?.user_id||s.user.id);const cached=getCached(cacheKey);if(cached)setCached(cacheKey,{...cached,people:nextPeople});return nextPeople;});
+  const actualPresent=data.present===true;
+  if(actualPresent!==Boolean(currentMarked))setPresentCount(value=>Math.max(0,value+(actualPresent?1:-1)));
+  setPeople(current=>{const nextPeople=current.map(p=>p.id===id?{...p,marked:actualPresent,marked_by_name:actualPresent?(data.marked_by_name||'You'):null}:p);const cacheKey='attendance:'+String(session?.user_id||s.user.id);const cached=getCached(cacheKey);if(cached)setCached(cacheKey,{...cached,people:nextPeople});return nextPeople;});
  }catch(e){
   console.error('[ATTENDANCE] Mark/unmark error:',e);setPeople(previous);setError(e.message||'Could not update attendance.');
  }
@@ -219,7 +248,7 @@ const keepSession=async()=>{
    throw Error(data.error||'Could not keep this session.');
   }
   const saved=data.session?normalizeSession({...data.session,session_id:data.session.id,processing_status:data.session.aria_processing_status}):null;
-  setPeople([]);setQuery([]);setQuery('');
+  setPeople([]);setQuery('');setPeopleCursor(null);setPeopleHasMore(false);
   clearCached('attendance:'+String(s.user.id));
   if(saved&&saved.processing_status!=='completed'){
    setSession({...saved,user_id:s.user.id});setCanDiscard(false);setLoading(false);publishDataChange('attendance');return;
@@ -260,7 +289,7 @@ useEffect(()=>{
 if(!isOpen||typeof document==='undefined')return null;
 
 const q=String(query||'').toLowerCase().trim(),visible=people.filter(p=>[p.first_name,p.last_name,p.phone].filter(Boolean).join(' ').toLowerCase().includes(q));
-const present=people.filter(p=>p.marked).length,percentage=people.length?Math.round(present/people.length*100):0;
+const present=presentCount,percentage=peopleTotal?Math.round(present/peopleTotal*100):0;
 const ariaProcessingFailed=Boolean(session?.status==='closed'&&session?.processing_status==='failed'),ariaProcessing=Boolean(session?.status==='closed'&&session?.processing_status==='processing');
 
 const content=<div style={overlay} onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}>
@@ -290,7 +319,7 @@ const content=<div style={overlay} onMouseDown={e=>{if(e.target===e.currentTarge
 </div>:<>
 <div style={stats}>
 <div><strong style={big}>{present}</strong><span style={label}>present</span></div><div style={divider}/>
-<div><strong style={stat}>{people.length}</strong><span style={label}>people</span></div>
+<div><strong style={stat}>{peopleTotal||people.length}</strong><span style={label}>people</span></div>
 <div><strong style={stat}>{percentage}%</strong><span style={label}>marked</span></div>
 <div style={progress}><div style={{height:'100%',width:(percentage+'%'),background:'#fff',borderRadius:99}}/></div>
 </div>
@@ -298,7 +327,7 @@ const content=<div style={overlay} onMouseDown={e=>{if(e.target===e.currentTarge
 <div style={peopleBox}>{visible.length===0?<div style={empty}><strong>No people found</strong><span>{query?'Try another name or phone number.':'No active people are available yet.'}</span></div>:visible.map(p=><div style={{...personRow,...(p.marked?markedRow:{})}} key={p.id}>
 <div style={personInfo}><div style={{...avatar,...(p.marked?presentAvatar:{})}}>{(p.first_name||'?').charAt(0).toUpperCase()}</div><div><strong>{p.first_name} {p.last_name||''}</strong>{p.marked&&<small style={small}>{'Present'+(p.marked_by_name?' · '+p.marked_by_name:'')}</small>}</div></div>
 <div style={rowActions}><button style={{...markButton,...(p.marked?doneButton:{})}} disabled={closing||session.status!=='active'} onClick={()=>mark(p.id,!!p.marked)}>{p.marked?'✓ Unmark':'Mark present'}</button></div>
-</div>)}</div>
+</div>)}{peopleHasMore&&<button style={loadMoreButton} disabled={peopleLoadingMore} onClick={loadMorePeople}>{peopleLoadingMore?'Loading more...':'Load more people'}</button>}</div>
 <footer style={footer}><div style={live}><i/>Live attendance</div><div style={footerActions}>{canDiscard&&session.status==='active'&&<button style={leave} disabled={closing} onClick={leaveSession}>Discard</button>}<button style={keep} disabled={closing} onClick={keepSession}>{closing?'Saving...':'Keep session'}</button></div></footer>
 </>}
 </div></div>;
@@ -308,7 +337,7 @@ return createPortal(content,document.body);
 
 const readJson=async r=>{const raw=await r.text();if(!raw)return{};try{return JSON.parse(raw)}catch{return{error:'Request failed ('+r.status+')'}}};
 const normalizeSession=d=>{const status=['active','closed'].includes(String(d?.status||''))?String(d.status):null;if(!d?.session_id||!status)return null;const processing_status=['pending','processing','completed','failed'].includes(String(d?.processing_status||d?.aria_processing_status||''))?String(d.processing_status||d.aria_processing_status):'pending';return{...d,session_id:String(d.session_id),name:String(d.name||'Attendance session'),status,processing_status,processing_error:d.processing_error?String(d.processing_error):null,can_discard:d.can_discard===true,blocking_count:Number(d.blocking_count)||0}};
-const normalizePeople=data=>Array.isArray(data)?data.filter(Boolean).map(p=>({id:String(p.id||''),first_name:String(p.first_name??p.display_name??'').trim()||'Unknown',last_name:String(p.last_name??'').trim(),phone:String(p.phone??'').trim(),marked:p.marked===true||p.marked==='true'||p.marked===1,marked_by_name:p.marked_by_name?String(p.marked_by_name).trim():null})).filter(p=>p.id):[];
+const normalizePeople=data=>(Array.isArray(data)?data:(Array.isArray(data?.people)?data.people:[])).filter(Boolean).map(p=>({id:String(p.id||''),first_name:String(p.first_name??p.display_name??'').trim()||'Unknown',last_name:String(p.last_name??'').trim(),phone:String(p.phone??'').trim(),marked:p.marked===true||p.marked==='true'||p.marked===1,marked_by_name:p.marked_by_name?String(p.marked_by_name).trim():null})).filter(p=>p.id):[];
 
 const noticeBox={margin:'8px 18px 0',padding:'10px 12px',borderRadius:12,background:'rgba(255,255,255,.055)',border:'1px solid rgba(255,255,255,.1)',color:'rgba(255,255,255,.82)',fontSize:13},processingBox={flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:12,padding:'34px 26px',textAlign:'center',maxWidth:700,margin:'0 auto'},processingOrb={width:70,height:70,borderRadius:'50%',display:'grid',placeItems:'center',position:'relative',background:'rgba(255,255,255,.045)',border:'1px solid rgba(255,255,255,.12)',boxShadow:'0 0 40px rgba(255,255,255,.045)'},processingOrbInner={fontSize:11,letterSpacing:2.4,fontWeight:800,color:'rgba(255,255,255,.78)'},processingOrbRing={position:'absolute',inset:-5,borderRadius:'50%',border:'1px solid rgba(255,255,255,.16)',borderTopColor:'#fff'},processingTitle={fontSize:21},processingText={fontSize:13,lineHeight:1.65,color:'rgba(255,255,255,.52)',maxWidth:620},pipeline={width:'min(560px,100%)',marginTop:8,padding:'13px 15px',borderRadius:16,background:'rgba(0,0,0,.14)',border:'1px solid rgba(255,255,255,.08)'},pipelineRow={display:'flex',alignItems:'center',gap:10,minHeight:31,fontSize:12,color:'rgba(255,255,255,.64)',textAlign:'left'},pipelineDotDone={width:19,height:19,borderRadius:'50%',display:'grid',placeItems:'center',flexShrink:0,background:'rgba(255,255,255,.13)',color:'#fff',fontSize:11},pipelineDotLive={width:19,height:19,borderRadius:'50%',display:'block',flexShrink:0,border:'2px solid rgba(255,255,255,.28)',borderTopColor:'#fff'},pipelineDotFailed={width:19,height:19,borderRadius:'50%',display:'grid',placeItems:'center',flexShrink:0,background:'rgba(239,68,68,.14)',border:'1px solid rgba(239,68,68,.35)',color:'#ffb0b0',fontSize:11},pipelineDotPending={width:19,height:19,borderRadius:'50%',display:'block',flexShrink:0,border:'1px solid rgba(255,255,255,.14)'},processingStatus={display:'flex',alignItems:'center',gap:8,fontSize:11,color:'rgba(255,255,255,.4)',marginTop:4},processingStatusIcon={width:6,height:6,borderRadius:'50%',background:'rgba(255,255,255,.5)',boxShadow:'0 0 10px rgba(255,255,255,.18)'},overlay={position:'fixed',inset:0,zIndex:2147483000,background:'rgba(2,5,12,.68)',backdropFilter:'blur(18px)',display:'flex',alignItems:'center',justifyContent:'center',padding:12,overflow:'auto'};
 const modal={width:'min(1120px,94vw)',height:'min(86vh,820px)',minHeight:480,background:'linear-gradient(145deg,rgba(43,60,83,.96),rgba(10,18,33,.98))',border:'1px solid rgba(235,244,255,.2)',borderRadius:30,overflow:'hidden',display:'flex',flexDirection:'column',color:'#f5f7fb',boxShadow:'0 35px 110px rgba(0,0,0,.7)'};

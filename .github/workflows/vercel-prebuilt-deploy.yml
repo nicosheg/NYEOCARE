@@ -1,0 +1,44 @@
+name: NYEOCARE Vercel prebuilt deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: nyeocare-vercel-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: team_Hfzh4uRE9xewPAaGVjun6h19
+      VERCEL_PROJECT_ID: prj_flnxmzr4QNgJK3SthDetLN0OLFKK
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820021 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm install --no-audit --no-fund
+
+      - name: Build Vercel output locally
+        run: npx vercel@latest build --prod --yes
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      - name: Archive Vercel build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: nyeocare-vercel-build
+          path: .vercel/output
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Deploy prebuilt output
+        run: npx vercel@latest deploy --prebuilt --prod --yes
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}

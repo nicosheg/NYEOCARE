@@ -44,14 +44,16 @@ const s=await auth();
 if(!s)throw Error('You must be logged in.');
 const r=await fetch('/api/attendance/create-session',{
 method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.access_token}`},body:JSON.stringify({name})
-}),d=await readJson(r);
+});
+const d=await readJson(r);
 if(!r.ok||!d.success){if(r.status===409&&d.blocked&&d.session){const blocked=normalizeSession({...d.session,session_id:d.session.id,processing_status:d.session.aria_processing_status,can_discard:d.can_discard===true});if(blocked){setSession({...blocked,user_id:s.user.id});setCanDiscard(blocked.can_discard===true);setPeople([]);setQuery('');setLoading(false);setError(d.error||'This organization is not ready for a new session yet.');return}}throw Error(d.error||'Could not start attendance.')
 setSessionName('');
 const created=normalizeSession({...d.session,session_id:d.session?.id,processing_status:'pending',can_discard:d.can_discard===true});
 if(!created)throw Error('Attendance session response was incomplete.');
 const live={...created,user_id:s.user.id};
 setSession(live);setCanDiscard(live.can_discard===true);setLoading(true);
-const pr=await fetch('/api/attendance/people?session_id='+encodeURIComponent(live.session_id),{headers:{Authorization:`Bearer ${s.access_token}`},cache:'no-store'}),pd=await readJson(pr);
+const pr=await fetch('/api/attendance/people?session_id='+encodeURIComponent(live.session_id),{headers:{Authorization:`Bearer ${s.access_token}`},cache:'no-store'});
+const pd=await readJson(pr);
 if(!pr.ok)throw Error(pd.error||'Could not load attendance people.');
 const nextPeople=normalizePeople(pd);setPeople(nextPeople);setCached('attendance:'+s.user.id,{session:live,people:nextPeople});setLoading(false);publishDataChange('attendance');
 }catch(e){console.error('[ATTENDANCE] Create error:',e);setError(e.message||'Could not start attendance.')}finally{setSaving(false)}

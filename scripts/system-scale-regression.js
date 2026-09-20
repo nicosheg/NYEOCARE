@@ -13,7 +13,7 @@ const db=read('lib/db.js');
 const pkg=JSON.parse(read('package.json'));
 const checks=[
  ['People API enforces bounded pages',has('pages/api/people.js','Math.min(Math.max')&&has('pages/api/people.js','LIMIT ${limit+1}')],
- ['People API uses keyset cursor',has('pages/api/people.js','base64url')&&has('pages/api/people.js','next_cursor')&&has('pages/api/people.js','new_rank')&&has('pages/api/people.js','truth_rank')&&has('pages/api/people.js','sort_name')&&has('next_cursor')],
+ ['People API uses keyset cursor',has('pages/api/people.js','base64url')&&has('pages/api/people.js','next_cursor')&&has('pages/api/people.js','new_rank')&&has('pages/api/people.js','truth_rank')&&has('pages/api/people.js','sort_name')&&has('pages/api/people.js','next_cursor')],
  ['People search is server-side',has('pages/api/people.js','ILIKE')&&has('pages/api/people.js','search')],
  ['People UI does not fetch the entire roster',has('pages/people.js',"limit:'60'")&&has('pages/people.js','loadMore')],
  ['Person journey has bounded collections',has('pages/api/person/journey.js','LIMIT 100')&&has('pages/api/person/journey.js','LIMIT 50')],

@@ -3,7 +3,7 @@ const fs=require('node:fs');
 const people=fs.readFileSync('pages/api/people.js','utf8');
 const resolve=fs.readFileSync('pages/api/review/resolve.js','utf8');
 
-assert.match(people,/updates\.push\(\'type=\'\+String\.fromCharCode\(36\)\+n\+\+\)/);
+assert.match(people,/updates\.push\(\'type=\$\'\+n\+\+\)/);
 assert.doesNotMatch(people,/updates\.push\(\`type=\$\{n\+\+\}\`\)/);
 assert.doesNotMatch(people,/updates\.push\(\'type=;values\.push/);
 

@@ -30,9 +30,11 @@ const d=await r.json();if(!alive)return;apply(timeState(),weatherState(d.current
 },()=>{if(alive)apply(timeState(),'unknown','unavailable')},{enableHighAccuracy:false,maximumAge:3600000,timeout:7000});
 };
 const update=()=>{updateTime();getWeather()};
-update();
+updateTime();
+const scheduleWeather=()=>{if(typeof window.requestIdleCallback==='function')window.requestIdleCallback(()=>getWeather(),{timeout:3000});else setTimeout(()=>getWeather(),1500)};
+scheduleWeather();
 const timeTimer=setInterval(updateTime,60000),weatherTimer=setInterval(getWeather,3600000);
-if(navigator.permissions?.query){navigator.permissions.query({name:'geolocation'}).then(permission=>{if(!alive)return;const handle=()=>{if(permission.state==='granted')getWeather();else if(permission.state==='denied')apply(timeState(),'unknown','unavailable')};permission.addEventListener?.('change',handle);weatherWatch={permission,handle};if(permission.state==='granted')getWeather();else if(permission.state==='denied')apply(timeState(),'unknown','unavailable')}).catch(()=>{})}
+if(navigator.permissions?.query){navigator.permissions.query({name:'geolocation'}).then(permission=>{if(!alive)return;const handle=()=>{if(permission.state==='denied')apply(timeState(),'unknown','unavailable')};permission.addEventListener?.('change',handle);weatherWatch={permission,handle};if(permission.state==='granted')getWeather();else if(permission.state==='denied')apply(timeState(),'unknown','unavailable')}).catch(()=>{})}
 return()=>{alive=false;clearInterval(timeTimer);clearInterval(weatherTimer);if(weatherWatch?.permission&&weatherWatch.handle)weatherWatch.permission.removeEventListener?.('change',weatherWatch.handle)};
 },[]);
 return <style jsx global>{`

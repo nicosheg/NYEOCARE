@@ -19,6 +19,7 @@ const eventProcessor=read('lib/aria/eventProcessor.js');
 const briefing=read('pages/api/daily-briefing/latest.js');
 const participation=read('lib/aria/participationGenerator.js');
 if(!/EXTRACT\(ISODOW FROM \$4::timestamptz\)/.test(participation))throw new Error('Attendance absence query must cast the timestamp parameter before EXTRACT.');
+if(!/jsonb_build_object\('session_id',\$3::uuid,'participation_id',p\.participation_id\)/.test(participation))throw new Error('Attendance ARIA event enqueue must cast sessionId parameter $3 to uuid.');
 
 const homeStyleNames=new Set([...home.matchAll(/\b([A-Za-z_$][\w$]*)=\{/g)].map(m=>m[1]));
 const homeStyleRefs=[...new Set([...home.matchAll(/style=\{(?:\{\.\.\.)?([A-Za-z_$][\w$]*)/g)].map(m=>m[1]))];

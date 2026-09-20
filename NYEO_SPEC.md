@@ -1,5 +1,5 @@
 # NYEOCARE — Living Product & Engineering Spec
-**Documentary status date: 14 September 2026**
+**Documentary status date: 20 September 2026**
 
 > **Every Person. Every Story. Remembered.**
 
@@ -500,7 +500,7 @@ Active learning and richer voice/pattern learning remain future phases; the data
 
 ---
 
-# 13. CURRENT TECHNICAL ARCHITECTURE — 14 SEPTEMBER 2026
+# 13. CURRENT TECHNICAL ARCHITECTURE — 20 SEPTEMBER 2026
 
 ### Application
 - Next.js **14.1.0**.
@@ -656,11 +656,19 @@ The following are non-negotiable:
 
 # 18. CI / DEPLOYMENT STATUS
 
-A GitHub Actions CI workflow now exists and uses pinned action SHAs.
+A GitHub Actions CI workflow exists and uses pinned action SHAs.
 
-The CI workflow now supplies non-production build-time Supabase placeholders. The latest main-branch CI run on 19 September 2026 completed successfully, including scan regression and `next build`. CI status must still be checked on every new critical-path change.
+During the September 20 production-hardening cycle, the standalone web build exposed a build-time environment dependency during Next.js page-data collection. CI now supplies safe, non-production placeholders through `.github/workflows/web-build.yml` for:
 
-Android workflow is also present with pinned GitHub actions and a repository `NYEOCARE_URL` variable.
+- `NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY=ci-placeholder-anon-key`
+- `DATABASE_URL=postgres://ci:ci@127.0.0.1:5432/ci`
+
+These are CI-only values. Production Vercel keeps the real production environment variables.
+
+The final production Vercel build completed successfully on the repaired commit. CI status must still be checked on every new critical-path change.
+
+Android workflow is also present with pinned GitHub actions and the repository `NYEOCARE_URL` variable.
 
 ---
 
@@ -815,12 +823,192 @@ The goal is not to build the most features.
 ---
 
 ## Documentary record
-**Last updated:** 18 September 2026
+**Last updated:** 20 September 2026
 
-This edition supersedes stale assumptions in earlier versions, especially around hosting, People-card presentation, attendance-derived Last attended, current scan hardening, current ARIA action safety, daily briefing behavior, and the current production-hardening phase.
+This edition supersedes stale assumptions in earlier versions, especially around hosting, People-card presentation, attendance-derived Last attended, current scan hardening, current ARIA action safety, daily briefing behavior, CI build configuration, Review Center consolidation, attendance parser/cache hardening, and the current production deployment state.
 
 **Current canonical product name in this repository:** NYEOCARE.
 
+
+
+---
+
+# 25. SEPTEMBER 20, 2026 — PRODUCTION HARDENING INCIDENT & EXACT FIXES
+
+This incident is part of the permanent engineering record because it exposed a class of failure where source code can be correct while production is still serving an older broken deployment.
+
+## 25.1 Incident
+
+The application was functionally very close, but production still reported historical failures from older Vercel deployments. The important runtime groups observed during the investigation were:
+
+- `/api/review/resolve`: PostgreSQL could not determine the data type of parameter `$8`.
+- `/api/people`: `ReferenceError: type is not defined`.
+- `/api/attendance/process-session` and `/api/attendance/close-session`: `function pg_catalog.extract(unknown, unknown) is not unique`.
+- One attendance request also showed a database connection timeout.
+
+The engineering lesson is permanent:
+
+> **A source fix is not a production fix until the production alias serves the fixed commit and the live runtime is verified clean.**
+
+## 25.2 Root causes and exact fixes
+
+### A. Review Center had duplicate implementations
+
+**Root cause**
+
+Home mounted the shared `ReviewCenterTab`, while `pages/people.js` also contained an inline Review Center implementation. The same capability therefore had two UI/control paths.
+
+**Exact fix**
+
+- Removed the inline Review Center implementation from `pages/people.js`.
+- Reused the shared `ReviewCenterTab`.
+- Routed legacy `/review-center` and `/reviewer-center` entry points to `/people?review=1`.
+- Removed the dangling legacy block containing a bare `await fetch('/api/review/resolve', ...)` outside a function.
+- Added `scripts/review-surface-regression.js`.
+- Added the `test:review-surface` package script and CI guard.
+
+The rule is now: **one Review Center surface, one resolver path, one source of truth.**
+
+### B. Review resolution failed on an untyped JSONB parameter
+
+**Root cause**
+
+The review-resolution SQL used a PostgreSQL parameter whose type could not be inferred, producing:
+
+`could not determine data type of parameter $8`
+
+**Exact fix**
+
+- Added explicit PostgreSQL JSONB casts, including `$8::jsonb` in the affected update path.
+- Applied the same explicit typing discipline to other review JSON parameters where needed, such as `$3::jsonb`.
+- Preserved organization scoping and admin/owner authorization.
+- Regression-tested corrected-person and review-resolution persistence against the real development database with rollback.
+
+### C. People update referenced an undefined `type`
+
+**Root cause**
+
+The People update route built a SQL placeholder from a variable that was not defined on the execution path, producing:
+
+`ReferenceError: type is not defined`
+
+**Exact fix**
+
+- Rebuilt the placeholder construction deterministically from the validated person-type value in the update flow.
+- Added a deterministic regression guard in `scripts/critical-ui-regression.js`.
+- Re-verified the persistence path against the actual schema.
+
+### D. Attendance absence SQL passed an untyped timestamp into `EXTRACT`
+
+**Root cause**
+
+The absence-generation query used PostgreSQL `EXTRACT` with an untyped parameter. PostgreSQL therefore resolved it as:
+
+`EXTRACT(unknown, unknown)`
+
+and could not select a unique overload.
+
+**Exact fix**
+
+The authoritative query in `lib/aria/participationGenerator.js` now uses:
+
+`EXTRACT(ISODOW FROM $4::timestamptz)::int`
+
+A regression assertion was added to `scripts/critical-ui-regression.js` requiring that explicit timestamp cast to remain present.
+
+### E. AttendanceModal had several parser-sensitive structural defects
+
+**Root cause**
+
+`components/AttendanceModal.js` contained malformed/compressed declarations that produced misleading SWC syntax failures:
+
+- malformed `catch` syntax;
+- malformed `processingStatus` status-icon declaration;
+- compressed asynchronous declarations;
+- combined response parsing that obscured the actual failure point.
+
+**Exact fix**
+
+- Repaired the malformed `catch` structure.
+- Repaired the status-icon declaration.
+- Rebuilt AttendanceModal control flow cleanly rather than continuing to patch isolated syntax failures.
+- Split the attendance people-response parsing into separate steps.
+- Removed the remaining compressed declarations that were triggering SWC parsing failures.
+- Restored attendance cache coherence after marks by updating the cached people state.
+- Added/updated regression checks so cache coherence is tested independently of local variable naming.
+
+### F. Review API summary route contained malformed template syntax
+
+**Root cause**
+
+`pages/api/review/index.js` contained malformed escaped template-literal syntax.
+
+**Exact fix**
+
+Repaired the summary-string/template syntax so the route compiles normally and returns the intended review summary.
+
+### G. CI needed safe build-time environment values
+
+**Root cause**
+
+The standalone GitHub web build reached Next.js page-data collection without the public Supabase variables required by the application at build time.
+
+**Exact fix**
+
+Added CI-only placeholders for `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `DATABASE_URL` in `.github/workflows/web-build.yml`. These do not replace production secrets.
+
+### H. Vercel deployment rate limiting temporarily blocked delivery
+
+**Root cause**
+
+During the debugging cycle, Vercel Git integration reported a deployment-rate-limit failure, so several source commits could not immediately become production deployments. This created a dangerous gap between repository state and live production state.
+
+**Exact fix / operating rule**
+
+- Continued fixing and validating the actual repository rather than interpreting the old production error dashboard as proof that the latest source was broken.
+- Allowed Git integration to resume and verified the first successful production deployment after the rate-limit block cleared.
+- Never treat an unpromoted Git commit as the production release.
+- Always verify the production alias after deployment.
+
+### I. Production deployment and live runtime were verified
+
+The repaired production deployment was:
+
+- Deployment: `dpl_DP3QkfawTSQ1tX46nWG4RYPPaKmG`
+- Commit: `953f6878c06b8cdebebe362f02d6a055bf3164c5`
+- State: `READY`
+- Target: `production`
+- Primary alias: `nyeocare.vercel.app`
+
+Live verification:
+
+- `https://nyeocare.vercel.app/` returned **HTTP 200**.
+- The production alias was confirmed to point to the new READY deployment.
+- A runtime-error check over the most recent 10-minute window returned **no runtime errors**.
+- Historical runtime-error groups must be interpreted in deployment context; they belong to older deployments and are not, by themselves, evidence that the current deployment is failing.
+
+## 25.3 Regression rules added from this incident
+
+Future critical-path work must preserve these guards:
+
+- One Review Center surface only; no duplicate inline resolver.
+- Review JSON SQL parameters are explicitly typed where PostgreSQL cannot infer them safely.
+- Person type placeholders are constructed from validated values, never undefined identifiers.
+- Attendance `EXTRACT` timestamp parameters are explicitly cast to `timestamptz`.
+- Attendance cache state remains coherent after mark/undo mutations.
+- AttendanceModal async control flow remains explicit and parser-safe.
+- CI uses safe build-time placeholders without weakening production secrets.
+- A production fix is not verified until the current production alias serves the intended commit and live runtime checks are clean.
+
+## 25.4 Engineering rule created by this incident
+
+For NYEOCARE critical surfaces, the release chain is now explicitly:
+
+**Source correctness → regression guard → successful build → production deployment → alias verification → live smoke/runtime verification.**
+
+A commit being present on `main`, a build being green, or a historical error disappearing from source code is not enough by itself.
+
+NYEOCARE should never call a root cause “fixed” merely because the source file looks correct.
 
 ## Attendance → ARIA → Daily Briefing contract
 

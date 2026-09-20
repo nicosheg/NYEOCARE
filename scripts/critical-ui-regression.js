@@ -37,7 +37,7 @@ const absentAttendance=requiredAttendance.filter(x=>!attendance.includes(x));
 
 const checks=[
  ['Attendance LIVE only follows session status',/const isActive=row\.status==='active'/.test(activeApi)&&/active:isActive/.test(activeApi)],
- ['Attendance accepts recoverable closed sessions',/s\.status='active'/.test(activeApi)&&/s\.status='closed'/.test(activeApi)&&/aria_processing_status IN\('pending','processing','failed'\)/.test(activeApi)],
+ ['Attendance accepts recoverable closed sessions',/s\.status='active'/.test(activeApi)&&/s\.status='closed'/.test(activeApi)&&/COALESCE\(b\.aria_processing_status,'pending'\)<>'completed'/.test(activeApi)],
  ['Attendance people endpoint performs session+people load in one SQL query',/JOIN people p ON p\.organization_id=s\.organization_id/.test(attendancePeopleApi)],
  ['Home uses one bootstrap endpoint',/api\/home\/bootstrap/.test(home)&&!home.includes('/api/daily-briefing/latest')],
  ['Home does not run a fixed 30s full reload loop',!/setInterval\(run,30000\)/.test(home)],

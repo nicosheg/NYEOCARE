@@ -18,8 +18,8 @@ const nextConfig = {
       { source: '/community', destination: '/people?tab=community', permanent: false },
 
       // Review Center → People → Review tab (handle both file names)
-      { source: '/review-center', destination: '/people?tab=review', permanent: false },
-      { source: '/reviewer-center', destination: '/people?tab=review', permanent: false },
+      { source: '/review-center', destination: '/people?review=1', permanent: false },
+      { source: '/reviewer-center', destination: '/people?review=1', permanent: false },
 
       // Church Profile → Profile
       { source: '/church-profile', destination: '/profile', permanent: false },

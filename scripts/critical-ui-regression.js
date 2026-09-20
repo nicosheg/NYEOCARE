@@ -59,7 +59,7 @@ const checks=[
  ['Review has a lightweight summary path',/req\.query\?\.summary==='1'/.test(reviewApi)],
  ['Attendance no longer polls the full roster every 5s',!/setInterval\(\(\)=>load\(false\),5000\)/.test(attendance)],
  ['Attendance uses cached auth',/const auth=async\(\)=>getClientSession\(\)/.test(attendance)],
- ['Attendance keeps cache coherent after marks',/setCached\(cacheKey,\{\.\.\.cached,people:next\}\)/.test(attendance)],
+ ['Attendance keeps cache coherent after marks',/setCached\(cacheKey,\{\.\.\.cached,people:next(People)?\}\)/.test(attendance)],
  ['ARIA director remains present',/ARIA_DIRECTOR_VERSION/.test(director)&&/directAriaEvent/.test(director)],
  ['Event processor remains the durable event path',/createObservation\(/.test(eventProcessor)&&/sourceEventId:eventId/.test(eventProcessor)],
  ['Daily briefing remains read-only',!/INSERT INTO aria_actions/.test(briefing)],

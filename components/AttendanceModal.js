@@ -1,7 +1,7 @@
 // components/AttendanceModal.js
 import{useCallback,useEffect,useRef,useState}from'react';
 import{createPortal}from'react-dom';
-import{getClientSession}from'../lib/clientSession';import{getCached,setCached,clearCached,publishDataChange}from'../lib/appData';
+import{getClientSession}from'../lib/clientSession';import{getCached,setCached,clearCached,publishDataChange}from'../lib/appData';import{supabase}from'../lib/supabaseClient';
 
 export default function AttendanceModal({isOpen,onClose}){
 const[session,setSession]=useState(null),[canDiscard,setCanDiscard]=useState(false),[people,setPeople]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[closing,setClosing]=useState(false),[error,setError]=useState(''),[query,setQuery]=useState(''),[sessionName,setSessionName]=useState(''),[notice,setNotice]=useState('');const mounted=useRef(false),loadSeq=useRef(0);
@@ -33,7 +33,7 @@ const load=useCallback(async(showLoading=true)=>{
 },[]);
 useEffect(()=>{if(isOpen)load()},[isOpen,load]);
 
-useEffect(()=>{if(!isOpen||session?.status!=='active')return;const onFocus=()=>load(false);window.addEventListener('focus',onFocus);return()=>window.removeEventListener('focus',onFocus)},[isOpen,session?.status,load]);useEffect(()=>{if(!isOpen||session?.status!=='closed'||session?.processing_status==='failed')return;const tick=()=>load(false);const timer=window.setInterval(tick,1500);return()=>window.clearInterval(timer)},[isOpen,session?.status,session?.processing_status,load]);
+useEffect(()=>{if(!isOpen)return;const onFocus=()=>load(false);window.addEventListener('focus',onFocus);let cancelled=false,channel=null,timer=null;const refresh=()=>{if(cancelled||timer)return;timer=window.setTimeout(()=>{timer=null;if(!cancelled)load(false)},120)};getClientSession().then(s=>{if(cancelled||!s)return;channel=supabase.channel('attendance-live').on('postgres_changes',{event:'*',schema:'public',table:'sessions'},refresh).on('postgres_changes',{event:'*',schema:'public',table:'attendance_records'},refresh).subscribe()}).catch(()=>{});return()=>{cancelled=true;window.removeEventListener('focus',onFocus);if(timer)window.clearTimeout(timer);if(channel)supabase.removeChannel(channel)}},[isOpen,load]);
 
 const createSession=async()=>{
 const name=sessionName.trim();

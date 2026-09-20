@@ -76,6 +76,7 @@ export default withOrg(async function handler(req, res) {
       return res.status(409).json({
         success: false,
         blocked: true,
+        can_discard: ['owner','admin'].includes(req.user.role),
         reason: isActive ? 'active' : processingStatus === 'failed' ? 'aria_failed' : 'aria_processing',
         error: isActive
           ? 'An attendance session is already active.'
@@ -129,6 +130,7 @@ export default withOrg(async function handler(req, res) {
       return res.status(409).json({
         success: false,
         blocked: true,
+        can_discard: ['owner','admin'].includes(req.user.role),
         reason: 'active',
         error: 'An attendance session is already active.',
       });

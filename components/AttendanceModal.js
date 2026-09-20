@@ -334,7 +334,9 @@ export default function AttendanceModal({isOpen,onClose}){
 
   const percent=total?Math.round((present/total)*100):0;
   const backgroundLabel=background
-    ? background.progress>=100?'ARIA updated':'ARIA is updating'
+    ? background.progress>=100?'ARIA updated'
+      : background.processing_status==='needs_attention'?'ARIA needs attention'
+      :'ARIA is updating'
     : null;
 
   const content=<div style={overlay} onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}>
@@ -357,7 +359,7 @@ export default function AttendanceModal({isOpen,onClose}){
       {background&&!session&&<div style={backgroundBox}>
         <div>
           <strong>{backgroundLabel}</strong>
-          <span>{background.stage?String(background.stage).replace(/_/g,' '):'background work'} · {Number(background.progress)||0}%</span>
+          <span>{background.processing_status==='needs_attention'?'Attendance is safe; the intelligence update is paused.':(background.stage?String(background.stage).replace(/_/g,' '):'background work')} · {Number(background.progress)||0}%</span>
         </div>
         <div style={miniProgress}><i style={{width:`${Math.min(100,Math.max(0,Number(background.progress)||0))}%`}}/></div>
       </div>}

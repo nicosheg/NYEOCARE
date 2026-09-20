@@ -1010,6 +1010,77 @@ A commit being present on `main`, a build being green, or a historical error dis
 
 NYEOCARE should never call a root cause “fixed” merely because the source file looks correct.
 
+## 25.5 SEPTEMBER 20, 2026 — ATTENDANCE ARIA EVENT ENQUEUE FAILURE
+
+A fresh clean-state attendance test exposed one additional production failure after the earlier hardening work. This was traced to the exact ARIA event-enqueue SQL stage, not to attendance marking, session closing, or the ARIA processing lock itself.
+
+### Observed production failure
+
+The saved session named `Test` entered the intended recoverable state:
+
+- attendance session: `closed`
+- `aria_processing_status`: `failed`
+- attempts: `1`
+- stored error: `ARIA processing incomplete: events:could not determine data type of parameter $3`
+
+Vercel runtime telemetry identified the same root error in `/api/attendance/close-session` on deployment `dpl_F2j6uA77d9xXPr5DmnZNNgDvZGpp`.
+
+### Root cause
+
+In `lib/aria/participationGenerator.js`, the ARIA event enqueue query passed `sessionId` as PostgreSQL parameter `$3` inside `jsonb_build_object(...)`. Because the SQL expression did not otherwise give `$3` a concrete type, PostgreSQL could not infer its type and rejected the statement before durable ARIA event processing began.
+
+This is the same broader class of PostgreSQL failure already seen elsewhere in NYEOCARE: application-level values must be explicitly typed at SQL boundaries when PostgreSQL cannot infer a parameter type safely.
+
+### Exact fix
+
+The authoritative query now uses:
+
+`jsonb_build_object('session_id',$3::uuid,'participation_id',p.participation_id)`
+
+The session identifier is therefore explicitly treated as a UUID at the JSON construction boundary.
+
+A regression guard was added to `scripts/critical-ui-regression.js` so the explicit `$3::uuid` cast is required by the critical-path test suite.
+
+### Verification
+
+The fix was verified against the production database with a rollback-only execution of the same event-enqueue shape using the failed `Test` session's real participation records. The insert executed successfully and returned the expected participation/person rows; the transaction was rolled back, so the verification made no persistent data changes.
+
+The fixed commit was:
+
+`919d12abb77b74575c6ec4b78e8bde63da25cf05`
+
+The regression-guard commit was:
+
+`fd5296944de8e8b1e306a98b19b31fdfb94b5593`
+
+Production deployment for the guarded commit:
+
+`dpl_8GnCmR8x8WEFedjEJPQrSJx4B5UV`
+
+Deployment state: `READY`, target `production`, with `nyeocare.vercel.app` assigned.
+
+Live smoke verification returned HTTP 200 from `https://nyeocare.vercel.app/` after the deployment.
+
+The only matching runtime-error group observed after deployment was the earlier 08:44:54 UTC failure from the old deployment; no new instance of the `$3` type-inference error was observed on the patched deployment during verification.
+
+### Recovery behavior
+
+The failed `Test` attendance session is intentionally preserved as a closed, retryable session. No attendance marks were deleted or rewritten to hide the failure. The correct recovery path is **Retry processing**, which reclaims the saved session through `/api/attendance/process-session` and runs the corrected ARIA pipeline.
+
+The system must not silently mark the session completed after an internal ARIA failure. Completion remains a durable state assertion that the participation/event/observation/action pipeline actually finished.
+
+### Permanent rule
+
+For every PostgreSQL query in the ARIA attendance pipeline:
+
+**If a parameter's type cannot be inferred from surrounding SQL, cast it explicitly at the SQL boundary.**
+
+For every attendance-processing fix, verification must cover all of:
+
+**saved attendance → participation persistence → ARIA event enqueue → event processing → absence reasoning → action planning → completed session state**.
+
+The UI's retry state is part of this contract: a failed ARIA pass preserves the saved attendance and exposes a safe retry rather than fabricating completion.
+
 ## Attendance → ARIA → Daily Briefing contract
 
 Attendance processing is the authoritative producer of attendance-derived ARIA memory. A completed session must durably create its participation records, absence observations, and immediate human-review actions before processing is marked completed. Retries are idempotent through durable action keys.

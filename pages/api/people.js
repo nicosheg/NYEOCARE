@@ -47,7 +47,13 @@ if(req.method==='GET'){
      SELECT
        p.id,p.organization_id,p.first_name,p.last_name,p.display_name,p.phone,p.email,p.type,p.birthday,
        p.living_truth,p.status,p.source,p.created_at,p.updated_at,p.last_scan_job_id,
-       em.last_seen AS last_attended_date,
+       (
+         SELECT MAX(pr.occurred_at)
+         FROM participation_records pr
+         WHERE pr.organization_id=p.organization_id
+           AND pr.person_id=p.id
+           AND pr.participation_type='attendance'
+       ) AS last_attended_date,
        CASE WHEN p.source='scan' AND ls.started_at IS NOT NULL
               AND p.created_at>=ls.started_at
               AND p.created_at<=COALESCE(ls.completed_at,NOW())

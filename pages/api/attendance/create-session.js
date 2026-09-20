@@ -1,5 +1,5 @@
 // pages/api/attendance/create-session.js
-// Creates one organization-scoped active session, its sections, and creator membership.
+// Creates one organization-scoped active session only when all previous sessions are fully processed.
 // IMPORTANT: session_sections is the canonical section table. Do NOT use attendance_groups.
 
 import pool from '../../../lib/db';
@@ -17,12 +17,10 @@ export default withOrg(async function handler(req, res) {
     return res.status(400).json({ error: 'Event name is required.' });
   }
 
-  // Normalize sections: unique, non-empty strings.
   const normalizedSections = Array.isArray(sections)
     ? [...new Set(sections.filter(s => typeof s === 'string').map(s => s.trim()).filter(Boolean))]
     : [];
 
-  // Every session must have at least the default "All" section.
   if (!normalizedSections.length) normalizedSections.push('All');
 
   const orgId = req.org.id;
@@ -32,26 +30,63 @@ export default withOrg(async function handler(req, res) {
   try {
     await client.query('BEGIN');
 
-    // Defense-in-depth: only one active session per organization.
+    // Serialize the attendance lifecycle per organization.
+    await client.query(
+      "SELECT pg_advisory_xact_lock(hashtext($1::text))",
+      [orgId]
+    );
+
+    // A new session is forbidden while another is active OR any older closed session
+    // still has ARIA work pending/processing/failed. "completed" is the only unlock state.
     const existing = await client.query(
-      `SELECT id,name,started_by,started_at
-       FROM sessions
-       WHERE organization_id = $1 AND status = 'active'
-       ORDER BY started_at DESC
+      `SELECT
+         s.id,s.name,s.status,s.started_by,s.started_at,s.closed_at,
+         s.aria_processing_status,s.aria_processing_attempts,
+         s.aria_processing_started_at,s.aria_processing_completed_at,s.aria_processing_error,
+         (SELECT COUNT(*)
+          FROM sessions b
+          WHERE b.organization_id=$1
+            AND b.status='closed'
+            AND COALESCE(b.aria_processing_status,'pending')<>'completed') AS blocking_count
+       FROM sessions s
+       WHERE s.organization_id=$1
+         AND (
+           s.status='active'
+           OR (
+             s.status='closed'
+             AND COALESCE(s.aria_processing_status,'pending')<>'completed'
+           )
+         )
+       ORDER BY
+         CASE WHEN s.status='active' THEN 0 ELSE 1 END,
+         CASE WHEN COALESCE(s.aria_processing_status,'pending')='failed' THEN 0 ELSE 1 END,
+         s.started_at DESC
        LIMIT 1
        FOR UPDATE`,
       [orgId]
     );
 
     if (existing.rows.length) {
+      const blocked = existing.rows[0];
+      const isActive = blocked.status === 'active';
+      const processingStatus = blocked.aria_processing_status || (isActive ? null : 'pending');
+
       await client.query('ROLLBACK');
+
       return res.status(409).json({
-        error: 'An attendance session is already active.',
-        session: existing.rows[0],
+        success: false,
+        blocked: true,
+        reason: isActive ? 'active' : processingStatus === 'failed' ? 'aria_failed' : 'aria_processing',
+        error: isActive
+          ? 'An attendance session is already active.'
+          : processingStatus === 'failed'
+            ? 'ARIA must finish the previous attendance before a new session can start.'
+            : 'ARIA is still processing the previous attendance. A new session will unlock when it is finished.',
+        session: blocked,
+        blocking_count: Number(blocked.blocking_count) || 1,
       });
     }
 
-    // Create the session.
     const created = await client.query(
       `INSERT INTO sessions (organization_id,name,status,started_by,started_at)
        VALUES ($1,$2,'active',$3,NOW())
@@ -61,7 +96,6 @@ export default withOrg(async function handler(req, res) {
 
     const session = created.rows[0];
 
-    // Creator automatically joins the session.
     await client.query(
       `INSERT INTO session_users (session_id,user_id)
        VALUES ($1,$2)
@@ -69,8 +103,6 @@ export default withOrg(async function handler(req, res) {
       [session.id, userId]
     );
 
-    // Create the requested sections.
-    // organization_id is required and must match the session organization.
     for (const sectionName of normalizedSections) {
       await client.query(
         `INSERT INTO session_sections (session_id,name,organization_id)
@@ -82,22 +114,22 @@ export default withOrg(async function handler(req, res) {
 
     await client.query('COMMIT');
 
-    // Return both shapes for frontend compatibility:
-    // data.id and data.session.id are both valid.
     return res.status(201).json({
       success: true,
       id: session.id,
       session,
       sections: normalizedSections,
-      joined: true,can_discard:['owner','admin'].includes(req.user.role),
+      joined: true,
+      can_discard: ['owner','admin'].includes(req.user.role),
     });
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch {}
 
-    // If another request won the race to create an active session,
-    // surface a clean conflict instead of a generic 500.
     if (err.code === '23505') {
       return res.status(409).json({
+        success: false,
+        blocked: true,
+        reason: 'active',
         error: 'An attendance session is already active.',
       });
     }

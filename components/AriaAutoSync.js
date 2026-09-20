@@ -1,5 +1,5 @@
 // components/AriaAutoSync.js
-import{useEffect,useRef}from'react';
+import{useEffect,useRef}from'react';import{getClientSession,refreshClientSession}from'../lib/clientSession';
 const COOLDOWN=5*60*1000,IDLE_DELAY=15000;
 export default function AriaAutoSync(){
  const lastRun=useRef(0);

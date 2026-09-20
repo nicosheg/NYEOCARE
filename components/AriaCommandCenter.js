@@ -42,7 +42,7 @@ export default function AriaCommandCenter(){
  },[open,contextKey]);
  useEffect(()=>{if(scrollRef.current)scrollRef.current.scrollTop=scrollRef.current.scrollHeight},[messages,sending]);
  useEffect(()=>{if(!sending)return;const t=window.setInterval(()=>setThinking(v=>Math.min(2,v+1)),900);return()=>window.clearInterval(t)},[sending]);
- const launcherRef=useRef(null),dragRef=useRef(null),collapseTimer=useRef(null),scrollFrame=useRef(null);
+ const launcherRef=useRef(null),dragRef=useRef(null),collapseTimer=useRef(null),scrollFrame=useRef(null),suppressClick=useRef(false);
  const clearCollapse=()=>{if(collapseTimer.current){window.clearTimeout(collapseTimer.current);collapseTimer.current=null}};
  const revealLauncher=()=>{clearCollapse();if(!open)setLauncherExpanded(true);collapseTimer.current=window.setTimeout(()=>{if(!open&&!dragging)setLauncherExpanded(false)},3200)};
  useEffect(()=>{
@@ -84,7 +84,7 @@ export default function AriaCommandCenter(){
  if(!ready)return null;
  const list=messages.slice(-12),promptSuggestions=suggestions[context]||suggestions.home;
  return createPortal(<>
-  <button ref={launcherRef} type="button" className={'ariaLauncher '+(launcherExpanded?'isExpanded ':'')+(dragging?'isDragging ':'')+(open?'isHidden':'')} style={{right:launcherPos.right,bottom:launcherPos.bottom}} onPointerDown={launcherPointerDown} onPointerMove={launcherPointerMove} onPointerUp={launcherPointerUp} onPointerCancel={launcherPointerUp} onMouseEnter={revealLauncher} onFocus={revealLauncher} aria-label="Tell ARIA" aria-expanded={open}>
+  <button ref={launcherRef} type="button" className={'ariaLauncher '+(launcherExpanded?'isExpanded ':'')+(dragging?'isDragging ':'')+(open?'isHidden':'')} style={{right:launcherPos.right,bottom:launcherPos.bottom}} onPointerDown={launcherPointerDown} onPointerMove={launcherPointerMove} onPointerUp={launcherPointerUp} onPointerCancel={launcherPointerUp} onMouseEnter={revealLauncher} onFocus={revealLauncher} onClick={()=>{if(suppressClick.current){suppressClick.current=false;return}setOpen(true)}} aria-label="Tell ARIA" aria-expanded={open}>
    <span className="ariaLauncherInner"><span className="ariaLauncherOrb">A</span><span className="ariaLauncherText">Tell ARIA</span><span className="ariaLauncherSheen" aria-hidden="true"/></span>
   </button>
   {open&&<div className="ariaCenterOverlay" onMouseDown={e=>{if(e.target===e.currentTarget)setOpen(false)}}>

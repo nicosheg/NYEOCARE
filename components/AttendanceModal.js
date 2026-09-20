@@ -340,7 +340,7 @@ const content=<div style={overlay} onMouseDown={e=>{if(e.target===e.currentTarge
 </div>
 </div>
 {ariaProcessingFailed&&<button style={primary} disabled={closing} onClick={retryAriaProcessing}>{closing?'Retrying...':'Retry ARIA processing'}</button>}
-</div>:<>>
+</div>:<>
 <div style={stats}>
 <div><strong style={big}>{present}</strong><span style={label}>present</span></div><div style={divider}/>
 <div><strong style={stat}>{peopleTotal||people.length}</strong><span style={label}>people</span></div>

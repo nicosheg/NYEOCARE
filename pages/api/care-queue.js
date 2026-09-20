@@ -30,6 +30,7 @@ try{
     rs.service_key,
     rsc.learning_sessions,
     COUNT(DISTINCT rs.id) FILTER(WHERE ar.present=true AND ar.confirmed=true)::int AS attended_count,
+    BOOL_OR(rs.rn=1 AND ar.present=true AND ar.confirmed=true) AS current_attended,
     COALESCE(MIN(rs.rn) FILTER(WHERE ar.present=true AND ar.confirmed=true),5)-1 AS consecutive_misses
   FROM recent_sessions rs
   JOIN recent_service_counts rsc ON rsc.service_key=rs.service_key
@@ -42,7 +43,7 @@ try{
   SELECT
     p.id person_id,p.first_name,p.last_name,p.phone,
     ls.id session_id,ls.started_at,ls.name,ls.service_type,ls.service_key,
-    a.learning_sessions,a.attended_count,a.consecutive_misses
+    a.learning_sessions,a.attended_count,a.current_attended,a.consecutive_misses
   FROM attendance_summary a
   JOIN people p ON p.id=a.person_id AND p.organization_id=$1 AND p.status='active'
   JOIN latest_sessions ls ON ls.service_key=a.service_key
@@ -83,11 +84,7 @@ try{
   FROM attendance_current cp
   LEFT JOIN contacts ct ON ct.person_id=cp.person_id
   LEFT JOIN contexts ctx ON ctx.person_id=cp.person_id
-  WHERE NOT EXISTS(
-    SELECT 1 FROM attendance_records ar
-    WHERE ar.organization_id=$1 AND ar.people_id=cp.person_id AND ar.session_id=cp.session_id
-      AND ar.present=true AND ar.confirmed=true
-  )
+  WHERE COALESCE(cp.current_attended,false)=false
   AND ctx.suppressed_until IS NULL
   AND COALESCE(ctx.not_attending,false)=false
   AND(ctx.preferred_service IS NULL OR ctx.preferred_service=cp.service_key)

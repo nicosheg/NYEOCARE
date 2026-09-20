@@ -65,6 +65,7 @@ export default withAdmin(async function handler(req,res){
            closed_by=$1,
            closed_at=NOW(),
            aria_processing_status='pending',
+           aria_processing_attempts=0,
            aria_processing_stage='persist',
            aria_processing_progress=0,
            aria_processing_processed=0,

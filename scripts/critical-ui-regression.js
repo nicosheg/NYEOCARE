@@ -37,7 +37,7 @@ const checks=[
  ['Attendance close never waits for ARIA',
   !closeApi.includes('waitUntil')&&!closeApi.includes('processAttendanceSession')],
  ['New attendance does not wait for previous ARIA processing',
-  !createApi.includes('aria_processing_status')||/VALUES\(\$1,\$2,'active',\$3,NOW\(),'idle','idle'/.test(createApi)],
+  createApi.includes("VALUES($1,$2,'active',$3,NOW(),'idle','idle'")],
  ['Attendance close resets processing state',
   /aria_processing_attempts=0/.test(closeApi)&&/aria_processing_stage='persist'/.test(closeApi)],
  ['Attendance roster is bounded and cursor-paginated',

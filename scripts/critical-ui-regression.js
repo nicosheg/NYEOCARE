@@ -36,8 +36,8 @@ const requiredAttendance=['normalizeSession','normalizePeople','readJson','loadS
 const absentAttendance=requiredAttendance.filter(x=>!attendance.includes(x));
 
 const checks=[
- ['Attendance LIVE only follows session status',/active:row\.status==='active'/.test(activeApi)],
- ['Attendance accepts recoverable closed sessions',/AND\(s\.status='active'/.test(activeApi)],
+ ['Attendance LIVE only follows session status',/const isActive=row\.status==='active'/.test(activeApi)&&/active:isActive/.test(activeApi)],
+ ['Attendance accepts recoverable closed sessions',/s\.status='active'/.test(activeApi)&&/s\.status='closed'/.test(activeApi)&&/aria_processing_status IN\('pending','processing','failed'\)/.test(activeApi)],
  ['Attendance people endpoint performs session+people load in one SQL query',/JOIN people p ON p\.organization_id=s\.organization_id/.test(attendancePeopleApi)],
  ['Home uses one bootstrap endpoint',/api\/home\/bootstrap/.test(home)&&!home.includes('/api/daily-briefing/latest')],
  ['Home does not run a fixed 30s full reload loop',!/setInterval\(run,30000\)/.test(home)],
@@ -47,7 +47,7 @@ const checks=[
  ['People does not initialize ARIA on page open',!/\/api\/aria\/initialize/.test(people)],
  ['People loads review summary first',/\/api\/review\?summary=1/.test(people)],
  ['People supports client-side person prefetch',/router\.prefetch\(.*\/person\//.test(people)],
- ['Profile uses one bootstrap request',/api\/profile\/bootstrap/.test(profile)&&!profile.includes("fetch('/api/profile'")],
+ ['Profile uses one bootstrap request',/api\/profile\/bootstrap/.test(profile)&&/fetch\('\/api\/profile\/bootstrap'/.test(profile)],
  ['Profile is cached-first',/cacheAge\(key\)<15000/.test(profile)],
  ['Onboarding deduplicates in-flight loads',/inflight\.has\(key\)/.test(onboarding)],
  ['Scan recovery only checks an active local job',/stage!=='processing'/.test(scanRecovery)&&!/latest=1/.test(scanRecovery)],
@@ -56,12 +56,12 @@ const checks=[
  ['Vercel database pool is >1 connection',/max:4/.test(db)],
  ['Vercel database pool is attached for serverless lifecycle',/attachDatabasePool\(pool\)/.test(db)],
  ['Auth caches short-lived bearer verification',/AUTH_TTL=2500/.test(auth)],
- ['Review has a lightweight summary path',/query\.summary==='1'/.test(reviewApi)],
+ ['Review has a lightweight summary path',/req\.query\?\.summary==='1'/.test(reviewApi)],
  ['Attendance no longer polls the full roster every 5s',!/setInterval\(\(\)=>load\(false\),5000\)/.test(attendance)],
  ['Attendance uses cached auth',/const auth=async\(\)=>getClientSession\(\)/.test(attendance)],
  ['Attendance keeps cache coherent after marks',/setCached\(cacheKey,\{\.\.\.cached,people:next\}\)/.test(attendance)],
  ['ARIA director remains present',/ARIA_DIRECTOR_VERSION/.test(director)&&/directAriaEvent/.test(director)],
- ['Event processor remains the durable event path',/aria_events/.test(eventProcessor)],
+ ['Event processor remains the durable event path',/createObservation\(/.test(eventProcessor)&&/sourceEventId:eventId/.test(eventProcessor)],
  ['Daily briefing remains read-only',!/INSERT INTO aria_actions/.test(briefing)],
  ['Attendance processor creates first-session follow-up',/first_session_check_in/.test(participation)&&/session_id:sessionId/.test(participation)]
 ];

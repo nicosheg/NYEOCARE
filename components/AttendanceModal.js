@@ -29,7 +29,7 @@ const load=useCallback(async(showLoading=true)=>{
   const nextPeople=normalizePeople(pd);
   if(seq!==loadSeq.current||!mounted.current)return;
   setPeople(nextPeople);setCached(cacheKey,{session:ns,people:nextPeople});setLoading(false);
- },catch(e){console.error('[ATTENDANCE]',e);if(seq===loadSeq.current&&mounted.current){setError(String(e?.message||'Could not load attendance.'));setLoading(false)}}
+ }catch(e){console.error('[ATTENDANCE]',e);if(seq===loadSeq.current&&mounted.current){setError(String(e?.message||'Could not load attendance.'));setLoading(false)}}
 },[]);
 useEffect(()=>{if(isOpen)load()},[isOpen,load]);
 

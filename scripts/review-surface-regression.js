@@ -14,3 +14,4 @@ assert.doesNotMatch(people,/const loadFullReview=/);
 assert.match(config,/destination: '\/people\?review=1'/);
 
 console.log('NYEOCARE shared Review Center regression checks passed.');
+

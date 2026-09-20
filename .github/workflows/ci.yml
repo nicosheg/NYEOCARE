@@ -17,6 +17,7 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
+      - run: npm run test:persistence
       - run: npm run test:scan
       - run: npm run test:critical-ui
       - run: npm run build

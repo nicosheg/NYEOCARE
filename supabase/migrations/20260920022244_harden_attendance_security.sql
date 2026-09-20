@@ -24,12 +24,14 @@ CREATE POLICY people_update ON public.people
   WITH CHECK ((organization_id = current_user_org_id()) AND is_admin());
 
 DROP POLICY IF EXISTS session_sections_insert_same_organization ON public.session_sections;
+DROP POLICY IF EXISTS session_sections_insert_admin ON public.session_sections;
 CREATE POLICY session_sections_insert_admin
   ON public.session_sections
   FOR INSERT TO authenticated
   WITH CHECK ((organization_id = current_user_organization_id()) AND is_admin());
 
 DROP POLICY IF EXISTS session_sections_update_same_organization ON public.session_sections;
+DROP POLICY IF EXISTS session_sections_update_admin ON public.session_sections;
 CREATE POLICY session_sections_update_admin
   ON public.session_sections
   FOR UPDATE TO authenticated
@@ -37,12 +39,14 @@ CREATE POLICY session_sections_update_admin
   WITH CHECK ((organization_id = current_user_organization_id()) AND is_admin());
 
 DROP POLICY IF EXISTS session_sections_delete_same_organization ON public.session_sections;
+DROP POLICY IF EXISTS session_sections_delete_admin ON public.session_sections;
 CREATE POLICY session_sections_delete_admin
   ON public.session_sections
   FOR DELETE TO authenticated
   USING ((organization_id = current_user_organization_id()) AND is_admin());
 
 DROP POLICY IF EXISTS session_users_insert ON public.session_users;
+DROP POLICY IF EXISTS session_users_insert_self_or_admin ON public.session_users;
 CREATE POLICY session_users_insert_self_or_admin
   ON public.session_users
   FOR INSERT TO authenticated
@@ -60,6 +64,7 @@ CREATE POLICY session_users_insert_self_or_admin
   );
 
 DROP POLICY IF EXISTS attendance_records_update ON public.attendance_records;
+DROP POLICY IF EXISTS attendance_records_update_collaborative ON public.attendance_records;
 CREATE POLICY attendance_records_update_collaborative
   ON public.attendance_records
   FOR UPDATE TO authenticated
@@ -79,6 +84,7 @@ CREATE POLICY attendance_records_update_collaborative
   );
 
 DROP POLICY IF EXISTS attendance_records_delete ON public.attendance_records;
+DROP POLICY IF EXISTS attendance_records_delete_collaborative ON public.attendance_records;
 CREATE POLICY attendance_records_delete_collaborative
   ON public.attendance_records
   FOR DELETE TO authenticated

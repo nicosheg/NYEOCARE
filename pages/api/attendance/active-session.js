@@ -39,7 +39,7 @@ export default withOrg(async function handler(req,res){
          FROM sessions s
          WHERE s.organization_id=$1
            AND s.status='closed'
-           AND s.aria_processing_status IN('pending','processing')
+           AND s.aria_processing_status IN('pending','processing','needs_attention')
          ORDER BY COALESCE(s.closed_at,s.started_at) DESC
          LIMIT 1
        )

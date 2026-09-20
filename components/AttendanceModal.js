@@ -135,7 +135,7 @@ const mark=async(id,currentMarked)=>{
   });
   const data=await readJson(response);
   if(!response.ok||!data.success)throw Error(data.error||'Could not update attendance.');
-  setPeople(current=>current.map(p=>p.id===id?{...p,marked:data.present===true,marked_by_name:data.present===true?(data.marked_by_name||'You'):null}:p));
+  setPeople(current=>{const nextPeople=current.map(p=>p.id===id?{...p,marked:data.present===true,marked_by_name:data.present===true?(data.marked_by_name||'You'):null}:p);const cacheKey='attendance:'+String(session?.user_id||s.user.id);const cached=getCached(cacheKey);if(cached)setCached(cacheKey,{...cached,people:nextPeople});return nextPeople;});
  }catch(e){
   console.error('[ATTENDANCE] Mark/unmark error:',e);setPeople(previous);setError(e.message||'Could not update attendance.');
  }

@@ -34,7 +34,7 @@ export default withOrg(async function handler(req,res){
          aria_processing_stage,aria_processing_progress,aria_processing_processed,aria_processing_total
        FROM sessions
        WHERE organization_id=$1 AND status='closed'
-         AND aria_processing_status IN('pending','processing')
+         AND aria_processing_status IN('pending','processing','needs_attention')
        ORDER BY closed_at DESC
        LIMIT 1
      )b) latest_background_session,

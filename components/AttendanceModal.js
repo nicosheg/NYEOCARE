@@ -387,7 +387,7 @@ export default function AttendanceModal({isOpen,onClose}){
           autoFocus
         />
         <button
-          style={{...primary,opacity:saving||!sessionName.trim()?.55:1}}
+          style={{...primary,opacity:saving||!sessionName.trim()?0.55:1}}
           disabled={saving||!sessionName.trim()}
           onClick={createSession}
         >

@@ -52,7 +52,7 @@ const checks=[
  ['Attendance UI has no ARIA retry action',
   !attendance.includes('Retry processing')&&!attendance.includes('retry processing')],
  ['Home shows ARIA progress as background state',
-  /aria_processing/.test(homeBootstrap)&&(/ARIA is updating your latest attendance/.test(home)||/ARIA is thinking through the session/.test(home))],
+  /aria_processing/.test(homeBootstrap)&&/AriaProcessingStatus/.test(home)&&/ariaAttendance/.test(home)],
  ['Home has no attendance retry action',
   !home.includes('Open Attendance to retry processing')&&!home.includes('ARIA needs attention on your latest attendance')],
  ['Durable queue uses Supabase PGMQ',

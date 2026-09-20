@@ -3,7 +3,7 @@ import{useCallback,useEffect,useRef,useState}from'react';
 import{createPortal}from'react-dom';
 import{getClientSession}from'../lib/clientSession';
 import{getCached,setCached,clearCached,publishDataChange}from'../lib/appData';
-import{supabase}from'../lib/supabaseClient';
+import{supabase}from'../lib/supabaseClient';import AriaProcessingStatus from'./AriaProcessingStatus';
 
 export default function AttendanceModal({isOpen,onClose}){
   const[session,setSession]=useState(null);
@@ -50,8 +50,8 @@ export default function AttendanceModal({isOpen,onClose}){
     };
   };
 
-  const fetchPage=useCallback(async(live,q='',nextCursor=null,append=false)=>{
-    const s=await getClientSession();
+  const fetchPage=useCallback(async(live,q='',nextCursor=null,append=false,sessionOverride=null)=>{
+    const s=sessionOverride||await getClientSession();
     if(!s)throw Error('You must be logged in.');
     const params=new URLSearchParams({
       session_id:String(live.session_id),
@@ -131,7 +131,7 @@ export default function AttendanceModal({isOpen,onClose}){
         setPeople(cached.people);
       }
 
-      await fetchPage(live,query,'',false);
+      await fetchPage(live,query,'',false,s);
       if(seq===searchSeq.current&&mounted.current)setLoading(false);
     }catch(e){
       console.error('[ATTENDANCE] Load error:',e);
@@ -148,8 +148,8 @@ export default function AttendanceModal({isOpen,onClose}){
     if(!isOpen)return;
     let cancelled=false;
     const timer=window.setInterval(()=>{
-      if(!cancelled)load({showLoading:false});
-    },4000);
+      if(!cancelled&&document.visibilityState==='visible')load({showLoading:false});
+    },12000);
     return()=>{cancelled=true;window.clearInterval(timer)};
   },[isOpen,load]);
 
@@ -224,7 +224,7 @@ export default function AttendanceModal({isOpen,onClose}){
       setCursor(null);
       setHasMore(false);
       setLoading(true);
-      await fetchPage(next,'','',false);
+      await fetchPage(next,'','',false,s);
       setLoading(false);
       publishDataChange('attendance');
     }catch(e){
@@ -356,18 +356,9 @@ export default function AttendanceModal({isOpen,onClose}){
         <button style={close} onClick={onClose} aria-label="Close attendance">×</button>
       </header>
 
-      {background&&!session&&<div style={backgroundBox}>
-        <div>
-          <strong>{backgroundLabel}</strong>
-          <span>{background.processing_status==='needs_attention'?'Attendance is safe; the intelligence update is paused.':(background.stage?String(background.stage).replace(/_/g,' '):'background work')} · {Number(background.progress)||0}%</span>
-        </div>
-        <div style={miniProgress}><i style={{width:`${Math.min(100,Math.max(0,Number(background.progress)||0))}%`}}/></div>
-      </div>}
+      {background&&!session&&<div style={backgroundBox}><AriaProcessingStatus kind="attendance" status={background.processing_status||'processing'} stage={background.aria_processing_stage||background.stage||''} progress={background.progress||0} processed={background.processed||0} total={background.total||0}/><span style={backgroundHint}>{backgroundLabel==='ARIA updated'?'The last session is fully understood.':background.processing_status==='needs_attention'?'Attendance is saved. ARIA is waiting for a human decision.':'Attendance is saved. You can start the next session while ARIA finishes this one.'}</span></div>}
 
-      {background&&session&&<div style={backgroundInline}>
-        <span>{backgroundLabel}</span>
-        <span>{Number(background.progress)||0}%</span>
-      </div>}
+      {background&&session&&<div style={backgroundInline}><AriaProcessingStatus kind="attendance" compact status={background.processing_status||'processing'} stage={background.aria_processing_stage||background.stage||''} progress={background.progress||0}/></div>}
 
       {notice&&<div style={noticeBox}>{notice}</div>}
       {error&&<div style={errorBox}>{error}</div>}
@@ -487,7 +478,7 @@ const miniProgress={height:4,borderRadius:99,background:'rgba(255,255,255,.08)',
 const miniProgressFill={height:'100%',background:'#d6b86a',borderRadius:99};
 const backgroundText={display:'flex',justifyContent:'space-between',fontSize:12};
 const noticeBox={margin:'8px 18px 0',padding:'10px 12px',borderRadius:12,background:'rgba(255,255,255,.055)',border:'1px solid rgba(255,255,255,.1)',color:'rgba(255,255,255,.82)',fontSize:13};
-const errorBox={margin:'8px 18px 0',padding:'10px 12px',borderRadius:12,background:'rgba(239,68,68,.08)',border:'1px solid rgba(239,68,68,.18)',color:'#ffb8b8',fontSize:13};
+const backgroundHint={display:'block',padding:'2px 2px 0',fontSize:10,color:'rgba(255,255,255,.42)',lineHeight:1.4};const errorBox={margin:'8px 18px 0',padding:'10px 12px',borderRadius:12,background:'rgba(239,68,68,.08)',border:'1px solid rgba(239,68,68,.18)',color:'#ffb8b8',fontSize:13};
 const loadingBox={flex:1,display:'grid',placeItems:'center',color:'rgba(255,255,255,.5)'};
 const createBox={flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:14,padding:30,textAlign:'center'};
 const plus={width:52,height:52,borderRadius:'50%',display:'grid',placeItems:'center',background:'rgba(255,255,255,.08)',fontSize:26};

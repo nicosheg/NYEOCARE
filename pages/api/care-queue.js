@@ -29,7 +29,7 @@ try{
     ar.people_id AS person_id,
     rs.service_key,
     rsc.learning_sessions,
-    COUNT(DISTINCT rs.id) FILTER(WHERE ar.present=true AND ar.confirmed=true)::int AS attended_count,
+    COUNT(*) FILTER(WHERE ar.present=true AND ar.confirmed=true)::int AS attended_count,
     BOOL_OR(rs.rn=1 AND ar.present=true AND ar.confirmed=true) AS current_attended,
     COALESCE(MIN(rs.rn) FILTER(WHERE ar.present=true AND ar.confirmed=true),5)-1 AS consecutive_misses
   FROM recent_sessions rs

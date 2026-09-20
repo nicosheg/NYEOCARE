@@ -21,13 +21,23 @@ export default withOrg(async function handler(req,res){
      (SELECT COUNT(*)::int FROM scan_review_items WHERE organization_id=$1 AND status='pending') review_count,
      (SELECT row_to_json(s) FROM(
        SELECT id,name,status,started_by,started_at,closed_at,aria_processing_status,
-         aria_processing_attempts,aria_processing_started_at,aria_processing_completed_at,aria_processing_error
+         aria_processing_attempts,aria_processing_started_at,aria_processing_completed_at,aria_processing_error,
+         aria_processing_stage,aria_processing_progress,aria_processing_processed,aria_processing_total
        FROM sessions
-       WHERE organization_id=$1
-         AND(status='active' OR(status='closed' AND aria_processing_status IN('pending','processing','failed')))
-       ORDER BY CASE WHEN status='active' THEN 0 ELSE 1 END,started_at DESC
+       WHERE organization_id=$1 AND status='active'
+       ORDER BY started_at DESC
        LIMIT 1
      )s) latest_session,
+     (SELECT row_to_json(b) FROM(
+       SELECT id,name,status,closed_at,aria_processing_status,aria_processing_attempts,
+         aria_processing_started_at,aria_processing_completed_at,aria_processing_error,
+         aria_processing_stage,aria_processing_progress,aria_processing_processed,aria_processing_total
+       FROM sessions
+       WHERE organization_id=$1 AND status='closed'
+         AND aria_processing_status IN('pending','processing')
+       ORDER BY closed_at DESC
+       LIMIT 1
+     )b) latest_background_session,
      (SELECT row_to_json(c) FROM(
        SELECT id,name,status,closed_at,aria_processing_status
        FROM sessions
@@ -155,13 +165,27 @@ export default withOrg(async function handler(req,res){
     date,generatedAt:now.toISOString(),director,
     organization:{id:orgId,name:org.name||'your organization',instructions:org.aria_instructions||'',vocabulary},
     attendance:s?{
-      active:s.status==='active',
-      recoverable:s.status==='closed',
-      session_id:s.id,name:s.name,status:s.status,started_by:s.started_by,started_at:s.started_at,closed_at:s.closed_at,
+      active:true,recoverable:false,
+      session_id:s.id,name:s.name,status:s.status,started_by:s.started_by,started_at:s.started_at,closed_at:null,
       processing_status:s.aria_processing_status,processing_attempts:Number(s.aria_processing_attempts)||0,
       processing_started_at:s.aria_processing_started_at,processing_completed_at:s.aria_processing_completed_at,
-      processing_error:s.aria_processing_error
+      processing_error:s.aria_processing_error,processing_stage:s.aria_processing_stage||'idle',
+      processing_progress:Number(s.aria_processing_progress)||0,
+      processing_processed:Number(s.aria_processing_processed)||0,
+      processing_total:Number(s.aria_processing_total)||0
     }:{active:false,recoverable:false},
+    aria_processing:org.latest_background_session?{
+      session_id:org.latest_background_session.id,
+      name:org.latest_background_session.name,
+      status:org.latest_background_session.status,
+      processing_status:org.latest_background_session.aria_processing_status,
+      processing_stage:org.latest_background_session.aria_processing_stage,
+      progress:Number(org.latest_background_session.aria_processing_progress)||0,
+      processed:Number(org.latest_background_session.aria_processing_processed)||0,
+      total:Number(org.latest_background_session.aria_processing_total)||0,
+      started_at:org.latest_background_session.aria_processing_started_at,
+      completed_at:org.latest_background_session.aria_processing_completed_at
+    }:null,
     notification:{hasSomething:count>0,text:count?'ARIA has concrete things for you today.':'ARIA is keeping watch today.',count},
     briefing:{headline:count?'Here are '+count+' things with a clear next step.':'Nothing needs your immediate attention today.',items:top},
     categories:{scan:[],care:top.filter(x=>x.category==='care').slice(0,3)},

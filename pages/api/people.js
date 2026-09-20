@@ -34,10 +34,7 @@ if(req.method==='GET'){
    values.push(term);n++;
   }
   const sortName=`LOWER(COALESCE(NULLIF(p.display_name,''),NULLIF(TRIM(CONCAT_WS(' ',p.first_name,p.last_name)),''),p.first_name,''))`;
-  if(cursor){
-   where.push(`(r.new_rank,r.truth_rank,r.sort_name,r.id) > ($${n}::int,$${n+1}::int,$${n+2}::text,$${n+3}::uuid)`);
-   values.push(cursor.new_rank,cursor.truth_rank,cursor.sort_name,cursor.id);n+=4;
-  }
+  const cursorClause=cursor?`(r.new_rank,r.truth_rank,r.sort_name,r.id) > (${values.length+1}::int,${values.length+2}::int,${values.length+3}::text,${values.length+4}::uuid)`:'';
   const sql=`
    WITH latest_scan AS(
      SELECT started_at,completed_at
@@ -55,7 +52,7 @@ if(req.method==='GET'){
               AND p.created_at>=ls.started_at
               AND p.created_at<=COALESCE(ls.completed_at,NOW())
             THEN TRUE ELSE FALSE END AS new_from_latest_scan,
-       ${p.source='scan' ? '' : ''}${sortName} AS sort_name,
+       ${sortName} AS sort_name,
        CASE WHEN p.source='scan' AND ls.started_at IS NOT NULL
               AND p.created_at>=ls.started_at
               AND p.created_at<=COALESCE(ls.completed_at,NOW())
@@ -85,9 +82,8 @@ if(req.method==='GET'){
   const last=items[items.length-1];
   let total_count=null;
   if(includeTotal){
-   const countValues=values.slice(0, values.length-(cursor?4:0));
-   const countSql=`SELECT COUNT(*)::int AS count FROM people p WHERE ${where.slice(0, cursor?where.length-1:where.length).join(' AND ')}`;
-   total_count=Number((await pool.query(countSql,countValues)).rows[0]?.count)||0;
+   const countSql=`SELECT COUNT(*)::int AS count FROM people p WHERE ${where.join(' AND ')}`;
+   total_count=Number((await pool.query(countSql,values)).rows[0]?.count)||0;
   }
   const next_cursor=hasMore&&last?Buffer.from(JSON.stringify({new_rank:last.new_rank,truth_rank:last.truth_rank,sort_name:last.sort_name,id:last.id})).toString('base64url'):null;
   return res.status(200).json({items,next_cursor,has_more:hasMore,total_count,limit,search,type,living_truth:living});

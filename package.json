@@ -14,12 +14,13 @@
     "test:critical-ui": "node scripts/critical-ui-regression.js",
     "test": "npm run test:scan && npm run test:critical-ui",
     "test:persistence": "node scripts/persistence-regression.js",
-    "test:review-surface": "node scripts/review-surface-regression.js"
+    "test:review-surface": "node scripts/review-surface-regression.js",
+    "test:system-scale": "node scripts/system-scale-regression.js"
   },
   "dependencies": {
-    "next": "14.1.0",
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
+    "next": "15.5.24",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
     "@supabase/supabase-js": "2.39.8",
     "@vercel/functions": "3.9.7",
     "fuse.js": "7.0.0",

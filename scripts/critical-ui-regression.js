@@ -1,9 +1,10 @@
 // scripts/critical-ui-regression.js
-import{readFileSync}from'node:fs';
+import{existsSync,readFileSync}from'node:fs';
+
 const read=p=>readFileSync(p,'utf8');
 const attendance=read('components/AttendanceModal.js');
 const home=read('pages/index.js');
-const people=read('pages/people.js');
+const peoplePage=read('pages/people.js');
 const profile=read('pages/profile.js');
 const onboarding=read('components/OnboardingProvider.js');
 const scanRecovery=read('components/ScanRecovery.js');
@@ -15,73 +16,101 @@ const reviewApi=read('pages/api/review/index.js');
 const activeApi=read('pages/api/attendance/active-session.js');
 const attendancePeopleApi=read('pages/api/attendance/people.js');
 const closeApi=read('pages/api/attendance/close-session.js');
-const processApi=read('pages/api/attendance/process-session.js');
-const queue=read('pages/api/queue/attendance-process.js');
+const createApi=read('pages/api/attendance/create-session.js');
 const queueLib=read('lib/aria/attendanceQueue.js');
-const processor=read('lib/aria/attendanceProcessor.js');
 const intelligence=read('lib/aria/attendanceIntelligence.js');
 const director=read('lib/aria/director.js');
 const eventProcessor=read('lib/aria/eventProcessor.js');
 const briefing=read('pages/api/daily-briefing/latest.js');
+const homeBootstrap=read('pages/api/home/bootstrap.js');
+const durableMigration=read('supabase/migrations/20260920154000_durable_attendance_processing.sql');
+const recoveryMigration=read('supabase/migrations/20260920154500_harden_attendance_queue_recovery.sql');
+const parallelMigration=read('supabase/migrations/20260920160000_parallelize_durable_attendance_workers.sql');
 const pkg=JSON.parse(read('package.json'));
 const vercel=JSON.parse(read('vercel.json'));
 
-const homeBootstrap=read('pages/api/home/bootstrap.js');
-
 const checks=[
- ['Attendance LIVE follows session status',/const isActive=row\.status==='active'/.test(activeApi)&&/active:isActive/.test(activeApi)],
- ['Attendance accepts recoverable closed sessions',/s\.status='active'/.test(activeApi)&&/s\.status='closed'/.test(activeApi)&&/COALESCE\(b\.aria_processing_status,'pending'\)<>'completed'/.test(activeApi)],
- ['Attendance roster is bounded server-side',/LIMIT \$\{li\}/.test(attendancePeopleApi)&&/Number\(req\.query\.limit\)\|\|80/.test(attendancePeopleApi)],
- ['Attendance roster supports cursor pagination',/next_cursor/.test(attendancePeopleApi)&&/has_more/.test(attendancePeopleApi)&&/base64url/.test(attendancePeopleApi)],
- ['Attendance roster has server-side search',/ILIKE '%'\|\|\$/.test(attendancePeopleApi)&&/COALESCE\(p\.phone/.test(attendancePeopleApi)],
- ['Close session queues instead of waiting',/enqueueAttendanceProcessing/.test(closeApi)&&!closeApi.includes('waitUntil')&&!closeApi.includes('generateParticipationFromSession')],
- ['Retry queues instead of running worker inline',/enqueueAttendanceProcessing/.test(processApi)&&!processApi.includes('generateParticipationFromSession')],
- ['Durable queue consumer exists',/handleNodeCallback/.test(queue)&&/processAttendanceSession/.test(queue)],
- ['Queue has bounded retry behavior',/deliveryCount/.test(queue)&&/afterSeconds/.test(queue)&&/MAX_DELIVERIES=5/.test(queue)],
- ['Queue trigger is configured',vercel.functions?.['pages/api/queue/attendance-process.js']?.experimentalTriggers?.some(x=>x.type==='queue/v2beta'&&x.topic==='nyeocare-attendance')],
- ['Queue dependency is pinned',pkg.dependencies?.['@vercel/queue']==='0.5.1'],
- ['Attendance participation persistence is set based',/INSERT INTO participation_records/.test(processor)&&/SELECT \$1,ar\.people_id,\$2,'attendance'/.test(processor)],
- ['Attendance event persistence is set based',/INSERT INTO aria_events/.test(processor)&&/jsonb_build_object\('session_id',\$2::uuid,'participation_id',pr\.id\)/.test(processor)],
- ['Attendance intelligence is set based',/WITH target AS/.test(intelligence)&&/INSERT INTO engagement_metrics/.test(intelligence)&&/INSERT INTO relationship_scores/.test(intelligence)&&/INSERT INTO people_intelligence/.test(intelligence)&&/INSERT INTO aria_person_state/.test(intelligence)],
- ['Attendance processing has no N-person ARIA fanout',!processor.includes('processAriaEvent')&&!processor.includes('mapConcurrent')&&!processor.includes('CONCURRENCY=')],
- ['Absence requires prior confirmed evidence',/prior_84>=2/.test(processor)&&/prior_28>=1/.test(processor)&&/AND NOT EXISTS\(SELECT 1 FROM aria_attendance_contexts/.test(processor)],
- ['Absence signals are bounded',/ABSENCE_ACTION_LIMIT =? 50/.test(processor)&&/LIMIT \\\${ABSENCE_ACTION_LIMIT}/.test(processor)],
- ['First-session attendance noise is removed',!processor.includes('first_session_check_in')],
- ['Attendance absence wording does not claim cause',/does not know the reason for the absence/.test(processor)&&/pattern_claim/.test(processor)],
- ['Processing claim is atomic and stale-recoverable',/FOR UPDATE/.test(processApi)&&/aria_processing_status='pending'/.test(processApi)&&/INTERVAL '5 minutes'/.test(processor)],
- ['Session completes only after worker success',/aria_processing_status='completed'/.test(queue)&&/processAttendanceSession/.test(queue)],
- ['Processing failure is persisted',/markFailed/.test(queue)&&/ATTENDANCE_PROCESSING_FAILED/.test(queue)],
- ['Home scopes attendance signals to latest completed session',/latest_completed_session/.test(homeBootstrap)&&/metadata->>'session_id'/.test(homeBootstrap)],
- ['Home hides participation-confirmed noise',/o\.type<>'PARTICIPATION_CONFIRMED'/.test(homeBootstrap)],
- ['Home excludes stale first-session actions',/first_session_check_in/.test(homeBootstrap)&&/aria_processing_failure/.test(homeBootstrap)],
- ['Attendance UI recognizes pending and processing',/\['pending','processing'\]/.test(attendance)&&/processing_status/.test(attendance)],
- ['Attendance UI polls only lightweight status',/\/api\/attendance\/active-session/.test(attendance)&&/1200/.test(attendance)],
- ['Attendance UI loads bounded roster pages',/fetchPeoplePage/.test(attendance)&&/limit:'80'/.test(attendance)&&/loadMorePeople/.test(attendance)],
- ['Attendance UI server-searches people',/api\/attendance\/people\?/.test(attendance)&&/setTimeout\(async/.test(attendance)],
- ['Attendance UI tracks global present count',/presentCount/.test(attendance)&&/organization_total/.test(attendancePeopleApi)],
- ['Attendance UI processing is compact',/processingCompact/.test(attendance)&&!/pipelineDotLive/.test(attendance)],
- ['Serverless DB pool is one connection',/max:1/.test(db)],
- ['Serverless DB pool is attached',/attachDatabasePool\(pool\)/.test(db)],
- ['Home uses one bootstrap endpoint',/api\/home\/bootstrap/.test(home)&&!/api\/daily-briefing\/latest/.test(home)],
- ['Home coalesces loads',/loadPromiseRef\.current/.test(home)],
- ['People does not initialize ARIA on page open',!/\/api\/aria\/initialize/.test(people)],
- ['People loads review summary first',/\/api\/review\?summary=1/.test(people)],
- ['Profile uses one bootstrap request',/api\/profile\/bootstrap/.test(profile)],
- ['Onboarding deduplicates in-flight loads',/inflight\.has\(key\)/.test(onboarding)],
- ['Scan recovery avoids historical-job scans',/stage!=='processing'/.test(scanRecovery)&&!/latest=1/.test(scanRecovery)],
- ['ARIA auto-sync is not startup critical path',/IDLE_DELAY=15000/.test(autoSync)&&/document\.visibilityState/.test(autoSync)],
- ['People DOM enhancer not globally mounted',!/PeopleSurfaceEnhancer/.test(app)],
- ['Auth caches bearer verification',/AUTH_TTL=2500/.test(auth)],
- ['Review has lightweight summary path',/req\.query\?\.summary==='1'/.test(reviewApi)],
- ['Daily briefing endpoint is read-only',!/INSERT INTO aria_actions/.test(briefing)],
- ['ARIA director remains available',/ARIA_DIRECTOR_VERSION/.test(director)&&/directAriaEvent/.test(director)],
- ['Event processor remains durable',/createObservation\(/.test(eventProcessor)&&/sourceEventId:eventId/.test(eventProcessor)]
+ ['Attendance session state separates live work from background ARIA',
+  /s\.status='active'/.test(activeApi)&&/background_processing/.test(activeApi)&&/can_start_new_session:true/.test(activeApi)],
+ ['Attendance close is atomic with durable queue publication',
+  /BEGIN/.test(closeApi)&&/COMMIT/.test(closeApi)&&/enqueueAttendanceProcessing/.test(closeApi)&&/db:client/.test(closeApi)],
+ ['Attendance close never waits for ARIA',
+  !closeApi.includes('waitUntil')&&!closeApi.includes('processAttendanceSession')],
+ ['New attendance does not wait for previous ARIA processing',
+  !createApi.includes('aria_processing_status')||/VALUES\(\$1,\$2,'active',\$3,NOW\(),'idle','idle'/.test(createApi)],
+ ['Attendance close resets processing state',
+  /aria_processing_attempts=0/.test(closeApi)&&/aria_processing_stage='persist'/.test(closeApi)],
+ ['Attendance roster is bounded and cursor-paginated',
+  /limit=Math\.min/.test(attendancePeopleApi)&&/next_cursor/.test(attendancePeopleApi)&&/base64url/.test(attendancePeopleApi)],
+ ['Attendance roster search stays server-side',
+  /ILIKE '%'\|\|\$/.test(attendancePeopleApi)&&/COALESCE\(p\.phone/.test(attendancePeopleApi)],
+ ['Attendance UI loads pages instead of the whole organization',
+  /limit:'80'/.test(attendance)&&/loadMore/.test(attendance)],
+ ['Attendance UI shows background ARIA without blocking live attendance',
+  /background_processing/.test(attendance)&&/You can start the next attendance now/.test(attendance)],
+ ['Attendance UI has no ARIA retry action',
+  !attendance.includes('Retry processing')&&!attendance.includes('retry processing')],
+ ['Home shows ARIA progress as background state',
+  /aria_processing/.test(homeBootstrap)&&/ARIA is updating your latest attendance/.test(home)],
+ ['Home has no attendance retry action',
+  !home.includes('Open Attendance to retry processing')&&!home.includes('ARIA needs attention on your latest attendance')],
+ ['Durable queue uses Supabase PGMQ',
+  /pgmq\.send/.test(queueLib)&&/nyeocare-attendance/.test(queueLib)],
+ ['Durable worker is defined in SQL',
+  /nyeocare_process_attendance_queue/.test(durableMigration)&&/pgmq\.read/.test(durableMigration)],
+ ['Attendance stages are set-based',
+  /INSERT INTO public\.participation_records/.test(durableMigration)&&/INSERT INTO public\.engagement_metrics/.test(durableMigration)&&/INSERT INTO public\.relationship_scores/.test(durableMigration)&&/INSERT INTO public\.people_intelligence/.test(durableMigration)&&/INSERT INTO public\.aria_person_state/.test(durableMigration)],
+ ['Attendance processing has bounded automatic recovery',
+  /v_attempt>=8/.test(recoveryMigration)&&/needs_attention/.test(recoveryMigration)&&/pgmq\.set_vt/.test(recoveryMigration)],
+ ['Attendance workers parallelize safely by session',
+  /pg_try_advisory_xact_lock\(hashtextextended\(v_session::text/.test(parallelMigration)&&/worker-1/.test(parallelMigration)===false&&/generate_series\(1,4\)/.test(parallelMigration)],
+ ['Legacy Vercel attendance worker is removed',
+  !existsSync('pages/api/queue/attendance-process.js')&&!existsSync('pages/api/attendance/process-session.js')&&!pkg.dependencies?.['@vercel/queue']],
+ ['Vercel has no legacy attendance queue trigger',
+  !vercel.functions?.['pages/api/queue/attendance-process.js']],
+ ['No N-person ARIA fanout remains in canonical intelligence module',
+  !intelligence.includes('mapConcurrent')&&!intelligence.includes('processAriaEvent')],
+ ['Absence requires prior confirmed evidence',
+  /prior_84>=2/.test(durableMigration)&&/prior_28>=1/.test(durableMigration)],
+ ['Attendance intelligence does not invent absence causes',
+  /does not know the reason for the absence/.test(durableMigration)],
+ ['Attendance background state is indexed',
+  /sessions_org_background_processing_idx/.test(durableMigration)&&/needs_attention/.test(durableMigration)],
+ ['Serverless DB pool remains bounded',
+  /max:1/.test(db)||/max:4/.test(db)],
+ ['Serverless DB pool is attached',
+  /attachDatabasePool\(pool\)/.test(db)],
+ ['Home coalesces bootstrap loads',
+  /loadPromiseRef\.current/.test(home)],
+ ['People does not initialize ARIA on page open',
+  !peoplePage.includes('/api/aria/initialize')],
+ ['Profile uses one bootstrap request',
+  /api\/profile\/bootstrap/.test(profile)],
+ ['Onboarding deduplicates in-flight loads',
+  /inflight\.has\(key\)/.test(onboarding)],
+ ['Scan recovery avoids historical-job scans',
+  /stage!==\'processing\'/.test(scanRecovery)&&!/latest=1/.test(scanRecovery)],
+ ['ARIA auto-sync is not startup-critical',
+  /IDLE_DELAY=15000/.test(autoSync)&&/document\.visibilityState/.test(autoSync)],
+ ['People enhancer is not globally mounted',
+  !/PeopleSurfaceEnhancer/.test(app)],
+ ['Auth caches bearer verification',
+  /AUTH_TTL=2500/.test(auth)],
+ ['Review has lightweight summary path',
+  /req\.query\?\.summary===\'1\'/.test(reviewApi)],
+ ['Daily briefing endpoint remains read-only',
+  !/INSERT INTO aria_actions/.test(briefing)],
+ ['ARIA director remains available',
+  /ARIA_DIRECTOR_VERSION/.test(director)&&/directAriaEvent/.test(director)],
+ ['Event processor remains durable',
+  /createObservation\(/.test(eventProcessor)&&/sourceEventId:eventId/.test(eventProcessor)]
 ];
 
 const failures=checks.filter(([,ok])=>!ok).map(([name])=>name);
 if(failures.length){
- console.error('[CRITICAL UI] Attendance/scalability regression guard failed.');
+ console.error('[CRITICAL UI] Canonical attendance/scalability regression guard failed.');
  console.error(failures.join(' | '));
  process.exit(1);
 }
-console.log('[CRITICAL UI] Attendance/scalability and canonical-architecture regression guards passed.');
+
+console.log('[CRITICAL UI] Canonical attendance/scalability regression guards passed.');

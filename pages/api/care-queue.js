@@ -18,18 +18,25 @@ try{
  latest_sessions AS(
   SELECT * FROM recent_sessions WHERE rn=1
  ),
+ recent_service_counts AS(
+  SELECT service_key,COUNT(*)::int AS learning_sessions
+  FROM recent_sessions
+  WHERE rn<=4
+  GROUP BY service_key
+ ),
  attendance_summary AS(
   SELECT
     ar.people_id AS person_id,
     rs.service_key,
-    COUNT(DISTINCT rs.id)::int AS learning_sessions,
+    rsc.learning_sessions,
     COUNT(DISTINCT rs.id) FILTER(WHERE ar.present=true AND ar.confirmed=true)::int AS attended_count,
     COALESCE(MIN(rs.rn) FILTER(WHERE ar.present=true AND ar.confirmed=true),5)-1 AS consecutive_misses
   FROM recent_sessions rs
+  JOIN recent_service_counts rsc ON rsc.service_key=rs.service_key
   JOIN attendance_records ar
     ON ar.organization_id=$1 AND ar.session_id=rs.id AND ar.people_id IS NOT NULL
   WHERE rs.rn<=4
-  GROUP BY ar.people_id,rs.service_key
+  GROUP BY ar.people_id,rs.service_key,rsc.learning_sessions
  ),
  attendance_current AS(
   SELECT

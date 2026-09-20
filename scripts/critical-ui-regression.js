@@ -25,6 +25,7 @@ const briefing=read('pages/api/daily-briefing/latest.js');
 const homeBootstrap=read('pages/api/home/bootstrap.js');
 const durableMigration=read('supabase/migrations/20260920154000_durable_attendance_processing.sql');
 const recoveryMigration=read('supabase/migrations/20260920154500_harden_attendance_queue_recovery.sql');
+const backgroundIndexMigration=read('supabase/migrations/20260920154800_include_needs_attention_in_background_session_index.sql');
 const parallelMigration=read('supabase/migrations/20260920160000_parallelize_durable_attendance_workers.sql');
 const pkg=JSON.parse(read('package.json'));
 const vercel=JSON.parse(read('vercel.json'));
@@ -75,7 +76,7 @@ const checks=[
  ['Attendance intelligence does not invent absence causes',
   /does not know the reason for the absence/.test(durableMigration)],
  ['Attendance background state is indexed',
-  /sessions_org_background_processing_idx/.test(durableMigration)&&/needs_attention/.test(durableMigration)],
+  /sessions_org_background_processing_idx/.test(durableMigration)&&/sessions_org_background_processing_idx/.test(backgroundIndexMigration)&&/needs_attention/.test(backgroundIndexMigration)],
  ['Serverless DB pool remains bounded',
   /max:1/.test(db)||/max:4/.test(db)],
  ['Serverless DB pool is attached',

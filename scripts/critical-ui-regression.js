@@ -62,6 +62,8 @@ const checks=[
  ['Attendance no longer polls the full roster every 5s',!/setInterval\(\(\)=>load\(false\),5000\)/.test(attendance)],
  ['Attendance uses cached auth',/const auth=async\(\)=>getClientSession\(\)/.test(attendance)],
  ['Attendance keeps cache coherent after marks',/setCached\(cacheKey,\{\.\.\.cached,people:next(People)?\}\)/.test(attendance)],
+ ['Attendance intelligence uses pool-safe parallel workers',/const CONCURRENCY=4/.test(participation)],
+ ['Attendance failed processing is shown as failed, not completed',/pipelineDotFailed/.test(attendance)&&/ARIA intelligence pass failed/.test(attendance)],
  ['ARIA director remains present',/ARIA_DIRECTOR_VERSION/.test(director)&&/directAriaEvent/.test(director)],
  ['Event processor remains the durable event path',/createObservation\(/.test(eventProcessor)&&/sourceEventId:eventId/.test(eventProcessor)],
  ['Daily briefing remains read-only',!/INSERT INTO aria_actions/.test(briefing)],

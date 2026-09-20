@@ -28,10 +28,6 @@ const[name,setName]=useState('');
 const[userName,setUserName]=useState('');
 const[aria,setAria]=useState('');
 const[passwordEmail,setPasswordEmail]=useState(false);
-const[ariaMessages,setAriaMessages]=useState([]);
-const[ariaInput,setAriaInput]=useState('');
-const[ariaSending,setAriaSending]=useState(false);
-const[ariaConversationId,setAriaConversationId]=useState(null);
 const[passwordLoading,setPasswordLoading]=useState(false);
 
 const load=async()=>{
@@ -96,8 +92,6 @@ try{await navigator.clipboard.writeText(invite.url);setMsg('Invite copied')}catc
 }
 };
 
-
-const askAria=async()=>{const message=ariaInput.trim();if(!message||ariaSending)return;setAriaSending(true);setAriaInput('');setAriaMessages(m=>[...m,{role:'user',content:message}]);try{const session=await getClientSession();if(!session)return router.replace('/login');const r=await fetch('/api/aria/chat',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},body:JSON.stringify({message,conversationId:ariaConversationId})});const d=await r.json();if(!r.ok)throw new Error(d.error||'ARIA could not process that.');if(d.conversationId)setAriaConversationId(d.conversationId);setAriaMessages(m=>[...m,{role:'assistant',content:d.text||'I have checked what I can safely access.'}]);}catch(e){setAriaMessages(m=>[...m,{role:'assistant',content:e.message||'I could not process that safely.'}]);}finally{setAriaSending(false)}};
 
 const resetPassword=async()=>{
 if(passwordLoading)return;

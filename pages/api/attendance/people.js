@@ -63,6 +63,7 @@ export default withOrg(async function handler(req,res){
       c.expected_service_type,c.expected_return_known,
       ${nameExpr} AS sort_name,
       COUNT(*) OVER()::int AS total_people,
+      (SELECT COUNT(*)::int FROM people pc WHERE pc.organization_id=$1 AND COALESCE(pc.status,'active')='active') AS organization_total_people,
       (SELECT COUNT(*)::int FROM attendance_records ap
        WHERE ap.organization_id=$1 AND ap.session_id=$2 AND ap.present=true) AS present_count
     FROM sessions s
@@ -85,6 +86,7 @@ export default withOrg(async function handler(req,res){
    people:rows,
    total:rows.length?(Number(rows[0].total_people)||0):0,
    present_count:rows.length?(Number(rows[0].present_count)||0):0,
+   organization_total:rows.length?(Number(rows[0].organization_total_people)||0):0,
    limit,
    has_more:hasMore,
    next_cursor:hasMore&&last?encodeCursor(last):null,

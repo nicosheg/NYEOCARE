@@ -49,55 +49,35 @@ async function handler(req,res){
     // Detect people whose attendance pattern is weakening.
     // This is a PATTERN signal, not a prediction of future behavior.
     const patterns=await pool.query(`
-      WITH person_sessions AS(
-        SELECT
-          p.id,
-          p.first_name,
-          p.last_name,
-          COUNT(DISTINCT s.id)::int AS total_sessions,
-          COUNT(DISTINCT CASE
-            WHEN ar.present=true THEN s.id
-          END)::int AS attended_sessions,
-          MAX(CASE WHEN ar.present=true THEN ar.attendance_date END) AS last_attendance
-        FROM people p
-        CROSS JOIN sessions s
-        LEFT JOIN attendance_records ar
-          ON ar.people_id=p.id
-         AND ar.session_id=s.id
-         AND ar.organization_id=$1
-        WHERE p.organization_id=$1
-          AND p.status='active'
-          AND s.organization_id=$1
-          AND s.started_at>=NOW()-INTERVAL '8 weeks'
-        GROUP BY p.id,p.first_name,p.last_name
+      WITH recent_session_total AS(
+        SELECT COUNT(*)::int AS total_sessions
+        FROM sessions
+        WHERE organization_id=$1 AND started_at>=NOW()-INTERVAL '8 weeks'
+      ),
+      attendance_by_person AS(
+        SELECT ar.people_id AS id,COUNT(DISTINCT ar.session_id)::int AS attended_sessions,MAX(ar.attendance_date) AS last_attendance
+        FROM attendance_records ar
+        WHERE ar.organization_id=$1 AND ar.attendance_date>=CURRENT_DATE-INTERVAL '8 weeks' AND ar.present=true
+        GROUP BY ar.people_id
+      ),
+      person_sessions AS(
+        SELECT p.id,p.first_name,p.last_name,rst.total_sessions,COALESCE(abp.attended_sessions,0)::int AS attended_sessions,abp.last_attendance
+        FROM people p CROSS JOIN recent_session_total rst
+        LEFT JOIN attendance_by_person abp ON abp.id=p.id
+        WHERE p.organization_id=$1 AND p.status='active'
       ),
       scored AS(
-        SELECT *,
-          CASE
-            WHEN total_sessions>=4
-             AND attended_sessions<=1
-            THEN 'slipping_pattern'
-            WHEN total_sessions>=5
-             AND attended_sessions::numeric/NULLIF(total_sessions,0)<0.5
-            THEN 'weakening_pattern'
-            WHEN total_sessions>=4
-             AND attended_sessions::numeric/NULLIF(total_sessions,0)>=0.75
-            THEN 'regular_pattern'
-            ELSE 'insufficient_evidence'
-          END AS pattern
+        SELECT *,CASE
+          WHEN total_sessions>=4 AND attended_sessions<=1 THEN 'slipping_pattern'
+          WHEN total_sessions>=5 AND attended_sessions::numeric/NULLIF(total_sessions,0)<0.5 THEN 'weakening_pattern'
+          WHEN total_sessions>=4 AND attended_sessions::numeric/NULLIF(total_sessions,0)>=0.75 THEN 'regular_pattern'
+          ELSE 'insufficient_evidence' END AS pattern
         FROM person_sessions
       )
-      SELECT *
-      FROM scored
-      WHERE pattern IN('slipping_pattern','weakening_pattern')
-      ORDER BY
-        CASE pattern
-          WHEN 'slipping_pattern' THEN 2
-          ELSE 1
-        END DESC,
-        last_attendance ASC NULLS FIRST
+      SELECT * FROM scored WHERE pattern IN('slipping_pattern','weakening_pattern')
+      ORDER BY CASE pattern WHEN 'slipping_pattern' THEN 2 ELSE 1 END DESC,last_attendance ASC NULLS FIRST
       LIMIT 10
-    `,[orgId]);
+    `,[orgId]);;
 
     // Active ARIA observations provide the strongest existing signals.
     const observations=await pool.query(`

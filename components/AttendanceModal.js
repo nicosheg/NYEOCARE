@@ -75,7 +75,14 @@ useEffect(()=>{
   if(cancelled||!s)return;
   channel=supabase.channel('attendance-live-'+String(s.user.id))
    .on('postgres_changes',{event:'*',schema:'public',table:'sessions'},refresh)
-   .on('postgres_changes',{event:'*',schema:'public',table:'attendance_records'},refresh)
+   .on('postgres_changes',{event:'*',schema:'public',table:'attendance_records'},payload=>{
+    const row=payload?.new||payload?.old||{};
+    // The marking user already has the authoritative optimistic/API response.
+    // Re-fetching immediately from another realtime callback can race replication
+    // and briefly overwrite a fresh mark with the previous DB state.
+    if(String(row.marked_by||'')===String(s.user.id))return;
+    refresh();
+   })
    .subscribe();
  }).catch(()=>{});
  return()=>{

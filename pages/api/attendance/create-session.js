@@ -56,7 +56,7 @@ export default withAdmin(async function handler(req,res){
          aria_processing_status,aria_processing_stage,aria_processing_progress,
          aria_processing_processed,aria_processing_total
        )
-       VALUES($1,$2,'active',$3,NOW(),'pending','idle',0,0,0)
+       VALUES($1,$2,'active',$3,NOW(),'idle','idle',0,0,0)
        RETURNING id,name,status,started_by,started_at,
                  aria_processing_status,aria_processing_stage,aria_processing_progress,
                  aria_processing_processed,aria_processing_total`,

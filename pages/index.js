@@ -15,7 +15,7 @@ const load=async({background=false}={})=>{
     const d=cached.attendance||{};setLive(d.active===true&&d.status==='active');
     const bp=cached.aria_processing||null;
     const ps=String(bp?.processing_status||'');
-    setAriaAttendance(['pending','processing','needs_attention','failed'].includes(ps)?{status:ps,stage:bp?.aria_processing_stage||bp?.stage||'',progress:Number(bp?.progress)||0,processed:Number(bp?.processed)||0,total:Number(bp?.total)||0,error:bp?.processing_error||bp?.error||''}:null);
+    setAriaAttendance(['pending','processing','needs_attention','failed'].includes(ps)?{status:ps,stage:bp?.processing_stage||bp?.stage||'',progress:Number(bp?.progress)||0,processed:Number(bp?.processed)||0,total:Number(bp?.total)||0,error:bp?.processing_error||bp?.error||''}:null);
     setLoading(false);
     if(Date.now()-lastLoadAt.current<10000)return;
    }
@@ -36,7 +36,7 @@ const load=async({background=false}={})=>{
    setLive(d.active===true&&d.status==='active');
    const bp=next.aria_processing||null;
    const ps=String(bp?.processing_status||'');
-   setAriaAttendance(['pending','processing','needs_attention','failed'].includes(ps)?{status:ps,stage:bp?.aria_processing_stage||bp?.stage||'',progress:Number(bp?.progress)||0,processed:Number(bp?.processed)||0,total:Number(bp?.total)||0,error:bp?.processing_error||bp?.error||''}:null);
+   setAriaAttendance(['pending','processing','needs_attention','failed'].includes(ps)?{status:ps,stage:bp?.processing_stage||bp?.stage||'',progress:Number(bp?.progress)||0,processed:Number(bp?.processed)||0,total:Number(bp?.total)||0,error:bp?.processing_error||bp?.error||''}:null);
    setReviewCount(Number(next.reviewCount||next.director?.pending_scan_reviews)||0);
   }catch(e){console.error('[ARIA Today]',e)}
   finally{if(activeRef.current)setLoading(false)}

@@ -12,126 +12,215 @@ const finishClose=()=>{if(!mounted.current)return;setSession(null);setPeople([])
 const load=useCallback(async(showLoading=true)=>{
  const seq=++loadSeq.current;
  try{
-  const s=await auth();if(!s)throw Error('You must be logged in.');
-  const cacheKey='attendance:'+s.user.id; const hit=getCached(cacheKey);
-  if(hit?.session&&seq===loadSeq.current&&mounted.current){setSession(hit.session);setCanDiscard(hit.session.can_discard===true);if(Array.isArray(hit.people))setPeople(hit.people);setLoading(false)}
-  else if(showLoading&&mounted.current)setLoading(true);
+  const s=await auth();
+  if(!s)throw Error('You must be logged in.');
+  const cacheKey='attendance:'+s.user.id;
+  const hit=getCached(cacheKey);
+  if(hit?.session&&seq===loadSeq.current&&mounted.current){
+   setSession(hit.session);
+   setCanDiscard(hit.session.can_discard===true);
+   if(Array.isArray(hit.people))setPeople(hit.people);
+   setLoading(false);
+  }else if(showLoading&&mounted.current){
+   setLoading(true);
+  }
   if(mounted.current){setError('');setNotice('');}
-  const h={Authorization:'Bearer '+s.access_token};
-  const sr=await fetch('/api/attendance/active-session',{headers:h,cache:'no-store'}); const sd=await readJson(sr);
-  if(!sr.ok)throw Error(sd.error||'Could not load attendance session.');
-  if(!sd.active&&!sd.recoverable){if(seq===loadSeq.current&&mounted.current){setSession(null);setCanDiscard(false);setPeople([]);setQuery('');clearCached(cacheKey);setLoading(false)}return}
-  const base=normalizeSession(sd);if(!base)throw Error('Attendance session response was incomplete.');const ns={...base,user_id:s.user.id};
-  if(ns.status==='closed'){if(ns.processing_status==='completed'){if(seq===loadSeq.current&&mounted.current){setSession(null);setCanDiscard(false);setPeople([]);setQuery('');clearCached(cacheKey);setError('');setNotice('Attendance saved. ARIA has finished processing. A new session is ready.');setLoading(false)}return}if(seq===loadSeq.current&&mounted.current){setSession(ns);setCanDiscard(ns.can_discard===true);setPeople([]);setQuery('');clearCached(cacheKey);setError(ns.processing_status==='failed'?'ARIA could not finish the previous attendance. The session remains locked until processing succeeds.':'');setLoading(false)}return}
-  if(seq===loadSeq.current&&mounted.current){setSession(ns);setCanDiscard(ns.can_discard===true);setNotice('')}
-  const pr=await fetch('/api/attendance/people?session_id='+encodeURIComponent(ns.session_id),{headers:h,cache:'no-store'}); const pd=await readJson(pr);
-  if(!pr.ok)throw Error(pd.error||'Could not load attendance people.');
-  const nextPeople=normalizePeople(pd);
+  const headers={Authorization:'Bearer '+s.access_token};
+  const sessionRes=await fetch('/api/attendance/active-session',{headers,cache:'no-store'});
+  const sessionData=await readJson(sessionRes);
+  if(!sessionRes.ok)throw Error(sessionData.error||'Could not load attendance session.');
+  if(!sessionData.active&&!sessionData.recoverable){
+   if(seq===loadSeq.current&&mounted.current){
+    setSession(null);setCanDiscard(false);setPeople([]);setQuery('');clearCached(cacheKey);setLoading(false);
+   }
+   return;
+  }
+  const normalized=normalizeSession(sessionData);
+  if(!normalized)throw Error('Attendance session response was incomplete.');
+  const live={...normalized,user_id:s.user.id};
+  if(live.status==='closed'){
+   if(live.processing_status==='completed'){
+    if(seq===loadSeq.current&&mounted.current){
+     setSession(null);setCanDiscard(false);setPeople([]);setQuery('');clearCached(cacheKey);setNotice('Attendance saved. ARIA has finished processing. A new session is ready.');setLoading(false);
+    }
+    return;
+   }
+   if(seq===loadSeq.current&&mounted.current){
+    setSession(live);setCanDiscard(live.can_discard===true);setPeople([]);setQuery('');clearCached(cacheKey);
+    setError(live.processing_status==='failed'?'ARIA could not finish the previous attendance. The session remains locked until processing succeeds.':'');
+    setLoading(false);
+   }
+   return;
+  }
+  if(seq===loadSeq.current&&mounted.current)setSession(live);
+  const peopleRes=await fetch('/api/attendance/people?session_id='+encodeURIComponent(live.session_id),{headers,cache:'no-store'});
+  const peopleData=await readJson(peopleRes);
+  if(!peopleRes.ok)throw Error(peopleData.error||'Could not load attendance people.');
   if(seq!==loadSeq.current||!mounted.current)return;
-  setPeople(nextPeople);setCached(cacheKey,{session:ns,people:nextPeople});setLoading(false);
- }catch(e){console.error('[ATTENDANCE]',e);if(seq===loadSeq.current&&mounted.current){setError(String(e?.message||'Could not load attendance.'));setLoading(false)}}
+  const nextPeople=normalizePeople(peopleData);
+  setSession(live);setCanDiscard(live.can_discard===true);setPeople(nextPeople);setCached(cacheKey,{session:live,people:nextPeople});setLoading(false);
+ }catch(e){
+  console.error('[ATTENDANCE] Load error:',e);
+  if(seq===loadSeq.current&&mounted.current){setError(String(e?.message||'Could not load attendance.'));setLoading(false);}
+ }
 },[]);
 useEffect(()=>{if(isOpen)load()},[isOpen,load]);
 
-useEffect(()=>{if(!isOpen)return;const onFocus=()=>load(false);window.addEventListener('focus',onFocus);let cancelled=false,channel=null,timer=null;const refresh=()=>{if(cancelled||timer)return;timer=window.setTimeout(()=>{timer=null;if(!cancelled)load(false)},120)};getClientSession().then(s=>{if(cancelled||!s)return;channel=supabase.channel('attendance-live').on('postgres_changes',{event:'*',schema:'public',table:'sessions'},refresh).on('postgres_changes',{event:'*',schema:'public',table:'attendance_records'},refresh).subscribe()}).catch(()=>{});return()=>{cancelled=true;window.removeEventListener('focus',onFocus);if(timer)window.clearTimeout(timer);if(channel)supabase.removeChannel(channel)}},[isOpen,load]);
+useEffect(()=>{
+ if(!isOpen)return;
+ let cancelled=false,timer=null,channel=null;
+ const refresh=()=>{if(cancelled||timer)return;timer=window.setTimeout(()=>{timer=null;if(!cancelled)load(false)},150);};
+ window.addEventListener('focus',refresh);
+ getClientSession().then(s=>{
+  if(cancelled||!s)return;
+  channel=supabase.channel('attendance-live-'+String(s.user.id))
+   .on('postgres_changes',{event:'*',schema:'public',table:'sessions'},refresh)
+   .on('postgres_changes',{event:'*',schema:'public',table:'attendance_records'},refresh)
+   .subscribe();
+ }).catch(()=>{});
+ return()=>{
+  cancelled=true;
+  window.removeEventListener('focus',refresh);
+  if(timer)window.clearTimeout(timer);
+  if(channel)supabase.removeChannel(channel);
+ };
+},[isOpen,load]);
 
 const createSession=async()=>{
-const name=sessionName.trim();
-if(!name){setError('Enter a name for this attendance session.');return}
-setSaving(true);setError('');setNotice('');
-try{
-const s=await auth();
-if(!s)throw Error('You must be logged in.');
-const r=await fetch('/api/attendance/create-session',{
-method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.access_token}`},body:JSON.stringify({name})
-});
-const d=await readJson(r);
-if(!r.ok||!d.success){if(r.status===409&&d.blocked&&d.session){const blocked=normalizeSession({...d.session,session_id:d.session.id,processing_status:d.session.aria_processing_status,can_discard:d.can_discard===true});if(blocked){setSession({...blocked,user_id:s.user.id});setCanDiscard(blocked.can_discard===true);setPeople([]);setQuery('');setLoading(false);setError(d.error||'This organization is not ready for a new session yet.');return}}throw Error(d.error||'Could not start attendance.')
-setSessionName('');
-const created=normalizeSession({...d.session,session_id:d.session?.id,processing_status:'pending',can_discard:d.can_discard===true});
-if(!created)throw Error('Attendance session response was incomplete.');
-const live={...created,user_id:s.user.id};
-setSession(live);setCanDiscard(live.can_discard===true);setLoading(true);
-const pr=await fetch('/api/attendance/people?session_id='+encodeURIComponent(live.session_id),{headers:{Authorization:`Bearer ${s.access_token}`},cache:'no-store'});
-const pd=await readJson(pr);
-if(!pr.ok)throw Error(pd.error||'Could not load attendance people.');
-const nextPeople=normalizePeople(pd);setPeople(nextPeople);setCached('attendance:'+s.user.id,{session:live,people:nextPeople});setLoading(false);publishDataChange('attendance');
-}catch(e){console.error('[ATTENDANCE] Create error:',e);setError(e.message||'Could not start attendance.')}finally{setSaving(false)}
+ const name=sessionName.trim();
+ if(!name){setError('Enter a name for this attendance session.');return;}
+ setSaving(true);setError('');setNotice('');
+ try{
+  const s=await auth();
+  if(!s)throw Error('You must be logged in.');
+  const response=await fetch('/api/attendance/create-session',{
+   method:'POST',
+   headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.access_token},
+   body:JSON.stringify({name})
+  });
+  const data=await readJson(response);
+  if(!response.ok||!data.success){
+   if(response.status===409&&data.blocked&&data.session){
+    const blocked=normalizeSession({...data.session,session_id:data.session.id,processing_status:data.session.aria_processing_status,can_discard:data.can_discard===true});
+    if(blocked){setSession({...blocked,user_id:s.user.id});setCanDiscard(blocked.can_discard===true);setPeople([]);setQuery('');setLoading(false);setError(data.error||'This organization is not ready for a new session yet.');return;}
+   }
+   throw Error(data.error||'Could not start attendance.');
+  }
+  const created=normalizeSession({...data.session,session_id:data.session?.id,processing_status:data.session?.aria_processing_status||'pending',can_discard:data.can_discard===true});
+  if(!created)throw Error('Attendance session response was incomplete.');
+  const live={...created,user_id:s.user.id};
+  setSessionName('');setSession(live);setCanDiscard(live.can_discard===true);setLoading(true);
+  const peopleRes=await fetch('/api/attendance/people?session_id='+encodeURIComponent(live.session_id),{headers:{Authorization:'Bearer '+s.access_token},cache:'no-store'});
+  const peopleData=await readJson(peopleRes);
+  if(!peopleRes.ok)throw Error(peopleData.error||'Could not load attendance people.');
+  const nextPeople=normalizePeople(peopleData);
+  setPeople(nextPeople);setCached('attendance:'+s.user.id,{session:live,people:nextPeople});setLoading(false);publishDataChange('attendance');
+ }catch(e){
+  console.error('[ATTENDANCE] Create error:',e);setError(e.message||'Could not start attendance.');
+ }finally{setSaving(false);}
 };
 
 const mark=async(id,currentMarked)=>{
-if(!session||session.status!=='active'||closing)return;
-const next=!currentMarked,previous=people;
-setPeople(current=>current.map(p=>p.id===id?{...p,marked:next,marked_by_name:next?'You':null}:p));
-setError('');
-try{
-const s=await auth();
-if(!s)throw Error('You must be logged in.');
-const r=await fetch('/api/attendance/mark',{
-method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.access_token}`},
-body:JSON.stringify({session_id:session.session_id,people_id:id,present:next})
-}); const d=await readJson(r);
-if(!r.ok||!d.success)throw Error(d.error||'Could not update attendance.');
-setPeople(current=>{const next=current.map(p=>p.id===id?{...p,marked:d.present===true,marked_by_name:d.present===true?(d.marked_by_name||'You'):null}:p);const cacheKey='attendance:'+String(session?.user_id||'');const cached=getCached(cacheKey);if(cached)setCached(cacheKey,{...cached,people:next});return next});
-
-}catch(e){console.error('[ATTENDANCE] Mark/unmark error:',e);setPeople(previous);setError(e.message||'Could not update attendance.')}
+ if(!session||session.status!=='active'||closing)return;
+ const next=!currentMarked,previous=people;
+ setPeople(current=>current.map(p=>p.id===id?{...p,marked:next,marked_by_name:next?'You':null}:p));
+ setError('');
+ try{
+  const s=await auth();
+  if(!s)throw Error('You must be logged in.');
+  const response=await fetch('/api/attendance/mark',{
+   method:'POST',
+   headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.access_token},
+   body:JSON.stringify({session_id:session.session_id,people_id:id,present:next})
+  });
+  const data=await readJson(response);
+  if(!response.ok||!data.success)throw Error(data.error||'Could not update attendance.');
+  setPeople(current=>current.map(p=>p.id===id?{...p,marked:data.present===true,marked_by_name:data.present===true?(data.marked_by_name||'You'):null}:p));
+ }catch(e){
+  console.error('[ATTENDANCE] Mark/unmark error:',e);setPeople(previous);setError(e.message||'Could not update attendance.');
+ }
 };
 
 const retryAriaProcessing=async()=>{
-if(!session?.session_id||closing)return;
-setClosing(true);setError('');
-try{
-const s=await auth();
-if(!s)throw Error('You must be logged in.');
-const r=await fetch('/api/attendance/process-session',{
-method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.access_token}`},
-body:JSON.stringify({session_id:session.session_id})
-}); const d=await readJson(r);
-if(!r.ok||!d.success)throw Error(d.error||'Unable to finish ARIA processing.');
-if(d.processing_failed){if(mounted.current){setSession(prev=>prev?{...prev,status:'closed',processing_status:'failed',processing_error:null}:prev);setPeople([]);setError(d.error||'Unable to finish ARIA processing.')}return}
-clearCached('attendance:'+String(session?.user_id||''));publishDataChange('attendance');setPeople([]);setQuery('');setSession(prev=>prev?{...prev,status:'closed',processing_status:'processing',processing_error:null}:prev);
-}catch(e){console.error('[ATTENDANCE] ARIA retry error:',e);setError(e.message||'Unable to finish ARIA processing.')}finally{if(mounted.current)setClosing(false)}
+ if(!session?.session_id||closing)return;
+ setClosing(true);setError('');
+ try{
+  const s=await auth();
+  if(!s)throw Error('You must be logged in.');
+  const response=await fetch('/api/attendance/process-session',{
+   method:'POST',
+   headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.access_token},
+   body:JSON.stringify({session_id:session.session_id})
+  });
+  const data=await readJson(response);
+  if(!response.ok||!data.success)throw Error(data.error||'Unable to finish ARIA processing.');
+  if(data.processing_failed){
+   if(mounted.current){setSession(prev=>prev?{...prev,status:'closed',processing_status:'failed',processing_error:null}:prev);setError(data.error||'Unable to finish ARIA processing.');}
+   return;
+  }
+  clearCached('attendance:'+String(session.user_id||''));setSession(null);setPeople([]);setQuery('');setNotice('ARIA finished processing this attendance. A new session is ready.');publishDataChange('attendance');
+ }catch(e){
+  console.error('[ATTENDANCE] ARIA retry error:',e);setError(e.message||'Unable to finish ARIA processing.');
+ }finally{if(mounted.current)setClosing(false);}
 };
 
 const keepSession=async()=>{
-if(!session||session.status!=='active'||closing)return;
-setClosing(true);setError('');
-try{
-const s=await auth();
-if(!s)throw Error('You must be logged in.');
-const r=await fetch('/api/attendance/close-session',{
-method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.access_token}`},body:JSON.stringify({session_id:session.session_id})
-}); const d=await readJson(r);
-if(d.processing_failed){if(mounted.current){if(d.session)setSession(prev=>prev?{...prev,...d.session,status:d.session.status||'closed',processing_status:d.session.aria_processing_status||'failed',processing_error:null}:prev);setError(d.error||'ARIA could not finish processing this attendance yet.')}return}
-if(!r.ok||!d.success){
-if(d.session)setSession(prev=>prev?{...prev,...d.session,status:d.session.status||'closed',closed_at:d.session.closed_at||null,processing_status:d.session.aria_processing_status||'failed',processing_error:d.session.aria_processing_error||null}:prev);
-throw Error(d.error||'Could not keep this session.');
-}
-clearCached('attendance:'+String(session?.user_id||''));setPeople([]);setQuery('');const saved=d.session?normalizeSession({...d.session,session_id:d.session.id,processing_status:d.session.aria_processing_status}):null;if(saved){setSession({...saved,user_id:s.user.id});setCanDiscard(false);publishDataChange('attendance');return}throw Error('Attendance was saved, but its processing state could not be loaded.')
-}catch(e){console.error('[ATTENDANCE] Keep error:',e);setError(e.message||'Could not keep this session.')}finally{setClosing(false)}
+ if(!session||session.status!=='active'||closing)return;
+ setClosing(true);setError('');setNotice('');
+ try{
+  const s=await auth();
+  if(!s)throw Error('You must be logged in.');
+  const response=await fetch('/api/attendance/close-session',{
+   method:'POST',
+   headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.access_token},
+   body:JSON.stringify({session_id:session.session_id})
+  });
+  const data=await readJson(response);
+  if(data.processing_failed){
+   if(mounted.current){if(data.session)setSession(prev=>prev?{...prev,...data.session,status:data.session.status||'closed',processing_status:data.session.aria_processing_status||'failed',processing_error:null}:prev);setError(data.error||'ARIA could not finish processing this attendance yet.');}
+   return;
+  }
+  if(!response.ok||!data.success){
+   if(data.session)setSession(prev=>prev?{...prev,...data.session,status:data.session.status||'closed',closed_at:data.session.closed_at||null,processing_status:data.session.aria_processing_status||'failed',processing_error:data.session.aria_processing_error||null}:prev);
+   throw Error(data.error||'Could not keep this session.');
+  }
+  const saved=data.session?normalizeSession({...data.session,session_id:data.session.id,processing_status:data.session.aria_processing_status}):null;
+  setPeople([]);setQuery([]);setQuery('');
+  clearCached('attendance:'+String(s.user.id));
+  if(saved&&saved.processing_status!=='completed'){
+   setSession({...saved,user_id:s.user.id});setCanDiscard(false);setLoading(false);publishDataChange('attendance');return;
+  }
+  setSession(null);setCanDiscard(false);setLoading(false);setNotice('Attendance saved. ARIA has finished processing. A new session is ready.');publishDataChange('attendance');
+ }catch(e){
+  console.error('[ATTENDANCE] Keep error:',e);setError(e.message||'Could not keep this session.');
+ }finally{setClosing(false);}
 };
 
 const leaveSession=async()=>{
-if(!session||closing)return;
-if(!window.confirm('Leave this attendance session?\n\nThis will permanently discard this live session and all of its attendance marks. This cannot be undone.'))return;
-setClosing(true);setError('');
-try{
-const s=await auth();
-if(!s)throw Error('You must be logged in.');
-const r=await fetch('/api/attendance/leave-session',{
-method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.access_token}`},body:JSON.stringify({session_id:session.session_id})
-}); const d=await readJson(r);
-if(!r.ok||!d.success)throw Error(d.error||'Could not leave this session.');
-loadSeq.current++;
-clearCached('attendance:'+String(session?.user_id||''));setSession(null);setPeople([]);setQuery('');setError('');
-}catch(e){console.error('[ATTENDANCE] Leave error:',e);setError(e.message||'Could not leave this session.')}finally{setClosing(false)}
+ if(!session||closing)return;
+ if(!window.confirm('Leave this attendance session?\n\nThis will permanently discard this live session and all of its attendance marks. This cannot be undone.'))return;
+ setClosing(true);setError('');
+ try{
+  const s=await auth();
+  if(!s)throw Error('You must be logged in.');
+  const response=await fetch('/api/attendance/leave-session',{
+   method:'POST',
+   headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.access_token},
+   body:JSON.stringify({session_id:session.session_id})
+  });
+  const data=await readJson(response);
+  if(!response.ok||!data.success)throw Error(data.error||'Could not leave this session.');
+  loadSeq.current++;clearCached('attendance:'+String(s.user.id));setSession(null);setPeople([]);setQuery('');setError('');setNotice('Attendance session discarded.');
+ }catch(e){
+  console.error('[ATTENDANCE] Leave error:',e);setError(e.message||'Could not leave this session.');
+ }finally{setClosing(false);}
 };
 
 useEffect(()=>{
-if(!isOpen)return;
-const esc=e=>{if(e.key==='Escape')onClose()};
-document.addEventListener('keydown',esc);
-return()=>document.removeEventListener('keydown',esc);
+ if(!isOpen)return;
+ const esc=e=>{if(e.key==='Escape')onClose()};
+ document.addEventListener('keydown',esc);
+ return()=>document.removeEventListener('keydown',esc);
 },[isOpen,onClose]);
 
 if(!isOpen||typeof document==='undefined')return null;

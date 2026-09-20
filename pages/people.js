@@ -1,7 +1,7 @@
 // pages/people.js
 import{useState,useEffect,useRef,useCallback}from'react';
 import{useRouter}from'next/router';
-import Layout from'../components/Layout';import{openAria}from'../components/AriaCommandCenter';
+import Layout from'../components/Layout';
 import ReviewCenterTab from'../components/ReviewCenterTab';
 import FirstExperience from'../components/FirstExperience';
 import BirthdayPicker from'../components/BirthdayPicker';

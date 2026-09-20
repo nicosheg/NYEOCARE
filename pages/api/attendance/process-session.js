@@ -1,115 +1,79 @@
 // pages/api/attendance/process-session.js
 import pool from '../../../lib/db';
 import { withAdmin } from '../../../lib/apiHelpers';
-import { generateParticipationFromSession } from '../../../lib/aria/participationGenerator';
-import { directAriaEvent } from '../../../lib/aria/director';
-import { emitAriaEvent } from '../../../lib/aria/eventEmitter';
+import { enqueueAttendanceProcessing } from '../../../lib/aria/attendanceQueue';
 
-const failMsg = 'ARIA could not finish processing this attendance yet. The saved session and attendance are preserved, and you can retry safely.';
+const failMsg='ARIA could not be queued for another pass. The saved attendance is preserved; retry again to unlock the next session.';
 
-export default withAdmin(async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+export default withAdmin(async function handler(req,res){
+  if(req.method!=='POST')return res.status(405).json({error:'Method not allowed'});
+  const{session_id}=req.body||{};
+  if(!session_id)return res.status(400).json({error:'session_id is required.'});
 
-  const { session_id } = req.body || {};
-  if (!session_id) return res.status(400).json({ error: 'session_id is required.' });
-
-  const orgId = req.org.id;
-  const client = await pool.connect();
-
-  try {
+  const orgId=req.org.id,userId=req.user.id,client=await pool.connect();
+  try{
     await client.query('BEGIN');
-    await client.query("SELECT pg_advisory_xact_lock(hashtext($1::text))", [orgId]);
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1::text))",[orgId]);
 
-    const s = await client.query(
-      "SELECT id,status,aria_processing_status,aria_processing_started_at FROM sessions " +
-      "WHERE id=$1 AND organization_id=$2 LIMIT 1",
-      [session_id, orgId]
+    const s=await client.query(
+      "SELECT id,status,aria_processing_status,aria_processing_started_at,aria_processing_attempts " +
+      "FROM sessions WHERE id=$1 AND organization_id=$2 LIMIT 1 FOR UPDATE",
+      [session_id,orgId]
     );
-
-    if (!s.rows.length) {
+    if(!s.rows.length){
       await client.query('ROLLBACK');
-      return res.status(404).json({ error: 'Attendance session not found.' });
+      return res.status(404).json({error:'Attendance session not found.'});
     }
-
-    if (s.rows[0].status !== 'closed') {
+    const row=s.rows[0];
+    if(row.status!=='closed'){
       await client.query('ROLLBACK');
-      return res.status(409).json({ error: 'Save the attendance session before processing ARIA.' });
+      return res.status(409).json({error:'Save the attendance session before processing ARIA.'});
     }
-
-    if (s.rows[0].aria_processing_status === 'completed') {
+    if(row.aria_processing_status==='completed'){
       await client.query('COMMIT');
-      return res.status(200).json({ success: true, aria: { session_id, already_processed: true } });
+      return res.status(200).json({success:true,processing_failed:false,aria:{session_id,already_processed:true}});
     }
 
-    const stale =
-      s.rows[0].aria_processing_status === 'processing' &&
-      s.rows[0].aria_processing_started_at &&
-      new Date(s.rows[0].aria_processing_started_at).getTime() < Date.now() - 120000;
+    const stale=row.aria_processing_status==='processing'&&row.aria_processing_started_at&&
+      new Date(row.aria_processing_started_at).getTime()<Date.now()-5*60*1000;
 
-    const claimed = await client.query(
-      "UPDATE sessions SET aria_processing_status='processing'," +
-      "aria_processing_attempts=aria_processing_attempts+1,aria_processing_started_at=NOW()," +
-      "aria_processing_error=NULL,aria_processing_completed_at=NULL " +
-      "WHERE id=$1 AND organization_id=$2 AND (" +
-      "aria_processing_status IN ('pending','failed') OR (" +
-      "aria_processing_status='processing' AND aria_processing_started_at IS NOT NULL " +
-      "AND aria_processing_started_at<NOW()-INTERVAL '2 minutes')) " +
-      "RETURNING id,aria_processing_attempts",
-      [session_id, orgId]
-    );
-
-    if (!claimed.rows.length) {
+    if(row.aria_processing_status==='processing'&&!stale){
       await client.query('ROLLBACK');
-      if (s.rows[0].aria_processing_status === 'processing' && !stale) {
-        return res.status(409).json({ error: 'ARIA is still processing this attendance. Please wait a moment.' });
-      }
-      return res.status(409).json({ error: 'ARIA is already processing this attendance.' });
+      return res.status(202).json({
+        success:true,processing_failed:false,processing_pending:true,queued:false,
+        error:null,aria:{session_id,processing_status:'processing'}
+      });
     }
 
+    await client.query(
+      "UPDATE sessions SET aria_processing_status='pending',aria_processing_error=NULL,aria_processing_completed_at=NULL,aria_processing_started_at=NULL " +
+      "WHERE id=$1 AND organization_id=$2 AND status='closed'",
+      [session_id,orgId]
+    );
     await client.query('COMMIT');
 
-    try {
-      const aria = await generateParticipationFromSession(session_id, orgId);
-
-      await pool.query(
-        "UPDATE sessions SET aria_processing_status='completed',aria_processing_error=NULL,aria_processing_completed_at=NOW() " +
-        "WHERE id=$1 AND organization_id=$2",
-        [session_id, orgId]
-      );
-
-      return res.status(200).json({ success: true, processing_failed: false, aria });
-    } catch (e) {
-      const internal = String(e.message || 'Processing failed').slice(0, 2000);
-      console.error('[ATTENDANCE] Retry ARIA processing:', e);
-
-      await pool.query(
-        "UPDATE sessions SET aria_processing_status='failed',aria_processing_error=$1 " +
-        "WHERE id=$2 AND organization_id=$3",
-        [internal, session_id, orgId]
-      );
-
-      const event = await emitAriaEvent({
-        organizationId: orgId,
-        type: 'ATTENDANCE_PROCESSING_FAILED',
-        source: 'attendance',
-        actorId: req.user.id,
-        metadata: { session_id, error: internal },
-        eventKey: 'attendance:' + session_id + ':aria_failed:retry'
+    try{
+      const queued=await enqueueAttendanceProcessing({organizationId:orgId,sessionId:session_id,actorId:userId});
+      return res.status(202).json({
+        success:true,processing_failed:false,processing_pending:true,queued:true,
+        queue_message_id:queued?.messageId??null,error:null,
+        aria:{session_id,processing_status:'pending'}
       });
-      if (event) await directAriaEvent(event);
-
-      return res.status(200).json({
-        success: true,
-        processing_failed: true,
-        error: failMsg,
-        aria: { session_id, processing_status: 'failed' }
+    }catch(queueError){
+      const internal=String(queueError?.message||failMsg).slice(0,2000);
+      await pool.query(
+        "UPDATE sessions SET aria_processing_status='failed',aria_processing_error=$1 WHERE id=$2 AND organization_id=$3",
+        [internal,session_id,orgId]
+      );
+      console.error('[ATTENDANCE] Retry queue publish failed:',queueError);
+      return res.status(503).json({
+        success:false,processing_failed:true,error:failMsg,
+        aria:{session_id,processing_status:'failed'}
       });
     }
-  } catch (e) {
-    try { await client.query('ROLLBACK'); } catch {}
-    console.error('[ATTENDANCE] Process session error:', e);
-    return res.status(500).json({ error: 'Unable to process this attendance session.' });
-  } finally {
-    client.release();
-  }
+  }catch(e){
+    try{await client.query('ROLLBACK')}catch{}
+    console.error('[ATTENDANCE] Process session queue error:',e);
+    return res.status(500).json({error:'Unable to queue ARIA processing.'});
+  }finally{client.release();}
 });

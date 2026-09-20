@@ -22,7 +22,7 @@ const load=useCallback(async(showLoading=true)=>{
   if(!sr.ok)throw Error(sd.error||'Could not load attendance session.');
   if(!sd.active&&!sd.recoverable){if(seq===loadSeq.current&&mounted.current){setSession(null);setCanDiscard(false);setPeople([]);setQuery('');clearCached(cacheKey);setLoading(false)}return}
   const base=normalizeSession(sd);if(!base)throw Error('Attendance session response was incomplete.');const ns={...base,user_id:s.user.id};
-  if(ns.status==='closed'){if(ns.processing_status==='completed'){if(seq===loadSeq.current&&mounted.current){setSession(null);setCanDiscard(false);setPeople([]);setQuery('');clearCached(cacheKey);setError('');setNotice('Attendance saved. ARIA has finished processing. A new session is ready.');setLoading(false)}return}if(seq===loadSeq.current&&mounted.current){setSession(ns);setCanDiscard(false);setPeople([]);setQuery('');clearCached(cacheKey);setError(ns.processing_status==='failed'?'ARIA could not finish the previous attendance. The session remains locked until processing succeeds.':'');setLoading(false)}return}
+  if(ns.status==='closed'){if(ns.processing_status==='completed'){if(seq===loadSeq.current&&mounted.current){setSession(null);setCanDiscard(false);setPeople([]);setQuery('');clearCached(cacheKey);setError('');setNotice('Attendance saved. ARIA has finished processing. A new session is ready.');setLoading(false)}return}if(seq===loadSeq.current&&mounted.current){setSession(ns);setCanDiscard(ns.can_discard===true);setPeople([]);setQuery('');clearCached(cacheKey);setError(ns.processing_status==='failed'?'ARIA could not finish the previous attendance. The session remains locked until processing succeeds.':'');setLoading(false)}return}
   if(seq===loadSeq.current&&mounted.current){setSession(ns);setCanDiscard(ns.can_discard===true);setNotice('')}
   const pr=await fetch('/api/attendance/people?session_id='+encodeURIComponent(ns.session_id),{headers:h,cache:'no-store'}),pd=await readJson(pr);
   if(!pr.ok)throw Error(pd.error||'Could not load attendance people.');
@@ -45,7 +45,7 @@ if(!s)throw Error('You must be logged in.');
 const r=await fetch('/api/attendance/create-session',{
 method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${s.access_token}`},body:JSON.stringify({name})
 }),d=await readJson(r);
-if(!r.ok||!d.success){if(r.status===409&&d.blocked&&d.session){const blocked=normalizeSession({...d.session,session_id:d.session.id,processing_status:d.session.aria_processing_status,can_discard:d.session.can_discard===true});if(blocked){setSession({...blocked,user_id:s.user.id});setCanDiscard(blocked.can_discard===true);setPeople([]);setQuery('');setLoading(false);setError(d.error||'This organization is not ready for a new session yet.');return}}throw Error(d.error||'Could not start attendance.')
+if(!r.ok||!d.success){if(r.status===409&&d.blocked&&d.session){const blocked=normalizeSession({...d.session,session_id:d.session.id,processing_status:d.session.aria_processing_status,can_discard:d.can_discard===true});if(blocked){setSession({...blocked,user_id:s.user.id});setCanDiscard(blocked.can_discard===true);setPeople([]);setQuery('');setLoading(false);setError(d.error||'This organization is not ready for a new session yet.');return}}throw Error(d.error||'Could not start attendance.')
 setSessionName('');
 const created=normalizeSession({...d.session,session_id:d.session?.id,processing_status:'pending',can_discard:d.can_discard===true});
 if(!created)throw Error('Attendance session response was incomplete.');
@@ -145,7 +145,7 @@ const content=<div style={overlay} onMouseDown={e=>{if(e.target===e.currentTarge
 <button style={close} onClick={onClose} aria-label="Close attendance">×</button>
 </header>
 {notice&&<div style={noticeBox}>{notice}</div>}
-{error&&<div style={errorBox}><span>{error}</span>{ariaProcessingFailed?<button style={retry} disabled={closing} onClick={retryAriaProcessing}>{closing?'Retrying...':'Retry processing'}</button>:<button style={retry} onClick={()=>load()}>Try again</button>}</div>}
+{error&&<div style={errorBox}><span>{error}</span>{ariaProcessingFailed&&canDiscard?<button style={retry} disabled={closing} onClick={retryAriaProcessing}>{closing?'Retrying...':'Retry processing'}</button>:!ariaProcessingFailed&&<button style={retry} onClick={()=>load()}>Try again</button>}</div>}
 {loading?<div style={loadingBox}>Preparing attendance...</div>:!session?<div style={createBox}>
 <div style={plus}>＋</div><strong style={{fontSize:20}}>Start a new session</strong>
 <span style={sub}>Every previous attendance session must finish processing before another can begin.</span>
@@ -161,7 +161,7 @@ const content=<div style={overlay} onMouseDown={e=>{if(e.target===e.currentTarge
 <div style={pipelineRow}><b style={pipelineDotPending}></b><span>Session intelligence finalized</span></div>
 </div>
 <div style={processingStatus}><i/>{ariaProcessing?'Processing in background · this session stays locked until complete':'Processing stopped · a new session is still locked'}</div>
-{ariaProcessingFailed&&<button style={primary} disabled={closing} onClick={retryAriaProcessing}>{closing?'Retrying...':'Retry ARIA processing'}</button>}
+{ariaProcessingFailed&&canDiscard&&<button style={primary} disabled={closing} onClick={retryAriaProcessing}>{closing?'Retrying...':'Retry ARIA processing'}</button>}
 </div>:<>
 <div style={stats}>
 <div><strong style={big}>{present}</strong><span style={label}>present</span></div><div style={divider}/>

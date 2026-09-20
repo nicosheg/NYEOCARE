@@ -7,3 +7,4 @@ assert.doesNotMatch(people,/updates\.push\(\`type=\$\{n\+\+\}\`\)/);
 assert.match(resolve,/metadata=metadata\|\|\$8::jsonb/);
 assert.match(resolve,/metadata=metadata\|\|\$3::jsonb/);
 console.log('NYEOCARE persistence regression checks passed.');
+

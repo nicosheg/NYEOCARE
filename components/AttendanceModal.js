@@ -24,7 +24,7 @@ const load=useCallback(async(showLoading=true)=>{
   const base=normalizeSession(sd);if(!base)throw Error('Attendance session response was incomplete.');const ns={...base,user_id:s.user.id};
   if(ns.status==='closed'){if(ns.processing_status==='completed'){if(seq===loadSeq.current&&mounted.current){setSession(null);setCanDiscard(false);setPeople([]);setQuery('');clearCached(cacheKey);setError('');setNotice('Attendance saved. ARIA has finished processing. A new session is ready.');setLoading(false)}return}if(seq===loadSeq.current&&mounted.current){setSession(ns);setCanDiscard(ns.can_discard===true);setPeople([]);setQuery('');clearCached(cacheKey);setError(ns.processing_status==='failed'?'ARIA could not finish the previous attendance. The session remains locked until processing succeeds.':'');setLoading(false)}return}
   if(seq===loadSeq.current&&mounted.current){setSession(ns);setCanDiscard(ns.can_discard===true);setNotice('')}
-  const pr=await fetch('/api/attendance/people?session_id='+encodeURIComponent(ns.session_id),{headers:h,cache:'no-store'}),pd=await readJson(pr);
+  const pr=await fetch('/api/attendance/people?session_id='+encodeURIComponent(ns.session_id),{headers:h,cache:'no-store'}); const pd=await readJson(pr);
   if(!pr.ok)throw Error(pd.error||'Could not load attendance people.');
   const nextPeople=normalizePeople(pd);
   if(seq!==loadSeq.current||!mounted.current)return;

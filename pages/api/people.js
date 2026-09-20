@@ -65,18 +65,13 @@ if(req.method==='GET'){
      LEFT JOIN latest_scan ls ON TRUE
      WHERE ${where.join(' AND ')}
    )
-   SELECT r.*,lc.last_contacted
+   SELECT r.id,r.first_name,r.last_name,r.display_name,r.phone,r.email,r.type,r.birthday,r.living_truth,r.last_attended_date,r.new_from_latest_scan,r.new_rank,r.truth_rank,r.sort_name
    FROM ranked r
-   LEFT JOIN LATERAL(
-     SELECT pc.occurred_at AS last_contacted
-     FROM person_communications pc
-     WHERE pc.organization_id=r.organization_id AND pc.person_id=r.id
-     ORDER BY pc.occurred_at DESC NULLS LAST
-     LIMIT 1
-   ) lc ON TRUE
+   WHERE ${cursorClause||'TRUE'}
    ORDER BY r.new_rank,r.truth_rank,r.sort_name,r.id
    LIMIT ${limit+1}`;
-  const result=await pool.query(sql,values);
+  const actualValues=cursor?[...values,cursor.new_rank,cursor.truth_rank,cursor.sort_name,cursor.id]:values;
+  const result=await pool.query(sql,actualValues);
   const hasMore=result.rows.length>limit;
   const items=result.rows.slice(0,limit);
   const last=items[items.length-1];

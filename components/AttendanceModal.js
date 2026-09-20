@@ -206,9 +206,9 @@ const mark=async(id,currentMarked)=>{
 
 const retryAriaProcessing=async()=>{
  if(!session?.session_id||closing)return;
- setClosing(true);setError('');
+ setClosing(true);setError('');setNotice('');
  try{
-  const s=await auth();
+  const s=await getClientSession();
   if(!s)throw Error('You must be logged in.');
   const response=await fetch('/api/attendance/process-session',{
    method:'POST',
@@ -216,14 +216,14 @@ const retryAriaProcessing=async()=>{
    body:JSON.stringify({session_id:session.session_id})
   });
   const data=await readJson(response);
-  if(!response.ok||!data.success)throw Error(data.error||'Unable to finish ARIA processing.');
-  if(data.processing_failed){
-   if(mounted.current){setSession(prev=>prev?{...prev,status:'closed',processing_status:'failed',processing_error:null}:prev);setError(data.error||'Unable to finish ARIA processing.');}
-   return;
-  }
-  clearCached('attendance:'+String(session.user_id||''));setSession(null);setPeople([]);setQuery('');setNotice('ARIA finished processing this attendance. A new session is ready.');publishDataChange('attendance');
+  if(!response.ok||!data.success)throw Error(data.error||'Unable to queue ARIA processing.');
+  setSession(prev=>prev?{...prev,status:'closed',processing_status:data.aria?.processing_status||'pending',processing_error:null}:prev);
+  setPeople([]);setPeopleCursor(null);setPeopleHasMore(false);
+  setNotice('ARIA is processing this saved attendance in the background.');
+  publishDataChange('attendance');
  }catch(e){
-  console.error('[ATTENDANCE] ARIA retry error:',e);setError(e.message||'Unable to finish ARIA processing.');
+  console.error('[ATTENDANCE] ARIA retry error:',e);
+  if(mounted.current)setError(e.message||'Unable to queue ARIA processing.');
  }finally{if(mounted.current)setClosing(false);}
 };
 
@@ -231,7 +231,7 @@ const keepSession=async()=>{
  if(!session||session.status!=='active'||closing)return;
  setClosing(true);setError('');setNotice('');
  try{
-  const s=await auth();
+  const s=await getClientSession();
   if(!s)throw Error('You must be logged in.');
   const response=await fetch('/api/attendance/close-session',{
    method:'POST',
@@ -239,24 +239,20 @@ const keepSession=async()=>{
    body:JSON.stringify({session_id:session.session_id})
   });
   const data=await readJson(response);
-  if(data.processing_failed){
-   if(mounted.current){if(data.session)setSession(prev=>prev?{...prev,...data.session,status:data.session.status||'closed',processing_status:data.session.aria_processing_status||'failed',processing_error:null}:prev);setError(data.error||'ARIA could not finish processing this attendance yet.');}
-   return;
-  }
   if(!response.ok||!data.success){
-   if(data.session)setSession(prev=>prev?{...prev,...data.session,status:data.session.status||'closed',closed_at:data.session.closed_at||null,processing_status:data.session.aria_processing_status||'failed',processing_error:data.session.aria_processing_error||null}:prev);
-   throw Error(data.error||'Could not keep this session.');
+   if(data.session)setSession(prev=>prev?{...prev,...data.session,status:data.session.status||'closed',processing_status:data.session.aria_processing_status||'failed',processing_error:data.session.aria_processing_error||null}:prev);
+   throw Error(data.error||'Could not save this session.');
   }
   const saved=data.session?normalizeSession({...data.session,session_id:data.session.id,processing_status:data.session.aria_processing_status}):null;
-  setPeople([]);setQuery('');setPeopleCursor(null);setPeopleHasMore(false);
+  if(!saved)throw Error('Attendance save response was incomplete.');
+  peopleReady.current=false;setPeople([]);setQuery('');setPeopleCursor(null);setPeopleHasMore(false);
   clearCached('attendance:'+String(s.user.id));
-  if(saved&&saved.processing_status!=='completed'){
-   setSession({...saved,user_id:s.user.id});setCanDiscard(false);setLoading(false);publishDataChange('attendance');return;
-  }
-  setSession(null);setCanDiscard(false);setLoading(false);setNotice('Attendance saved. ARIA has finished processing. A new session is ready.');publishDataChange('attendance');
+  setSession({...saved,user_id:s.user.id});setCanDiscard(false);setLoading(false);
+  setNotice('Attendance saved. ARIA is finalizing it in the background.');
+  publishDataChange('attendance');
  }catch(e){
-  console.error('[ATTENDANCE] Keep error:',e);setError(e.message||'Could not keep this session.');
- }finally{setClosing(false);}
+  console.error('[ATTENDANCE] Keep error:',e);setError(e.message||'Could not save this session.');
+ }finally{if(mounted.current)setClosing(false);}
 };
 
 const leaveSession=async()=>{
@@ -280,6 +276,36 @@ const leaveSession=async()=>{
 };
 
 useEffect(()=>{
+ if(!isOpen||!session||session.status!=='closed'||!['pending','processing'].includes(session.processing_status))return;
+ let cancelled=false,timer=null;
+ const poll=async()=>{
+  try{
+   const s=await getClientSession();
+   if(!s)throw Error('You must be logged in.');
+   const response=await fetch('/api/attendance/active-session',{headers:{Authorization:'Bearer '+s.access_token},cache:'no-store'});
+   const data=await readJson(response);
+   if(!response.ok)throw Error(data.error||'Could not refresh ARIA processing.');
+   if(cancelled)return;
+   if(data.recoverable&&String(data.session_id)===String(session.session_id)){
+    const next=normalizeSession(data);
+    if(next){
+     setSession(prev=>prev?{...prev,...next}:next);
+     if(next.processing_status==='failed')setError(next.processing_error||'ARIA needs another pass.');
+    }
+   }else if(!data.active&&!data.recoverable){
+    clearCached('attendance:'+s.user.id);
+    setSession(null);setPeople([]);setPeopleCursor(null);setPeopleHasMore(false);
+    setError('');setNotice('Attendance saved. ARIA has finished processing. A new session is ready.');
+    publishDataChange('attendance');return;
+   }
+  }catch(e){if(!cancelled)console.error('[ATTENDANCE] Processing status refresh:',e);}
+  if(!cancelled)timer=window.setTimeout(poll,1200);
+ };
+ poll();
+ return()=>{cancelled=true;if(timer)window.clearTimeout(timer);};
+},[isOpen,session?.session_id,session?.status,session?.processing_status]);
+
+useEffect(()=>{
  if(!isOpen)return;
  const esc=e=>{if(e.key==='Escape')onClose()};
  document.addEventListener('keydown',esc);
@@ -290,12 +316,12 @@ if(!isOpen||typeof document==='undefined')return null;
 
 const q=String(query||'').toLowerCase().trim(),visible=people.filter(p=>[p.first_name,p.last_name,p.phone].filter(Boolean).join(' ').toLowerCase().includes(q));
 const present=presentCount,percentage=peopleTotal?Math.round(present/peopleTotal*100):0;
-const ariaProcessingFailed=Boolean(session?.status==='closed'&&session?.processing_status==='failed'),ariaProcessing=Boolean(session?.status==='closed'&&session?.processing_status==='processing');
+const ariaProcessingFailed=Boolean(session?.status==='closed'&&session?.processing_status==='failed'),ariaProcessing=Boolean(session?.status==='closed'&&['pending','processing'].includes(session?.processing_status));
 
 const content=<div style={overlay} onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}>
 <div style={modal} role="dialog" aria-modal="true" aria-label="Live attendance">
 <header style={header}>
-<div><div style={eyebrow}>{session?'LIVE ATTENDANCE':'ATTENDANCE'}</div><h2 style={h2}>{session?.name||'New attendance session'}</h2><p style={sub}>{session?(session.status==='closed'?(session.processing_status==='failed'?'Attendance saved. ARIA needs another pass.':'Attendance saved. ARIA is processing it now.'):'Tap a person when you see them.'):'Create a session to begin taking attendance.'}</p></div>
+<div><div style={eyebrow}>{session?'LIVE ATTENDANCE':'ATTENDANCE'}</div><h2 style={h2}>{session?.name||'New attendance session'}</h2><p style={sub}>{session?(session.status==='closed'?(session.processing_status==='failed'?'Attendance saved. ARIA needs another pass.':'Attendance saved. ARIA is finishing it in the background.'):'Tap a person when you see them.'):'Create a session to begin taking attendance.'}</p></div>
 <button style={close} onClick={onClose} aria-label="Close attendance">×</button>
 </header>
 {notice&&<div style={noticeBox}>{notice}</div>}

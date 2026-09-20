@@ -18,19 +18,23 @@ root.style.setProperty('--ny-environment-time',`'${time}'`);root.style.setProper
 };
 const updateTime=()=>apply(timeState(),document.documentElement.dataset.nyeoWeather||'unknown',document.documentElement.dataset.nyeoWeatherStatus||'unknown',document.documentElement.dataset.nyeoTemperature||null);
 const getWeather=()=>{
+if(weatherInFlight||Date.now()-lastWeatherAttempt<15000)return;
+try{const saved=sessionStorage.getItem(WEATHER_KEY);if(saved){const d=JSON.parse(saved);if(d&&Date.now()-Number(d.at)<3600000){apply(timeState(),d.weather||'unknown','ready',d.temperature);return}}}catch{}
 if(!navigator.geolocation){apply(timeState(),'unknown','unavailable');return}
+weatherInFlight=true;lastWeatherAttempt=Date.now();
 apply(timeState(),document.documentElement.dataset.nyeoWeather||'unknown','requesting',document.documentElement.dataset.nyeoTemperature||null);
+const finish=()=>{weatherInFlight=false};
 navigator.geolocation.getCurrentPosition(async pos=>{
 if(!alive)return;
 try{
 const{latitude,longitude}=pos.coords,r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&timezone=auto`);
-if(!r.ok){apply(timeState(),'unknown','unavailable');return}
-const d=await r.json();if(!alive)return;apply(timeState(),weatherState(d.current?.weather_code),'ready',d.current?.temperature_2m);
-}catch{if(alive)apply(timeState(),'unknown','unavailable')}
-},()=>{if(alive)apply(timeState(),'unknown','unavailable')},{enableHighAccuracy:false,maximumAge:3600000,timeout:7000});
+if(!r.ok){apply(timeState(),'unknown','unavailable');finish();return}
+const d=await r.json();if(!alive){finish();return}const weather=weatherState(d.current?.weather_code),temperature=d.current?.temperature_2m;apply(timeState(),weather,'ready',temperature);try{sessionStorage.setItem(WEATHER_KEY,JSON.stringify({at:Date.now(),weather,temperature}))}catch{}finish();
+}catch{if(alive)apply(timeState(),'unknown','unavailable');finish()}
+},()=>{if(alive)apply(timeState(),'unknown','unavailable');finish()},{enableHighAccuracy:false,maximumAge:3600000,timeout:7000});
 };
-const update=()=>{updateTime();getWeather()};
-updateTime();
+const update=()=>updateTime();
+update();
 const scheduleWeather=()=>{if(typeof window.requestIdleCallback==='function')window.requestIdleCallback(()=>getWeather(),{timeout:3000});else setTimeout(()=>getWeather(),1500)};
 scheduleWeather();
 const timeTimer=setInterval(updateTime,60000),weatherTimer=setInterval(getWeather,3600000);

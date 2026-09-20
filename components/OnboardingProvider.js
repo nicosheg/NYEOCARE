@@ -41,7 +41,7 @@ export function OnboardingProvider({children}){
   });
   return()=>{active=false;subscription.unsubscribe()};
  },[load,reset]);
- const completeExperience=useCallback(async experience=>{if(!experience)return false;setState(prev=>({...prev,experienced:{...prev.experienced,[experience]:true}}));return true},[]);
+ const completeExperience=useCallback(async experience=>{if(!experience)return false;setState(prev=>{const experienced={...prev.experienced,[experience]:true};const next={...prev,experienced};if(mounted.current){try{const sessionPromise=getClientSession();sessionPromise.then(session=>{if(!session)return;fetch('/api/onboarding',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},body:JSON.stringify({action:'experience_completed',experience})}).then(r=>r.ok?r.json():null).then(data=>{if(data?.onboarding?.experienced){cache.set(String(session.user.id),{state:{...next,experienced:data.onboarding.experienced},at:Date.now()})}}).catch(()=>{})}).catch(()=>{})}catch{}}return next});return true},[]);
  const isExperienced=useCallback(experience=>state.experienced?.[experience]===true,[state.experienced]);
  return <OnboardingContext.Provider value={{...state,isExperienced,completeExperience,reload:load}}>{children}</OnboardingContext.Provider>;
 }

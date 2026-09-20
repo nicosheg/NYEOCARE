@@ -109,7 +109,7 @@ export default withOrg(async function handler(req,res){
       [orgId,peopleIds]
     );
 
-    if(Number(validCount.rows[0]?.count)||0!==peopleIds.length){
+    if((Number(validCount.rows[0]?.count)||0)!==peopleIds.length){
       // Keep the section atomic: an invalid person must not leave a partial submission.
       await client.query('ROLLBACK');
       return res.status(403).json({

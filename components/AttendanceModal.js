@@ -4,10 +4,38 @@ import{createPortal}from'react-dom';
 import{getClientSession}from'../lib/clientSession';import{getCached,setCached,clearCached,publishDataChange}from'../lib/appData';import{supabase}from'../lib/supabaseClient';
 
 export default function AttendanceModal({isOpen,onClose}){
-const[session,setSession]=useState(null),[canDiscard,setCanDiscard]=useState(false),[people,setPeople]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[closing,setClosing]=useState(false),[error,setError]=useState(''),[query,setQuery]=useState(''),[sessionName,setSessionName]=useState(''),[notice,setNotice]=useState('');const mounted=useRef(false),loadSeq=useRef(0);
+const[session,setSession]=useState(null),[canDiscard,setCanDiscard]=useState(false),[people,setPeople]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[closing,setClosing]=useState(false),[error,setError]=useState(''),[query,setQuery]=useState(''),[sessionName,setSessionName]=useState(''),[notice,setNotice]=useState(''),[peopleCursor,setPeopleCursor]=useState(null),[peopleHasMore,setPeopleHasMore]=useState(false),[peopleTotal,setPeopleTotal]=useState(0),[presentCount,setPresentCount]=useState(0),[peopleLoadingMore,setPeopleLoadingMore]=useState(false);const mounted=useRef(false),loadSeq=useRef(0),peopleSeq=useRef(0),peopleReady=useRef(false);
 const auth=async()=>getClientSession();
 useEffect(()=>{mounted.current=true;return()=>{mounted.current=false}},[]);
-const finishClose=()=>{if(!mounted.current)return;setSession(null);setPeople([]);setQuery('');onClose()};
+const finishClose=()=>{if(!mounted.current)return;peopleReady.current=false;setSession(null);setPeople([]);setQuery('');onClose()};
+
+const fetchPeoplePage=useCallback(async(liveSession,searchText='',cursor=null,append=false)=>{
+ const s=await getClientSession();
+ if(!s)throw Error('You must be logged in.');
+ const params=new URLSearchParams({session_id:String(liveSession.session_id),limit:'80'});
+ if(searchText.trim())params.set('q',searchText.trim());
+ if(cursor)params.set('cursor',cursor);
+ const response=await fetch('/api/attendance/people?'+params.toString(),{headers:{Authorization:'Bearer '+s.access_token},cache:'no-store'});
+ const data=await readJson(response);
+ if(!response.ok)throw Error(data.error||'Could not load attendance people.');
+ const nextPeople=normalizePeople(data);
+ if(!append){
+  setPeople(nextPeople);setPeopleCursor(data.next_cursor||null);setPeopleHasMore(data.has_more===true);
+  setPeopleTotal(Number(data.organization_total)||0);setPresentCount(Number(data.present_count)||0);
+  setCached('attendance:'+s.user.id,{session:{...liveSession,user_id:s.user.id},people:nextPeople});
+  peopleReady.current=true;
+ }else{
+  setPeople(current=>{
+   const byId=new Map(current.map(p=>[p.id,p]));
+   nextPeople.forEach(p=>byId.set(p.id,p));
+   const merged=[...byId.values()];
+   setCached('attendance:'+s.user.id,{session:{...liveSession,user_id:s.user.id},people:merged});
+   return merged;
+  });
+  setPresentCount(Number(data.present_count)||0);setPeopleCursor(data.next_cursor||null);setPeopleHasMore(data.has_more===true);
+ }
+ return data;
+},[]);
 
 const load=useCallback(async(showLoading=true)=>{
  const seq=++loadSeq.current;
@@ -31,7 +59,7 @@ const load=useCallback(async(showLoading=true)=>{
   if(!sessionRes.ok)throw Error(sessionData.error||'Could not load attendance session.');
   if(!sessionData.active&&!sessionData.recoverable){
    if(seq===loadSeq.current&&mounted.current){
-    setSession(null);setCanDiscard(false);setPeople([]);setQuery('');clearCached(cacheKey);setLoading(false);
+    peopleReady.current=false;setSession(null);setCanDiscard(false);setPeople([]);setQuery('');setPeopleCursor(null);setPeopleHasMore(false);clearCached(cacheKey);setLoading(false);
    }
    return;
   }
@@ -53,12 +81,11 @@ const load=useCallback(async(showLoading=true)=>{
    return;
   }
   if(seq===loadSeq.current&&mounted.current)setSession(live);
-  const peopleRes=await fetch('/api/attendance/people?session_id='+encodeURIComponent(live.session_id),{headers,cache:'no-store'});
-  const peopleData=await readJson(peopleRes);
-  if(!peopleRes.ok)throw Error(peopleData.error||'Could not load attendance people.');
   if(seq!==loadSeq.current||!mounted.current)return;
-  const nextPeople=normalizePeople(peopleData);
-  setSession(live);setCanDiscard(live.can_discard===true);setPeople(nextPeople);setCached(cacheKey,{session:live,people:nextPeople});setLoading(false);
+  setSession(live);setCanDiscard(live.can_discard===true);peopleReady.current=false;peopleSeq.current++;
+  await fetchPeoplePage(live,'',null,false);
+  if(seq!==loadSeq.current||!mounted.current)return;
+  setLoading(false);
  }catch(e){
   console.error('[ATTENDANCE] Load error:',e);
   if(seq===loadSeq.current&&mounted.current){setError(String(e?.message||'Could not load attendance.'));setLoading(false);}

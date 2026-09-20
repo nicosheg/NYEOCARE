@@ -3,9 +3,9 @@
 // IMPORTANT: session_sections is the canonical section table. Do NOT use attendance_groups.
 
 import pool from '../../../lib/db';
-import { withOrg } from '../../../lib/apiHelpers';
+import { withAdmin } from '../../../lib/apiHelpers';
 
-export default withOrg(async function handler(req, res) {
+export default withAdmin(async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'Method not allowed' });

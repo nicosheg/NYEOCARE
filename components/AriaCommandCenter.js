@@ -58,7 +58,7 @@ export default function AriaCommandCenter(){
   }catch(e){if(mounted.current)setError(e?.name==='AbortError'?'ARIA took too long to answer. Your data is safe; try the question again.':e?.message||'ARIA could not answer that right now.')}
   finally{window.clearTimeout(timeout);if(mounted.current){setSending(false);setThinking(0)}}
  };
- const newConversation=()=>{setMessages([]);setConversationId(null);setError('');try{localStorage.removeItem(storageKey(''))}catch{}};
+ const newConversation=async()=>{setMessages([]);setConversationId(null);setError('');try{const session=await getClientSession();if(session)localStorage.removeItem(storageKey(session.user.id))}catch{}};
 
  if(!ready)return null;
  const list=messages.slice(-12),promptSuggestions=suggestions[context]||suggestions.home;

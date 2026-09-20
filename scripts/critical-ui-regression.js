@@ -77,3 +77,4 @@ if(missingAttendanceStyles.length||missingHomeStyles.length||forbiddenFound.leng
  process.exit(1);
 }
 console.log('[CRITICAL UI] Performance + canonical architecture regression guards passed.');
+

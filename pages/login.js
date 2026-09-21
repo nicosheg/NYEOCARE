@@ -1,7 +1,7 @@
 // pages/login.js
 import{useEffect,useRef,useState}from'react';
 import{useRouter}from'next/router';
-import{supabase}from'../lib/supabaseClient';
+import{supabase}from'../lib/supabaseClient';import{refreshClientSession}from'../lib/clientSession';
 
 function PasswordRequirement({ok,text}){return <span className={`password-requirement ${ok?'ok':''}`}><span className="requirement-dot" aria-hidden="true">{ok?'✓':''}</span>{text}</span>}
 

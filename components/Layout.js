@@ -34,4 +34,24 @@ html[data-nyeo-time="morning"] .navItem.sel::before,html[data-nyeo-time="afterno
 .navGlass{animation:navFloat 8.5s ease-in-out infinite;will-change:transform}
 @keyframes navFloat{0%,100%{transform:translate3d(0,0,0)}50%{transform:translate3d(0,-2.5px,0)}}
 @media(prefers-reduced-motion:reduce){.navGlass{animation:none!important}}
+/* compact signature navigation — same living material, ~23% smaller without shrinking touchability below a practical target */
+.navGlass{width:170px!important;height:57px!important;filter:drop-shadow(0 14px 28px rgba(0,0,0,.34))!important}
+.opalNav{height:72px!important}
+.navItem{top:2px!important;width:52px!important;height:52px!important}
+.n1{left:2px!important}.n2{left:58px!important;width:57px!important;height:57px!important;top:0!important}.n3{right:2px!important}
+.navItem svg{width:18px!important;height:18px!important}.n2 svg{width:21px!important;height:21px!important}
+.navItem span{top:53px!important;font-size:8px!important}
+.activeGlow{width:55px!important;height:55px!important;left:0!important;top:0!important}
+.homeActive .activeGlow{left:0!important}
+.peopleActive .activeGlow{left:59px!important;width:58px!important;height:58px!important;top:-1px!important}
+.profileActive .activeGlow{left:114px!important}
+@media(max-width:480px){
+ .navGlass{width:168px!important;height:56px!important}
+ .opalNav{top:8px!important;height:66px!important}
+ .navItem{width:50px!important;height:50px!important;top:2px!important}
+ .n1{left:2px!important}.n2{left:57px!important;width:54px!important;height:54px!important;top:0!important}.n3{right:2px!important}
+ .navItem svg{width:17px!important;height:17px!important}.n2 svg{width:20px!important;height:20px!important}
+ .navItem span{top:51px!important;font-size:8px!important}
+ .activeGlow{width:52px!important;height:52px!important}.peopleActive .activeGlow{left:58px!important;width:56px!important;height:56px!important}.profileActive .activeGlow{left:114px!important}
+}
 `}</style></>}

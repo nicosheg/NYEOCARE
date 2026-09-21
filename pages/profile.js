@@ -4,7 +4,7 @@ import{useRouter}from'next/router';
 import Layout from'../components/Layout';
 import FirstExperience from'../components/FirstExperience';
 import{useOnboarding}from'../components/OnboardingProvider';
-import{supabase}from'../lib/supabaseClient';import{getClientSession}from'../lib/clientSession';import{getCached,setCached,cacheAge,publishDataChange}from'../lib/appData';import{openAria}from'../components/AriaCommandCenter';
+import{supabase}from'../lib/supabaseClient';import{getClientSession,refreshClientSession}from'../lib/clientSession';import{getCached,setCached,cacheAge,publishDataChange}from'../lib/appData';import{openAria}from'../components/AriaCommandCenter';
 
 const roleLabel=r=>r==='owner'?'Owner':r==='admin'?'Admin':'User';
 
@@ -36,8 +36,13 @@ const load=async()=>{
   if(!session)return router.replace('/login');
   const key='profile:'+session.user.id,cached=getCached(key);
   if(cached){setProfile(cached.profile);setName(cached.profile?.organization?.name||'');setUserName(cached.profile?.user?.name||'');setAria(cached.profile?.organization?.aria_instructions||'');setUsers(cached.users||[]);setLoading(false);if(cacheAge(key)<15000)return}
-  const r=await fetch('/api/profile/bootstrap',{headers:{Authorization:'Bearer '+session.access_token},cache:'no-store'});
-  if(r.status===401)return router.replace('/login');
+  let r=await fetch('/api/profile/bootstrap',{headers:{Authorization:'Bearer '+session.access_token},cache:'no-store'});
+  if(r.status===401){
+   const recovered=await refreshClientSession().catch(()=>null);
+   if(!recovered)return router.replace('/login');
+   r=await fetch('/api/profile/bootstrap',{headers:{Authorization:'Bearer '+recovered.access_token},cache:'no-store'});
+   if(r.status===401)return router.replace('/login');
+  }
   if(!r.ok)throw Error('Unable to load profile.');
   const d=await r.json();
   const profileData={user:d.user,organization:d.organization};

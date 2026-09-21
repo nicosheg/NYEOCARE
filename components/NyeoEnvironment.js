@@ -60,15 +60,7 @@ html[data-nyeo-weather="storm"] .skyVignette{background:linear-gradient(to botto
 html[data-nyeo-time="night"] .skyVignette{background:linear-gradient(to bottom,rgba(2,5,12,.18),rgba(2,5,12,.34)),radial-gradient(ellipse at center,transparent 38%,rgba(2,5,12,.5) 100%)}
 html[data-nyeo-time="dawn"] .ariaBrand,html[data-nyeo-time="evening"] .ariaBrand{text-shadow:0 0 22px rgba(214,184,106,.08),0 0 54px rgba(143,175,214,.05)}html[data-nyeo-time="night"] .ariaBrand{opacity:.7}
 
-.mainContent main>button{border-radius:24px!important;border:1px solid rgba(255,255,255,.22)!important;background:linear-gradient(145deg,rgba(255,255,255,.2),rgba(255,255,255,.075))!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.28),inset 0 -12px 28px rgba(30,65,92,.12),0 18px 42px rgba(17,48,69,.2)!important;backdrop-filter:blur(24px) saturate(130%)!important;-webkit-backdrop-filter:blur(24px) saturate(130%)!important;transition:transform .3s cubic-bezier(.2,.8,.2,1),box-shadow .3s ease,border-color .3s ease!important}
-.mainContent main>button:hover{transform:translateY(-2px)!important;border-color:rgba(255,255,255,.3)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.34),inset 0 -14px 30px rgba(30,65,92,.12),0 22px 48px rgba(17,48,69,.24)!important}
-.mainContent main>button:active{transform:scale(.985)!important}
-.mainContent main>section:nth-of-type(2) button span:first-child,.mainContent main>section:nth-of-type(2) button>b{display:none!important}
-.mainContent main>section:nth-of-type(2) button{height:58px!important;border-radius:21px!important;border:1px solid rgba(255,255,255,.2)!important;background:linear-gradient(145deg,rgba(255,255,255,.18),rgba(255,255,255,.055))!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),inset 0 -8px 20px rgba(23,59,83,.1),0 12px 30px rgba(16,48,69,.16)!important;color:rgba(250,252,255,.94)!important;font-size:12px!important;letter-spacing:.01em!important;backdrop-filter:blur(20px) saturate(135%)!important;-webkit-backdrop-filter:blur(20px) saturate(135%)!important;transition:transform .25s ease,border-color .25s ease,background .25s ease,box-shadow .25s ease!important}
-.mainContent main>section:nth-of-type(2) button:active{transform:scale(.97)!important}
-.mainContent main>section:nth-of-type(2) button:hover{background:linear-gradient(145deg,rgba(255,255,255,.24),rgba(255,255,255,.075))!important;border-color:rgba(255,255,255,.3)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.3),inset 0 -9px 22px rgba(23,59,83,.1),0 16px 34px rgba(16,48,69,.2)!important}
-.mainContent main>section:nth-of-type(2) button:nth-child(2){color:rgba(241,250,246,.96)!important}
-.mainContent main>section:nth-of-type(2) button:nth-child(3){color:rgba(255,247,225,.97)!important}
+
 @media(prefers-reduced-motion:reduce){html .livingCanvas *,html .ariaBrand{animation:none!important}}
 `}</style>;
 }

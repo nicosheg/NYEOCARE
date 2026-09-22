@@ -1257,3 +1257,35 @@ The completion-safe pipeline must also fail safely when all bounded continuation
 ### 25.6.1 Release status
 
 The completion-safety implementation is merged into `main` at commit `c22a624aca2bfec304d326ff48ce0cccf2aeec46`. Production release verification remains part of the release contract: the deployed production alias must serve this commit before the incident is considered closed.
+
+## 25.6.3 ARIA confirmed-action behavior
+
+ARIA conversation may move from understanding to a consequential action, but **intent is not permission**.
+
+The canonical interaction is:
+
+**Understand → propose → ask for confirmation → prepare/approve → human reviews → external human action → observe outcome**
+
+### Confirmation contract
+
+- ARIA MUST ask before it drafts a new consequential message or prepares another state-changing action from a conversation request.
+- The first response creates only a durable aria_actions proposal. It MUST NOT generate the message body or execute an external action.
+- The proposal stores the conversation identifier, request context, action type, confirmation requirement and, for messages, the requested draft style.
+- Confirmation may be explicit UI input or a short natural-language confirmation such as **yes**, **go ahead**, **prepare it**, or **not now**.
+- A confirmation is valid only against the most recent unexpired proposal for that conversation and organization.
+- Conversation confirmation is restricted to an active organization owner/admin, consistent with the action API authorization boundary.
+- Declining a proposal cancels it and produces no draft.
+- Confirming SEND_MESSAGE approves the action and may then create a WhatsApp draft. The draft is never sent by ARIA.
+- Confirmed WhatsApp drafts expose a wa.me link so the human opens the native WhatsApp composer, verifies/edits the text, and presses **Send** themselves.
+- ARIA MUST distinguish **proposed**, **approved**, **drafted**, **externally sent**, and **observed outcome**. Opening WhatsApp is not proof that a message was sent.
+- If a local Nigerian phone number is stored with an 0 prefix, WhatsApp links normalize it to the 234 country-code form. International 234... and +234... forms remain supported.
+- Adaptive verbosity still applies: confirmation prompts are intentionally short and context-specific; ARIA does not explain the entire reasoning chain before asking for a simple permission decision unless the user explicitly requests depth.
+- The system MUST NOT introduce a second action/approval pipeline outside aria_actions.
+
+### Failure safety
+
+A confirmation flow that cannot prove the proposal still exists, is unexpired, belongs to the current conversation/organization, and is available to the current authorized user MUST stop without preparing or executing anything.
+
+### Release verification
+
+The confirmed-action release is not complete until CI passes the canonical regression suite, the production build succeeds, the deployed alias serves the intended commit, and a live smoke test verifies the ARIA action-confirmation surface.

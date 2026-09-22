@@ -1223,6 +1223,16 @@ The UI must never be responsible for guessing whether a response was truncated. 
 This incident joins the permanent production rule that source correctness, deployment correctness, and runtime correctness must all be verified before a critical ARIA fix is considered complete.
 
 
+### 25.6.1 Completion-exhaustion hardening
+
+The completion-safe pipeline must also fail safely when all bounded continuation attempts are exhausted.
+
+- A response remains incomplete while the provider finish reason is `length`.
+- After the bounded continuation budget is exhausted, ARIA must not persist the assembled partial response.
+- When a complete deterministic summary exists, that summary may be returned as the safe fallback.
+- Otherwise the API returns a retryable `503` so the UI can show a recoverable error rather than presenting incomplete intelligence as complete.
+- Deterministic responses do not make a second narrative-generation call.
+
 ### 25.6.1 Release status
 
 The completion-safety implementation is merged into `main` at commit `c22a624aca2bfec304d326ff48ce0cccf2aeec46`. Production release verification remains part of the release contract: the deployed production alias must serve this commit before the incident is considered closed.

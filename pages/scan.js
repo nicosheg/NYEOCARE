@@ -2,7 +2,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { supabase } from '../lib/supabaseClient';
-import { getClientSession } from '../lib/clientSession';
 import Layout from '../components/Layout';
 import { getScanState, setScanState, clearScanState } from '../lib/scanStore';
 
@@ -55,7 +54,7 @@ export default function ScanPage() {
     const base64 = await preprocessImage(file);
 
     // Get session and token
-    const session = await getClientSession().catch(() => null);
+    const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
       updateState({ stage: 'error', message: 'You must be logged in to scan.' });
       return;

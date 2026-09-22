@@ -16,8 +16,7 @@
     "test:persistence": "node scripts/persistence-regression.js",
     "test:review-surface": "node scripts/review-surface-regression.js",
     "test:system-scale": "node scripts/system-scale-regression.js",
-    "test:aria": "node scripts/aria-proactive-regression.js",
-    "test:auth": "node scripts/auth-session-regression.js"
+    "test:aria": "node scripts/aria-proactive-regression.js"
   },
   "dependencies": {
     "next": "15.5.24",

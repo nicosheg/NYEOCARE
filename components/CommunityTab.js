@@ -2,7 +2,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { supabase } from '../lib/supabaseClient';
-import { getClientSession } from '../lib/clientSession';
 import BirthdayPicker from '../components/BirthdayPicker';
 
 const ICONS = {
@@ -91,7 +90,7 @@ export default function CommunityTab() {
   const [accessToken, setAccessToken] = useState(null);
 
   useEffect(() => {
-    getClientSession().then(session => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         setAccessToken(session.access_token);
         fetchPeople(session.access_token);

@@ -63,7 +63,7 @@ console.warn('[AUTH] Existing session could not be validated after refresh; loca
 }catch(error){
 if(active&&mountedRef.current)console.error('Auth initialization failed:',error);
 }
-}checkSession();
+};checkSession();
 return()=>{active=false};
 },[router.isReady,router.query.mode,router]);
 

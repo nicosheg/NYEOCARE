@@ -6,7 +6,6 @@ import { useRouter } from 'next/router';
 import { useState, useEffect, useCallback } from 'react';
 import Layout from '../components/Layout';
 import { supabase } from '../lib/supabaseClient';
-import { getClientSession } from '../lib/clientSession';
 
 export default function SectionCheckin() {
   const router = useRouter();
@@ -28,7 +27,7 @@ export default function SectionCheckin() {
   const [error, setError] = useState('');
 
   const getSession = async () => {
-    const session = await getClientSession().catch(() => null);
+    const { data: { session } } = await supabase.auth.getSession();
 
     if (!session) {
       router.replace('/login');

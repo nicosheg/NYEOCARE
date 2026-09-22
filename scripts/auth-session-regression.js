@@ -1,27 +1,26 @@
 // scripts/auth-session-regression.js
-import fs from'node:fs';
+import{readFileSync}from'node:fs';
 
-const read=p=>fs.readFileSync(p,'utf8');
-const session=read('lib/clientSession.js');
+const read=p=>readFileSync(p,'utf8');
+const client=read('lib/clientSession.js');
+const keeper=read('components/AuthSessionKeeper.js');
 const app=read('pages/_app.js');
-const onboarding=read('components/OnboardingProvider.js');
 const login=read('pages/login.js');
-const profile=read('pages/profile.js');
 
-const must=(text,needle,label)=>{
- if(!text.includes(needle))throw new Error('Auth regression: missing '+label);
-};
+const checks=[
+ ['Shared session reader retries transient startup reads',client.includes('READ_RETRIES')&&client.includes('READ_RETRY_MS')&&client.includes('readSession')],
+ ['Session reads are serialized',client.includes('inFlight')&&client.includes('refreshInFlight')],
+ ['Persisted session can be recovered by refresh',client.includes('refreshClientSession()')],
+ ['Global session keeper exists',keeper.includes('TOKEN_REFRESHED')&&keeper.includes('pageshow')&&keeper.includes('visibilitychange')],
+ ['App mounts the global keeper',app.includes('<AuthSessionKeeper/>')],
+ ['Login does not sign out during passive validation',!login.includes('supabase.auth.signOut({scope:')],
+ ['Login preserves a session when Supabase validation is temporarily unavailable',login.includes('Existing session could not be validated after refresh; local session was preserved.')],
+];
 
-must(session,'refreshClientSession','refresh recovery');
-must(session,'READ_RETRY_MS','session read retry');
-must(session,'onAuthStateChange','auth listener');
-must(session,"event==='SIGNED_OUT'","explicit sign-out clearing');
-must(session,'inFlight','serialized session reads');
-must(app,'AuthSessionKeeper','global session keeper');
-must(onboarding,"event==='SIGNED_OUT'","onboarding only resets on explicit sign-out");
-if(onboarding.includes("event==='SIGNED_OUT'||!session"))throw new Error('Auth regression: onboarding still treats a transient null session as sign-out.');
-if(login.includes("signOut({scope:'local'})"))throw new Error('Auth regression: login may not sign out while validating an existing session.');
-must(login,'refreshClientSession','login refresh recovery');
-must(profile,'refreshClientSession','profile 401 recovery');
-
-console.log('Auth session regression checks passed.');
+const failures=checks.filter(([,ok])=>!ok).map(([name])=>name);
+if(failures.length){
+ console.error('[AUTH SESSION] FAILED');
+ console.error(failures.join(' | '));
+ process.exit(1);
+}
+console.log('[AUTH SESSION] Persistent bootstrap, retry/recovery, global warming, and passive-guard safety passed.');

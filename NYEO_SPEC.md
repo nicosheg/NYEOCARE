@@ -1167,3 +1167,57 @@ Every meaningful system event should enter ARIA's durable event/observation/acti
 
 A module may own its domain transaction, validation, or presentation. It must not create a competing intelligence pipeline for the same evidence.
 
+
+
+## 25.6 SEPTEMBER 22, 2026 — ARIA CONVERSATION RESPONSE TRUNCATION
+
+A production ARIA conversation answered the request **“What should I do next?”** but the assistant message ended mid-sentence at **“He”**.
+
+### Observed production failure
+
+The failure was not a visual rendering cutoff. The complete persisted assistant row ended at the same point, and the AI usage event recorded:
+
+- model: `groq-qwen3.8-27b`
+- purpose: `aria_conversation_response`
+- output tokens: `360`
+- finish reason: `length`
+- HTTP status: `200`
+- success: `true`
+
+The system therefore treated a model output-limit termination as a successful complete response and persisted it.
+
+### Root cause
+
+`naturalResponse()` in `lib/aria/conversationEngine.js` requested exactly `maxTokens:360`. The AI gateway logged the provider finish reason but did not return it to the caller, so the conversation engine could not distinguish a complete `stop` from an output-limit `length`.
+
+### Exact fix
+
+- `lib/aiGateway.js` now returns the provider `finishReason` alongside response text and usage.
+- ARIA narrative generation now requests up to `1000` completion tokens while instructing the model to remain focused and complete.
+- When the provider returns `finishReason === 'length'`, ARIA automatically requests a continuation using the already generated answer as assistant context.
+- Continuation is bounded to two additional passes so a pathological response cannot loop indefinitely.
+- The continuation request uses a separate purpose `aria_conversation_response_continuation` so its usage and budget are observable independently.
+- Final response storage is delayed until the completion-safe assembly finishes.
+- The final response is bounded to `12000` characters, independent of the provider token limit.
+
+### Permanent contract
+
+**A model response with finish reason `length` is incomplete, never complete.**
+
+The canonical conversation pipeline is:
+
+**Generate → inspect finish reason → continue when length-truncated → assemble → persist → render.**
+
+The UI must never be responsible for guessing whether a response was truncated. Completion status belongs to the server-side AI gateway/conversation layer.
+
+### Regression guard
+
+`scripts/critical-ui-regression.js` now requires:
+
+- AI gateway finish-reason propagation.
+- A larger narrative completion budget.
+- Explicit length detection.
+- Bounded continuation.
+- The dedicated continuation purpose.
+
+This incident joins the permanent production rule that source correctness, deployment correctness, and runtime correctness must all be verified before a critical ARIA fix is considered complete.

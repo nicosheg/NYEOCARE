@@ -11,6 +11,8 @@ const scanRecovery=read('components/ScanRecovery.js');
 const autoSync=read('components/AriaAutoSync.js');
 const ariaLauncher=read('components/AriaCommandCenter.js');
 const ariaPage=read('pages/aria.js');
+const aiGateway=read('lib/aiGateway.js');
+const ariaConversation=read('lib/aria/conversationEngine.js');
 const app=read('pages/_app.js');
 const db=read('lib/db.js');
 const auth=read('lib/auth.js');
@@ -103,6 +105,10 @@ const checks=[
   /thread.*passive/.test(ariaPage)&&/pointer-events:none/.test(ariaPage)&&/thread\.interactive\{pointer-events:auto\}/.test(ariaPage)],
  ['ARIA person finder results remain above the conversation stage',
   /\.context\{position:relative;z-index:20/.test(ariaPage)&&/\.matches\{position:absolute;z-index:1000/.test(ariaPage)],
+ ['ARIA AI gateway exposes provider finish reasons',
+  /finishReason/.test(aiGateway)&&/choice\?\.finish_reason/.test(aiGateway)],
+ ['ARIA narrative responses have a larger complete-response budget and automatic continuation',
+  /maxTokens:1000/.test(ariaConversation)&&/finishReason==='length'/.test(ariaConversation)&&/aria_conversation_response_continuation/.test(ariaConversation)&&/attempt<2/.test(ariaConversation)],
  ['ARIA chat renders Markdown emphasis and lists',
   /function inlineMarkdown/.test(ariaPage)&&/MarkdownMessage/.test(ariaPage)&&/ariaMarkdown/.test(ariaPage)&&/m\.role==="assistant"\?/.test(ariaPage)],
  ['Home action row is intentionally lifted above the launcher baseline',

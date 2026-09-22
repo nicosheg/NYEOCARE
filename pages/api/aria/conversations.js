@@ -9,8 +9,11 @@ export default withOrg(async function handler(req,res){
   if(id){
    const c=await pool.query(`SELECT id,user_id,person_id,created_at,updated_at FROM aria_conversations WHERE id=$1 AND organization_id=$2 AND status='active' AND(user_id=$3 OR user_id IS NULL) LIMIT 1`,[id,req.org.id,req.user.id]);
    if(!c.rows.length)return res.status(404).json({error:'Conversation not found.'});
-   const m=await pool.query(`SELECT id,role,content,created_at FROM aria_messages WHERE conversation_id=$1 ORDER BY created_at ASC,id ASC LIMIT 40`,[id]);
-   return res.status(200).json({conversation:c.rows[0],messages:m.rows});
+   const [m,pending]=await Promise.all([
+    pool.query(`SELECT id,role,content,created_at FROM aria_messages WHERE conversation_id=$1 ORDER BY created_at ASC,id ASC LIMIT 40`,[id]),
+    pool.query(`SELECT id,person_id,type,status,priority,action_metadata,proposed_at,expires_at FROM aria_actions WHERE organization_id=$2 AND status='proposed' AND action_metadata->>'conversation_id'=$1 AND proposed_at>=NOW()-INTERVAL '30 minutes' AND(expires_at IS NULL OR expires_at>NOW()) ORDER BY proposed_at DESC LIMIT 1`,[id,req.org.id])
+   ]);
+   return res.status(200).json({conversation:c.rows[0],messages:m.rows,pendingAction:pending.rows[0]||null});
   }
   const limit=Math.min(Math.max(Number(req.query?.limit)||30,1),30);
   const r=await pool.query(`SELECT c.id,c.person_id,c.created_at,c.updated_at,

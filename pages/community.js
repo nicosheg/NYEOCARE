@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { supabase } from '../lib/supabaseClient';
+import { getClientSession } from '../lib/clientSession';
 import Layout from '../components/Layout';
 import BirthdayPicker from '../components/BirthdayPicker';
 
@@ -92,7 +93,7 @@ export default function CommunityPage() {
   const [accessToken, setAccessToken] = useState(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    getClientSession().then(session => {
       if (session) {
         setAccessToken(session.access_token);
         fetchPeople(session.access_token);

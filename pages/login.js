@@ -1,7 +1,7 @@
 // pages/login.js
 import{useEffect,useRef,useState}from'react';
 import{useRouter}from'next/router';
-import{supabase}from'../lib/supabaseClient';import{refreshClientSession}from'../lib/clientSession';
+import{supabase}from'../lib/supabaseClient';import{getClientSession,refreshClientSession}from'../lib/clientSession';
 
 function PasswordRequirement({ok,text}){return <span className={`password-requirement ${ok?'ok':''}`}><span className="requirement-dot" aria-hidden="true">{ok?'✓':''}</span>{text}</span>}
 
@@ -49,29 +49,21 @@ if(router.query.mode==='signup')setIsLogin(false);
 else if(router.query.mode==='login')setIsLogin(true);
 const checkSession=async()=>{
 try{
-let{data:{session},error}=await supabase.auth.getSession();
+let session=await getClientSession();
 if(!active||!mountedRef.current)return;
-if(error){
- console.warn('[AUTH] Session read failed; attempting recovery:',error?.message||error);
- const recovered=await refreshClientSession().catch(()=>null);
- if(recovered)await router.replace('/');
- return;
-}
 if(!session)return;
-const{data:{user},error:userError}=await supabase.auth.getUser(session.access_token);
+let{data:{user},error:userError}=await supabase.auth.getUser(session.access_token);
 if(!active||!mountedRef.current)return;
 if(!userError&&user){await router.replace('/');return}
-const recovered=await refreshClientSession().catch(()=>null);
-if(recovered){await router.replace('/');return}
-const code=String(userError?.code||'').toLowerCase();
-const message=String(userError?.message||'').toLowerCase();
-const definitivelyInvalid=code==='invalid_token'||code==='user_not_found'||code==='session_not_found'||message.includes('invalid jwt');
-if(definitivelyInvalid){try{await supabase.auth.signOut({scope:'local'})}catch{}}
+session=await refreshClientSession().catch(()=>null);
+if(!session||!active||!mountedRef.current)return;
+const retry=await supabase.auth.getUser(session.access_token);
+if(!retry.error&&retry.data?.user){await router.replace('/');return}
+console.warn('[AUTH] Existing session could not be validated after refresh; local session was preserved.');
 }catch(error){
 if(active&&mountedRef.current)console.error('Auth initialization failed:',error);
 }
-}
-checkSession();
+}checkSession();
 return()=>{active=false};
 },[router.isReady,router.query.mode,router]);
 

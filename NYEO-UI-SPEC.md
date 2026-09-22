@@ -50,6 +50,23 @@ Initial foundation:
 
 Future components should consume the same tokens and material rules rather than invent local visual systems.
 
+## ARIA Launcher / Tell ARIA Capsule
+
+The global **Tell ARIA** launcher is a signature interactive control and must remain reachable above page content on every non-ARIA route.
+
+Contract:
+- It is a fixed, floating control with an authoritative high stacking layer so normal page content can never cover its hit area.
+- It remains pointer-interactive (`pointer-events:auto`) and supports touch and mouse pointer events.
+- Its compact state is the round ARIA orb; its expanded state reveals the label through the existing width/reveal transition.
+- It may be repositioned by pointer drag without losing its click/tap action.
+- On mobile it must respect the safe-area inset and maintain a small visual gap from the screen edge.
+- The launcher must be hidden only on the ARIA route itself, not as a side effect of page content layering.
+- The launcher uses the same living glass material as the rest of NYEO UI and must not introduce a separate visual language.
+
+### Home action relationship
+
+The three primary Home actions — **Scan**, **Attendance**, and **Review** — remain in normal document flow but are intentionally lifted slightly above the floating Tell ARIA launcher baseline. This creates a clear vertical relationship without changing their actions, sizes, labels, or state logic.
+
 ## Motion vocabulary
 Float, Breathe, Merge, Press, Expand, Reveal, Settle, Glow, Drift.
 

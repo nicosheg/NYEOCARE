@@ -9,6 +9,7 @@ const profile=read('pages/profile.js');
 const onboarding=read('components/OnboardingProvider.js');
 const scanRecovery=read('components/ScanRecovery.js');
 const autoSync=read('components/AriaAutoSync.js');
+const ariaLauncher=read('components/AriaCommandCenter.js');
 const app=read('pages/_app.js');
 const db=read('lib/db.js');
 const auth=read('lib/auth.js');
@@ -95,6 +96,10 @@ const checks=[
   /IDLE_DELAY=15000/.test(autoSync)&&/document\.visibilityState/.test(autoSync)],
  ['People enhancer is not globally mounted',
   !/PeopleSurfaceEnhancer/.test(app)],
+ ['ARIA launcher remains above application surfaces and interactive',
+  /position:fixed;z-index:2147483000/.test(ariaLauncher)&&/pointer-events:auto/.test(ariaLauncher)&&/nyeocare:aria-open/.test(ariaLauncher)],
+ ['Home action row is intentionally lifted above the launcher baseline',
+  /\.nyHomeTools\{position:relative;z-index:4;transform:translateY\(-12px\)\}/.test(home)],
  ['Auth caches bearer verification',
   /AUTH_TTL=2500/.test(auth)],
  ['Review has lightweight summary path',

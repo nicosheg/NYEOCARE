@@ -1223,6 +1223,27 @@ The UI must never be responsible for guessing whether a response was truncated. 
 This incident joins the permanent production rule that source correctness, deployment correctness, and runtime correctness must all be verified before a critical ARIA fix is considered complete.
 
 
+### 25.6.2 ARIA adaptive conversation verbosity
+
+ARIA conversation length is a cognitive behavior, not a fixed formatting rule.
+
+**Default behavior**
+- Be concise when a short answer resolves the request.
+- Lead with the useful answer and stop when the thought is complete.
+- Prefer progressive disclosure over dumping all available evidence.
+- Do not repeat facts already established in the current conversation unless necessary for clarity.
+- Prefer a few high-value signals over exhaustive lists.
+
+**Response modes**
+- `concise`: normal conversation, simple facts, follow-ups and short requests. Target a compact answer.
+- `decision`: “what should I do next?”, “what matters most?”, attention and change questions. Give focused priorities and reasons without dumping every record.
+- `standard`: genuinely multi-part or evidence-heavy questions. Cover the necessary evidence and implications.
+- `deep`: explicit requests for detailed, thorough, step-by-step, comparative, teaching or reasoning-heavy explanations.
+
+Explicit user requests for brevity override the adaptive defaults. Explicit requests for depth override concise/default behavior.
+
+The amount of available organization data alone MUST NOT force a long response. Complexity should increase context coverage only when it improves the answer.
+
 ### 25.6.1 Completion-exhaustion hardening
 
 The completion-safe pipeline must also fail safely when all bounded continuation attempts are exhausted.

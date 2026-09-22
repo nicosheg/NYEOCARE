@@ -1221,3 +1221,8 @@ The UI must never be responsible for guessing whether a response was truncated. 
 - The dedicated continuation purpose.
 
 This incident joins the permanent production rule that source correctness, deployment correctness, and runtime correctness must all be verified before a critical ARIA fix is considered complete.
+
+
+### 25.6.1 Release status
+
+The completion-safety implementation is merged into `main` at commit `c22a624aca2bfec304d326ff48ce0cccf2aeec46`. Production release verification remains part of the release contract: the deployed production alias must serve this commit before the incident is considered closed.

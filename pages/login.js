@@ -48,21 +48,13 @@ let active=true;
 if(router.query.mode==='signup')setIsLogin(false);
 else if(router.query.mode==='login')setIsLogin(true);
 const checkSession=async()=>{
-try{
-let session=await getClientSession();
-if(!active||!mountedRef.current)return;
-if(!session)return;
-let{data:{user},error:userError}=await supabase.auth.getUser(session.access_token);
-if(!active||!mountedRef.current)return;
-if(!userError&&user){await router.replace('/');return}
-session=await refreshClientSession().catch(()=>null);
-if(!session||!active||!mountedRef.current)return;
-const retry=await supabase.auth.getUser(session.access_token);
-if(!retry.error&&retry.data?.user){await router.replace('/');return}
-console.warn('[AUTH] Existing session could not be validated after refresh; local session was preserved.');
-}catch(error){
-if(active&&mountedRef.current)console.error('Auth initialization failed:',error);
-}
+ try{
+  const session=await getClientSession();
+  if(!active||!mountedRef.current)return;
+  if(session){await router.replace('/');return;}
+ }catch(error){
+  if(active&&mountedRef.current)console.warn('[AUTH] Existing session check delayed:',error?.message||error);
+ }
 };checkSession();
 return()=>{active=false};
 },[router.isReady,router.query.mode,router]);

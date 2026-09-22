@@ -48,7 +48,7 @@ if(req.method==='GET'){
        p.id,p.organization_id,p.first_name,p.last_name,p.display_name,p.phone,p.email,p.type,p.birthday,
        p.living_truth,p.status,p.source,p.created_at,p.updated_at,p.last_scan_job_id,
        (
-         SELECT MAX(pr.occurred_at)
+         SELECT to_char(MAX(pr.occurred_at AT TIME ZONE 'UTC'),'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"')
          FROM participation_records pr
          WHERE pr.organization_id=p.organization_id
            AND pr.person_id=p.id

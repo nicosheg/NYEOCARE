@@ -13,6 +13,9 @@ const ariaLauncher=read('components/AriaCommandCenter.js');
 const ariaPage=read('pages/aria.js');
 const aiGateway=read('lib/aiGateway.js');
 const ariaConversation=read('lib/aria/conversationEngine.js');
+const ariaCommand=read('lib/aria/commandEngine.js');
+const ariaRecommendation=read('lib/aria/recommendationEngine.js');
+const ariaDraft=read('lib/aria/draftEngine.js');
 const app=read('pages/_app.js');
 const db=read('lib/db.js');
 const auth=read('lib/auth.js');
@@ -117,6 +120,20 @@ const checks=[
   /result\.type!=='completed'&&result\.type!=='conversation_context'/.test(ariaConversation)],
  ['ARIA narrative continuation exhaustion fails safely instead of persisting partial text',
   /if\(finishReason==='length'\)/.test(ariaConversation)&&/Please try that question again/.test(ariaConversation)&&/status:503/.test(ariaConversation)],
+ ['ARIA state-changing conversation requests stop for human confirmation',
+  /if\(capability\.approval\)/.test(ariaCommand)&&/type:'action_confirmation'/.test(ariaCommand)&&/requires_confirmation:true/.test(ariaCommand)&&/planActionFromObservation/.test(ariaCommand)],
+ ['ARIA preserves a durable conversation-linked action proposal',
+  /conversation_id:conversationId/.test(ariaCommand)&&/aria-chat:/.test(ariaCommand)&&/action_metadata->>'conversation_id'/.test(ariaConversation)&&/proposed_at>=NOW\(\)-INTERVAL '30 minutes'/.test(ariaConversation)],
+ ['ARIA can confirm or decline a pending proposal naturally',
+  /confirmationKind/.test(ariaConversation)&&/Understood\. I will not prepare it\./.test(ariaConversation)&&/approveAction\(action\.id/.test(ariaConversation)],
+ ['ARIA confirmation prepares WhatsApp drafts only after approval',
+  /approvedOnly:true/.test(ariaConversation)&&/createCareDraft/.test(ariaConversation)&&/type==='SEND_MESSAGE'/.test(ariaConversation)],
+ ['ARIA action approval is admin/owner constrained at the domain boundary',
+  /u\.role IN\('owner','admin'\)/.test(ariaRecommendation)],
+ ['ARIA approved-only drafting cannot bypass confirmation',
+  /approvedOnly&&!actionId/.test(ariaDraft)],
+ ['ARIA WhatsApp links normalize Nigerian local numbers',
+  /startsWith\('234'\)/.test(ariaDraft)&&/startsWith\('0'\)&&digits\.length===11/.test(ariaDraft)],
  ['ARIA chat renders Markdown emphasis and lists',
   /function inlineMarkdown/.test(ariaPage)&&/MarkdownMessage/.test(ariaPage)&&/ariaMarkdown/.test(ariaPage)&&/m\.role==="assistant"\?/.test(ariaPage)],
  ['Home action row is intentionally lifted above the launcher baseline',

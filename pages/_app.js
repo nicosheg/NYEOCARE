@@ -1,5 +1,5 @@
 // pages/_app.js
-import{OnboardingProvider}from'../components/OnboardingProvider';import AuthSessionKeeper from'../components/AuthSessionKeeper';import AuthSessionKeeper from'../components/AuthSessionKeeper';
+import{OnboardingProvider}from'../components/OnboardingProvider';import AuthSessionKeeper from'../components/AuthSessionKeeper';
 import AriaAutoSync from'../components/AriaAutoSync';
 import NyeoEnvironment from'../components/NyeoEnvironment';
 import ScanRecovery from'../components/ScanRecovery';

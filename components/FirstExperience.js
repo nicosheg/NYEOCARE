@@ -1,6 +1,6 @@
 // components/FirstExperience.js
 import{useEffect,useState}from'react';
-import{supabase}from'../lib/supabaseClient';
+import{getClientSession}from'../lib/clientSession';
 
 const STEP_META={home:'1 of 3',scan:'2 of 3',review:'3 of 3',people:'1 of 1','person-journey':'1 of 1',profile:'1 of 1',briefing:'ARIA · TODAY'};
 
@@ -31,7 +31,7 @@ const complete=async()=>{
 if(saving)return;
 setSaving(true);
 try{
-const{data:{session}}=await supabase.auth.getSession();
+const session=await getClientSession().catch(()=>null);
 if(!session)return;
 const response=await fetch('/api/onboarding',{
 method:'POST',

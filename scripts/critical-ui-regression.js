@@ -157,7 +157,7 @@ const checks=[
  ['Review Center supports audited bulk dismissal of selected scan reviews',/bulk_dismissed/.test(reviewResolveApi)&&/status='rejected'/.test(reviewResolveApi)&&/id=ANY\(\$4::uuid\[\]\)/.test(reviewResolveApi)&&/selected_count/.test(reviewResolveApi)],
  ['Review Center supports long-press scan selection only for scan reviews',/onPointerDown/.test(reviewCenter)&&/setTimeout\(\(\)=>beginSelection/.test(reviewCenter)&&/item\.kind==='scan_identity_review'/.test(reviewCenter)&&/bulkDismiss/.test(reviewCenter)],
  ['Camera and gallery scans use the same canonical image-preparation path',/async function prepare\(file\)/.test(scanModal)&&/canvas/.test(scanModal)&&/3200/.test(scanModal)&&/\.94/.test(scanModal)&&!/return readFile\(file\)/.test(scanModal)&&/Take photo/.test(scanModal)&&/Upload image/.test(scanModal)],
- ['Camera and gallery both call the same scan starter after preparation',/onChange=\{pick\}/.test(scanModal)&&/const pick=e=>/.test(scanModal)&&/if\(f\)start\(f\)/.test(scanModal)&&/start\(file\)/.test(scanModal)],
+ ['Camera and gallery both call the same scan starter after preparation',/onChange=\{pick\}/.test(scanModal)&&/const pick=e=>/.test(scanModal)&&/if\(f\)start\(f\)/.test(scanModal)&&/const image_base64=await prepare\(file\)/.test(scanModal)],
  ['Person editing preserves the displayed honorific/prefix',/setEditName\(p\.display_name\|\|/.test(personPage)],
  ['People API preserves an existing honorific when an edit omits it',/existing=normalizeDisplayName\(check\.rows\[0\]\.display_name/.test(peopleApi)&&/existing\.honorific&&!parsed\.honorific/.test(peopleApi)],
  ['Review has lightweight summary path',

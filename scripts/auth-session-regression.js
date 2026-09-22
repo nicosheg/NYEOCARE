@@ -38,7 +38,7 @@ const checks = [
   ],
   [
     'Global session keeper is mounted exactly once',
-    (app.match(/<AuthSessionKeeper\/>/g) || []).length === 1,
+    app.split('<AuthSessionKeeper/>').length - 1 === 1,
   ],
   [
     'Global session keeper warms lifecycle events',
@@ -52,7 +52,7 @@ const checks = [
   ],
   [
     'Profile sign out is local to the current session',
-    profile.includes("supabase.auth.signOut({ scope: 'local' })"),
+    /supabase\.auth\.signOut\(\{\s*scope:\s*'local'\s*\}\)/.test(profile),
   ],
 ];
 

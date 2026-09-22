@@ -3,7 +3,7 @@
 
 import{useCallback,useEffect,useState}from'react';
 import{useRouter}from'next/router';
-import{supabase}from'../lib/supabaseClient';
+import{getClientSession}from'../lib/clientSession';
 
 const rank={critical:4,high:3,medium:2,low:1};
 
@@ -14,7 +14,7 @@ export default function CareQueueList(){
 
   const load=useCallback(async()=>{
     try{
-      const{data:{session}}=await supabase.auth.getSession();
+      const session=await getClientSession().catch(()=>null);
       if(!session){setItems([]);return;}
 
       const res=await fetch('/api/care-queue',{

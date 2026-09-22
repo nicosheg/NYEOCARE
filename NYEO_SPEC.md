@@ -179,6 +179,22 @@ Scan is **population capture and identity resolution**, not attendance.
 
 A paper register can be historical, incomplete, belong to another department, or contain people who were not present that day. Scanning it must never create attendance or participation automatically.
 
+### Client image ingestion contract
+Camera capture and gallery/file upload are different **sources**, not different vision pipelines. Before `/api/scan/start` receives an image, both sources must pass through the same deterministic browser preparation path:
+
+```
+CAMERA ─┐
+        ├→ decode/orient → fit ≤3200px → high-quality JPEG → size guard → /api/scan/start
+UPLOAD ─┘
+```
+
+The application must not have a fast path that sends small JPEG/PNG/WebP files raw while another source is canvas-normalized. That creates source-dependent pixels and makes scan quality regressions impossible to reason about. The canonical server-side `sharp.rotate() → resize → normalize → sharpen` stage remains in place after upload.
+
+A source may still differ in the **photograph itself** — lighting, focus, framing, perspective and camera quality are physical differences — but once the browser prepares it, the transformation policy must be identical. Any future change to client image preparation must be benchmarked with the same physical register captured once by camera and once through file selection.
+
+### Review queue clearing
+Review Center distinguishes evidence that still needs a human decision from evidence the operator intentionally dismisses. Scan review items may be selected individually, including by a mobile long-press gesture, and dismissed in bulk. Bulk dismissal changes the review item to `rejected` with an auditable decision record; it must not delete the original scan evidence, scan job, or person records. Database duplicate groups are never part of scan-review bulk dismissal and retain their dedicated merge/keep-separate workflow.
+
 ### Physical register is the extraction unit
 The physical row is the fundamental unit. Extraction must preserve:
 - original name/title spelling where readable;

@@ -31,6 +31,7 @@ const eventProcessor=read('lib/aria/eventProcessor.js');
 const briefing=read('pages/api/daily-briefing/latest.js');
 const homeBootstrap=read('pages/api/home/bootstrap.js');
 const durableMigration=read('supabase/migrations/20260920154000_durable_attendance_processing.sql');
+const attendanceStatusMigration=read('supabase/migrations/20260922155500_align_attendance_processing_status.sql');
 const recoveryMigration=read('supabase/migrations/20260920154500_harden_attendance_queue_recovery.sql');
 const backgroundIndexMigration=read('supabase/migrations/20260920154800_include_needs_attention_in_background_session_index.sql');
 const parallelMigration=read('supabase/migrations/20260920160000_parallelize_durable_attendance_workers.sql');
@@ -48,6 +49,11 @@ const checks=[
   createApi.includes("VALUES($1,$2,'active',$3,NOW(),'idle','idle'")],
  ['Attendance close resets processing state',
   /aria_processing_attempts=0/.test(closeApi)&&/aria_processing_stage='persist'/.test(closeApi)],
+ ['Attendance processing status contract includes active and recovery states',
+  /'idle'::text/.test(attendanceStatusMigration)&&/'pending'::text/.test(attendanceStatusMigration)&&/'processing'::text/.test(attendanceStatusMigration)&&/'completed'::text/.test(attendanceStatusMigration)&&/'failed'::text/.test(attendanceStatusMigration)&&/'needs_attention'::text/.test(attendanceStatusMigration)],
+ ['Attendance create status matches the database contract',
+  /aria_processing_status,aria_processing_stage/.test(createApi)&&/NOW\(\),'idle','idle',0,0,0/.test(createApi)],
+
  ['Attendance roster is bounded and cursor-paginated',
   /limit=Math\.min/.test(attendancePeopleApi)&&/next_cursor/.test(attendancePeopleApi)&&/base64url/.test(attendancePeopleApi)],
  ['Attendance roster search stays server-side',

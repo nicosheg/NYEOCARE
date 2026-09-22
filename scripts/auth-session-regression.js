@@ -51,6 +51,10 @@ const checks = [
     !login.includes('supabase.auth.signOut('),
   ],
   [
+    'Login does not misreport every Auth error as a wrong password',
+    !login.includes("else if(accountExists===true)showMessage('The password is incorrect."),
+  ],
+  [
     'Profile sign out is local to the current session',
     /supabase\.auth\.signOut\(\{\s*scope:\s*'local'\s*\}\)/.test(profile),
   ],

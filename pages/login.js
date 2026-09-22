@@ -76,10 +76,21 @@ setMessage('');
 try{
 const{data,error}=await supabase.auth.signInWithPassword({email:cleanEmail,password});
 if(error){
+console.error('[AUTH] Password sign-in failed:',{code:error?.code||null,status:error?.status||null,message:error?.message||null});
 const accountExists=await diagnoseLogin(cleanEmail);
-if(accountExists===false)showMessage('No NYEOCARE account was found for this email. Check the email or create an account.');
-else if(accountExists===true)showMessage('The password is incorrect. Check your password or reset it if you have forgotten it.');
-else showMessage('We could not complete sign in. Please check your email and password and try again.');
+const code=String(error?.code||'').toLowerCase();
+const errorText=String(error?.message||'').toLowerCase();
+if(error?.status===429||code.includes('rate')||errorText.includes('rate limit')){
+ showMessage('Too many sign-in attempts right now. Please wait a little and try again.');
+}else if(code==='email_not_confirmed'||errorText.includes('email not confirmed')){
+ showMessage('Please verify your email address before signing in.');
+}else if(accountExists===false){
+ showMessage('No NYEOCARE account was found for this email. Check the email or create an account.');
+}else if(code==='invalid_credentials'||errorText.includes('invalid login credentials')){
+ showMessage('We could not sign you in with that email and password. Check both carefully, or use a password reset.');
+}else{
+ showMessage('We could not sign you in right now. Please try again.');
+}
 return;
 }
 if(data?.session)await router.replace('/');

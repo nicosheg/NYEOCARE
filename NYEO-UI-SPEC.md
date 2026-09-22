@@ -67,6 +67,25 @@ Contract:
 
 The three primary Home actions — **Scan**, **Attendance**, and **Review** — remain in normal document flow but are intentionally lifted slightly above the floating Tell ARIA launcher baseline. This creates a clear vertical relationship without changing their actions, sizes, labels, or state logic.
 
+## ARIA Conversation Presentation
+
+ARIA assistant responses are presentation content, not raw source text. The conversation surface must render supported Markdown rather than exposing formatting delimiters to users.
+
+Supported presentation includes:
+- **bold** and __bold__ emphasis;
+- *italic* and _italic_ emphasis;
+- ordered and unordered lists;
+- headings inside longer responses;
+- inline code when technical context is intentionally surfaced.
+
+User messages remain plain text. Assistant Markdown must be rendered as readable DOM elements with accessible spacing, and raw formatting markers should not be visible merely because ARIA used Markdown syntax.
+
+## ARIA Welcome Controls / Person Finder
+
+The four welcome prompt cards are real interactive actions and must remain clickable when the conversation thread is empty. The empty thread layer must not intercept pointer/touch events over the welcome area.
+
+The **Find a person…** control must keep its search results above the conversation stage. Search results are loaded from the organization-scoped People API, and choosing a result sets the ARIA page's person context without changing or corrupting organization data.
+
 ## Motion vocabulary
 Float, Breathe, Merge, Press, Expand, Reveal, Settle, Glow, Drift.
 

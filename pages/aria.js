@@ -35,7 +35,6 @@ export default function AriaPage(){
  const loadPerson=useCallback(async id=>{if(!id)return;try{const r=await api('/api/person/journey?person_id='+encodeURIComponent(id),{cache:'no-store'}),d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'Unable to load this person.');setPerson(d.person||null)}catch(e){setError(e.message||'Unable to load this person.')}},[api]);
  const loadDaily=useCallback(async()=>{try{const r=await api('/api/aria/daily',{cache:'no-store'}),d=await r.json().catch(()=>({}));if(r.ok)setDaily(d)}catch{}},[api]);
  const loadRecent=useCallback(async()=>{try{const r=await api('/api/aria/conversations?limit=12',{cache:'no-store'}),d=await r.json().catch(()=>({}));if(r.ok)setRecentItems(d.conversations||[])}catch{}},[api]);
- const loadDaily=useCallback(async()=>{try{const r=await api('/api/aria/daily',{cache:'no-store'}),d=await r.json().catch(()=>({}));if(r.ok)setDaily(d)}catch{}},[api]);
 
  useEffect(()=>{let live=true;getClientSession().then(s=>{if(!live)return;if(!s){setAuthError('Your session is not available.');setReady(true);return}setSession(s);setReady(true)}).catch(e=>{if(live){setAuthError(e.message||'Unable to restore your session.');setReady(true)}});return()=>{live=false}},[]);
  useEffect(()=>{if(!ready||!session)return;const id=String(router.query.personId||'')||null;setPersonId(id);setMessages([]);setConversationId(null);setSuggestion(null);setDraft(null);if(id)loadPerson(id);else setPerson(null)},[ready,session,router.query.personId,loadPerson]);

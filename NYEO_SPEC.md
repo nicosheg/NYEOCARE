@@ -654,6 +654,50 @@ The following are non-negotiable:
 - the exact client exception is observable to engineering;
 - the corresponding failure class has a CI regression check before another feature is layered onto the surface.
 
+## 17B. AUTHENTICATION — PRODUCTION CONFIGURATION CONTRACT
+
+Authentication has two separate concerns that must never be conflated:
+
+**1. Browser authentication target**
+- Browser Supabase Auth must point to the canonical production Supabase project.
+- `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are browser-facing configuration values.
+- CI may use placeholders for compilation, but placeholder values such as `example.supabase.co` or `ci-placeholder-anon-key` must never be the effective production browser configuration.
+- The browser client must persist sessions and automatically refresh them on capable browser runtimes.
+- Passive session validation must never call global sign-out.
+
+**2. Server/database target**
+- Server-side database access uses the production database connection independently of browser build configuration.
+- A mismatch between the server database project and browser Supabase Auth project can make every existing account appear unable to log in even when the Auth records are intact.
+- Therefore, authentication incidents must compare the live browser bundle's Supabase target with the canonical production project before changing passwords or users.
+
+### September 22, 2026 authentication incident
+
+The production login failure was traced to a build-time configuration mismatch: the live browser bundle had been compiled with the CI placeholder Supabase URL/key while the real organization/user database remained in the canonical production Supabase project.
+
+Symptoms:
+- every existing password account failed;
+- the server-side account-diagnosis path could still see the users;
+- the login UI initially misclassified any Auth error for an existing email as a wrong-password error.
+
+Permanent safeguards:
+- browser auth uses the canonical production Supabase project when a known placeholder configuration is encountered;
+- login error handling distinguishes rate limits, unconfirmed email, invalid credentials, missing accounts and other failures rather than collapsing them into “wrong password”;
+- auth regression tests guard both persisted-session behavior and placeholder configuration;
+- production verification must inspect the deployed JavaScript bundle, not only the Git source, because `NEXT_PUBLIC_*` values are baked into the browser build.
+
+The incident did not require password resets or user deletion. Existing Auth records remained intact.
+
+### Future authentication incident procedure
+
+When login suddenly fails for multiple known accounts:
+1. Verify the canonical Supabase project URL.
+2. Inspect the live production login bundle for the effective Supabase URL/configuration class.
+3. Compare the server-side Auth/database target and browser Auth target.
+4. Inspect the actual Supabase Auth error category before changing credentials.
+5. Only after configuration and service health are ruled out should account-level credential issues be investigated.
+6. After fixing, verify a real existing account can sign in and that the resulting session survives a hard refresh.
+7. Keep a regression guard so the exact failure class cannot silently recur.
+
 # 18. CI / DEPLOYMENT STATUS
 
 A GitHub Actions CI workflow exists and uses pinned action SHAs.

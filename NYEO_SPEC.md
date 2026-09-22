@@ -1289,3 +1289,46 @@ A confirmation flow that cannot prove the proposal still exists, is unexpired, b
 ### Release verification
 
 The confirmed-action release is not complete until CI passes the canonical regression suite, the production build succeeds, the deployed alias serves the intended commit, and a live smoke test verifies the ARIA action-confirmation surface.
+
+## 25.6.4 SEPTEMBER 22, 2026 — ATTENDANCE START BLOCKED BY PROCESSING-STATUS SCHEMA DRIFT
+
+A live attendance start attempt returned **Could not start attendance** because the application creates an active session with `aria_processing_status='idle'`, while the production `sessions_aria_processing_status_check` constraint allowed only `pending`, `processing`, `completed`, and `failed`.
+
+The same schema was already designed to use `needs_attention` for bounded automatic recovery, so that state also had to be part of the database contract.
+
+### Root cause
+
+Application and database drifted on the authoritative `sessions.aria_processing_status` state machine:
+
+- active session creation uses `idle`;
+- closing a session moves the record to `pending`;
+- the background worker uses `processing`;
+- completed work uses `completed`;
+- older failure handling may use `failed`;
+- bounded automatic recovery can end in `needs_attention`.
+
+The database constraint did not contain the complete state set.
+
+### Exact fix
+
+The production `sessions_aria_processing_status_check` constraint now permits exactly:
+
+`idle`, `pending`, `processing`, `completed`, `failed`, `needs_attention`.
+
+The repository includes migration `20260922155500_align_attendance_processing_status.sql` with the same authoritative constraint.
+
+### Verification
+
+A rollback-only execution of the real attendance-start insert shape successfully created an `active` session with:
+
+- `aria_processing_status='idle'`
+- `aria_processing_stage='idle'`
+- progress `0`
+- processed `0`
+- total `0`
+
+The transaction was rolled back, so verification created no persistent test session.
+
+### Permanent rule
+
+The attendance processing state machine must be defined once at the database boundary and remain synchronized with every API/worker transition. Any new processing state requires a schema contract update and a regression guard before release.

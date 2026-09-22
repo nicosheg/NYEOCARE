@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../components/Layout';
-import { supabase } from '../lib/supabaseClient';
+import { getClientSession } from '../lib/clientSession';
 
 export default function SessionPage() {
   const router = useRouter();
@@ -17,7 +17,7 @@ export default function SessionPage() {
 
   useEffect(() => {
     async function fetchTemplates() {
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await getClientSession().catch(() => null);
       if (!session) return;
 
       const res = await fetch('/api/templates', {
@@ -41,7 +41,7 @@ export default function SessionPage() {
 
   // Start a new organization-scoped attendance session.
   const startSession = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getClientSession().catch(() => null);
 
     if (!session) {
       alert('You must be logged in.');
@@ -77,7 +77,7 @@ export default function SessionPage() {
   };
 
   const saveTemplate = async (category) => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await getClientSession().catch(() => null);
     if (!session) return;
 
     const res = await fetch('/api/templates', {

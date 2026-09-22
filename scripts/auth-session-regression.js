@@ -58,6 +58,13 @@ const checks = [
     'Profile sign out is local to the current session',
     /supabase\.auth\.signOut\(\{\s*scope:\s*'local'\s*\}\)/.test(profile),
   ],
+  [
+    'Supabase browser config falls back from known placeholders',
+    supabaseClient.includes('CANONICAL_SUPABASE_URL') &&
+      supabaseClient.includes('CANONICAL_SUPABASE_PUBLISHABLE_KEY') &&
+      supabaseClient.includes('example.supabase.co') &&
+      supabaseClient.includes('placeholder'),
+  ],
 ];
 
 const failures = checks.filter(([, ok]) => !ok).map(([name]) => name);
@@ -69,5 +76,5 @@ if (failures.length) {
 }
 
 console.log(
-  '[AUTH SESSION] Canonical persisted session, automatic refresh, serialized reads, real forced refresh, and single global keeper checks passed.'
+  '[AUTH SESSION] Canonical persisted session, automatic refresh, serialized reads, real forced refresh, single global keeper, safe login messaging, and Supabase config fallback checks passed.'
 );

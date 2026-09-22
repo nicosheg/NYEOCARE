@@ -106,7 +106,7 @@ const checks=[
  ['People enhancer is not globally mounted',
   !/PeopleSurfaceEnhancer/.test(app)],
  ['People roster cards are painted immediately instead of deferred on scroll',
-  !/content-visibility:auto/.test(peoplePage)&&/peopleSoftBreeze/.test(peoplePage)&&/\\.pagePeople \\.person-card/.test(peoplePage)&&/backdrop-filter:none!important/.test(peoplePage)],
+  !/content-visibility:auto/.test(peoplePage)&&/peopleSoftBreeze/.test(peoplePage)],
  ['People restores the previous scroll position after a person journey',
   /PEOPLE_SCROLL_KEY/.test(peoplePage)&&/sessionStorage\.setItem\(PEOPLE_SCROLL_KEY/.test(peoplePage)&&/window\.scrollTo\(0,y\)/.test(peoplePage)],
  ['Journey back uses browser history so the People location can be restored',

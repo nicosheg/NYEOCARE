@@ -1,31 +1,38 @@
 // components/AuthSessionKeeper.js
 import{useEffect}from'react';
-import{getClientSession}from'../lib/clientSession';
+import{supabase}from'../lib/supabaseClient';
+import{getClientSession,refreshClientSession}from'../lib/clientSession';
 
 export default function AuthSessionKeeper(){
  useEffect(()=>{
-  let active=true,lastWarm=0;
-  const warm=async()=>{
-   if(!active||document.visibilityState==='hidden')return;
-   if(Date.now()-lastWarm<10000)return;
-   lastWarm=Date.now();
-   try{await getClientSession()}catch{}
+  let active=true;
+  const warm=async({force=false}={})=>{
+   if(!active||typeof document==='undefined'||document.visibilityState==='hidden')return;
+   try{
+    const session=force?await refreshClientSession():await getClientSession();
+    if(session&&active)window.dispatchEvent(new CustomEvent('nyeocare:session-ready'));
+   }catch(error){
+    if(active)console.warn('[AUTH] Session warm failed:',error?.message||error);
+   }
   };
   warm();
-  const onFocus=()=>warm();
-  const onPageShow=()=>warm();
-  const onOnline=()=>warm();
   const onVisible=()=>{if(document.visibilityState==='visible')warm()};
-  window.addEventListener('focus',onFocus);
+  const onPageShow=()=>warm();
+  const onOnline=()=>warm({force:true});
+  const{data:{subscription}}=supabase.auth.onAuthStateChange((event,session)=>{
+   if(!active)return;
+   if(session)window.dispatchEvent(new CustomEvent('nyeocare:session-ready'));
+   if(event==='TOKEN_REFRESHED')window.dispatchEvent(new CustomEvent('nyeocare:session-refreshed'));
+  });
+  document.addEventListener('visibilitychange',onVisible);
   window.addEventListener('pageshow',onPageShow);
   window.addEventListener('online',onOnline);
-  document.addEventListener('visibilitychange',onVisible);
   return()=>{
    active=false;
-   window.removeEventListener('focus',onFocus);
+   subscription.unsubscribe();
+   document.removeEventListener('visibilitychange',onVisible);
    window.removeEventListener('pageshow',onPageShow);
    window.removeEventListener('online',onOnline);
-   document.removeEventListener('visibilitychange',onVisible);
   };
  },[]);
  return null;

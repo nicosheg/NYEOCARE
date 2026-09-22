@@ -5,6 +5,9 @@ const read=p=>readFileSync(p,'utf8');
 const attendance=read('components/AttendanceModal.js');
 const home=read('pages/index.js');
 const peoplePage=read('pages/people.js');
+const personPage=read('pages/person/[id].js');
+const peopleApi=read('pages/api/people.js');
+const reviewCenter=read('components/ReviewCenterTab.js');
 const profile=read('pages/profile.js');
 const onboarding=read('components/OnboardingProvider.js');
 const scanRecovery=read('components/ScanRecovery.js');
@@ -102,6 +105,12 @@ const checks=[
   /IDLE_DELAY=15000/.test(autoSync)&&/document\.visibilityState/.test(autoSync)],
  ['People enhancer is not globally mounted',
   !/PeopleSurfaceEnhancer/.test(app)],
+ ['People roster cards are painted immediately instead of deferred on scroll',
+  !/content-visibility:auto/.test(peoplePage)&&/peopleSoftBreeze/.test(peoplePage)],
+ ['People restores the previous scroll position after a person journey',
+  /PEOPLE_SCROLL_KEY/.test(peoplePage)&&/sessionStorage\.setItem\(PEOPLE_SCROLL_KEY/.test(peoplePage)&&/window\.scrollTo\(0,y\)/.test(peoplePage)],
+ ['Journey back uses browser history so the People location can be restored',
+  /onClick=\{\(\)=>r\.back\(\)\}/.test(personPage)],
  ['ARIA launcher remains above application surfaces and interactive',
   /position:fixed;z-index:2147483000/.test(ariaLauncher)&&/pointer-events:auto/.test(ariaLauncher)&&/nyeocare:aria-open/.test(ariaLauncher)],
  ['ARIA welcome prompt controls are not covered by the empty thread layer',
@@ -142,6 +151,9 @@ const checks=[
   /\.nyHomeTools\{position:relative;z-index:4;transform:translateY\(-12px\)\}/.test(home)],
  ['Auth caches bearer verification',
   /AUTH_TTL=2500/.test(auth)],
+ ['Review identity actions prioritize correction before direct remembering',/Edit & remember/.test(reviewCenter)&&/Remember as read/.test(reviewCenter)&&reviewCenter.indexOf('Edit & remember')<reviewCenter.indexOf('Remember as read')],
+ ['Person editing preserves the displayed honorific/prefix',/setEditName\(p\.display_name\|\|/.test(personPage)],
+ ['People API preserves an existing honorific when an edit omits it',/existing=normalizeDisplayName\(check\.rows\[0\]\.display_name/.test(peopleApi)&&/existing\.honorific&&!parsed\.honorific/.test(peopleApi)],
  ['Review has lightweight summary path',
   /req\.query\?\.summary===\'1\'/.test(reviewApi)],
  ['Daily briefing endpoint remains read-only',

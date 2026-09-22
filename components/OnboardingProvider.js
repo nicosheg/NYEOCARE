@@ -36,7 +36,7 @@ export function OnboardingProvider({children}){
   load();
   const{data:{subscription}}=supabase.auth.onAuthStateChange((event,session)=>{
    if(!active)return;
-   if(event==='SIGNED_OUT'||!session){reset();return}
+   if(event==='SIGNED_OUT'){reset();return}
    if(event==='SIGNED_IN'||event==='USER_UPDATED')load(session);
   });
   return()=>{active=false;subscription.unsubscribe()};

@@ -4,6 +4,8 @@ import {withOrg} from '../../../lib/apiHelpers';
 import {ARIA_DIRECTOR_VERSION} from '../../../lib/aria/director';
 
 const priority=v=>({critical:100,high:80,medium:55,low:25}[String(v||'').toLowerCase()]||10);
+const proactiveLabels={recognition:'RECOGNITION',belonging:'BELONGING',serve_discovery:'CONTRIBUTION'};
+const proactiveActions={recognition:'Review recognition',belonging:'Review belonging opportunity',serve_discovery:'Review contribution opportunity'};
 const personName=x=>[x.first_name,x.last_name].filter(Boolean).join(' ').replace(/^(sis|sister|bro|brother|mrs|mr|miss|ms|pastor|past|pst|dr|rev|elder|deacon|deaconess)\s+/i,'').trim();
 const cleanType=v=>String(v||'').replace(/_/g,' ').replace(/\s+/g,' ').trim().toUpperCase();
 
@@ -114,10 +116,10 @@ export default withOrg(async function handler(req,res){
    if(!message)continue;
    items.push({
     id:x.id,person_id:x.person_id,category:'care',
-    priority:m.kind==='attendance_absence_check_in'?75:m.kind==='returned_after_absence'?70:priority(x.priority),
-    label:m.kind==='attendance_absence_check_in'?'FOLLOW-UP':m.kind==='returned_after_absence'?'WELCOME BACK':cleanType(x.type)||'ACTION',
+    priority:m.kind==='attendance_absence_check_in'?75:m.kind==='returned_after_absence'?70:proactiveLabels[m.kind]?45:priority(x.priority),
+    label:m.kind==='attendance_absence_check_in'?'FOLLOW-UP':m.kind==='returned_after_absence'?'WELCOME BACK':proactiveLabels[m.kind]||cleanType(x.type)||'ACTION',
     title:name||'Action needed',message,knowledge,suggestion,
-    action:{type:'care',label:m.kind==='attendance_absence_check_in'?'Review check-in':m.kind==='returned_after_absence'?'Review welcome-back':'Review action'},
+    action:{type:'care',label:m.kind==='attendance_absence_check_in'?'Review check-in':m.kind==='returned_after_absence'?'Review welcome-back':proactiveActions[m.kind]||'Review action'},
     action_id:x.id,action_type:x.type,action_status:x.status,metadata:m,observation_id:x.observation_id,
     confidence:x.confidence,care_session_id:m.session_id||null
    });

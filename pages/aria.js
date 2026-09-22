@@ -97,7 +97,9 @@ export default function AriaPage(){
    setConversationId(d.conversation?.id||id);
    setPersonId(d.conversation?.person_id||null);
    setMessages((d.messages||[]).map(x=>({id:x.id,role:x.role,content:x.content,at:x.created_at||Date.now()})));
-   setSuggestion(null);setDraft(null);setError('');setRecentOpen(false);
+   const pending=d.pendingAction;
+   setSuggestion(pending?{personId:pending.person_id||null,actionId:pending.id,actionType:pending.type,label:pending.type==='SEND_MESSAGE'?'Prepare WhatsApp message':'Prepare action',reason:pending.action_metadata?.reason||'ARIA has a pending action waiting for your confirmation.',approved:false,requiresApproval:true,status:'awaiting_confirmation'}:null);
+   setDraft(null);setError('');setRecentOpen(false);
   }catch(e){if(mounted.current)setError(e.message)}
  },[api]);
 

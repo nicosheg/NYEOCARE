@@ -10,6 +10,7 @@ const onboarding=read('components/OnboardingProvider.js');
 const scanRecovery=read('components/ScanRecovery.js');
 const autoSync=read('components/AriaAutoSync.js');
 const ariaLauncher=read('components/AriaCommandCenter.js');
+const ariaPage=read('pages/aria.js');
 const app=read('pages/_app.js');
 const db=read('lib/db.js');
 const auth=read('lib/auth.js');
@@ -98,6 +99,12 @@ const checks=[
   !/PeopleSurfaceEnhancer/.test(app)],
  ['ARIA launcher remains above application surfaces and interactive',
   /position:fixed;z-index:2147483000/.test(ariaLauncher)&&/pointer-events:auto/.test(ariaLauncher)&&/nyeocare:aria-open/.test(ariaLauncher)],
+ ['ARIA welcome prompt controls are not covered by the empty thread layer',
+  /thread.*passive/.test(ariaPage)&&/pointer-events:none/.test(ariaPage)&&/thread\.interactive\{pointer-events:auto\}/.test(ariaPage)],
+ ['ARIA person finder results remain above the conversation stage',
+  /\.context\{position:relative;z-index:20/.test(ariaPage)&&/\.matches\{position:absolute;z-index:1000/.test(ariaPage)],
+ ['ARIA chat renders Markdown emphasis and lists',
+  /function inlineMarkdown/.test(ariaPage)&&/MarkdownMessage/.test(ariaPage)&&/ariaMarkdown/.test(ariaPage)&&/m\.role==="assistant"\?/.test(ariaPage)],
  ['Home action row is intentionally lifted above the launcher baseline',
   /\.nyHomeTools\{position:relative;z-index:4;transform:translateY\(-12px\)\}/.test(home)],
  ['Auth caches bearer verification',

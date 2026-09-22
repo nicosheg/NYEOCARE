@@ -1315,7 +1315,7 @@ The production `sessions_aria_processing_status_check` constraint now permits ex
 
 `idle`, `pending`, `processing`, `completed`, `failed`, `needs_attention`.
 
-The repository includes migration `20260922155500_align_attendance_processing_status.sql` with the same authoritative constraint.
+The repository includes migration `20260922154923_align_attendance_processing_status.sql` with the same authoritative constraint.
 
 ### Verification
 

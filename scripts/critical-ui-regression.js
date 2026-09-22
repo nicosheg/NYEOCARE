@@ -128,6 +128,8 @@ const checks=[
   /confirmationKind/.test(ariaConversation)&&/Understood\. I will not prepare it\./.test(ariaConversation)&&/approveAction\(action\.id/.test(ariaConversation)],
  ['ARIA confirmation prepares WhatsApp drafts only after approval',
   /approvedOnly:true/.test(ariaConversation)&&/createCareDraft/.test(ariaConversation)&&/type==='SEND_MESSAGE'/.test(ariaConversation)],
+ ['ARIA restores pending action confirmation when conversations reopen',
+  /pendingAction/.test(ariaPage)&&/setSuggestion\(pending\?/.test(ariaPage)&&/status:'awaiting_confirmation'/.test(ariaPage)&&/pendingAction/.test(ariaPage)],
  ['ARIA action approval is admin/owner constrained at the domain boundary',
   /u\.role IN\('owner','admin'\)/.test(ariaRecommendation)],
  ['ARIA approved-only drafting cannot bypass confirmation',

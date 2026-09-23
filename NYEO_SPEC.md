@@ -179,6 +179,8 @@ Scan is **population capture and identity resolution**, not attendance.
 
 A paper register can be historical, incomplete, belong to another department, or contain people who were not present that day. Scanning it must never create attendance or participation automatically.
 
+### People roster last-seen contract
+The People roster card's `Last seen` value is sourced from `engagement_metrics.last_seen`, which is the canonical derived observation timestamp. The roster API must project `last_seen` and may fall back to the latest confirmed attendance participation timestamp when the metrics row has not yet materialized. The card must render that API field explicitly; it must not substitute `last_attended_date` under the `Last seen` label.
 ### Client image ingestion contract
 Camera capture and gallery/file upload are different **sources**, not different vision pipelines. Before `/api/scan/start` receives an image, both sources must pass through the same deterministic browser preparation path:
 

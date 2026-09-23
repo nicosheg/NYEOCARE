@@ -170,7 +170,7 @@ const checks=[
  ['ARIA attendance correction is human-confirmed and intelligence-aware',
   /withAdmin/.test(attendanceCorrectionApi)&&/present/.test(attendanceCorrectionApi)&&/participation_records/.test(attendanceCorrectionApi)&&/updateEngagementMetricsForPerson/.test(attendanceCorrectionApi)&&/computeRelationshipScore/.test(attendanceCorrectionApi)],
  ['ARIA attendance correction can prepare a short absence follow-up without sending',
-  /attendance_check_in/.test(ariaDraft)&&/whatsappUrl/.test(attendanceCorrectionApi)&&/createCareDraft/.test(attendanceCorrectionApi)],
+  /attendance_check_in/.test(ariaDraft)&&/createCareDraft/.test(attendanceCorrectionApi)&&/draft/.test(attendanceCorrectionApi)&&/requiresHumanSend/.test(ariaDraft)],
 
  ['Review has lightweight summary path',
   /req\.query\?\.summary===\'1\'/.test(reviewApi)],

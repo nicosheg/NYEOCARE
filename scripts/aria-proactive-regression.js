@@ -13,6 +13,9 @@ const f={
  capability:read('lib/aria/capabilityEngine.js'),
  organization:read('lib/aria/organizationContext.js'),
  registry:read('lib/aria/capabilityRegistry.js'),
+ chat:read('pages/api/aria/chat.js'),
+ organization:read('lib/aria/organizationContext.js'),
+ registry:read('lib/aria/capabilityRegistry.js'),
  chat:read('pages/api/aria/chat.js')
 };
 const checks=[

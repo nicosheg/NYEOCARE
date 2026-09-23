@@ -120,7 +120,7 @@ export default withOrg(async function handler(req,res){
     label:m.kind==='attendance_absence_check_in'?'FOLLOW-UP':m.kind==='returned_after_absence'?'WELCOME BACK':proactiveLabels[m.kind]||cleanType(x.type)||'ACTION',
     title:name||'Action needed',message,knowledge,suggestion,
     action:{type:'care',label:m.kind==='attendance_absence_check_in'?'Review check-in':m.kind==='returned_after_absence'?'Review welcome-back':proactiveActions[m.kind]||'Review action'},
-    action_id:x.id,action_type:x.type,action_status:x.status,metadata:m,observation_id:x.observation_id,
+    action_id:x.id,action_type:x.type,action_status:x.status,phone:x.phone||null,metadata:m,observation_id:x.observation_id,
     confidence:x.confidence,care_session_id:m.session_id||null
    });
   }

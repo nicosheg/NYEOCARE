@@ -10,10 +10,32 @@ const id=String(req.query.person_id||'');
 if(!id)return res.status(400).json({error:'person_id is required'});
 const orgId=req.org.id;
 try{
-const personRows=await safe(`SELECT p.*,pi.lifecycle_state AS intelligence_lifecycle,pi.engagement_score,pi.attention_score,pi.attention_level,pi.next_best_action,pi.action_reason,em.participation_count,em.participation_rate,em.participation_streak,em.inactivity_streak,em.first_seen,em.last_seen,em.last_meaningful_event,rs.score AS relationship_score,rs.relationship_state,aps.engagement_state,aps.care_state,aps.followup_state,aps.open_observation_count,aps.open_action_count,aps.attention_reason FROM people p LEFT JOIN people_intelligence pi ON pi.organization_id=p.organization_id AND pi.person_id=p.id LEFT JOIN engagement_metrics em ON em.organization_id=p.organization_id AND em.person_id=p.id LEFT JOIN relationship_scores rs ON rs.organization_id=p.organization_id AND rs.person_id=p.id LEFT JOIN aria_person_state aps ON aps.organization_id=p.organization_id AND aps.person_id=p.id WHERE p.organization_id=$1 AND p.id=$2 LIMIT 1`,[orgId,id]);
+const personRows=await safe(`SELECT p.*,pi.lifecycle_state AS intelligence_lifecycle,pi.engagement_score,pi.attention_score,pi.attention_level,pi.next_best_action,pi.action_reason,em.participation_count,em.participation_rate,em.participation_streak,em.inactivity_streak,em.first_seen,em.last_seen,em.last_meaningful_event,(SELECT occurred_at FROM last_interaction) AS last_interaction_at,(SELECT kind FROM last_interaction) AS last_interaction_type,rs.score AS relationship_score,rs.relationship_state,aps.engagement_state,aps.care_state,aps.followup_state,aps.open_observation_count,aps.open_action_count,aps.attention_reason FROM people p LEFT JOIN people_intelligence pi ON pi.organization_id=p.organization_id AND pi.person_id=p.id LEFT JOIN engagement_metrics em ON em.organization_id=p.organization_id AND em.person_id=p.id LEFT JOIN relationship_scores rs ON rs.organization_id=p.organization_id AND rs.person_id=p.id LEFT JOIN aria_person_state aps ON aps.organization_id=p.organization_id AND aps.person_id=p.id WHERE p.organization_id=$1 AND p.id=$2 LIMIT 1`,[orgId,id]);
 if(!personRows.length)return res.status(404).json({error:'Person not found'});
 const journey=(await pool.query(`
-WITH person AS(
+WITH last_interaction AS(
+ SELECT kind,occurred_at FROM(
+   SELECT 'communication' AS kind,pc.occurred_at
+   FROM person_communications pc
+   WHERE pc.organization_id=$1 AND pc.person_id=$2 AND pc.status NOT IN('draft','failed','cancelled')
+   UNION ALL
+   SELECT 'care_feedback',cf.observed_at
+   FROM care_feedback cf
+   WHERE cf.organization_id=$1 AND cf.person_id=$2
+   UNION ALL
+   SELECT 'attendance_context',ac.created_at
+   FROM aria_attendance_contexts ac
+   WHERE ac.organization_id=$1 AND ac.person_id=$2 AND ac.source='human'
+   UNION ALL
+   SELECT 'timeline',te.occurred_at
+   FROM timeline_events te
+   WHERE te.people_id=$2 AND COALESCE(te.source,'')='human'
+     AND te.event_type NOT IN('identity_review','aria_draft','person_archived','person_updated')
+ ) recent
+ ORDER BY occurred_at DESC
+ LIMIT 1
+),
+person AS(
  SELECT p.*,pi.lifecycle_state AS intelligence_lifecycle,pi.engagement_score,pi.attention_score,pi.attention_level,pi.next_best_action,pi.action_reason,
         em.participation_count,em.participation_rate,em.participation_streak,em.inactivity_streak,em.first_seen,em.last_seen,em.last_meaningful_event,
         rs.score AS relationship_score,rs.relationship_state,aps.engagement_state,aps.care_state,aps.followup_state,

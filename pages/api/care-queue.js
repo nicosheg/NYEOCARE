@@ -127,7 +127,7 @@ try{
   COALESCE(aps.open_observation_count,0) open_observation_count,COALESCE(aps.open_action_count,0) open_action_count,aps.updated_at state_updated_at,
   ai.session_id care_session_id,ai.started_at care_session_at,ai.name care_session_name,ai.service_type care_service_type,ai.service_key care_service_key,
   ai.attended_count care_prior_attendance,ai.learning_sessions care_learning_sessions,ai.consecutive_misses care_consecutive_misses,
-  ROUND(ai.attended_count::numeric/GREATEST(ai.learning_sessions,1),3) care_attendance_rate,ai.priority care_priority,ct.last_contact_at care_last_contact_at
+  ROUND(ai.attended_count::numeric/GREATEST(ai.learning_sessions,1),3) care_attendance_rate,ai.priority care_priority,ct.last_interaction_at care_last_interaction_at,ct.last_contact_at care_last_contact_at
  FROM people p
  LEFT JOIN latest_obs o ON o.person_id=p.id
  LEFT JOIN pending_action a ON a.person_id=p.id

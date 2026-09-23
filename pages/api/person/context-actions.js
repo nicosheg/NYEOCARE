@@ -23,11 +23,12 @@ const last=await pool.query(`SELECT MAX(z.at) AS last FROM(
  SELECT MAX(cf.observed_at) AS at
  FROM care_feedback cf
  WHERE cf.person_id=$1 AND cf.organization_id=$2
+   AND COALESCE(cf.feedback_type,'')<>'no_response'
  UNION ALL
  SELECT MAX(te.occurred_at) AS at
  FROM timeline_events te
  WHERE te.people_id=$1 AND te.source IN('human','conversation_import')
-   AND te.event_type NOT IN('identity_review','aria_draft','scan_review','note')
+   AND te.event_type NOT IN('identity_review','aria_draft','scan_review','note','person_archived')
 )z`,[personId,orgId]);
 if(!last.rows[0]?.last||(Date.now()-new Date(last.rows[0].last).getTime())>7*86400000)actions.push({type:'draft',label:'Send a check-in message',description:`${p.first_name||'This person'} has not been contacted recently.`});
 

@@ -160,6 +160,8 @@ const checks=[
  ['Camera and gallery both call the same scan starter after preparation',/onChange=\{pick\}/.test(scanModal)&&/const pick=e=>/.test(scanModal)&&/if\(f\)start\(f\)/.test(scanModal)&&/const image_base64=await prepare\(file\)/.test(scanModal)],
  ['Person editing preserves the displayed honorific/prefix',/setEditName\(p\.display_name\|\|/.test(personPage)],
  ['People API preserves an existing honorific when an edit omits it',/existing=normalizeDisplayName\(check\.rows\[0\]\.display_name/.test(peopleApi)&&/existing\.honorific&&!parsed\.honorific/.test(peopleApi)],
+ ['People roster API projects canonical last_seen from engagement metrics',/em\.last_seen/.test(peopleApi)&&/AS last_seen/.test(peopleApi)&&/SELECT r\.id,/.test(peopleApi)&&/r\.last_seen/.test(peopleApi)],
+ ['People cards render last_seen instead of silently falling back to last attended',/const formatLastSeen=/.test(peoplePage)&&/Last seen ·/.test(peoplePage)&&/formatLastSeen\(person\.last_seen\|\|person\.last_seen_at\)/.test(peoplePage)&&!/formatLastAttended\(/.test(peoplePage)],
  ['Review has lightweight summary path',
   /req\.query\?\.summary===\'1\'/.test(reviewApi)],
  ['Daily briefing endpoint remains read-only',

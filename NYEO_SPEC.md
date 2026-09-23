@@ -533,8 +533,9 @@ Active learning and richer voice/pattern learning remain future phases; the data
 # 13. CURRENT TECHNICAL ARCHITECTURE — 20 SEPTEMBER 2026
 
 ### Application
-- Next.js **14.1.0**.
-- React **18.2.0**.
+- Next.js **15.5.24**.
+- React **18.3.1**.
+- React DOM **18.3.1**.
 - Pages Router with API routes under `pages/api/`.
 - Mobile-first web experience.
 - Capacitor/Android workflow exists for future native packaging.
@@ -897,7 +898,7 @@ The goal is not to build the most features.
 ---
 
 ## Documentary record
-**Last updated:** 20 September 2026
+**Last updated:** 23 September 2026
 
 This edition supersedes stale assumptions in earlier versions, especially around hosting, People-card presentation, attendance-derived Last attended, current scan hardening, current ARIA action safety, daily briefing behavior, CI build configuration, Review Center consolidation, attendance parser/cache hardening, and the current production deployment state.
 
@@ -1465,3 +1466,20 @@ Any future ARIA capability must plug into the canonical loop instead of creating
 ## 26.9 Peak ARIA target
 
 Peak ARIA is not the model that says the most. It is the intelligence system that most reliably distinguishes what is known, observed, reported, inferred, conflicted and unknown; understands how those facts changed over time; recommends useful human next steps; respects authority; and learns from human outcomes without rewriting history.
+
+
+## 26.10 Living Truth refresh policy and scale boundary
+
+Living Truth is durable identity/human-context state, not a per-event cache. It must not be recomputed for every attendance, communication or ARIA event.
+
+Authoritative identity/human-review paths may explicitly refresh and persist Living Truth. Routine events update the event, observation, intelligence and timeline layers instead. Read-time Living Truth assembly is lazy and organization-scoped.
+
+This preserves the canonical loop without turning an N-person attendance session into an N-person, multi-query truth recomputation pass.
+
+## 26.11 Intelligence-core release state
+
+The September 23 intelligence-core work is being built on a feature branch and is not considered production until the full regression suite, application build, release artifact verification and final production smoke gate pass.
+
+No intermediate Vercel deployment is part of this work. The production path remains:
+
+**feature branch → review → final validation → one intentional main commit → one prebuilt Vercel production deployment → live verification.**

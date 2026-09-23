@@ -5,7 +5,7 @@ const checks=[
 ['Director version is on the intelligence-core line',files.director.includes("ARIA_DIRECTOR_VERSION='3.0.0'")],
 ['Director has a read-only organization context',files.director.includes('getDirectorContext')&&files.director.includes('getOrganizationChanges')&&files.director.includes('getAttentionSummary')],
 ['Director does not refresh Living Truth during reads',files.director.includes('personId?getLivingTruth({organizationId,personId})')&&!files.director.includes('personId?refreshLivingTruth({organizationId,personId})')],
-['Living Truth distinguishes alive, needs_decision and conflict',files.truth.includes("overallStatus=conflicts.length||identityStatus==='conflict'?'conflict':identityTrusted?'alive':'needs_decision'")&&files.truth.includes('identityTrusted')],
+['Living Truth distinguishes alive, needs_decision and conflict',files.truth.includes("overallStatus=conflicts.length?'conflict':identityTrusted?'alive':storedStatus==='alive'?'alive':storedStatus==='needs_decision'?'needs_decision':'needs_decision'")&&files.truth.includes('identityTrusted')&&files.truth.includes('storedStatus')],
 ['Living Truth persists to the canonical people record',files.truth.includes('UPDATE people SET living_truth=$3::jsonb')],
 ['Living Truth can participate in an existing transaction',files.truth.includes('build({organizationId,personId,client=null})')&&files.truth.includes('const db=client||pool')&&files.truth.includes('client:db')],
 ['Evidence carries epistemic provenance',files.epistemic.includes('source_id')&&files.epistemic.includes('occurred_at')&&files.epistemic.includes('authority')],
@@ -24,7 +24,7 @@ const checks=[
 ['Explicit briefing generation remains the mutation path',files.briefing.includes('await runCareCycle(orgId)')],
 ['Event processing does not recompute Living Truth for every event',!files.eventProcessor.includes('refreshLivingTruth')],
 ['People cards show Living Truth as a dot, not a visible status label',(()=>{const p=read('pages/people.js');return /role='img'/.test(p)&&/aria-label=\{statusLabel\(status\)/.test(p)&&!p.includes('>{label}</span>}</div><div style={{display:\'flex\',alignItems:\'center\',gap:7')})() ],
-['Manual-source identities remain eligible for an alive Living Truth state',files.truth.includes("String(p.source||'')==='manual'" )],
+['Manual-source identities remain eligible for an alive Living Truth state',files.truth.includes("['manual','human_review'].includes(String(p.source||''))")],
 ['Living Truth surfaces durable memory evidence',files.truth.includes('memories=memory.rows.map')],
 ['Living Truth preserves a previously established alive state for strong scan evidence',files.truth.includes('storedStatus')&&files.truth.includes("storedStatus==='alive'?'alive'")&&files.truth.includes("SELECT id,display_name,first_name,last_name,type,source,metadata,living_truth")],
 ['Vercel Git deployments remain disabled',/"deploymentEnabled":false/.test(files.vercel)]

@@ -7,6 +7,7 @@ const home=read('pages/index.js');
 const peoplePage=read('pages/people.js');
 const personPage=read('pages/person/[id].js');
 const peopleApi=read('pages/api/people.js');
+const peopleSizing=read('styles/people-sizing.css');
 const reviewCenter=read('components/ReviewCenterTab.js');
 const profile=read('pages/profile.js');
 const onboarding=read('components/OnboardingProvider.js');
@@ -163,8 +164,9 @@ const checks=[
  ['People API preserves an existing honorific when an edit omits it',/existing=normalizeDisplayName\(check\.rows\[0\]\.display_name/.test(peopleApi)&&/existing\.honorific&&!parsed\.honorific/.test(peopleApi)],
  ['People roster API projects canonical last_seen from engagement metrics',/em\.last_seen/.test(peopleApi)&&/AS last_seen/.test(peopleApi)&&/SELECT r\.id,/.test(peopleApi)&&/r\.last_seen/.test(peopleApi)],
  ['People cards render last_seen instead of silently falling back to last attended',/const formatLastSeen=/.test(peoplePage)&&/Last seen ·/.test(peoplePage)&&/formatLastSeen\(person\.last_seen\|\|person\.last_seen_at\)/.test(peoplePage)&&!/formatLastAttended\(/.test(peoplePage)],
- ['People roster Last seen is month/day only',
-  /const formatLastSeen=/.test(peoplePage)&&/Last seen ·/.test(peoplePage)&&!/Today,/.test(peoplePage)],
+ ['People roster Last seen is month/day only',/const formatLastSeen=/.test(peoplePage)&&/Intl\.DateTimeFormat\('en-NG',\{month:'short',day:'numeric',timeZone:'Africa\/Lagos'\}\)/.test(peoplePage)&&!/d\.getFullYear\(\)/.test(peoplePage)],
+ ['People last_seen row cannot be hidden by icon-structure CSS',/className="ny-last-seen"/.test(peoplePage)&&/className="ny-phone-row"/.test(peoplePage)&&/\.ny-last-seen\{display:flex!important/.test(peopleSizing)&&/\.ny-phone-row\{display:flex!important/.test(peopleSizing)&&!/:has\(>svg rect\[x="3"\]\[y="4"\]/.test(peopleSizing)],
+ ['People last_seen is displayed even when only canonical attendance fallback exists',/person\.last_seen\|\|person\.last_seen_at/.test(peoplePage)&&/AS last_seen/.test(peopleApi))],
  ['Person Journey exposes canonical last attendance and last interaction',
   /last_attendance_at/.test(personPage)&&/last_interaction_at/.test(personPage)&&/Last attendance/.test(personPage)&&/Last interaction/.test(personPage)],
  ['ARIA attendance correction is human-confirmed and intelligence-aware',

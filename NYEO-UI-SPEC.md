@@ -96,3 +96,12 @@ Every component must remain legible against all NYEO living-background states. P
 
 ## Inspiration, not dependency
 Research references include OpenGlass UI, LiquidGlass UI, Motion Primitives, and other open-source liquid-glass implementations. NYEO UI remains dependency-free for now so NYEOCARE keeps its current Next.js 14 / React 18 architecture stable.
+
+
+### People card semantic rows
+People cards must use semantic row class names for dynamic person facts:
+- `ny-last-seen` for the canonical last-seen value.
+- `ny-phone-row` for the phone value.
+
+CSS must not hide or identify these rows by matching SVG path/rect geometry. Icon implementation is replaceable; row meaning is not. Last seen remains visible when data exists and displays month + day in the Africa/Lagos timezone.
+

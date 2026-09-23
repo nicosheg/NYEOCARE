@@ -1363,3 +1363,14 @@ A release is not “live” merely because GitHub is green. It is complete only 
 ### Daily deployment-budget rule
 Treat production deployments as scarce release operations. Prefer one complete validated deployment over many partial deployments. Preview deployments are optional and should not be created for every experimental push unless they are needed for a specific verification task.
 
+
+### People card last-seen rendering regression guard
+The People API and People card must be audited as two separate layers:
+1. `pages/api/people.js` projects canonical `last_seen` from `engagement_metrics.last_seen`, then confirmed participation/attendance history as deterministic fallbacks.
+2. `pages/people.js` renders that field with an explicit semantic `ny-last-seen` row and shows **month + day only**, using the Africa/Lagos timezone.
+3. `styles/people-sizing.css` must style `ny-last-seen` and `ny-phone-row` through semantic class names. It must never infer row meaning from an SVG icon's geometry or use a broad `:has(>svg ...)` selector that can accidentally hide the last-seen row.
+4. A missing last-seen value is an honest `Last seen · —` state; it must not be silently removed from the card.
+5. The critical UI regression suite must guard this contract so a future icon/layout refactor cannot make real attendance data disappear from the People surface again.
+
+This distinction matters because real September 2026 database records already contain canonical last-seen timestamps for affected people; when the API data is present but the card row is absent, the failure is presentation CSS, not attendance persistence.
+

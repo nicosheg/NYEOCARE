@@ -1328,3 +1328,38 @@ The confirmed-action release is not complete until CI passes the canonical regre
 - **Attendance review:** unresolved attendance-absence actions can appear in Review Center after a session is closed. A human can tell ARIA that the person attended or did not attend. The existing transactional attendance correction updates the attendance record, resolves/cancels the stale ARIA action, recalculates intelligence, and drafts a follow-up only when absence is confirmed.
 - **WhatsApp handoff:** ARIA does not auto-send care drafts. It uses WhatsApp Click to Chat with the message pre-filled in the person's chat so the operator can edit it before choosing to send.
 - **Message size:** care drafts target a message body below 180 characters, with the final attributed draft capped at 300 characters.
+
+## Deployment and release discipline — canonical 2026 architecture
+
+NYEOCARE uses **GitHub Actions as the controlled production build/release pipeline**. Vercel is the runtime and deployment destination, not the place where every Git push must trigger a new build.
+
+### One batch → one production deployment
+- Development may contain many edits and intermediate commits.
+- Do not push every small implementation change directly to main.
+- Group related work, test it, then land the completed batch as **one intentional main commit**, normally by squash-merging a PR.
+- A main commit is the production release unit. One accepted batch should produce one production deployment.
+- Never create extra “just to trigger Vercel” commits. If deployment fails, fix the cause and redeploy the same validated commit or use the preserved build artifact.
+
+### Build once, deploy the artifact
+Canonical production path:
+
+feature work → PR/review/regression tests → ONE intentional main commit → GitHub Actions → vercel pull (production) → vercel build --prod → verify .vercel/output → preserve build artifact → vercel deploy --prebuilt --prod --archive=tgz → production smoke test.
+
+vercel build creates the Vercel Build Output in .vercel/output. The deployment step must use vercel deploy --prebuilt so Vercel does not rebuild the source during deployment. The --archive=tgz option is preferred for production uploads when the output contains many files because it reduces file-upload overhead.
+
+The validated .vercel/output is also retained as a GitHub Actions artifact for the release run. This is a release artifact, not a second application build. It exists so a successful build can be preserved, inspected, and redeployed without rebuilding the source.
+
+### Vercel Git integration
+Automatic Vercel Git deployments are disabled for NYEOCARE. Production delivery is owned by GitHub Actions so a Git push cannot unexpectedly consume Vercel build capacity or create duplicate production builds.
+
+The repository vercel.json must keep git.deploymentEnabled=false. If this policy is ever changed, update this section and the CI workflow together. Do not create a second independent production deployment path.
+
+### Deployment failure rule
+A Vercel build-rate/build-capacity error is an infrastructure/deployment-path problem, not proof that application code is broken. First inspect the actual failing deployment and CI result. If Git integration attempted an unwanted build, confirm automatic Git deployment is disabled. Do not create repeated commits merely to retry.
+
+### Verification rule
+A release is not “live” merely because GitHub is green. It is complete only when the canonical regression suite passes, vercel build --prod succeeds, .vercel/output/config.json exists and is preserved, vercel deploy --prebuilt --prod succeeds, the production alias serves the intended main commit, and a live smoke test checks the changed surface.
+
+### Daily deployment-budget rule
+Treat production deployments as scarce release operations. Prefer one complete validated deployment over many partial deployments. Preview deployments are optional and should not be created for every experimental push unless they are needed for a specific verification task.
+

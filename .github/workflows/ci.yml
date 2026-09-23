@@ -5,6 +5,7 @@ on:
     branches: [main, scan-v70-identity-foundation]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -23,16 +24,12 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
-
       - run: npm install --no-audit --no-fund
-
       - run: npm run test:persistence
       - run: npm run test:review-surface
       - run: npm run test:scan
@@ -40,30 +37,32 @@ jobs:
       - run: npm run test:aria
       - run: npm run test:auth
       - run: npm run test:system-scale
-
       - name: Build application
         if: github.event_name != 'push' || github.ref != 'refs/heads/main'
         run: npm run build
-
       - name: Install Vercel CLI
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: npm install --global vercel@59.20.0
-
+        run: npm install --global vercel@59.23.1
       - name: Pull Vercel production configuration
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
-
       - name: Build Vercel prebuilt artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: vercel build --prod --token="${{ secrets.VERCEL_TOKEN }}"
-
       - name: Verify Vercel prebuilt artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           test -f .vercel/output/config.json
           test -d .vercel/output
           echo "Vercel prebuilt output is ready."
-
+      - name: Preserve Vercel build artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nyeocare-vercel-output-${{ github.sha }}
+          path: .vercel/output
+          if-no-files-found: error
+          retention-days: 7
       - name: Deploy Vercel prebuilt artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: vercel deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}"
+        run: vercel deploy --prebuilt --prod --archive=tgz --token="${{ secrets.VERCEL_TOKEN }}"

@@ -10,7 +10,10 @@ const f={
  command:read('lib/aria/commandEngine.js'),
  conversation:read('lib/aria/conversationEngine.js'),
  draft:read('lib/aria/draftEngine.js'),
- capability:read('lib/aria/capabilityEngine.js')
+ capability:read('lib/aria/capabilityEngine.js'),
+ organization:read('lib/aria/organizationContext.js'),
+ registry:read('lib/aria/capabilityRegistry.js'),
+ chat:read('pages/api/aria/chat.js')
 };
 const checks=[
  ['Core personality has proactive loops',f.core.includes('NOTICE')&&f.core.includes('STRENGTHEN')&&f.core.includes('INVITE')&&f.core.includes('LEARN')],

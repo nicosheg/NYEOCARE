@@ -1319,3 +1319,12 @@ A confirmation flow that cannot prove the proposal still exists, is unexpired, b
 ### Release verification
 
 The confirmed-action release is not complete until CI passes the canonical regression suite, the production build succeeds, the deployed alias serves the intended commit, and a live smoke test verifies the ARIA action-confirmation surface.
+
+
+## Canonical interaction and ARIA review behavior
+- **Last seen / last attendance:** People and Person Journey use the same canonical attendance signal: engagement_metrics.last_seen when available, otherwise the latest confirmed attendance participation, otherwise the latest confirmed attendance record mark. Person Journey displays this as month + day.
+- **Last interaction:** an interaction is an inbound communication, an outbound communication with a sent/delivered/read/completed state, human-recorded care feedback other than no_response, or a human/conversation timeline event that is not an internal administrative/ARIA event. ARIA drafts are never counted as contact.
+- **Daily ARIA behavior:** daily action suggestions use the same last-interaction definition as Person Journey, so creating an ARIA draft cannot reset the contact clock.
+- **Attendance review:** unresolved attendance-absence actions can appear in Review Center after a session is closed. A human can tell ARIA that the person attended or did not attend. The existing transactional attendance correction updates the attendance record, resolves/cancels the stale ARIA action, recalculates intelligence, and drafts a follow-up only when absence is confirmed.
+- **WhatsApp handoff:** ARIA does not auto-send care drafts. It uses WhatsApp Click to Chat with the message pre-filled in the person's chat so the operator can edit it before choosing to send.
+- **Message size:** care drafts target a message body below 180 characters, with the final attributed draft capped at 300 characters.

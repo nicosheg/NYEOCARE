@@ -1404,3 +1404,7 @@ Database identifier types must never be compared implicitly across incompatible 
 ARIA should be able to answer practical questions such as: who joined recently; who was invited and what role were they given; has the new admin done anything yet; who last worked on attendance; who is currently handling these tasks; what changed in this organization recently; what information is not recorded; and what needs an owner's attention.
 
 Read questions should be fast and direct. Consequential actions still use the existing approval gate; better organization context should make the preparation step easier without granting ARIA autonomous authority.
+
+## ARIA conversation reliability: response synthesis must not crash the chat surface
+
+ARIA conversation is a read-first operator surface. A failure while summarizing, formatting or synthesizing a verified result must never turn into a raw server error for the operator. Technical failures are logged for engineering; ARIA should return the best safe verified text already available, or a plain statement that the requested information could not be verified. Stale variables removed from organization-context refactors must be covered by regression tests.

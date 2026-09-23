@@ -180,7 +180,7 @@ Scan is **population capture and identity resolution**, not attendance.
 A paper register can be historical, incomplete, belong to another department, or contain people who were not present that day. Scanning it must never create attendance or participation automatically.
 
 ### People roster last-seen contract
-The People roster card's `Last seen` value is sourced from `engagement_metrics.last_seen`, which is the canonical derived observation timestamp. The roster API must project `last_seen` and may fall back to the latest confirmed attendance participation timestamp when the metrics row has not yet materialized. The card must render that API field explicitly; it must not substitute `last_attended_date` under the `Last seen` label.
+The People roster uses **Last seen** as the simple human-facing label for **last confirmed attendance**. The API exposes `last_attended_date` from confirmed attendance/participation history, and the card renders it as **Last seen · Mon DD**. Scanning, opening a profile, or creating a person must never advance this value. Internal `engagement_metrics.last_seen` remains available to intelligence but is not the roster's user-facing meaning.
 ### Client image ingestion contract
 Camera capture and gallery/file upload are different **sources**, not different vision pipelines. Before `/api/scan/start` receives an image, both sources must pass through the same deterministic browser preparation path:
 
@@ -422,6 +422,11 @@ Every meaningful action should leave a trace in the Journey/timeline.
 
 ---
 
+### Last seen / Last interaction contract
+On the Person Journey, **Last seen** means last confirmed attendance. **Last interaction** means the most recent human-recorded relationship contact that NYEOCARE can actually substantiate. It may come from a non-draft communication, human care feedback, human attendance context, a person-journey care context, or a human-authored timeline note. ARIA-generated drafts, identity-review machinery, profile opens and background-only events do not count as direct interaction. Both are displayed compactly as month/day values.
+
+Last interaction is also a day-to-day intelligence signal. Recent human contact should normally suppress another similar proactive care suggestion for a short cooling period; older or missing interaction history allows ARIA to reconsider the opportunity.
+
 # 10. DAILY BRIEFING / ARIA TODAY
 
 The Home experience is **ARIA Today**.
@@ -481,9 +486,13 @@ SEND CONFIRMATION
 TIMELINE / JOURNEY
 ```
 
-The system must never mark a message as sent merely because a draft was generated or a WhatsApp link was opened.
+The system must never mark a message as sent merely because a draft was generated or a WhatsApp link was opened. The WhatsApp handoff is a prefilled-composer convenience, not an automatic send. Drafts should normally be no more than two short sentences and roughly 350 characters unless the human explicitly asks for more context.
 
 ---
+
+### ARIA attendance-review clarification
+When ARIA raises an attendance follow-up for a completed session, the user can tell ARIA the human context directly from the action review: **They attended** or **They didn't attend**, with an optional note. The exact attendance record is corrected transactionally, attendance-derived intelligence is refreshed, the obsolete absence signal is resolved, and the action leaves the active queue. When absence is confirmed, ARIA prepares a concise check-in draft immediately; when attendance is confirmed, the follow-up disappears without generating a message. This is a scoped ARIA-review correction path and must preserve organization/session authorization.
+
 
 # 12. MEMORY & LEARNING
 

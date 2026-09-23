@@ -24,6 +24,7 @@ const db=read('lib/db.js');
 const auth=read('lib/auth.js');
 const reviewApi=read('pages/api/review/index.js');
 const reviewResolveApi=read('pages/api/review/resolve.js');
+const ariaContextAction=read('pages/api/aria/action/context.js');
 const scanModal=read('components/ScanModal.js');
 const activeApi=read('pages/api/attendance/active-session.js');
 const attendancePeopleApi=read('pages/api/attendance/people.js');
@@ -161,7 +162,7 @@ const checks=[
  ['Person editing preserves the displayed honorific/prefix',/setEditName\(p\.display_name\|\|/.test(personPage)],
  ['People API preserves an existing honorific when an edit omits it',/existing=normalizeDisplayName\(check\.rows\[0\]\.display_name/.test(peopleApi)&&/existing\.honorific&&!parsed\.honorific/.test(peopleApi)],
  ['People roster API projects canonical last_seen from engagement metrics',/em\.last_seen/.test(peopleApi)&&/AS last_seen/.test(peopleApi)&&/SELECT r\.id,/.test(peopleApi)&&/r\.last_seen/.test(peopleApi)],
- ['People cards render last_seen instead of silently falling back to last attended',/const formatLastSeen=/.test(peoplePage)&&/Last seen ·/.test(peoplePage)&&/formatLastSeen\(person\.last_seen\|\|person\.last_seen_at\)/.test(peoplePage)&&!/formatLastAttended\(/.test(peoplePage)],
+ [ ['People cards use Last seen as the human-facing last-attendance label',/const formatLastSeen=/.test(peoplePage)&&/Last seen ·/.test(peoplePage)&&/formatLastSeen\(person\.last_attended_date\)/.test(peoplePage)&&!/formatLastAttended\(/.test(peoplePage)], ['Person journey exposes last attendance and last interaction separately',/last_attended_date/.test(personPage)&&/last_interaction_at/.test(personPage)&&/Last interaction/.test(personPage)], ['Person journey computes interaction from human evidence only',/WITH last_interaction AS/.test(read('pages/api/person/journey.js'))&&/person_communications/.test(read('pages/api/person/journey.js'))&&/care_feedback/.test(read('pages/api/person/journey.js'))&&/aria_care_contexts/.test(read('pages/api/person/journey.js'))&&/source,'human'/.test(read('pages/api/person/journey.js'))], ['ARIA attendance review has one-tap human attendance correction',/actionId/.test(ariaContextAction)&&/attendance/.test(ariaContextAction)&&/attendance_records/.test(ariaContextAction)&&/participation_records/.test(ariaContextAction)&&/status='handled'/.test(ariaContextAction)], ['ARIA attendance correction refreshes derived intelligence',/refreshAttendanceIntelligence/.test(ariaContextAction)&&/resolution:'attendance_confirmed'/.test(ariaContextAction)&&/resolution:'absence_confirmed'/.test(ariaContextAction)], ['ARIA care engine throttles duplicate proactive prompts using last interaction',/last_interactions AS/.test(read('lib/aria/careEngine.js'))&&/last_interaction_at/.test(read('lib/aria/careEngine.js'))&&/last_interaction_at<NOW\(\)-INTERVAL '14 days'/.test(read('lib/aria/careEngine.js'))], ['People cards render last_seen instead of silently falling back to last attended',/const formatLastSeen=/.test(peoplePage)&&/Last seen ·/.test(peoplePage)&&/formatLastSeen\(person\.last_seen\|\|person\.last_seen_at\)/.test(peoplePage)&&!/formatLastAttended\(/.test(peoplePage)],]
  ['Review has lightweight summary path',
   /req\.query\?\.summary===\'1\'/.test(reviewApi)],
  ['Daily briefing endpoint remains read-only',

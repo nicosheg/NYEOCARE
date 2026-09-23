@@ -171,4 +171,8 @@ export default withOrg(async function handler(req,res){
   )).rows[0]||null;
 
   return res.status(200).json({success:true,resolution:'present',attendance:attendanceRow,action:handled,draft:null,session:{id:a.session_id,name:a.session_name}});
- });
+ }catch(e){
+  console.error('[ARIA] attendance context',e);
+  return res.status(e.status||500).json({error:e.message||'ARIA could not apply that context.'});
+ }
+});

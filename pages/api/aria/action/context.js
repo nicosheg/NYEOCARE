@@ -1,7 +1,7 @@
 // pages/api/aria/action/context.js
 import pool from'../../../../lib/db';
 import{withOrg}from'../../../../lib/apiHelpers';
-import{createCareDraft}from'../../../../lib/aria/draftEngine';
+import{createCareDraft}from'../../../../lib/aria/draftEngine';import{refreshAttendanceIntelligence}from'../../../../lib/aria/attendanceIntelligence';
 
 const clean=v=>String(v??'').trim().slice(0,1000);
 
@@ -30,9 +30,8 @@ export default withOrg(async function handler(req,res){
   if(!a.session_status)return res.status(404).json({error:'The attendance session could not be found.'});
 
   if(!['owner','admin'].includes(req.user.role)){
-   if(a.session_status!=='active')return res.status(403).json({error:'This correction is historical. An owner or admin must confirm it.'});
    const member=await pool.query('SELECT 1 FROM session_users WHERE session_id=$1 AND user_id=$2 LIMIT 1',[a.session_id,req.user.id]);
-   if(!member.rows.length)return res.status(403).json({error:'Join the attendance session before correcting this record.'});
+   if(!member.rows.length)return res.status(403).json({error:'Only a person who participated in this attendance session can correct this ARIA review.'});
   }
 
   const present=attendance==='present';
@@ -61,6 +60,24 @@ export default withOrg(async function handler(req,res){
       RETURNING id,attendance_date,present,confirmed,marked_at`,
      [a.person_id,new Date(a.started_at||Date.now()).toISOString().slice(0,10),present,a.session_id,req.user.id,present?'present':'not_present',req.org.id]
     )).rows[0];
+   }
+
+   if(present){
+    await client.query(
+     `INSERT INTO participation_records(
+       organization_id,person_id,session_id,participation_type,value,occurred_at
+      )
+      VALUES($1,$2,$3,'attendance',jsonb_build_object('present',true,'source','aria_human_correction'),COALESCE($4,NOW()))
+      ON CONFLICT(organization_id,person_id,session_id,participation_type)
+        WHERE participation_type='attendance' DO NOTHING`,
+     [req.org.id,a.person_id,a.session_id,a.started_at]
+    );
+   }else{
+    await client.query(
+     `DELETE FROM participation_records
+      WHERE organization_id=$1 AND person_id=$2 AND session_id=$3 AND participation_type='attendance'`,
+     [req.org.id,a.person_id,a.session_id]
+    );
    }
 
    if(!present){
@@ -109,6 +126,17 @@ export default withOrg(async function handler(req,res){
    await client.query('ROLLBACK').catch(()=>{});
    throw e;
   }finally{client.release()}
+
+  // Recompute the affected person's attendance-derived intelligence from the corrected canonical record.
+  // The linked absence observation remains present until this refresh so the affected person is in the refresh target.
+  await refreshAttendanceIntelligence(a.session_id,req.org.id);
+  if(a.observation_id){
+   await pool.query(
+    `UPDATE aria_observations SET status='resolved',resolved_at=NOW()
+     WHERE id=$1 AND organization_id=$2 AND person_id=$3 AND status='active'`,
+    [a.observation_id,req.org.id,a.person_id]
+   );
+  }
 
   let draft=null;
   if(!present){

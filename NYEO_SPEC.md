@@ -1404,3 +1404,64 @@ Database identifier types must never be compared implicitly across incompatible 
 ARIA should be able to answer practical questions such as: who joined recently; who was invited and what role were they given; has the new admin done anything yet; who last worked on attendance; who is currently handling these tasks; what changed in this organization recently; what information is not recorded; and what needs an owner's attention.
 
 Read questions should be fast and direct. Consequential actions still use the existing approval gate; better organization context should make the preparation step easier without granting ARIA autonomous authority.
+
+## ARIA conversation reliability: response synthesis must not crash the chat surface
+
+ARIA conversation is a read-first operator surface. A failure while summarizing, formatting or synthesizing a verified result must never turn into a raw server error for the operator. Technical failures are logged for engineering; ARIA should return the best safe verified text already available, or a plain statement that the requested information could not be verified. Stale variables removed from organization-context refactors must be covered by regression tests.
+
+
+# 26. SEPTEMBER 23, 2026 — ARIA INTELLIGENCE CORE V1
+
+This release converts ARIA from a collection of useful care modules into one coherent intelligence architecture while preserving existing product surfaces.
+
+## 26.1 Canonical intelligence loop
+
+Perception → Evidence → Living Truth → Temporal Context → Attention → Recommendation → Human Decision → Action → Outcome → Learning
+
+The LLM is a replaceable reasoning component inside this loop. It is never the source of truth, policy or authorization.
+
+## 26.2 Evidence discipline
+
+ARIA uses explicit epistemic states: verified, observed, reported, inferred, conflicted, unknown and stale.
+
+Every surfaced evidence item carries provenance including source, source ID, time, authority and bounded confidence. Internal reasoning traces are not presented as evidence. Missing data is an explicit unknown, not a guessed fact.
+
+## 26.3 Living Truth
+
+people.living_truth is the persisted truth summary for a person. It is derived from organization records and human evidence rather than model guesses.
+
+Overall states are alive, needs_decision and conflict. Confirmed participation is verified evidence. Human care feedback is reported evidence. ARIA observations are observations. Unresolved uncertainty is kept visible.
+
+## 26.4 Temporal intelligence
+
+Organization changes and person history now have dedicated read-only context functions. The organization timeline combines ARIA events, people, sessions, invitations and care activity. The person timeline combines participation, communications, care feedback, observations and actions.
+
+These layers provide the time axis required for questions such as “what changed?”, “what happened?”, “what is different from before?” and “what do we know now?”.
+
+## 26.5 Attention and decision ladder
+
+ARIA may use current deterministic numeric signals internally, but operator-facing decisions are expressed as explicit steps:
+
+DO_NOTHING → WATCH → ASK → RECOMMEND → PREPARE → REQUEST_APPROVAL → ACT → ESCALATE
+
+External real-world actions remain behind server-side authorization and human approval. The model cannot grant itself permission.
+
+## 26.6 Human control and prompt-injection resistance
+
+Retrieved names, notes, messages, documents, scan text and timeline content are treated as data, never instructions. Retrieved content cannot change ARIA's policy, permissions or tool behavior.
+
+Read operations can execute immediately. State-changing operations remain preparation/approval flows. This follows current agent-safety practice emphasizing structured data flow, tool approvals and trajectory-level monitoring. OpenAI reports that long-running systems can produce failures that are not visible when evaluating isolated actions, while Anthropic emphasizes multi-turn evaluation and maintaining meaningful human control over consequential agent actions.
+
+## 26.7 Briefing boundary
+
+The Daily Briefing read snapshot is read-only and must not run the mutable care cycle. An explicit authorized Generate Briefing operation may refresh intelligence and persist a briefing snapshot.
+
+## 26.8 Regression rule
+
+The ARIA test suite now has a dedicated intelligence-core regression guard covering provenance, Living Truth states, temporal context, attention policy, new capabilities, read/write separation, prompt-injection boundaries and transactional truth refresh.
+
+Any future ARIA capability must plug into the canonical loop instead of creating a competing source of truth.
+
+## 26.9 Peak ARIA target
+
+Peak ARIA is not the model that says the most. It is the intelligence system that most reliably distinguishes what is known, observed, reported, inferred, conflicted and unknown; understands how those facts changed over time; recommends useful human next steps; respects authority; and learns from human outcomes without rewriting history.

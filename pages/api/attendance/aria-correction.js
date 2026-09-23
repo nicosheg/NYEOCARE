@@ -82,7 +82,7 @@ export default withAdmin(async function handler(req,res){
      people_id,
      present?`Human confirmed ${person.display_name||person.first_name||'this person'} attended ${session.name||'the gathering'}.`:`Human confirmed ${person.display_name||person.first_name||'this person'} did not attend ${session.name||'the gathering'}.`,
      {session_id,service_type:session.service_type||null,present,note:clean(note)},
-     session.started_at||null
+     new Date().toISOString()
   ]);
   await db.query('COMMIT');
 

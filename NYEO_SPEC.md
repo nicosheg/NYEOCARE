@@ -181,6 +181,11 @@ A paper register can be historical, incomplete, belong to another department, or
 
 ### People roster last-seen contract
 The People roster card's `Last seen` value is sourced from `engagement_metrics.last_seen`, which is the canonical derived observation timestamp. The roster API must project `last_seen` and may fall back to the latest confirmed attendance participation timestamp when the metrics row has not yet materialized. The card must render that API field explicitly; it must not substitute `last_attended_date` under the `Last seen` label.
+### People and Journey interaction contract
+- The People roster's `Last seen` is the latest confirmed attendance-derived timestamp and is displayed as month + day only.
+- The Person Journey displays `Last attendance` from the same canonical attendance truth and `Last interaction` separately.
+- `Last interaction` is the latest meaningful direct relational touch known to NYEOCARE: completed/sent/delivered/received person communication or a human/conversation-import timeline event. ARIA drafts, identity-review events, scan-review events, and internal ARIA conversation are not counted as direct interaction.
+- ARIA uses `last interaction` operationally to pace proactive care so a recent real touch can suppress unnecessary outreach.
 ### Client image ingestion contract
 Camera capture and gallery/file upload are different **sources**, not different vision pipelines. Before `/api/scan/start` receives an image, both sources must pass through the same deterministic browser preparation path:
 
@@ -193,6 +198,13 @@ UPLOAD ─┘
 The application must not have a fast path that sends small JPEG/PNG/WebP files raw while another source is canvas-normalized. That creates source-dependent pixels and makes scan quality regressions impossible to reason about. The canonical server-side `sharp.rotate() → resize → normalize → sharpen` stage remains in place after upload.
 
 A source may still differ in the **photograph itself** — lighting, focus, framing, perspective and camera quality are physical differences — but once the browser prepares it, the transformation policy must be identical. Any future change to client image preparation must be benchmarked with the same physical register captured once by camera and once through file selection.
+
+### Human attendance correction from ARIA
+When a user reviews an attendance-derived care signal, ARIA can accept an explicit human correction:
+1. **They attended** → write/update a confirmed attendance record, create/update the attendance participation fact, refresh engagement/relationship/intelligence state, resolve related attendance context, and clear the stale follow-up action.
+2. **They did not attend** → write/update a confirmed absence record, remove any attendance participation fact for that session, preserve optional human context, refresh intelligence, clear the stale follow-up action, and prepare a short unsent follow-up draft.
+3. The correction is a human historical attendance change and uses the same administrative permission boundary as other historical attendance corrections.
+4. A WhatsApp open is never treated as a sent message. Click-to-chat may open WhatsApp with the draft pre-filled, where the user remains responsible for editing and sending it.
 
 ### Review queue clearing
 Review Center distinguishes evidence that still needs a human decision from evidence the operator intentionally dismisses. Scan review items may be selected individually, including by a mobile long-press gesture, and dismissed in bulk. Bulk dismissal changes the review item to `rejected` with an auditable decision record; it must not delete the original scan evidence, scan job, or person records. Database duplicate groups are never part of scan-review bulk dismissal and retain their dedicated merge/keep-separate workflow.

@@ -47,6 +47,13 @@ if(req.method==='GET'){
      SELECT
        p.id,p.organization_id,p.first_name,p.last_name,p.display_name,p.phone,p.email,p.type,p.birthday,
        p.living_truth,p.status,p.source,p.created_at,p.updated_at,p.last_scan_job_id,
+       COALESCE(em.last_seen,(
+         SELECT MAX(pr.occurred_at)
+         FROM participation_records pr
+         WHERE pr.organization_id=p.organization_id
+           AND pr.person_id=p.id
+           AND pr.participation_type='attendance'
+       )) AS last_seen,
        (
          SELECT to_char(MAX(pr.occurred_at AT TIME ZONE 'UTC'),'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"')
          FROM participation_records pr
@@ -71,7 +78,7 @@ if(req.method==='GET'){
      LEFT JOIN latest_scan ls ON TRUE
      WHERE ${where.join(' AND ')}
    )
-   SELECT r.id,r.first_name,r.last_name,r.display_name,r.phone,r.email,r.type,r.birthday,r.living_truth,r.last_attended_date,r.new_from_latest_scan,r.new_rank,r.truth_rank,r.sort_name
+   SELECT r.id,r.first_name,r.last_name,r.display_name,r.phone,r.email,r.type,r.birthday,r.living_truth,r.last_seen,r.last_attended_date,r.new_from_latest_scan,r.new_rank,r.truth_rank,r.sort_name
    FROM ranked r
    WHERE ${cursorClause||'TRUE'}
    ORDER BY r.new_rank,r.truth_rank,r.sort_name,r.id

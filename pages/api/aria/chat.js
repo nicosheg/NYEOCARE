@@ -14,6 +14,9 @@ export default withOrg(async function handler(req,res){
   return res.status(200).json(result);
  }catch(err){
   console.error('[ARIA] Conversation:',err);
-  return res.status(err.status||500).json({error:err.message||'ARIA could not process that request.'});
+  const status=[400,401,403,404,409].includes(Number(err.status))?Number(err.status):500;
+  const raw=String(err?.message||'');
+  const safe=status<500&&!/(uuid|syntax|operator|relation|column|query|database|postgres|sql|constraint|cast)/i.test(raw)?raw:null;
+  return res.status(status).json({error:safe||'I could not complete that request right now. I do not want to expose an internal system error or guess at the answer.'});
  }
 });

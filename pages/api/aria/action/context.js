@@ -102,14 +102,6 @@ export default withOrg(async function handler(req,res){
      {action_id:a.id,session_id:a.session_id,attendance:present?'present':'absent',note:humanNote||null}]
    );
 
-   if(a.observation_id){
-    await client.query(
-     `UPDATE aria_observations SET status='resolved',resolved_at=NOW()
-      WHERE id=$1 AND organization_id=$2 AND person_id=$3 AND type='UNUSUAL_ABSENCE' AND status='active'`,
-     [a.observation_id,req.org.id,a.person_id]
-    );
-   }
-
    await client.query(
     `UPDATE aria_actions SET status='handled',
       outcome=COALESCE(outcome,'{}'::jsonb)||$1::jsonb,

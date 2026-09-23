@@ -29,7 +29,12 @@ const checks=[
  ['Command planning uses proactive rules',f.command.includes('Be proactive when evidence supports a helpful next step')],
  ['Conversation uses core personality',f.conversation.includes('ARIA_CORE_PERSONALITY')],
  ['Care drafts use core personality',f.draft.includes('ARIA_CORE_PERSONALITY')],
- ['Organization context includes operator support',f.capability.includes('operatorSupport')]
+ ['Organization context is role-aware',f.organization.includes('visibility(viewer.role')&&f.organization.includes("viewer==='owner'")&&f.organization.includes("viewer==='admin'")],
+ ['Organization context includes invitations',f.organization.includes('organization_invites')&&f.organization.includes('organization_invitations')&&f.organization.includes("status==='pending'")],
+ ['Operator activity avoids text-vs-uuid joins',f.organization.includes('u.id::text=a.actor_key')&&f.organization.includes('SELECT sj.actor_id')],
+ ['Operator context is a read capability',f.registry.includes('get_operator_context')&&f.capability.includes("case'get_operator_context':")],
+ ['ARIA routes organization-access questions to organization context',f.command.includes('newly invited')&&f.command.includes('get_organization_context')],
+ ['ARIA does not expose internal read errors to chat clients',f.chat.includes('I do not want to expose an internal system error')]
 ];
 const failures=checks.filter(([,ok])=>!ok).map(([name])=>name);
 if(failures.length){console.error('[ARIA PROACTIVE] FAILED');console.error(failures.join(' | '));process.exit(1)}

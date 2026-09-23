@@ -27,6 +27,10 @@ WITH last_interaction AS(
    FROM aria_attendance_contexts ac
    WHERE ac.organization_id=$1 AND ac.person_id=$2 AND ac.source='human'
    UNION ALL
+   SELECT 'care_context',cc.created_at
+   FROM aria_care_contexts cc
+   WHERE cc.organization_id=$1 AND cc.person_id=$2 AND cc.metadata->>'surface'='person_journey'
+   UNION ALL
    SELECT 'timeline',te.occurred_at
    FROM timeline_events te
    WHERE te.people_id=$2 AND COALESCE(te.source,'')='human'

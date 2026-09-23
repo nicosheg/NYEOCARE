@@ -26,6 +26,7 @@ const checks=[
 ['People cards show Living Truth as a dot, not a visible status label',(()=>{const p=read('pages/people.js');return /role='img'/.test(p)&&/aria-label=\{statusLabel\(status\)/.test(p)&&!p.includes('>{label}</span>}</div><div style={{display:\'flex\',alignItems:\'center\',gap:7')})() ],
 ['Manual-source identities remain eligible for an alive Living Truth state',files.truth.includes("String(p.source||'')==='manual'" )],
 ['Living Truth surfaces durable memory evidence',files.truth.includes('memories=memory.rows.map')],
+['Living Truth preserves a previously established alive state for strong scan evidence',files.truth.includes('storedStatus')&&files.truth.includes("storedStatus==='alive'?'alive'")&&files.truth.includes("SELECT id,display_name,first_name,last_name,type,source,metadata,living_truth")],
 ['Vercel Git deployments remain disabled',/"deploymentEnabled":false/.test(files.vercel)]
 ];
 const failures=checks.filter(([,ok])=>!ok).map(([name])=>name);

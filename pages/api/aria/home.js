@@ -81,7 +81,8 @@ async function handler(req,res){
          a.action_metadata,
          a.proposed_at,
          p.first_name,
-         p.last_name
+         p.last_name,
+         p.phone
        FROM aria_actions a
        LEFT JOIN people p
          ON p.id=a.person_id

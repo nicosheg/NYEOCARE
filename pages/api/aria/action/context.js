@@ -102,16 +102,29 @@ export default withOrg(async function handler(req,res){
      {action_id:a.id,session_id:a.session_id,attendance:present?'present':'absent',note:humanNote||null}]
    );
 
-   await client.query(
-    `UPDATE aria_actions SET status='handled',
-      outcome=COALESCE(outcome,'{}'::jsonb)||$1::jsonb,
-      action_metadata=COALESCE(action_metadata,'{}'::jsonb)||$2::jsonb,
-      failure_reason=NULL,updated_at=NOW()
-     WHERE id=$3 AND organization_id=$4 AND status IN('proposed','approved')`,
-    [JSON.stringify({resolution:present?'attendance_confirmed':'absence_confirmed',handled_by:req.user.id}),
-     JSON.stringify({human_attendance:present?'present':'absent',human_note:humanNote||null,handled_by_human:true}),
-     a.id,req.org.id]
-   );
+   if(present){
+    await client.query(
+     `UPDATE aria_actions SET status='handled',
+       outcome=COALESCE(outcome,'{}'::jsonb)||$1::jsonb,
+       action_metadata=COALESCE(action_metadata,'{}'::jsonb)||$2::jsonb,
+       failure_reason=NULL,updated_at=NOW()
+      WHERE id=$3 AND organization_id=$4 AND status IN('proposed','approved')`,
+     [JSON.stringify({resolution:'attendance_confirmed',handled_by:req.user.id}),
+      JSON.stringify({human_attendance:'present',human_note:humanNote||null,handled_by_human:true}),
+      a.id,req.org.id]
+    );
+   }else{
+    await client.query(
+     `UPDATE aria_actions SET
+       outcome=COALESCE(outcome,'{}'::jsonb)||$1::jsonb,
+       action_metadata=COALESCE(action_metadata,'{}'::jsonb)||$2::jsonb,
+       failure_reason=NULL,updated_at=NOW()
+      WHERE id=$3 AND organization_id=$4 AND status IN('proposed','approved')`,
+     [JSON.stringify({resolution:'absence_confirmed',handled_by:req.user.id}),
+      JSON.stringify({human_attendance:'absent',human_note:humanNote||null,handled_by_human:true}),
+      a.id,req.org.id]
+    );
+   }
 
    await client.query('COMMIT');
   }catch(e){
@@ -142,8 +155,10 @@ export default withOrg(async function handler(req,res){
 
    const updated=(await pool.query(
     `UPDATE aria_actions
-     SET outcome=COALESCE(outcome,'{}'::jsonb)||$1::jsonb,updated_at=NOW()
-     WHERE id=$2 AND organization_id=$3
+     SET status='handled',
+         outcome=COALESCE(outcome,'{}'::jsonb)||$1::jsonb,
+         updated_at=NOW()
+     WHERE id=$2 AND organization_id=$3 AND status='proposed'
      RETURNING id,status,person_id,type,priority,action_metadata,outcome,updated_at`,
     [JSON.stringify({draft_prepared:true}),a.id,req.org.id]
    )).rows[0]||null;

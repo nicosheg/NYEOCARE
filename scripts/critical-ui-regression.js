@@ -168,7 +168,7 @@ const checks=[
  ['People last_seen row cannot be hidden by icon-structure CSS',/className="ny-last-seen"/.test(peoplePage)&&/className="ny-phone-row"/.test(peoplePage)&&/\.ny-last-seen\{display:flex!important/.test(peopleSizing)&&/\.ny-phone-row\{display:flex!important/.test(peopleSizing)&&!/:has\(>svg rect\[x="3"\]\[y="4"\]/.test(peopleSizing)],
  ['People last_seen is displayed even when only canonical attendance fallback exists',/person\.last_seen\|\|person\.last_seen_at/.test(peoplePage)&&/AS last_seen/.test(peopleApi)],
  ['Person Journey exposes canonical last attendance and last interaction',
-  /last_attendance_at/.test(personPage)&&/last_interaction_at/.test(personPage)&&/Last attendance/.test(personPage)&&/Last interaction/.test(personPage)],
+  /last_attendance_at/.test(personPage)&&/last_interaction_at/.test(personPage)&&/Last seen/.test(personPage)&&/Last interaction/.test(personPage)/],
  ['ARIA attendance correction is human-confirmed and intelligence-aware',
   /withAdmin/.test(attendanceCorrectionApi)&&/present/.test(attendanceCorrectionApi)&&/participation_records/.test(attendanceCorrectionApi)&&/updateEngagementMetricsForPerson/.test(attendanceCorrectionApi)&&/computeRelationshipScore/.test(attendanceCorrectionApi)],
  ['ARIA attendance correction can prepare a short absence follow-up without sending',

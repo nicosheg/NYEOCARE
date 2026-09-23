@@ -105,3 +105,5 @@ People cards must use semantic row class names for dynamic person facts:
 
 CSS must not hide or identify these rows by matching SVG path/rect geometry. Icon implementation is replaceable; row meaning is not. Last seen remains visible when data exists and displays month + day in the Africa/Lagos timezone.
 
+### ARIA operator context
+The ARIA surface should present organization-level operator information as human-readable organizational context, never raw IDs or database diagnostics. When a requested detail is unavailable, the UI should show a calm not-recorded or could-not-verify state rather than exposing SQL or UUID errors.

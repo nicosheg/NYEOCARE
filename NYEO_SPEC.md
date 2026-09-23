@@ -1374,3 +1374,33 @@ The People API and People card must be audited as two separate layers:
 
 This distinction matters because real September 2026 database records already contain canonical last-seen timestamps for affected people; when the API data is present but the card row is absent, the failure is presentation CSS, not attendance persistence.
 
+## ARIA organization intelligence and operator hierarchy
+
+ARIA has a dedicated organization context layer. Organizational questions use the current organization as the hard data boundary; ARIA must never answer from another organization or expose internal IDs, invitation tokens, passwords or authentication secrets.
+
+### Organization memory surface
+The organization context may include the organization's name and age, People counts and composition, recent People additions, upcoming birthdays, open care/tasks, current attention items, recent attendance sessions, recent scans, organization memory, invitations and operator information. Large populations are summarized and selectively sampled instead of loading every record into one model prompt.
+
+### Invitations are first-class organization events
+ARIA distinguishes pending, accepted, expired and revoked invitations where the underlying record supports those states. An accepted invitation is connected to the resulting organization operator. A pending invitation may not have a person's name when the current invitation table did not persist one; ARIA must say that the name is not recorded rather than inventing it.
+
+### Operator activity
+An organization operator is not the same entity as a People record. ARIA can answer operator questions from operator records and recorded activity such as joining, invitations, attendance marking/reviewing, sessions, scans, People creation, care feedback, tasks created, and approved ARIA actions. ARIA must distinguish joining/being invited from operational work; a new operator with no activity must be described as having no recorded operational activity yet.
+
+### Role-aware information hierarchy
+- Owner: detailed information about organization operators, invitations and recorded operator activity, subject to normal privacy and safety rules.
+- Admin: detailed information about user operators; only basic information about owners and other admins unless the admin is asking about their own record.
+- User: detailed information about user operators; only basic information about owners/admins unless the user is asking about their own record.
+- Every operator can access their own detailed operator record.
+- This hierarchy controls read visibility in the data layer; it is not delegated to the language model.
+
+### Smart unknown/failure behavior
+ARIA must separate unknown, not recorded, not enough evidence, and temporary read failure. A database or type error such as a UUID/text mismatch is an implementation issue and must never be shown to an operator as the answer. The server logs the technical error for debugging while ARIA tells the operator plainly that it could not verify the requested information and will not guess.
+
+### Safe schema boundaries
+Database identifier types must never be compared implicitly across incompatible types. In particular, scan_jobs.actor_id is stored as text while users.id is a UUID; operator activity queries must normalize the comparison explicitly, for example with users.id::text, rather than relying on an implicit text/UUID comparison.
+
+### Operator usefulness
+ARIA should be able to answer practical questions such as: who joined recently; who was invited and what role were they given; has the new admin done anything yet; who last worked on attendance; who is currently handling these tasks; what changed in this organization recently; what information is not recorded; and what needs an owner's attention.
+
+Read questions should be fast and direct. Consequential actions still use the existing approval gate; better organization context should make the preparation step easier without granting ARIA autonomous authority.

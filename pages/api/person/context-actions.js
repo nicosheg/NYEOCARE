@@ -11,7 +11,24 @@ try{
 const person=await pool.query(`SELECT id,first_name,last_name,phone,birthday FROM people WHERE id=$1 AND organization_id=$2 AND status='active' LIMIT 1`,[personId,orgId]);
 if(!person.rows.length)return res.status(404).json({error:'Person not found'});
 const p=person.rows[0],actions=[];
-const last=await pool.query(`SELECT MAX(occurred_at) AS last FROM person_communications WHERE person_id=$1 AND organization_id=$2`,[personId,orgId]);
+const last=await pool.query(`SELECT MAX(z.at) AS last FROM(
+ SELECT MAX(pc.occurred_at) AS at
+ FROM person_communications pc
+ WHERE pc.person_id=$1 AND pc.organization_id=$2
+   AND (
+     (pc.direction='inbound' AND pc.status IN('received','completed','sent','delivered','read'))
+     OR (pc.direction='outbound' AND pc.status IN('completed','sent','delivered','read'))
+   )
+ UNION ALL
+ SELECT MAX(cf.observed_at) AS at
+ FROM care_feedback cf
+ WHERE cf.person_id=$1 AND cf.organization_id=$2
+ UNION ALL
+ SELECT MAX(te.occurred_at) AS at
+ FROM timeline_events te
+ WHERE te.people_id=$1 AND te.source IN('human','conversation_import')
+   AND te.event_type NOT IN('identity_review','aria_draft','scan_review','note')
+)z`,[personId,orgId]);
 if(!last.rows[0]?.last||(Date.now()-new Date(last.rows[0].last).getTime())>7*86400000)actions.push({type:'draft',label:'Send a check-in message',description:`${p.first_name||'This person'} has not been contacted recently.`});
 
 const attended=await pool.query(`SELECT COUNT(*)::int AS attended FROM attendance_records WHERE people_id=$1 AND organization_id=$2 AND present=true AND confirmed=true AND attendance_date>=CURRENT_DATE-INTERVAL '30 days'`,[personId,orgId]);

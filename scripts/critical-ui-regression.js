@@ -26,6 +26,7 @@ const reviewApi=read('pages/api/review/index.js');
 const reviewResolveApi=read('pages/api/review/resolve.js');
 const scanModal=read('components/ScanModal.js');
 const activeApi=read('pages/api/attendance/active-session.js');
+const attendanceCorrectionApi=read('pages/api/attendance/aria-correction.js');
 const attendancePeopleApi=read('pages/api/attendance/people.js');
 const closeApi=read('pages/api/attendance/close-session.js');
 const createApi=read('pages/api/attendance/create-session.js');
@@ -162,6 +163,15 @@ const checks=[
  ['People API preserves an existing honorific when an edit omits it',/existing=normalizeDisplayName\(check\.rows\[0\]\.display_name/.test(peopleApi)&&/existing\.honorific&&!parsed\.honorific/.test(peopleApi)],
  ['People roster API projects canonical last_seen from engagement metrics',/em\.last_seen/.test(peopleApi)&&/AS last_seen/.test(peopleApi)&&/SELECT r\.id,/.test(peopleApi)&&/r\.last_seen/.test(peopleApi)],
  ['People cards render last_seen instead of silently falling back to last attended',/const formatLastSeen=/.test(peoplePage)&&/Last seen ·/.test(peoplePage)&&/formatLastSeen\(person\.last_seen\|\|person\.last_seen_at\)/.test(peoplePage)&&!/formatLastAttended\(/.test(peoplePage)],
+ ['People roster Last seen is month/day only',
+  /const formatLastSeen=/.test(peoplePage)&&/Last seen ·/.test(peoplePage)&&!/Today,/.test(peoplePage)],
+ ['Person Journey exposes canonical last attendance and last interaction',
+  /last_attendance_at/.test(personPage)&&/last_interaction_at/.test(personPage)&&/Last attendance/.test(personPage)&&/Last interaction/.test(personPage)],
+ ['ARIA attendance correction is human-confirmed and intelligence-aware',
+  /withAdmin/.test(attendanceCorrectionApi)&&/present/.test(attendanceCorrectionApi)&&/participation_records/.test(attendanceCorrectionApi)&&/updateEngagementMetricsForPerson/.test(attendanceCorrectionApi)&&/computeRelationshipScore/.test(attendanceCorrectionApi)],
+ ['ARIA attendance correction can prepare a short absence follow-up without sending',
+  /attendance_check_in/.test(ariaDraft)&&/createCareDraft/.test(attendanceCorrectionApi)&&/draft/.test(attendanceCorrectionApi)&&/requiresHumanSend/.test(ariaDraft)],
+
  ['Review has lightweight summary path',
   /req\.query\?\.summary===\'1\'/.test(reviewApi)],
  ['Daily briefing endpoint remains read-only',

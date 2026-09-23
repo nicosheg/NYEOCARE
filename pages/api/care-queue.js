@@ -53,11 +53,24 @@ try{
   SELECT DISTINCT person_id FROM attendance_current
  ),
  contacts AS(
-  SELECT pc.person_id,MAX(pc.occurred_at) AS last_contact_at
-  FROM person_communications pc
-  JOIN attendance_candidates ac ON ac.person_id=pc.person_id
-  WHERE pc.organization_id=$1
-  GROUP BY pc.person_id
+  SELECT ac.person_id,
+    (SELECT MAX(z.at) FROM(
+      SELECT MAX(pc.occurred_at) AS at
+      FROM person_communications pc
+      WHERE pc.organization_id=$1 AND pc.person_id=ac.person_id
+        AND pc.status IN('completed','sent','delivered','received')
+      UNION ALL
+      SELECT MAX(te.occurred_at) AS at
+      FROM timeline_events te
+      WHERE te.people_id=ac.person_id
+        AND te.source IN('human','conversation_import')
+        AND te.event_type NOT IN('identity_review','aria_draft','scan_review')
+    )z) AS last_interaction_at,
+    MAX(pc.occurred_at) FILTER(WHERE pc.direction='outbound' AND pc.status IN('completed','sent','delivered')) AS last_contact_at
+  FROM attendance_candidates ac
+  LEFT JOIN person_communications pc
+    ON pc.organization_id=$1 AND pc.person_id=ac.person_id
+  GROUP BY ac.person_id
  ),
  contexts AS(
   SELECT c.person_id,
@@ -76,7 +89,7 @@ try{
   SELECT cp.*,ct.last_contact_at,ctx.suppressed_until,ctx.not_attending,ctx.preferred_service,
     CASE
       WHEN cp.learning_sessions<4 THEN 'medium'
-      WHEN cp.consecutive_misses>=3 AND(ct.last_contact_at IS NULL OR ct.last_contact_at<NOW()-INTERVAL '21 days') THEN 'high'
+      WHEN cp.consecutive_misses>=3 AND(ct.last_interaction_at IS NULL OR ct.last_interaction_at<NOW()-INTERVAL '21 days') THEN 'high'
       WHEN cp.consecutive_misses>=2 THEN 'medium'
       WHEN cp.attended_count::numeric/GREATEST(cp.learning_sessions,1)>=0.75 THEN 'medium'
       ELSE 'low'
@@ -114,7 +127,7 @@ try{
   COALESCE(aps.open_observation_count,0) open_observation_count,COALESCE(aps.open_action_count,0) open_action_count,aps.updated_at state_updated_at,
   ai.session_id care_session_id,ai.started_at care_session_at,ai.name care_session_name,ai.service_type care_service_type,ai.service_key care_service_key,
   ai.attended_count care_prior_attendance,ai.learning_sessions care_learning_sessions,ai.consecutive_misses care_consecutive_misses,
-  ROUND(ai.attended_count::numeric/GREATEST(ai.learning_sessions,1),3) care_attendance_rate,ai.priority care_priority,ct.last_contact_at care_last_contact_at
+  ROUND(ai.attended_count::numeric/GREATEST(ai.learning_sessions,1),3) care_attendance_rate,ai.priority care_priority,ct.last_interaction_at care_last_interaction_at,ct.last_contact_at care_last_contact_at
  FROM people p
  LEFT JOIN latest_obs o ON o.person_id=p.id
  LEFT JOIN pending_action a ON a.person_id=p.id
@@ -141,7 +154,7 @@ try{
    else if(rate>=.75)reason=`They usually attend this ${row.care_service_type||'gathering'} (${Math.round(rate*100)}% of recent sessions).`;
    else reason='Their attendance pattern is still emerging.';
   }
-  return{id:row.observation_id||row.action_id||`attendance:${row.person_id}:${row.care_session_id}`,person_id:row.person_id,first_name:row.first_name,last_name:row.last_name,phone:row.phone,priority,risk_level:priority,text:attendance?`${row.first_name||'This person'} was not recorded at ${row.care_session_name||row.care_service_type||'their usual gathering'}.`:row.observation_type?signalText({type:row.observation_type,evidence:row.evidence}):'ARIA has a pending action for this person.',observation_type:row.observation_type,observation_id:row.observation_id,confidence:row.confidence,severity:row.severity,urgency:row.urgency,attention_score:row.attention_score,evidence:row.evidence||null,detected_at:row.detected_at,action_id:row.action_id,action_type:row.action_type,action_status:row.action_status,suggestion:attendance?'Check in with this person':nextAction(row.observation_type,row.action_type?{type:row.action_type}:null),care_session_id:row.care_session_id,care_session_at:row.care_session_at,care_session_name:row.care_session_name,care_service_type:row.care_service_type,care_service_key:row.care_service_key,care_prior_attendance:Number(row.care_prior_attendance)||0,care_learning_sessions:learning,care_consecutive_misses:misses,care_attendance_rate:rate,care_last_contact_at:row.care_last_contact_at,care_reason:reason,engagement_state:row.engagement_state,care_state:row.care_state,relationship_state:row.relationship_state,followup_state:row.followup_state,attention_level:row.attention_level,open_observation_count:Number(row.open_observation_count)||0,open_action_count:Number(row.open_action_count)||0,state_updated_at:row.state_updated_at};
+  return{id:row.observation_id||row.action_id||`attendance:${row.person_id}:${row.care_session_id}`,person_id:row.person_id,first_name:row.first_name,last_name:row.last_name,phone:row.phone,priority,risk_level:priority,text:attendance?`${row.first_name||'This person'} was not recorded at ${row.care_session_name||row.care_service_type||'their usual gathering'}.`:row.observation_type?signalText({type:row.observation_type,evidence:row.evidence}):'ARIA has a pending action for this person.',observation_type:row.observation_type,observation_id:row.observation_id,confidence:row.confidence,severity:row.severity,urgency:row.urgency,attention_score:row.attention_score,evidence:row.evidence||null,detected_at:row.detected_at,action_id:row.action_id,action_type:row.action_type,action_status:row.action_status,suggestion:attendance?'Check in with this person':nextAction(row.observation_type,row.action_type?{type:row.action_type}:null),care_session_id:row.care_session_id,care_session_at:row.care_session_at,care_session_name:row.care_session_name,care_service_type:row.care_service_type,care_service_key:row.care_service_key,care_prior_attendance:Number(row.care_prior_attendance)||0,care_learning_sessions:learning,care_consecutive_misses:misses,care_attendance_rate:rate,care_last_contact_at:row.care_last_contact_at,care_last_interaction_at:row.last_interaction_at||null,care_reason:reason,engagement_state:row.engagement_state,care_state:row.care_state,relationship_state:row.relationship_state,followup_state:row.followup_state,attention_level:row.attention_level,open_observation_count:Number(row.open_observation_count)||0,open_action_count:Number(row.open_action_count)||0,state_updated_at:row.state_updated_at};
  }));
 }catch(err){console.error('[ARIA] Care Queue error:',err);return res.status(500).json({error:'Unable to load ARIA care queue.'})}}
 async function report(req,res){const orgId=req.org.id,b=req.body||{},personId=String(b.person_id||''),kind=String(b.kind||'');if(!personId||!kind)return res.status(400).json({error:'person_id and kind are required'});if(!['travel','temporary_unavailable','preferred_service','not_attending','other'].includes(kind))return res.status(400).json({error:'Invalid care context'});try{const p=await pool.query(`SELECT id FROM people WHERE id=$1 AND organization_id=$2 AND status='active' LIMIT 1`,[personId,orgId]);if(!p.rows.length)return res.status(404).json({error:'Person not found'});let service=b.service_type||null;if(service){const s=String(service).trim().toLowerCase();const days={sunday:7,monday:1,tuesday:2,wednesday:3,thursday:4,friday:5,saturday:6};if(days[s])service=`weekday:${days[s]}`}const starts=b.starts_on||new Date().toISOString().slice(0,10),ends=b.ends_on||null,note=b.note||null;const r=await pool.query(`INSERT INTO aria_care_contexts(organization_id,person_id,kind,starts_on,ends_on,service_type,note,metadata,created_by)VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)RETURNING id,kind,starts_on,ends_on,service_type,note`,[orgId,personId,kind,starts,ends,service,note,JSON.stringify(b.metadata||{}),req.user?.id||null]);if(note)await pool.query(`INSERT INTO timeline_events(people_id,event_type,title,description,metadata,source,occurred_at)VALUES($1,'care_context','ARIA care context',$2,$3,'care',$4)`,[personId,note,JSON.stringify({kind,ends_on:ends,service_type:service}),new Date().toISOString()]);return res.status(201).json(r.rows[0])}catch(e){console.error('[ARIA] Care report error:',e);return res.status(500).json({error:'Unable to save what you learned.'})}}

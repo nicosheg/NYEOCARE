@@ -53,6 +53,13 @@ if(req.method==='GET'){
          WHERE pr.organization_id=p.organization_id
            AND pr.person_id=p.id
            AND pr.participation_type='attendance'
+       ),(
+         SELECT MAX(ar.marked_at)
+         FROM attendance_records ar
+         WHERE ar.organization_id=p.organization_id
+           AND ar.people_id=p.id
+           AND ar.present=true
+           AND ar.confirmed=true
        )) AS last_seen,
        (
          SELECT to_char(MAX(pr.occurred_at AT TIME ZONE 'UTC'),'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"')

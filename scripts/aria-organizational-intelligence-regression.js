@@ -26,7 +26,7 @@ const f={
 const checks=[
  ['Canonical emitter is provenance-aware and idempotent',f.emitter.includes('evidence_kind')&&f.emitter.includes('verification_status')&&f.emitter.includes('scope_level')&&f.emitter.includes('ON CONFLICT(organization_id,event_key)')],
  ['Canonical processor uses the claimed event id for provenance',!f.processor.includes('sourceEventId:eventId')&&f.processor.includes('sourceEventId:event.id')],
- ['Canonical processor has retry lifecycle',f.processor.includes("processing_status='processing'")&&f.processor.includes("processing_status='completed'")&&f.processor.includes("processing_status='failed'")&&f.processor.includes("processing_status='dead'")],
+ ['Canonical processor has retry lifecycle',f.processor.includes("processing_status='processing'")&&f.processor.includes("processing_status='completed'")&&f.processor.includes("THEN 'dead'")&&f.processor.includes("ELSE 'failed'")],
  ['Service semantics flow through the shared event/memory spine',f.processor.includes("'SERVICE_CREATED'")&&f.processor.includes("'SERVICE_TYPE_CHANGED'")&&f.session.includes('event_semantics')&&f.session.includes("type:'SERVICE_CREATED'")],
  ['Versioned memory retains provenance and expiry',f.memory.includes('sourceEventId')&&f.memory.includes('evidenceKind')&&f.memory.includes('verificationStatus')&&f.memory.includes('validUntil')],
  ['Learning persists provenance and respects temporal validity',f.learning.includes('evidenceKind')&&f.learning.includes('verificationStatus')&&f.learning.includes('validUntil')&&f.learning.includes('valid_until IS NULL OR valid_until>NOW()')],
@@ -44,7 +44,7 @@ const checks=[
  ['Repository migration history matches applied Supabase migration versions',existsSync('supabase/migrations/20260925193429_add_aria_organizational_intelligence_foundation_v1.sql')&&existsSync('supabase/migrations/20260925193438_harden_aria_memory_versioning_v1.sql')&&existsSync('supabase/migrations/20260925194116_strengthen_aria_event_spine_v1.sql')&&existsSync('supabase/migrations/20260925200303_allow_dead_aria_event_status_v1.sql')&&!existsSync('supabase/migrations/20260925204500_strengthen_aria_event_spine.sql')],
  ['Foundation migration is faithful to its original terminal statuses',f.foundation.includes("CHECK (processing_status IN ('pending','processing','completed','failed','skipped'))")&&!f.foundation.includes("'dead'))")],
  ['Dead-letter migration matches the production repair',f.dead.includes("CHECK (processing_status IN ('pending','processing','completed','failed','skipped','dead'))")],
- ['Spec documents architecture-first organizational intelligence',f.spec.includes('architecture-first')&&f.spec.includes('Provenance contract')&&f.spec.includes('Absence semantics')&&f.spec.includes('Communication outcomes')]
+ ['Spec documents architecture-first organizational intelligence',f.spec.includes('Architecture first:')&&f.spec.includes('ARIA Organizational Intelligence Foundation v1')&&f.spec.includes('Absence semantics')&&f.spec.includes('Communication outcomes and learning')]
 ];
 const failures=checks.filter(([,ok])=>!ok).map(([name])=>name);
 if(failures.length){console.error('[ARIA ORG INTELLIGENCE] FAILED');console.error(failures.join(' | '));process.exit(1)}

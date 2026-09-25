@@ -1483,3 +1483,48 @@ The September 23 intelligence-core work is being built on a feature branch and i
 No intermediate Vercel deployment is part of this work. The production path remains:
 
 **feature branch → review → final validation → one intentional main commit → one prebuilt Vercel production deployment → live verification.**
+
+
+
+## 27. SEPTEMBER 25, 2026 — ORGANIZATIONAL INTELLIGENCE SPINE V1
+
+The September 25 architecture work strengthens the existing ARIA foundation into one incremental intelligence spine. It does not introduce a second event bus, a second memory system, or an LLM-first brain.
+
+### 27.1 Canonical event history and queue
+
+`aria_events` is the canonical historical event stream and the incremental processing queue.
+
+Events retain organization/person scope, source, provenance, confidence, verification state, temporal validity and an idempotent organization-scoped event key. Processing state is operational metadata only; historical evidence fields are protected from mutation/deletion.
+
+The event processor claims small units, retries transient failures with bounded backoff, and records terminal failures without destroying historical evidence.
+
+### 27.2 Canonical temporal memory
+
+`person_memory` and `organization_memory` are temporal evidence stores rather than mutable dictionaries. A changed current claim supersedes the previous current row. Historical rows remain available with source event, verification, validity and actor information.
+
+Relationships use the same current-versus-history model.
+
+### 27.3 Incremental intelligence
+
+Normal processing is:
+
+EVENT → CLAIM → OBSERVATION / MEMORY / LEARNING → PERSON STATE → ACTION → OUTCOME → LEARNING.
+
+The existing attendance processor remains responsible for deterministic attendance/participation persistence and large-register-safe absence detection. Those results enter the common ARIA event spine rather than creating a separate intelligence architecture.
+
+The old organization-wide care cycle remains available as reconciliation/maintenance. It is no longer the normal event-processing path.
+
+### 27.4 Provenance
+
+ARIA keeps observation, human report, verified evidence and inference distinct. Absence/non-observation is stored as an observation and is never converted into an explanation merely because it is repeated.
+
+### 27.5 LLM boundary
+
+State transitions, authorization, persistence, deduplication, queueing, indexes, thresholds and provenance remain deterministic. Language models remain selective reasoning components for ambiguity and natural-language interpretation.
+
+### 27.6 Current repository/database drift discovered during audit
+
+The production database contains a September 25 organizational-intelligence foundation migration that is not present in the repository's historical migration directory. This is pre-existing migration drift and is explicitly recorded here instead of pretending the repository was already a complete database bootstrap. The September 25 event-spine migration added by this release is stored in the repository and applied to production.
+
+Future database work must reconcile the complete migration history before claiming a fresh-environment bootstrap is equivalent to production.
+

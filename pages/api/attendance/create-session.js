@@ -5,7 +5,7 @@
 import pool from '../../../lib/db';
 import { withAdmin } from '../../../lib/apiHelpers';
 import { emitAriaEvent } from '../../../lib/aria/eventEmitter';
-import { directAriaEvent } from '../../../lib/aria/director';
+import { processAriaEvent } from '../../../lib/aria/eventProcessor';
 
 export default withAdmin(async function handler(req,res){
   if(req.method!=='POST'){
@@ -113,7 +113,7 @@ export default withAdmin(async function handler(req,res){
       },
       eventKey:`service:${session.id}:created`
     },client);
-    if(event)await directAriaEvent(event);
+    if(event)await processAriaEvent(event,client);
     await client.query('COMMIT');
 
     return res.status(201).json({

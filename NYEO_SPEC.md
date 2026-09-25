@@ -1590,3 +1590,63 @@ Normal event flow is incremental. No organization-wide giant AI batch is require
 
 Repository migration history must match the actual applied Supabase migration history. Production foundation migrations already applied are not blindly re-run; new schema changes receive new versioned migrations. In particular, the ARIA event processor's terminal `dead` state is represented by the applied `20260925200303_allow_dead_aria_event_status_v1` repair migration.
 
+
+
+
+## 57. SEPTEMBER 25, 2026 — ARIA ORGANIZATIONAL INTELLIGENCE V2
+
+Sections 27–56 of the product direction are now synchronized with the existing intelligence spine rather than creating another architecture.
+
+### 57.1 Temporal intelligence
+Person memory, organization memory and relationships already support `valid_from`, `valid_until`, supersession and current-state projections. Memory writes now preserve importance and can explicitly expire temporary knowledge. New organizational facts should use a validity window when the producer knows the fact is temporary.
+
+### 57.2 Relationship-aware care
+Care recommendations can now carry conservative relationship/contact candidates derived from current relationship evidence and successful historical outcomes. Candidates are evidence, not assignments. ARIA does not automatically choose or contact a worker merely because a relationship score is high.
+
+### 57.3 Care objective
+Attendance remains one evidence source rather than the care objective. Attendance absence reasoning is now opt-in through event semantics for new sessions. Group-scoped events restrict absence candidates to the relevant active membership population. Care recommendations remain human-approved.
+
+### 57.4 Adaptive events and organizational norms
+Sessions already carry event kind, scope, semantics, expected population rules, participation expectation, optionality and absence meaning. The new-session default no longer assumes that absence is meaningful. Organizational event semantics are stored as organization memory through the same canonical event/memory path.
+
+### 57.5 Voice-ready architecture
+The existing AI gateway already provides transcription and speech synthesis. These are interfaces into ARIA, not separate intelligence systems. Voice requests now use the same budget reservation/settlement path as text AI requests. No standalone voice intelligence platform was introduced.
+
+### 57.6 Scan and identity preservation
+Scanning remains population capture and identity resolution. Existing review, duplicate detection, merge history and learning paths were preserved. `identity_pair_decisions` remains a symmetric pair-decision model; no new ambiguous pair schema was added to ARIA learning.
+
+### 57.7 Review Center and explainability
+Important ARIA actions now persist a bounded evidence summary derived from the originating observation: evidence type, confidence, severity, urgency, facts, inference, sources and validity. This is an explanation surface, not internal chain-of-thought.
+
+### 57.8 Authentication reliability
+The browser session layer remains Supabase's persisted session source of truth. Client reads and refreshes are single-flight, transient read failures are not treated as proof of sign-out, and the session keeper remains passive. The previously documented authentication incident class—browser/server Supabase target mismatch and incorrect error classification—is retained as a regression concern.
+
+### 57.9 Performance and attendance
+Attendance persistence remains synchronous and bounded; downstream ARIA consequences remain background work. The canonical event worker processes small event units with automatic retry and idempotency. Ordinary UI actions do not wait for ARIA.
+
+### 57.10 Budget and token discipline
+The global budget lock is now organization-scoped rather than purpose-scoped, preventing concurrent purposes from bypassing the same daily/monthly aggregate reservation limit. Text, transcription and speech generation all use the same reservation/cancellation/settlement guard.
+
+### 57.11 Chat and explainability
+ARIA conversation remains a read-first organization intelligence surface. It retrieves current evidence, timelines, memory and outcomes through server-side organization boundaries. Consequential actions remain approval-gated. Action records now retain bounded evidence snapshots so operators can understand why a recommendation appeared.
+
+### 57.12 Living Truth and conflict
+Living Truth now surfaces recent `conflicted` memory claims in addition to identity conflict state. When two fresh human reports disagree about the same temporal memory key, the previous and new claims are retained as auditable conflict evidence instead of silently treating the newest statement as unquestioned truth.
+
+### 57.13 Human correction and organizational learning
+Operator context continues to enter the canonical event/memory path. Care outcomes now also re-enter the event stream through `CARE_OUTCOME_RECORDED`, allowing downstream intelligence processing to observe the outcome without making the outcome table a disconnected side system.
+
+### 57.14 Privacy and browser data access
+Internal ARIA memory, learning, actions, outcomes, budget reservations, AI usage and event history are now browser-read restricted to authorized administrative contexts through RLS. Conversations are limited to the owning operator or administrative roles. Server-side trusted paths remain responsible for internal intelligence writes.
+
+### 57.15 Failure handling
+Deterministic persistence remains independent from the LLM. Failed ARIA events remain recoverable through bounded retry/dead-letter state. AI reservation failures cancel the reservation; successful requests settle it; voice failures follow the same accounting boundary. A provider outage therefore does not invalidate already-persisted people, attendance or event evidence.
+
+### 57.16 Testing rule
+The ARIA V2 regression guard is now part of `test:aria`. It checks event semantics, temporal memory, explicit conflict handling, relationship-aware care evidence, action explainability, budget boundaries, voice accounting, authentication durability and RLS migration contracts.
+
+The production release path remains:
+
+**audit → feature branch → regression suite → application build → Vercel prebuilt artifact → one intentional production deployment → live verification.**
+
+Future sections must continue plugging into the same canonical loop rather than introducing another memory store, event bus or intelligence brain.

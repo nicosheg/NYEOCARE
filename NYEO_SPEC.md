@@ -1483,3 +1483,53 @@ The September 23 intelligence-core work is being built on a feature branch and i
 No intermediate Vercel deployment is part of this work. The production path remains:
 
 **feature branch → review → final validation → one intentional main commit → one prebuilt Vercel production deployment → live verification.**
+
+
+## ARIA Organizational Intelligence v1
+
+This section is the implementation contract for the first delivered portion of the Living Organizational Care Intelligence architecture. It extends the existing ARIA system; it does not replace the attendance, scan, identity, Review Center, care, or conversation foundations.
+
+### Canonical intelligence flow
+
+Reality enters NYEOCARE through existing product mutations and observation surfaces. Those mutations may create an immutable `aria_events` record. Events carry provenance, confidence, verification state, scope, expiry and durable processing state. Deterministic processors may update observations, durable memory, relationship memory, person state and actions. LLM reasoning is reserved for interpretation, drafting and other genuinely ambiguous work.
+
+The intended loop is:
+
+OBSERVE → UNDERSTAND → DECIDE → HUMAN ACTS → OUTCOME RECORDED → ARIA LEARNS → BETTER FUTURE DECISION.
+
+### Provenance contract
+
+ARIA must distinguish facts, observations, human reports, inferences and uncertainty. Memory and events should retain source, confidence, verification state, actor where available, temporal validity and supersession/versioning where a current truth can change. Inference must never silently become fact.
+
+### Organizational memory
+
+`organization_memory` is versioned through current-row semantics rather than destructive overwrite. `person_memory` follows the same pattern. `person_relationships` support evidence and current-version confidence. Existing `organization_groups`, `person_memberships` and `person_roles` remain the structural source for group/department membership and roles.
+
+### Event/service semantics
+
+Sessions now carry organization-defined event semantics: event kind, scope, optionality, expected-population rules, attendance interpretation and absence meaning. A new organization can therefore build history from day one without assuming Sunday, weekly services or any other hardcoded schedule.
+
+### Absence semantics
+
+Non-observation is evidence of what was seen, not an explanation for why it happened. Absence signals must retain that distinction. When care is appropriate, the default action is a person-first check-in rather than an attendance-pressure message.
+
+### Communication outcomes
+
+Communication outcomes are durable structured data. The shared communication outcome adapter maps sent, delivered, opened, received, ignored, rejected, positive/negative response, help request, no-contact request and information update states into ARIA events without autonomously sending external messages.
+
+### Human learning
+
+Explicit operator corrections can become durable memory with provenance and optional expiry. Organizational rules such as event meaning or follow-up ownership should be stored once and reused rather than rediscovered in every conversation.
+
+### Shared ARIA
+
+There is one intelligence architecture across scan, people, attendance, care, relationships, event semantics, memory, outcomes and conversation. Capabilities are surfaces into that shared mind, not separate ARIAs. Authorization remains server-side and organization-scoped; shared intelligence never means shared raw-data access.
+
+### Performance rule
+
+No organization-wide giant AI batch is required for normal event flow. Event processing is incremental and deterministic wherever possible. Communication events do not automatically become attention items, and organization context reads should not eagerly recompute expensive temporal/attention intelligence.
+
+### Release discipline
+
+The production database currently contains the provenance/versioning foundation introduced during this implementation. The matching SQL is committed under `supabase/migrations/20260925190000_add_aria_organizational_intelligence_foundation_v1.sql` and `supabase/migrations/20260925191000_harden_aria_memory_versioning_v1.sql`. These migrations are intended to become the canonical repository history on merge; they are written idempotently so the already-applied production foundation is not recreated.
+

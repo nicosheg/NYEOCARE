@@ -12,7 +12,7 @@ export default withAdmin(async function handler(req,res){
     return res.status(405).json({error:'Method not allowed'});
   }
 
-  const{name,sections,service_type=null,event_kind='service',event_scope='organization',group_id=null,event_semantics={},expected_population_rule={},attendance_interpretation='neutral',participation_expected=true,optional=false,absence_meaningful=true}=req.body||{};
+  const{name,sections,service_type=null,event_kind='service',event_scope='organization',group_id=null,event_semantics={},expected_population_rule={},attendance_interpretation='neutral',participation_expected=true,optional=false,absence_meaningful=false}=req.body||{};
   if(typeof name!=='string'||!name.trim()){
     return res.status(400).json({error:'Event name is required.'});
   }
@@ -62,7 +62,7 @@ export default withAdmin(async function handler(req,res){
        RETURNING id,name,status,service_type,started_by,started_at,event_kind,event_scope,group_id,event_semantics,expected_population_rule,attendance_interpretation,participation_expected,optional,absence_meaningful,
                  aria_processing_status,aria_processing_stage,aria_processing_progress,
                  aria_processing_processed,aria_processing_total`,
-      [orgId,name.trim(),userId,service_type||null,event_kind||'service',event_scope||'organization',group_id||null,JSON.stringify(event_semantics||{}),JSON.stringify(expected_population_rule||{}),attendance_interpretation||'neutral',participation_expected!==false,optional===true,absence_meaningful!==false]
+      [orgId,name.trim(),userId,service_type||null,event_kind||'service',event_scope||'organization',group_id||null,JSON.stringify(event_semantics||{}),JSON.stringify(expected_population_rule||{}),attendance_interpretation||'neutral',participation_expected!==false,optional===true,absence_meaningful===true]
     );
 
     const session=created.rows[0];

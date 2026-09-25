@@ -1487,6 +1487,8 @@ No intermediate Vercel deployment is part of this work. The production path rema
 
 ## ARIA Organizational Intelligence v1
 
+This is an architecture-first extension of the existing NYEOCARE intelligence core: audit the current path, reuse canonical primitives, then strengthen the shared event, memory, evidence and authorization flow rather than creating parallel subsystems.
+
 This section is the implementation contract for the first delivered portion of the Living Organizational Care Intelligence architecture. It extends the existing ARIA system; it does not replace the attendance, scan, identity, Review Center, care, or conversation foundations.
 
 ### Canonical intelligence flow

@@ -36,7 +36,7 @@ const checks=[
  ['Auth session keeper is passive',files.authKeeper.includes('Session warm failed')&&!files.authKeeper.includes('signOut')],
  ['Outcomes re-enter the canonical ARIA event stream',files.outcome.includes('CARE_OUTCOME_RECORDED')&&files.outcome.includes("eventKey:'outcome:'+outcome.id")],
  ['Event processor recognizes care outcomes',files.processor.includes('CARE_OUTCOME_RECORDED')],
- ['Internal ARIA tables are server-owned in browser RLS',files.migration.includes('person_memory_admin_select')&&files.migration.includes('aria_actions_admin_select')&&files.migration.includes('DROP POLICY IF EXISTS aria_learning_org')],
+ ['Internal ARIA tables are server-owned in browser RLS',files.migration.includes('person_memory_admin_select')&&files.migration.includes('aria_actions_admin_select')&&files.migration.includes("FOREACH t IN ARRAY ARRAY[")&&files.migration.includes("t||'_org'")],
  ['Conversation reads are owner/admin scoped',files.migration.includes('aria_conversations_admin_or_owner_select')&&files.migration.includes('aria_messages_admin_or_owner_select')],
  ['The spec records the continuation architecture',files.spec.includes('## 57. SEPTEMBER 25, 2026 — ARIA ORGANIZATIONAL INTELLIGENCE V2')]
 ];

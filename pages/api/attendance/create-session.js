@@ -4,6 +4,8 @@
 
 import pool from '../../../lib/db';
 import { withAdmin } from '../../../lib/apiHelpers';
+import { emitAriaEvent } from '../../../lib/aria/eventEmitter';
+import { directAriaEvent } from '../../../lib/aria/director';
 
 export default withAdmin(async function handler(req,res){
   if(req.method!=='POST'){
@@ -80,6 +82,38 @@ export default withAdmin(async function handler(req,res){
       [session.id,orgId,normalizedSections]
     );
 
+    const event=await emitAriaEvent({
+      organizationId:orgId,
+      type:'SERVICE_CREATED',
+      source:'attendance',
+      actorId:userId,
+      actorRole:req.user.role,
+      evidenceKind:'fact',
+      verificationStatus:'verified',
+      confidence:1,
+      metadata:{
+        session_id:session.id,
+        name:session.name,
+        service_type:session.service_type,
+        event_kind:session.event_kind,
+        event_scope:session.event_scope,
+        group_id:session.group_id,
+        event_semantics:session.event_semantics,
+        expected_population_rule:session.expected_population_rule,
+        attendance_interpretation:session.attendance_interpretation,
+        participation_expected:session.participation_expected,
+        optional:session.optional,
+        absence_meaningful:session.absence_meaningful,
+        memory:{
+          memory_type:'event_semantics',
+          memory_key:`session:${session.id}`,
+          value:{session_id:session.id,name:session.name,service_type:session.service_type,event_kind:session.event_kind,event_scope:session.event_scope,group_id:session.group_id,event_semantics:session.event_semantics,expected_population_rule:session.expected_population_rule,attendance_interpretation:session.attendance_interpretation,participation_expected:session.participation_expected,optional:session.optional,absence_meaningful:session.absence_meaningful},
+          importance:'important'
+        }
+      },
+      eventKey:`service:${session.id}:created`
+    },client);
+    if(event)await directAriaEvent(event);
     await client.query('COMMIT');
 
     return res.status(201).json({

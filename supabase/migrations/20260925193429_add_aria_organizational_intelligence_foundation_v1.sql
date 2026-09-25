@@ -26,7 +26,7 @@ DO $$ BEGIN
     ALTER TABLE aria_events ADD CONSTRAINT aria_events_verification_status_check CHECK (verification_status IN ('verified','observed','reported','inferred','conflicted','unknown','stale'));
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='aria_events_processing_status_check') THEN
-    ALTER TABLE aria_events ADD CONSTRAINT aria_events_processing_status_check CHECK (processing_status IN ('pending','processing','completed','failed','skipped','dead'));
+    ALTER TABLE aria_events ADD CONSTRAINT aria_events_processing_status_check CHECK (processing_status IN ('pending','processing','completed','failed','skipped'));
   END IF;
 END $$;
 

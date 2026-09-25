@@ -1527,4 +1527,66 @@ State transitions, authorization, persistence, deduplication, queueing, indexes,
 The production database contains a September 25 organizational-intelligence foundation migration that is not present in the repository's historical migration directory. This is pre-existing migration drift and is explicitly recorded here instead of pretending the repository was already a complete database bootstrap. The September 25 event-spine migration added by this release is stored in the repository and applied to production.
 
 Future database work must reconcile the complete migration history before claiming a fresh-environment bootstrap is equivalent to production.
+---
+
+## ARIA Organizational Intelligence Foundation v1
+
+This implementation strengthens the existing ARIA intelligence core rather than creating parallel intelligence systems.
+
+### Canonical intelligence spine
+
+Operational reality enters through existing NYEOCARE mutations and observation surfaces. Where an event is appropriate, the canonical ARIA event spine records immutable historical evidence plus provenance, confidence, verification state, scope, expiry and processing state. The existing durable event worker processes those events incrementally; there is no second Sunday-sized intelligence queue.
+
+The intended loop is:
+
+OBSERVE → UNDERSTAND → DECIDE → HUMAN ACTS → OUTCOME RECORDED → ARIA LEARNS → BETTER FUTURE DECISION.
+
+Deterministic work remains deterministic: persistence, state transitions, permissions, validation, relationship updates, event semantics, scheduling, deduplication and retrieval do not require an LLM.
+
+### Organizational memory
+
+Organization memory, person memory and relationship memory are versioned through current-row semantics. Replacing a current fact supersedes the prior row instead of erasing history. Memory may include source event, evidence type, confidence, verification, actor, temporal validity and optional expiry/reconfirmation.
+
+ARIA must distinguish:
+- fact;
+- observation;
+- human report;
+- inference;
+- uncertainty.
+
+Inference must never silently become fact.
+
+### Group and organization understanding
+
+The organization model remains generic. Groups, memberships and roles provide structural context. Services/events now carry organization-defined semantics such as event kind, scope, expected population, attendance interpretation, optionality and whether absence has meaningful interpretation.
+
+No church-specific weekday is hardcoded into the intelligence model.
+
+A new organization can create useful history from its first service or event. History grows from real operations rather than requiring a manual historical reconstruction.
+
+### Absence semantics
+
+Non-observation is an observation. It is not an explanation.
+
+ARIA may use accumulated evidence to decide that a human check-in is worth preparing, but the default care posture is person-first. A care recommendation must not automatically turn an attendance observation into an attendance-pressure message.
+
+Event semantics determine whether non-observation is meaningful at all. Optional or non-participatory events must not be treated like ordinary expected participation.
+
+### Communication outcomes and learning
+
+Communication outcomes are structured evidence, not just message logs. Sent, delivered, opened, received, ignored, rejected, positive/negative response, help request, no-contact request and information update states enter the same ARIA event/learning system.
+
+Human feedback is first-class learning. Explicit operator corrections can become provenance-aware memory with a scope and optional expiry. Organizational rules and conventions should be remembered and reused rather than rediscovered in repeated conversations.
+
+### One ARIA, permission-scoped surfaces
+
+Scan, attendance, people, care, relationships, event semantics, memory, learning and conversation use the same intelligence spine. Capabilities are interfaces into that shared mind, not separate ARIAs.
+
+Shared intelligence never bypasses authorization. Organization boundaries, role boundaries, group/department boundaries, privacy and RLS remain mandatory. Durable memory writes that change organizational truth require an explicit authorized operation; ordinary retrieval or inference must not create facts.
+
+### Performance and release discipline
+
+Normal event flow is incremental. No organization-wide giant AI batch is required for a completed service.
+
+Repository migration history must match the actual applied Supabase migration history. Production foundation migrations already applied are not blindly re-run; new schema changes receive new versioned migrations. In particular, the ARIA event processor's terminal `dead` state is represented by the applied `20260925200303_allow_dead_aria_event_status_v1` repair migration.
 

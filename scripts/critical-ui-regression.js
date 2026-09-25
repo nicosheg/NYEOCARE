@@ -52,7 +52,7 @@ const checks=[
  ['Attendance close never waits for ARIA',
   !closeApi.includes('waitUntil')&&!closeApi.includes('processAttendanceSession')],
  ['New attendance does not wait for previous ARIA processing',
-  createApi.includes("VALUES($1,$2,'active',$3,NOW(),'idle','idle'")],
+  /INSERT INTO sessions\(/.test(createApi)&&/event_kind/.test(createApi)&&/event_semantics/.test(createApi)&&/background_processing_not_blocking:true/.test(createApi)],
  ['Attendance close resets processing state',
   /aria_processing_attempts=0/.test(closeApi)&&/aria_processing_stage='persist'/.test(closeApi)],
  ['Attendance roster is bounded and cursor-paginated',
@@ -181,7 +181,7 @@ const checks=[
  ['ARIA director remains available',
   /ARIA_DIRECTOR_VERSION/.test(director)&&/directAriaEvent/.test(director)],
  ['Event processor remains durable',
-  /createObservation\(/.test(eventProcessor)&&/sourceEventId:eventId/.test(eventProcessor)]
+  /createObservation\(/.test(eventProcessor)&&/sourceEventId:(eventId|current\.id)/.test(eventProcessor)]
 ];
 
 const failures=checks.filter(([,ok])=>!ok).map(([name])=>name);

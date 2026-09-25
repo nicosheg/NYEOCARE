@@ -13,7 +13,7 @@ export default withAdmin(async function handler(req,res){
     return res.status(405).json({error:'Method not allowed'});
   }
 
-  const{name,sections,service_type=null,event_kind='service',event_scope='organization',group_id=null,event_semantics={},expected_population_rule={},attendance_interpretation='neutral',participation_expected=true,optional=false,absence_meaningful=false}=req.body||{};
+  const{name,sections,service_type=null,event_kind='service',event_scope='organization',group_id=null,event_semantics={},expected_population_rule={},attendance_interpretation='neutral',participation_expected=true,optional=false,absence_meaningful=true}=req.body||{};
   if(typeof name!=='string'||!name.trim()){
     return res.status(400).json({error:'Event name is required.'});
   }

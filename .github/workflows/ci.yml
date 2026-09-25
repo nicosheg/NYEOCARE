@@ -1,4 +1,5 @@
 name: NYEOCARE CI
+# ARIA organizational intelligence changes remain gated by the full regression suite.
 
 on:
   push:

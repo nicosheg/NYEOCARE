@@ -132,6 +132,13 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+UPDATE sessions
+SET absence_meaningful=true
+WHERE absence_meaningful=false
+  AND COALESCE(participation_expected,true)=true
+  AND COALESCE(optional,false)=false
+  AND COALESCE(attendance_interpretation,'neutral')='neutral';
+
 CREATE INDEX IF NOT EXISTS sessions_org_event_semantics_idx ON sessions (organization_id,event_kind,event_scope,started_at DESC);
 CREATE INDEX IF NOT EXISTS person_memory_validity_idx ON person_memory (organization_id,person_id,is_current,valid_until,updated_at DESC);
 CREATE INDEX IF NOT EXISTS person_relationships_current_idx ON person_relationships (organization_id,person_id,is_current,confidence DESC,updated_at DESC);

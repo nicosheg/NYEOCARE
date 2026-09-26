@@ -420,10 +420,13 @@ export default function AttendanceModal({isOpen,onClose}){
         body:JSON.stringify({session_id:session.session_id})
       });
       const data=await read(response);
-      if(!response.ok||!data.success)throw Error(data.error||'Could not discard this session.');
+      if(!response.ok&&!([404,409].includes(response.status))){throw Error(data.error||'Could not discard this session.');}
+      await clearFieldSession(s.user.id,session.session_id).catch(()=>{});
       clearCached('attendance:'+s.user.id);
-      setSession(null);setPeople([]);setNotice('Attendance session discarded.');
+      setSession(null);setPeople([]);setFieldRoster([]);setFieldReady(false);setPendingCount(0);setCanDiscard(false);setCursor(null);setHasMore(false);setTotal(0);setPresent(0);
+      setNotice(response.ok&&data.success?'Attendance session discarded.':'Attendance was already discarded or closed.');
       publishDataChange('attendance');
+      onClose();
     }catch(e){
       console.error('[ATTENDANCE] Discard error:',e);
       if(mounted.current)setError(e.message||'Could not discard this session.');

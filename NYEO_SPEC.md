@@ -2033,3 +2033,17 @@ ARIA monitors the ratio of observations/actions to population. A high signal loa
 
 ### Regression requirement
 `npm run test:aria-director` must remain part of the ARIA regression gate. The regression must verify that the canonical director capability, command routing, conversation-state persistence, Daily ARIA Today integration, signal filtering and ARIA director identity contract remain present.
+## FIELD MODE — OFFLINE COLD-REOPEN CONTRACT
+
+Field Mode is not considered production-ready merely because an already-open tab can continue marking attendance without connectivity.
+
+After an authorized operator has created a real server attendance session and warmed the local roster, the device must also tolerate a browser/PWA close-and-reopen while offline. The Home application shell may be cached because it contains no organization-specific data; authenticated API responses and organization/person records must never be cached by the service worker.
+
+On offline restart:
+1. the persisted browser authentication session is read locally;
+2. IndexedDB restores the current Field Mode session, roster and pending mutations;
+3. Attendance opens directly from local state without depending on `/api/attendance/active-session`;
+4. marking remains optimistic and coalesced locally;
+5. reconnect automatically returns to the canonical server sync and session-finalization path.
+
+Any future change that removes this capability must be treated as a Field Mode regression.

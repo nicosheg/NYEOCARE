@@ -1792,3 +1792,39 @@ Future changes must extend this architecture rather than introduce a competing m
 ## 59. FINAL IMPLEMENTATION NOTE
 
 The architecture is intentionally quiet: organizations teach ARIA by living normally. NYEOCARE records useful reality; ARIA incrementally turns that reality into contextual intelligence. The system does not need a manually trained model or a giant historical import to start learning. Its memory is earned through real events, evidence, relationships, human corrections and outcomes.
+## 60. CONVERSATIONAL ARIA + MULTI-PERSON DRAFTING
+
+ARIA conversation now preserves structured referents across turns rather than relying only on raw message text. The latest assistant turn can retain referenced people, observations, actions and cohort membership so follow-up questions such as "What's the observation?", "Why?", "Tell me more", "Draft it", and "Draft it for 3 people" resolve against the immediately relevant evidence.
+
+Attention responses expose linked observation/action identifiers and evidence. A specific observation can therefore be explained directly from the same evidence that caused ARIA to surface it.
+
+ARIA now understands organization cohorts for bounded reasoning and drafting:
+- past_absentees
+- needs_follow_up
+- current_attention
+- new_people
+- explicit selected person IDs
+
+Quantity language is binding:
+- "for 5 people" means no more than five people;
+- "for all ..." means the resolved cohort is used up to the bounded system maximum;
+- "only [person]" means one explicitly selected person;
+- a named person takes precedence over a generic cohort.
+
+Drafting is distinct from sending. A user can ask ARIA to draft one message or a bounded set of messages in the app without sending anything. Each draft is stored as an internal draft record and returned with evidence-safe context.
+
+When the user explicitly requests WhatsApp drafting, the result carries WhatsApp handoff links. On supported devices those links open the recipient's WhatsApp conversation with the draft pre-filled in the compose field; the user can edit and send it. NYEOCARE never sends the message through this handoff and does not claim that WhatsApp contains an unsent multi-message "draft list", because the consumer deep-link interface does not provide that primitive. For multiple recipients, ARIA presents the complete draft queue in NYEOCARE and provides one WhatsApp handoff per recipient.
+
+Daily ARIA Today / briefing can also request bounded follow-up draft batches. The same canonical drafting path is reused, so chat and briefing do not create separate message-generation logic.
+
+## 60.1 Attention lifecycle hardening
+
+When a later confirmed participation or return event supersedes an active unusual-absence observation, ARIA resolves the older absence signal and cancels still-unapproved attendance/return follow-up proposals for that person. Historical evidence remains in the timeline; only the active attention/action projection is reduced.
+
+This prevents past signals from accumulating indefinitely as if they were still current.
+
+## 60.2 Failure-safe conversational behavior
+
+If ARIA cannot resolve a conversational referent, it asks for the missing scope instead of falling back to a generic organization summary. If the user asks for a specific observation, person or cohort that cannot be verified, ARIA says so and does not guess.
+
+The goal is conversational continuity without sacrificing evidence, permissions or human control.

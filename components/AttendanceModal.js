@@ -60,18 +60,6 @@ export default function AttendanceModal({isOpen,onClose}){
     return()=>{window.removeEventListener('online',update);window.removeEventListener('offline',update)}
   },[]);
 
-  useEffect(()=>{
-    if(!isOpen)return;
-    const onSync=()=>{
-      if(!session?.session_id)return;
-      refreshFieldPending(session.session_id).catch(()=>{});
-      load({showLoading:false}).catch(()=>{});
-    };
-    window.addEventListener('nyeocare:field-sync',onSync);
-    return()=>window.removeEventListener('nyeocare:field-sync',onSync)
-  },[isOpen,session?.session_id,load,refreshFieldPending]);
-
-
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false}},[]);
 
   const read=async(response)=>{
@@ -215,6 +203,17 @@ export default function AttendanceModal({isOpen,onClose}){
   },[fetchPage,query,hydrateFieldSession]);
 
   useEffect(()=>{if(isOpen)load();},[isOpen,load]);
+
+  useEffect(()=>{
+    if(!isOpen)return;
+    const onSync=()=>{
+      if(!session?.session_id)return;
+      refreshFieldPending(session.session_id).catch(()=>{});
+      load({showLoading:false}).catch(()=>{});
+    };
+    window.addEventListener('nyeocare:field-sync',onSync);
+    return()=>window.removeEventListener('nyeocare:field-sync',onSync)
+  },[isOpen,session?.session_id,load,refreshFieldPending]);
 
   useEffect(()=>{
     if(!isOpen)return;

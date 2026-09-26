@@ -122,7 +122,7 @@ export default function AttendanceModal({isOpen,onClose}){
       setBackground(bg);
 
       if(!data.active){
-        if(cached&&cached.closeRequested&&typeof navigator!=='undefined'&&navigator.onLine)await clearFieldSession(s.user.id,cached.sessionId);
+        if(cached&&typeof navigator!=='undefined'&&navigator.onLine)await clearFieldSession(s.user.id,cached.sessionId);
         if(cached&&!navigator.onLine){setLoading(false);return}
         setSession(null);
         setCanDiscard(false);
@@ -306,14 +306,14 @@ export default function AttendanceModal({isOpen,onClose}){
     if(!session||session.status!=='active'||closing)return;
     const perf=measurePerformance('attendance_save',{network:networkOnline?'online':'offline'});setClosing(true);setError('');
     try{
-      const s=await getClientSession();if(!s)throw Error('You must be logged in.');
-      if(!networkOnline){await saveFieldSession(s.user.id,session,{closeRequested:true});setNotice('Attendance saved on this device. It will finish syncing automatically when the connection returns.');setClosing(false);perf('queued');onClose();return}
+      const s=networkOnline?await getClientSession():null;
+      if(!networkOnline){await saveFieldSession(session.user_id||s?.user?.id,session,{closeRequested:true});setNotice('Attendance saved on this device. It will finish syncing automatically when the connection returns.');setClosing(false);perf('queued');onClose();return}
       const response=await fetch('/api/attendance/close-session',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.access_token},body:JSON.stringify({session_id:session.session_id})});
       const data=await read(response);if(!response.ok||!data.success)throw Object.assign(Error(data.error||'Attendance could not be saved yet.'),{transient:response.status>=500||response.status===0});
       await clearFieldSession(s.user.id,session.session_id);clearCached('attendance:'+s.user.id);publishDataChange('attendance');perf('ok');onClose();
     }catch(e){
       const transient=e?.transient||e instanceof TypeError||typeof navigator!=='undefined'&&!navigator.onLine;
-      if(transient){await saveFieldSession((await getClientSession())?.user?.id,session,{closeRequested:true}).catch(()=>{});setNotice('Attendance saved on this device. It will finish syncing automatically when the connection returns.');perf('queued');onClose()}
+      if(transient){await saveFieldSession(session.user_id||((await getClientSession().catch(()=>null))?.user?.id),session,{closeRequested:true}).catch(()=>{});setNotice('Attendance saved on this device. It will finish syncing automatically when the connection returns.');perf('queued');onClose()}
       else if(mounted.current)setError(e.message||'Attendance could not be saved yet.');
     }finally{if(mounted.current)setClosing(false)}
   };

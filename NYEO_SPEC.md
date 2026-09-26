@@ -1,5 +1,5 @@
 # NYEOCARE — Living Product & Engineering Spec
-**Documentary status date: 20 September 2026**
+**Documentary status date: 26 September 2026**
 
 > **Every Person. Every Story. Remembered.**
 
@@ -1650,3 +1650,145 @@ The production release path remains:
 **audit → feature branch → regression suite → application build → Vercel prebuilt artifact → one intentional production deployment → live verification.**
 
 Future sections must continue plugging into the same canonical loop rather than introducing another memory store, event bus or intelligence brain.
+
+
+## 58. SEPTEMBER 26, 2026 — FINAL ARIA ARCHITECTURE INTEGRATION
+
+Sections 56–65 are now implemented against the repository and live production architecture. This section records the final integration state and the root-cause fixes that future work must preserve.
+
+### 58.1 One intelligence architecture
+
+NYEOCARE has one shared ARIA intelligence spine:
+
+**OPERATING EVENT → EVIDENCE/CLAIM → MEMORY/OBSERVATION/LEARNING → PERSON/ORGANIZATION STATE → RECOMMENDATION → HUMAN ACTION → OUTCOME → LEARNING**
+
+Attendance, scanning, People, care, relationships, event semantics, operator chat and future voice are interfaces into this spine. They are not separate intelligence brains.
+
+Deterministic code and PostgreSQL remain authoritative for persistence, authorization, validation, identity decisions, thresholds, event semantics, queueing, idempotency, indexing and state transitions.
+
+### 58.2 Failure handling
+
+The LLM is never a prerequisite for core product persistence.
+
+People can be saved without AI. Attendance can be persisted without AI. Canonical events can be recorded without AI. Deterministic intelligence can continue through AI outages. Background reasoning can resume later from the durable event/history boundary.
+
+ARIA's event processor does not depend on the AI gateway for its basic event-processing contract. AI surfaces return safe fallbacks rather than converting provider failures into core-product failure.
+
+### 58.3 Provider agnosticism
+
+The AI gateway now resolves the provider adapter from the model registry instead of directly calling one vendor. `lib/aiProviders/` is the provider boundary; Groq is the current configured adapter, not the intelligence architecture.
+
+Changing the active model/provider therefore remains a configuration/adapter concern rather than a rewrite of ARIA memory, events, care, relationships or permissions.
+
+The active provider list may grow independently. A provider that is selected but not configured fails at the AI boundary without invalidating core NYEOCARE state.
+
+### 58.4 Request idempotency and repeated AI calls
+
+High-frequency text reasoning surfaces now accept stable idempotency keys:
+- ARIA command planning uses the persisted user-message ID.
+- ARIA narrative response synthesis uses the same user-message ID.
+- continuation responses derive deterministic child keys.
+- approved care drafting uses the action ID.
+
+Completed responses are stored in `ai_request_cache` for bounded reuse. This prevents a retry after a completed request from automatically paying for the same completed text request again.
+
+Scan duplicate processing remains protected primarily by the durable `scan_jobs` image hash/admission lock and bounded transient retry. The transient scan retry remains intentionally limited; it is not an unrestricted background retry loop.
+
+### 58.5 Aggregate AI budget enforcement
+
+The organization budget lock is organization-wide rather than purpose-specific, and daily/monthly accounting now aggregates all AI purposes for that organization. Purpose remains telemetry and policy context; it cannot bypass the aggregate budget.
+
+Text, transcription and speech synthesis all use the same reserve → provider call → settle/cancel accounting boundary.
+
+### 58.6 Scan/provider root-cause cleanup
+
+The active scan path now flows through:
+
+`scan start → vision processor → aiProvider compatibility facade → hybridScanProvider → provider registry → configured adapter`
+
+The old direct-Groq `aiProviderCore` implementation has been reduced to a compatibility facade over the canonical hybrid provider path. This removes a second direct vision implementation that could otherwise drift from the active pipeline.
+
+Scan admission/status/job metadata now report the actual configured provider/model rather than assuming Groq in control-flow metadata or user-facing error text.
+
+Existing identity resolution, Review Center evidence, duplicate-review semantics and merge history were left intact.
+
+### 58.7 Authentication and deployment
+
+The current browser auth contract remains:
+
+Supabase persisted session → serialized canonical session read/refresh → passive session keeper → server-side bearer verification → organization-scoped Care user.
+
+No new auth layer was introduced in this integration.
+
+The CI pipeline still builds and validates the same Vercel project using explicit project/team IDs. The previous production deployment was verified READY; the final integration deployment must be verified again after the final main commit.
+
+### 58.8 Permissions and privacy
+
+Internal ARIA memory, actions, outcomes, events, learning, budget and usage tables remain server-owned from the browser perspective under the strengthened RLS policy model.
+
+Conversation access is owner/admin or conversation-owner scoped. Consequential ARIA actions remain server-side approval gated.
+
+Privacy behavior is not delegated to the language model.
+
+### 58.9 Performance principles
+
+The performance boundary remains:
+- persist user actions first;
+- perform bounded reads;
+- use indexes aligned with organization/person/time access patterns;
+- process events incrementally;
+- avoid organization-wide scans for local actions;
+- keep background intelligence off the critical UI path;
+- use deterministic work before expensive AI reasoning;
+- bound returned collections.
+
+Current repository regression tests protect these architecture boundaries. They are not a substitute for a future synthetic 10/50/100-concurrent benchmark or 10k-person production-like load campaign; those remain separate performance-validation work.
+
+### 58.10 Organizational scale and extensibility
+
+The core boundaries remain compatible with future 100,000+ people, multiple organizations and regions, arbitrary organization/event types, multiple languages, WhatsApp/SMS/email, provider/model changes, voice and analytics.
+
+This is achieved by keeping organization/event semantics in data, using canonical event/memory abstractions, keeping communication as a replaceable channel boundary, and keeping AI behind provider adapters.
+
+No hypothetical 100k-scale subsystem was added just to satisfy a number.
+
+### 58.11 Root-cause fixes future developers must not undo
+
+1. Do not recreate a feature-specific intelligence brain when a capability can consume the canonical ARIA spine.
+2. Do not make absence synonymous with a reason or hardcode church weekdays into intelligence.
+3. Do not hold attendance UI hostage to background intelligence.
+4. Do not bypass aggregate organization AI budgets by changing the purpose label.
+5. Do not call an AI vendor directly from business/intelligence modules; route through the provider boundary.
+6. Do not create a second direct scan/vision provider implementation.
+7. Do not persist model inference as truth without provenance and human/epistemic state.
+8. Do not expose internal intelligence tables directly to ordinary browser users.
+9. Do not turn retries into uncontrolled duplicate provider calls.
+10. Do not treat transient auth read failures as proof that a user is signed out.
+11. Do not replace explainability with chain-of-thought storage or exposure.
+12. Do not reintroduce whole-organization reads into fast user interactions.
+13. Do not redesign working UX before verifying the foundation.
+
+### 58.12 Final definition of done
+
+The final architecture is considered integrated when:
+- one ARIA intelligence spine exists;
+- memory is temporal and conflict-aware;
+- event semantics are organization-defined;
+- care is human-centered;
+- relationships influence recommendations as evidence;
+- operator feedback/outcomes feed learning;
+- actions retain bounded evidence summaries;
+- permissions remain explicit;
+- core persistence survives AI failure;
+- provider selection is abstracted;
+- repeated text requests can be deduplicated by stable request identity;
+- aggregate AI spend is enforced per organization;
+- attendance/scan/background work remains non-blocking;
+- regression suites pass;
+- final production deployment is READY and matches the final main commit.
+
+Future changes must extend this architecture rather than introduce a competing memory, event or AI layer.
+
+## 59. FINAL IMPLEMENTATION NOTE
+
+The architecture is intentionally quiet: organizations teach ARIA by living normally. NYEOCARE records useful reality; ARIA incrementally turns that reality into contextual intelligence. The system does not need a manually trained model or a giant historical import to start learning. Its memory is earned through real events, evidence, relationships, human corrections and outcomes.

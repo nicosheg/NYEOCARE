@@ -9,7 +9,7 @@ const required=[
  ['lib/aria/batchDraftEngine.js','createCareDraftBatch','whatsappNote'],
  ['lib/aria/capabilityRegistry.js','get_observation_context','draft_message_cohort'],
  ['lib/aria/capabilityEngine.js','observationContext','draft_message_cohort'],
- ['lib/aria/commandEngine.js','for 5 people','draft_message_cohort'],
+ ['lib/aria/commandEngine.js','(?:for|to)','draft_message_cohort'],
  ['lib/aria/conversationEngine.js','resolveConversationalFollowUp','get_observation_context'],
  ['pages/aria.js','MESSAGE DRAFTS','Open WhatsApp'],
  ['pages/index.js','Draft these follow-ups','/api/aria/draft-batch']

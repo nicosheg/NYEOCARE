@@ -139,6 +139,16 @@ export default function AttendanceModal({isOpen,onClose}){
       setError('');
       const fieldCached=await hydrateFieldSession(s.user.id);
       const timing=measurePerformance('attendance_open',{network:typeof navigator==='undefined'?'unknown':navigator.onLine?'online':'offline'});
+      const offline=typeof navigator!=='undefined'&&!navigator.onLine;
+
+      if(offline&&fieldCached){
+        setBackground(null);
+        setError('');
+        setNotice('Offline mode is active. Your local attendance session is ready and will sync automatically when the connection returns.');
+        if(seq===searchSeq.current&&mounted.current)setLoading(false);
+        timing('offline-cached');
+        return;
+      }
 
       const response=await fetch('/api/attendance/active-session',{
         headers:{Authorization:`Bearer ${s.access_token}`},

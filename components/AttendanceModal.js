@@ -32,6 +32,8 @@ export default function AttendanceModal({isOpen,onClose}){
   const searchSeq=useRef(0);
   const markingIds=useRef(new Set());
   const fieldWarmAt=useRef(0);
+  const onCloseRef=useRef(onClose);
+  useEffect(()=>{onCloseRef.current=onClose},[onClose]);
 
   const refreshFieldPending=useCallback(async(sessionId)=>{
     try{setPendingCount(await getFieldPendingCount(sessionId))}catch{setPendingCount(0)}
@@ -227,8 +229,8 @@ export default function AttendanceModal({isOpen,onClose}){
       if(!data.active||String(data.session_id)!==String(session.session_id)){
         await clearFieldSession(s.user.id,session.session_id).catch(()=>{});
         clearCached('attendance:'+s.user.id);
-        setSession(null);setPeople([]);setFieldRoster([]);setFieldReady(false);setPendingCount(0);setCanDiscard(false);
-        publishDataChange('attendance');onClose();return;
+        setSession(null);setPeople([]);setFieldRoster([]);setFieldReady(false);setPendingCount(0);setCanDiscard(false);fieldWarmAt.current=0;
+        publishDataChange('attendance');onCloseRef.current?.();return;
       }
       const live=normalizeSession(data);if(!live)return;
       setSession(current=>current?{...current,...live,user_id:s.user.id}:current);
@@ -236,7 +238,7 @@ export default function AttendanceModal({isOpen,onClose}){
       setBackground(data.background_processing||null);
       await refreshFieldPending(live.session_id);
     }catch{}
-  },[isOpen,session?.session_id,refreshFieldPending,onClose]);
+  },[isOpen,session?.session_id,refreshFieldPending]);
 
   useEffect(()=>{
     if(!isOpen)return;
@@ -283,13 +285,15 @@ export default function AttendanceModal({isOpen,onClose}){
     const applyAttendanceRow=row=>{
       if(!row||String(row.session_id)!==String(session.session_id)||!row.people_id)return;
       const personId=String(row.people_id),nextMarked=row.present===true;
-      setPeople(current=>{
+      setFieldRoster(current=>{
         const prev=current.find(p=>String(p.id)===personId);
         if(!prev||Boolean(prev.marked)===nextMarked)return current;
+        const next=current.map(p=>String(p.id)===personId?{...p,marked:nextMarked}:p);
         setPresent(v=>Math.max(0,v+(nextMarked?1:-1)));
-        return current.map(p=>String(p.id)===personId?{...p,marked:nextMarked,marked_by_name:nextMarked?(p.marked_by_name||'') : null}:p);
+        saveFieldPeople(session.session_id,[next.find(p=>String(p.id)===personId)]).catch(()=>{});
+        return next;
       });
-      setFieldRoster(current=>current.map(p=>String(p.id)===personId?{...p,marked:nextMarked}:p));
+      setPeople(current=>current.map(p=>String(p.id)===personId?{...p,marked:nextMarked,marked_by_name:nextMarked?(p.marked_by_name||'') : null}:p));
     };
     getClientSession().then(s=>{
       if(!s||stopped)return;
@@ -298,7 +302,7 @@ export default function AttendanceModal({isOpen,onClose}){
         .on('postgres_changes',{event:'*',schema:'public',table:'sessions',filter:'id=eq.'+sessionId},()=>refreshSessionState())
         .on('postgres_changes',{event:'INSERT',schema:'public',table:'attendance_records',filter:'session_id=eq.'+sessionId},payload=>applyAttendanceRow(payload.new))
         .on('postgres_changes',{event:'UPDATE',schema:'public',table:'attendance_records',filter:'session_id=eq.'+sessionId},payload=>applyAttendanceRow(payload.new))
-        .on('postgres_changes',{event:'DELETE',schema:'public',table:'attendance_records'},payload=>applyAttendanceRow(payload.old))
+        .on('postgres_changes',{event:'DELETE',schema:'public',table:'attendance_records',filter:'session_id=eq.'+sessionId},payload=>applyAttendanceRow(payload.old))
         .subscribe();
     }).catch(()=>{});
     return()=>{stopped=true;if(channel)supabase.removeChannel(channel)};
@@ -332,7 +336,7 @@ export default function AttendanceModal({isOpen,onClose}){
 
       const next={...live,user_id:s.user.id};
       setSession(next);
-      setFieldRoster([]);setFieldReady(false);setPendingCount(0);
+      setFieldRoster([]);setFieldReady(false);setPendingCount(0);fieldWarmAt.current=0;
       setBackground(null);
       setSessionName('');
       setCursor(null);
@@ -423,10 +427,10 @@ export default function AttendanceModal({isOpen,onClose}){
       if(!response.ok&&!([404,409].includes(response.status))){throw Error(data.error||'Could not discard this session.');}
       await clearFieldSession(s.user.id,session.session_id).catch(()=>{});
       clearCached('attendance:'+s.user.id);
-      setSession(null);setPeople([]);setFieldRoster([]);setFieldReady(false);setPendingCount(0);setCanDiscard(false);setCursor(null);setHasMore(false);setTotal(0);setPresent(0);
+      setSession(null);setPeople([]);setFieldRoster([]);setFieldReady(false);setPendingCount(0);setCanDiscard(false);setCursor(null);setHasMore(false);setTotal(0);setPresent(0);fieldWarmAt.current=0;
       setNotice(response.ok&&data.success?'Attendance session discarded.':'Attendance was already discarded or closed.');
       publishDataChange('attendance');
-      onClose();
+      onCloseRef.current?.();
     }catch(e){
       console.error('[ATTENDANCE] Discard error:',e);
       if(mounted.current)setError(e.message||'Could not discard this session.');

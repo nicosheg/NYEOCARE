@@ -8,6 +8,7 @@ const checks=[
  ['Reconnect sync is automatic',/addEventListener\('online'/.test(read('components/FieldModeRuntime.js'))&&/setInterval\(run,15000\)/.test(read('components/FieldModeRuntime.js'))],
  ['Large field roster is paginated',/MAX_LIMIT=5000/.test(read('pages/api/attendance/field-roster.js'))&&/base64url/.test(read('pages/api/attendance/field-roster.js'))],
  ['Batch sync validates session membership and active people',/session_users/.test(read('pages/api/attendance/sync.js'))&&/id=ANY\(\$2::uuid\[\]\)/.test(read('pages/api/attendance/sync.js'))],
+ ['Closed-session late marks still require admin confirmation',/isAdmin=/.test(read('pages/api/attendance/sync.js'))&&/confirmed=session.status==='closed'&&isAdmin/.test(read('pages/api/attendance/sync.js'))&&/pending_confirmation_people_ids/.test(read('pages/api/attendance/sync.js'))],
  ['Server idempotency remains unique person/session',/ON CONFLICT\(organization_id,people_id,session_id\)/.test(read('pages/api/attendance/sync.js'))],
  ['Service worker does not cache authenticated HTML',/event\.request\.mode==='navigate'/.test(read('public/sw.js'))&&!/cache\.put\(event\.request/.test(read('public/sw.js').split("event.request.mode==='navigate'")[1].split("url.pathname")[0])],
  ['Performance telemetry is authenticated and bounded',/withOrg/.test(read('pages/api/telemetry/performance.js'))&&/duration>300000/.test(read('pages/api/telemetry/performance.js'))],

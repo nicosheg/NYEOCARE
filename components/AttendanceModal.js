@@ -137,7 +137,7 @@ export default function AttendanceModal({isOpen,onClose}){
 
       if(showLoading&&mounted.current)setLoading(true);
       setError('');
-      const cached=await hydrateFieldSession(s.user.id);
+      const fieldCached=await hydrateFieldSession(s.user.id);
       const timing=measurePerformance('attendance_open',{network:typeof navigator==='undefined'?'unknown':navigator.onLine?'online':'offline'});
 
       const response=await fetch('/api/attendance/active-session',{
@@ -152,8 +152,8 @@ export default function AttendanceModal({isOpen,onClose}){
       setBackground(bg);
 
       if(!data.active){
-        if(cached&&typeof navigator!=='undefined'&&navigator.onLine)await clearFieldSession(s.user.id,cached.sessionId);
-        if(cached&&!navigator.onLine){setLoading(false);return}
+        if(fieldCached&&typeof navigator!=='undefined'&&navigator.onLine)await clearFieldSession(s.user.id,fieldCached.sessionId);
+        if(fieldCached&&!navigator.onLine){setLoading(false);return}
         setSession(null);
         setFieldRoster([]);setFieldReady(false);setPendingCount(0);
         setCanDiscard(false);
@@ -178,7 +178,7 @@ export default function AttendanceModal({isOpen,onClose}){
       await fetchPage(live,query,'',false,s);
       saveFieldSession(s.user.id,{...live,user_id:s.user.id}).catch(()=>{});
       if(seq===searchSeq.current&&mounted.current)setLoading(false);
-      timing('ok',{cached:Boolean(cached)});
+      timing('ok',{cached:Boolean(cached),field_cached:Boolean(fieldCached)});
       fetch('/api/attendance/field-roster?session_id='+encodeURIComponent(live.session_id)+'&limit=5000',{headers:{Authorization:'Bearer '+s.access_token},cache:'no-store'})
         .then(async r=>{if(!r.ok)return null;return r.json()}).then(async data=>{
           if(!data?.success||!Array.isArray(data.people))return;

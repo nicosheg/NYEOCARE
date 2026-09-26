@@ -4,7 +4,7 @@ import{createPortal}from'react-dom';
 import{getClientSession}from'../lib/clientSession';
 import{getCached,setCached,clearCached,publishDataChange}from'../lib/appData';
 import{supabase}from'../lib/supabaseClient';import AriaProcessingStatus from'./AriaProcessingStatus';
-import{getFieldSession,getFieldPeople,saveFieldSession,saveFieldPeople,setFieldCloseRequested,enqueueFieldMutation,removeFieldMutation,getFieldPendingCount,localRosterSearch,clearFieldSession,syncFieldMode}from'../lib/attendanceFieldMode';
+import{getFieldSession,getFieldPeople,saveFieldSession,saveFieldPeople,enqueueFieldMutation,removeFieldMutation,getFieldPendingCount,localRosterSearch,clearFieldSession}from'../lib/attendanceFieldMode';
 import{measurePerformance}from'../lib/performanceTelemetry';
 
 export default function AttendanceModal({isOpen,onClose}){
@@ -30,6 +30,47 @@ export default function AttendanceModal({isOpen,onClose}){
   const[fieldReady,setFieldReady]=useState(false);
   const[pendingCount,setPendingCount]=useState(0);
   const searchSeq=useRef(0);
+
+  const refreshFieldPending=useCallback(async(sessionId)=>{
+    try{setPendingCount(await getFieldPendingCount(sessionId))}catch{setPendingCount(0)}
+  },[]);
+
+  const hydrateFieldSession=useCallback(async(userId)=>{
+    try{
+      const cached=await getFieldSession(userId);
+      if(!cached)return null;
+      const cachedPeople=await getFieldPeople(cached.sessionId);
+      setSession({...cached.session,user_id:userId});
+      setPeople(cachedPeople.slice(0,80));
+      setTotal(cachedPeople.length);
+      setPresent(cachedPeople.filter(p=>p.marked===true).length);
+      setFieldRoster(cachedPeople);
+      setFieldReady(cachedPeople.length>0);
+      await refreshFieldPending(cached.sessionId);
+      if(mounted.current)setLoading(false);
+      return cached;
+    }catch{return null}
+  },[refreshFieldPending]);
+
+  useEffect(()=>{
+    const update=()=>setNetworkOnline(typeof navigator==='undefined'?true:navigator.onLine);
+    update();
+    window.addEventListener('online',update);
+    window.addEventListener('offline',update);
+    return()=>{window.removeEventListener('online',update);window.removeEventListener('offline',update)}
+  },[]);
+
+  useEffect(()=>{
+    if(!isOpen)return;
+    const onSync=()=>{
+      if(!session?.session_id)return;
+      refreshFieldPending(session.session_id).catch(()=>{});
+      load({showLoading:false}).catch(()=>{});
+    };
+    window.addEventListener('nyeocare:field-sync',onSync);
+    return()=>window.removeEventListener('nyeocare:field-sync',onSync)
+  },[isOpen,session?.session_id,load,refreshFieldPending]);
+
 
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false}},[]);
 
@@ -125,6 +166,7 @@ export default function AttendanceModal({isOpen,onClose}){
         if(cached&&typeof navigator!=='undefined'&&navigator.onLine)await clearFieldSession(s.user.id,cached.sessionId);
         if(cached&&!navigator.onLine){setLoading(false);return}
         setSession(null);
+        setFieldRoster([]);setFieldReady(false);setPendingCount(0);
         setCanDiscard(false);
         setPeople([]);
         setCursor(null);
@@ -170,7 +212,7 @@ export default function AttendanceModal({isOpen,onClose}){
         setLoading(false);
       }
     }
-  },[fetchPage,query]);
+  },[fetchPage,query,hydrateFieldSession]);
 
   useEffect(()=>{if(isOpen)load();},[isOpen,load]);
 
@@ -252,6 +294,7 @@ export default function AttendanceModal({isOpen,onClose}){
 
       const next={...live,user_id:s.user.id};
       setSession(next);
+      setFieldRoster([]);setFieldReady(false);setPendingCount(0);
       setBackground(null);
       setSessionName('');
       setCursor(null);

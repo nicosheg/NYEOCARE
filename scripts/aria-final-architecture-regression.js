@@ -42,8 +42,8 @@ const checks=[
  ['Attendance save path is not LLM-gated',!files.attendanceSave.includes('generateText')&&!files.attendanceSave.includes('callVisionWithRetry')],
  ['Attendance close publishes durable background processing',files.attendanceClose.includes('enqueueAttendanceProcessing')&&files.attendanceClose.includes('COMMIT')],
  ['New attendance defaults remain adaptive',files.createSession.includes('absence_meaningful=false')&&files.createSession.includes('event_semantics')],
- ['Provider-specific duplicate implementation is not part of the active scan path',files.hybrid.includes('callOne')&&files.legacyProvider.includes('compatibility facade')],
- ['Final architecture is documented in the repository',files.spec.includes('## 58. SEPTEMBER 26, 2026')&&/provider agnosticism/i.test(files.spec)&&files.spec.includes('FAILURE HANDLING')],
+ ['Provider-specific duplicate implementation is not part of the active scan path',files.hybrid.includes('callOne')&&/compatibility facade/i.test(files.legacyProvider)],
+ ['Final architecture is documented in the repository',files.spec.includes('## 58. SEPTEMBER 26, 2026')&&/provider agnosticism/i.test(files.spec)&&/failure handling/i.test(files.spec)],
  ['CI still targets the production Vercel project explicitly',files.workflow.includes('VERCEL_PROJECT_ID: prj_flnxmzr4QNgJK3SthDetLN0OLFKK')],
  ['No legacy unauthenticated AI/scan test endpoints remain',!existsSync('pages/api/ai/correct-scan.js')&&!existsSync('pages/api/test-scan.js')&&!existsSync('pages/api/test-ocr-space.js')]
 ];

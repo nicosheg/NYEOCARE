@@ -316,14 +316,16 @@ export default function AttendanceModal({isOpen,onClose}){
     const markKey=String(id);
     if(markingIds.current.has(markKey))return;
     markingIds.current.add(markKey);
-    const previous=people,nextValue=!isMarked,perf=measurePerformance('attendance_mark',{network:networkOnline?'online':'offline'});
+    const nextValue=!isMarked,perf=measurePerformance('attendance_mark',{network:networkOnline?'online':'offline'});
     setPeople(current=>current.map(p=>String(p.id)===String(id)?{...p,marked:nextValue,marked_by_name:nextValue?'You':null}:p));
     setFieldRoster(current=>current.map(p=>String(p.id)===String(id)?{...p,marked:nextValue,marked_by_name:nextValue?'You':null}:p));
     setPresent(value=>Math.max(0,value+(nextValue?1:-1)));setError('');
     const cachedPerson=fieldRoster.find(p=>String(p.id)===String(id));
     if(cachedPerson)saveFieldPeople(session.session_id,[{...cachedPerson,marked:nextValue,marked_by_name:nextValue?'You':null}]).catch(()=>{});
     if(!networkOnline){
-      await enqueueFieldMutation({sessionId:session.session_id,personId:id,present:nextValue});await refreshFieldPending(session.session_id);setNotice('Saved on this device. It will sync automatically when the connection returns.');perf('queued');return;
+      try{await enqueueFieldMutation({sessionId:session.session_id,personId:id,present:nextValue});await refreshFieldPending(session.session_id);setNotice('Saved on this device. It will sync automatically when the connection returns.');perf('queued')}
+      finally{markingIds.current.delete(markKey)}
+      return;
     }
     try{
       let s=await getClientSession();if(!s)throw Error('You must be logged in.');

@@ -68,3 +68,6 @@ A church pilot should measure:
 - failed request rate
 
 The product claim remains organizational memory and intelligent care. The scanner is the doorway, not the whole product.
+
+## Pilot verification
+Run at least one real service with several operators, intentionally toggle airplane mode, restore connectivity, close from one operator, and verify all queued marks reconcile without manual retry.

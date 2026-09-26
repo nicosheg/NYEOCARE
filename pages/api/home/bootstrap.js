@@ -1,6 +1,7 @@
 // pages/api/home/bootstrap.js
 import pool from '../../../lib/db';
 import {withOrg} from '../../../lib/apiHelpers';
+import {getDirectorBriefing} from '../../../lib/aria/directorEngine';
 import {ARIA_DIRECTOR_VERSION} from '../../../lib/aria/director';
 
 const priority=v=>({critical:100,high:80,medium:55,low:25}[String(v||'').toLowerCase()]||10);

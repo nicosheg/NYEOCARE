@@ -8,7 +8,7 @@ const daily=read('pages/api/aria/daily.js');
 const care=read('pages/api/care-queue.js');
 const duplicate=read('lib/duplicateDetector.js');
 const reviewResolve=read('pages/api/review/resolve.js');
-const ai=read('lib/aiProviderCore.js');
+const ai=read('lib/aiGateway.js');
 const db=read('lib/db.js');
 const pkg=JSON.parse(read('package.json'));
 const checks=[
@@ -21,7 +21,7 @@ const checks=[
  ['Care Queue has no people×all-session cross join',!care.includes('CROSS JOIN recent_sessions')&&!care.includes('CROSS JOIN sessions')],
  ['Care Queue current attendance check is bounded and set-based',has('pages/api/care-queue.js','current_attended')&&has('pages/api/care-queue.js','attendance_records')&&!care.includes('CROSS JOIN people')],
  ['Duplicate detection avoids quadratic phone scan',!duplicate.includes('for(const q of rows)')&&has('lib/duplicateDetector.js','phoneIndex')],
- ['AI token ceiling follows model registry',has('lib/aiProviderCore.js','max_completion_tokens:model.max_completion_tokens')&&!ai.includes('model===PRIMARY?8000')],
+ ['AI token ceiling follows model registry',has('lib/aiGateway.js','config.max_completion_tokens')&&has('lib/modelRegistry.js','max_completion_tokens')],
  ['Review transaction releases connection before post-commit work',has('pages/api/review/resolve.js',"db.release();released=true;await learn(pool")&&has('pages/api/review/resolve.js',"finally{if(!released)db.release()}")],
  ['Serverless DB pool is bounded and attached',has('lib/db.js','max:1')&&has('lib/db.js','attachDatabasePool(pool)')],
  ['Legacy unauthenticated endpoints are gone',

@@ -79,7 +79,7 @@ async function handler(req,res){
       organization:{
         peopleCount:Number(state.population)||0,
         sessionsLast30Days:Number(state.sessions_30_days)||0,
-        activeAttendeesLast30Days:null,
+        activeAttendeesLast30Days:Number(state.active_attendees_30_days)||0,
         addedLast7Days:Number(state.added_last_7_days)||0,
         memoryCoverage:Number(state.human_memory_coverage_pct)||0
       },

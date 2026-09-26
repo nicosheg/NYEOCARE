@@ -2,6 +2,8 @@ import{existsSync,readFileSync}from'node:fs';
 const read=p=>readFileSync(p,'utf8');
 const checks=[
  ['Field Mode runtime is globally mounted',/FieldModeRuntime/.test(read('pages/_app.js'))],
+ ['Offline reopen keeps a safe app shell',/APP_SHELL='\\/'/.test(read('public/sw.js'))&&/caches\.match\(APP_SHELL\)/.test(read('public/sw.js'))&&!/fetch\(event\.request\)/.test(read('public/sw.js').split("if(event.request.mode==='navigate')")[0])],
+ ['Cached Field session is usable while offline',/const offline=.*navigator\.onLine/.test(read('components/AttendanceModal.js'))&&/offline&&fieldCached/.test(read('components/AttendanceModal.js'))],
  ['IndexedDB field store exists',/indexedDB/.test(read('lib/attendanceFieldMode.js'))&&/STORES=/.test(read('lib/attendanceFieldMode.js'))],
  ['Offline mutations coalesce per person/session',/keyFor\(sessionId,personId\)/.test(read('lib/attendanceFieldMode.js'))&&/status:'pending'/.test(read('lib/attendanceFieldMode.js'))],
  ['Reconnect sync batches operations',/api\/attendance\/sync/.test(read('lib/attendanceFieldMode.js'))&&/chunks\(pending,100\)/.test(read('lib/attendanceFieldMode.js'))],

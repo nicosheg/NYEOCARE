@@ -12,7 +12,7 @@ export default function FieldModeRuntime(){
   const schedule=()=>{if(timer)window.clearTimeout(timer);timer=window.setTimeout(run,1000)};
   const onOnline=()=>run(),onVisible=()=>{if(document.visibilityState==='visible')schedule()};
   schedule();window.addEventListener('online',onOnline);document.addEventListener('visibilitychange',onVisible);
-  const interval=window.setInterval(run,15000);
+  const interval=window.setInterval(run,60000);
   return()=>{if(timer)window.clearTimeout(timer);window.clearInterval(interval);window.removeEventListener('online',onOnline);document.removeEventListener('visibilitychange',onVisible);}
  },[]);
  return null;

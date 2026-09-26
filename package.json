@@ -12,7 +12,7 @@
     "create-owner": "node scripts/create-owner.js",
     "test:scan": "node --experimental-specifier-resolution=node --experimental-default-type=module scripts/scan-regression.js",
     "test:critical-ui": "node scripts/critical-ui-regression.js",
-    "test": "npm run test:scan && npm run test:critical-ui",
+    "test": "npm run test:scan && npm run test:critical-ui && npm run test:aria-conversation",
     "test:persistence": "node scripts/persistence-regression.js",
     "test:review-surface": "node scripts/review-surface-regression.js",
     "test:system-scale": "node scripts/system-scale-regression.js",
@@ -20,7 +20,8 @@
     "test:auth": "node scripts/auth-session-regression.js",
     "test:aria-organizational-intelligence": "node scripts/aria-organizational-intelligence-regression.js",
     "test:aria-v2": "node scripts/aria-organizational-intelligence-v2-regression.js",
-    "test:aria-final": "node scripts/aria-final-architecture-regression.js"
+    "test:aria-final": "node scripts/aria-final-architecture-regression.js",
+    "test:aria-conversation": "node scripts/aria-conversation-cohort-regression.js"
   },
   "dependencies": {
     "next": "15.5.24",

@@ -4,6 +4,7 @@ const checks=[
  ['Field Mode runtime is globally mounted',/FieldModeRuntime/.test(read('pages/_app.js'))],
  ['Offline reopen keeps a safe app shell',read('public/sw.js').includes("APP_SHELL='/'")&&read('public/sw.js').includes('caches.match(APP_SHELL)')&&!read('public/sw.js').split("if(event.request.mode==='navigate')")[0].includes('fetch(event.request)')],
  ['Cached Field session is usable while offline',/const offline=.*navigator\.onLine/.test(read('components/AttendanceModal.js'))&&/offline&&fieldCached/.test(read('components/AttendanceModal.js'))],
+ ['Cached authorized attendance restores discard permission',/setCanDiscard\(cached\.session\?\.can_discard===true\)/.test(read('components/AttendanceModal.js'))&&/canDiscard&&<button style=\{discardButton\}/.test(read('components/AttendanceModal.js'))],
  ['IndexedDB field store exists',/indexedDB/.test(read('lib/attendanceFieldMode.js'))&&/STORES=/.test(read('lib/attendanceFieldMode.js'))],
  ['Offline mutations coalesce per person/session',/keyFor\(sessionId,personId\)/.test(read('lib/attendanceFieldMode.js'))&&/status:'pending'/.test(read('lib/attendanceFieldMode.js'))],
  ['Reconnect sync batches operations',/api\/attendance\/sync/.test(read('lib/attendanceFieldMode.js'))&&/chunks\(pending,100\)/.test(read('lib/attendanceFieldMode.js'))],

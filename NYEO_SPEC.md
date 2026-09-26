@@ -1936,3 +1936,73 @@ Regression coverage:
 - `scripts/aria-director-regression.js`
 - `npm run test:aria-director`
 
+
+
+# 60. ARIA CANONICAL DIRECTOR INTELLIGENCE — LOCKED ARCHITECTURE
+
+ARIA is the organization’s synchronized intelligence, not a collection of independent assistant behaviors.
+
+### Canonical cognition
+All organization-level intelligence surfaces must converge on `lib/aria/directorEngine.js` and its `getDirectorBriefing()` result before narration or action planning:
+
+```
+EVENTS + PEOPLE + ATTENDANCE + MEMORY + RELATIONSHIPS + OBSERVATIONS + ACTIONS + OUTCOMES + HUMAN FEEDBACK
+                                  ↓
+                         ARIA DIRECTOR RECONCILIATION
+                                  ↓
+       WHAT CHANGED → WHAT MATTERS → WHY NOW → UNKNOWN/CONFLICT
+                                  ↓
+                  DECISION / OPPORTUNITY / WATCH / RISK
+                                  ↓
+                         HUMAN-REVIEWED ACTION
+                                  ↓
+                              OUTCOME
+                                  ↓
+                             LEARNING
+```
+
+The LLM is a replaceable language/reasoning interface used after deterministic reconciliation. It must not independently become the source of organizational truth.
+
+### One ARIA, many surfaces
+Home / ARIA Today, Talk to ARIA, People Journey, Care Queue, future notifications and future ARIA interfaces are different views of the same organizational mind. A surface may specialize presentation or ask a narrower capability, but it must not invent a competing interpretation of organizational state.
+
+### Signal hierarchy
+Not every stored observation deserves human attention. Background lifecycle observations such as confirmed participation, person updates and returned-after-absence history are memory/evidence unless another meaningful signal raises them into a decision-worthy state. The priority queue must only promote observations that can reasonably change a human decision, such as unusual absence, scan review, ARIA processing failure or other explicitly registered integrity/conflict signals.
+
+### Director state
+The canonical briefing contains:
+- current organizational phase and population state;
+- operational health separated from human-care signals;
+- meaningful human-care focus;
+- positive opportunities such as recognition, belonging and contribution;
+- attendance patterns with lifecycle-aware reconciliation;
+- contradictions between competing signals;
+- non-obvious evidence-grounded insight;
+- learning gaps and organization-specific memory coverage;
+- explicit “what not to do” guardrails;
+- a small human decision surface rather than an exhaustive queue.
+
+### Intelligence rules
+ARIA must never:
+- treat every record as a problem;
+- confuse a pattern with a diagnosis or motive;
+- use silence/absence as an explanation;
+- claim that generic care knowledge is an organization-specific rule;
+- hide operational integrity issues because human-care signals are more pleasant to discuss;
+- dump raw counts when interpretation is the useful part;
+- silently choose between conflicting signals;
+- claim consequential action was executed when it was only proposed or prepared.
+
+ARIA should be able to say what she is deliberately **not** treating as a problem. This is a core intelligence behavior because restraint is part of correctness.
+
+### Conversation continuity
+When a director briefing is discussed in Talk to ARIA, conversation state persists its primary focus, insight, contradictions and relevant people/actions/observations so follow-up turns continue the same thought instead of restarting from generic organization context.
+
+### Organization-specific learning
+Organization memory, human corrections, care feedback and outcomes are evidence for learning what is unique about a particular organization. Empty organizational memory is itself a knowledge gap, not permission to invent norms. As human corrections and outcomes accumulate, director decisions may become more organization-specific while preserving current evidence and confidence.
+
+### Signal-load protection
+ARIA monitors the ratio of observations/actions to population. A high signal load is itself an organizational intelligence condition. When the system contains more recommendations or observations than a human should reasonably carry, ARIA should narrow the decision surface and protect trust before widening outreach.
+
+### Regression requirement
+`npm run test:aria-director` must remain part of the ARIA regression gate. The regression must verify that the canonical director capability, command routing, conversation-state persistence, Daily ARIA Today integration, signal filtering and ARIA director identity contract remain present.

@@ -17,7 +17,7 @@ const files={
  conversation:read('lib/aria/conversationEngine.js'),
  eventProcessor:read('lib/aria/eventProcessor.js'),
  eventEmitter:read('lib/aria/eventEmitter.js'),
- attendanceSave:read('pages/api/attendance/save.js'),
+ attendanceSave:read('pages/api/attendance/mark.js'),
  attendanceClose:read('pages/api/attendance/close-session.js'),
  createSession:read('pages/api/attendance/create-session.js'),
  spec:read('NYEO_SPEC.md'),

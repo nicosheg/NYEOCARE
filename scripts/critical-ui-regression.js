@@ -122,7 +122,7 @@ const checks=[
  ['ARIA auto-sync is not startup-critical',
   /IDLE_DELAY=30000/.test(autoSync)&&/COOLDOWN=60000/.test(autoSync)&&/document\.visibilityState/.test(autoSync)],
  ['Home defers heavy interaction surfaces',/const ScanModal=dynamic/.test(home)&&/const AttendanceModal=dynamic/.test(home)&&/const ReviewCenterTab=dynamic/.test(home)],
- ['Navigation prefetches routes centrally during idle time',/requestIdleCallback/.test(layout)&&/router\.prefetch\('\/'\)/.test(layout)&&/router\.prefetch\('\/people'\)/.test(layout)&&/router\.prefetch\('\/profile'\)/.test(layout)&&!/router\.prefetch\('\/people'\)/.test(home)],
+ ['Navigation prefetches routes centrally during idle time',/requestIdleCallback/.test(layout)&&/r\.prefetch\('\/'\)/.test(layout)&&/r\.prefetch\('\/people'\)/.test(layout)&&/r\.prefetch\('\/profile'\)/.test(layout)&&!/router\.prefetch\('\/people'\)/.test(home)],
  ['People enhancer is not globally mounted',
   !/PeopleSurfaceEnhancer/.test(app)],
  ['People roster cards are painted immediately instead of deferred on scroll',

@@ -16,7 +16,7 @@
     "test:persistence": "node scripts/persistence-regression.js",
     "test:review-surface": "node scripts/review-surface-regression.js",
     "test:system-scale": "node scripts/system-scale-regression.js",
-    "test:aria": "node scripts/aria-proactive-regression.js && node scripts/aria-intelligence-regression.js && npm run test:aria-v2 && npm run test:aria-final",
+    "test:aria": "node scripts/aria-proactive-regression.js && node scripts/aria-intelligence-regression.js && npm run test:aria-v2 && npm run test:aria-final && npm run test:aria-conversation",
     "test:auth": "node scripts/auth-session-regression.js",
     "test:aria-organizational-intelligence": "node scripts/aria-organizational-intelligence-regression.js",
     "test:aria-v2": "node scripts/aria-organizational-intelligence-v2-regression.js",

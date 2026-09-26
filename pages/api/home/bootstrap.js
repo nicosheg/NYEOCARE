@@ -91,7 +91,10 @@ export default withOrg(async function handler(req,res){
      CASE a.priority WHEN 'critical' THEN 4 WHEN 'high' THEN 3 WHEN 'medium' THEN 2 ELSE 1 END DESC,
      a.proposed_at ASC
    LIMIT 30`,[orgId]),
-   getDirectorBriefing(orgId,{limit:8})
+   getDirectorBriefing(orgId,{limit:8}).catch(error=>{
+     console.error('[ARIA] Director briefing degraded on Home bootstrap:',error);
+     return null;
+   })
   ]);
 
   const items=[];
@@ -202,6 +205,7 @@ export default withOrg(async function handler(req,res){
       completed_at:org.latest_background_session.aria_processing_completed_at
     }:null,
     notification:{hasSomething:directorData?.primary_focus?.priority!=='low'||count>0,text:directorData?.primary_focus?.title||'ARIA is keeping watch today.',count},
+    director_status:directorData?'live':'degraded',
     briefing:{headline:[directorData?.primary_focus?.title,directorData?.primary_focus?.summary].filter(Boolean).join(' — ')||'ARIA is keeping watch today.',items:top,director:directorData},
     categories:{scan:[],care:top.filter(x=>x.category==='care').slice(0,3)},
     peopleCount:Number(org.people_count)||0,reviewCount:Number(org.review_count)||0,

@@ -42,6 +42,7 @@ export default function AttendanceModal({isOpen,onClose}){
       if(!cached)return null;
       const cachedPeople=await getFieldPeople(cached.sessionId);
       setSession({...cached.session,user_id:userId});
+      setCanDiscard(cached.session?.can_discard===true);
       setPeople(cachedPeople.slice(0,80));
       setTotal(cachedPeople.length);
       setPresent(cachedPeople.filter(p=>p.marked===true).length);
@@ -380,6 +381,7 @@ export default function AttendanceModal({isOpen,onClose}){
 
   const discard=async()=>{
     if(!session||closing)return;
+    if(!networkOnline){setNotice('Reconnect to discard this session. Your saved attendance marks are still safe on this device.');return;}
     if(!window.confirm('Discard this attendance session?\n\nAll marks in this live session will be permanently removed.'))return;
     setClosing(true);setError('');
     try{

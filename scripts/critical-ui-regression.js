@@ -180,6 +180,9 @@ const checks=[
   /mergeAttendanceHistory/.test(duplicateApi)&&/attendance_records/.test(duplicateApi)&&/present=\(COALESCE\(c\.present,false\) OR COALESCE\(d\.present,false\)\)/.test(duplicateApi)],
  ['Duplicate merge never exposes raw database constraint errors',
   !/Could not safely move .*history:\$\{err\.message\}/.test(duplicateApi)&&/Nothing was changed\./.test(duplicateApi)],
+ ['Duplicate detector respects different given names with a shared surname',
+  /function surnameGuard/.test(read('lib/duplicateDetector.js'))&&/differentGivenSameSurname/.test(read('lib/duplicateDetector.js'))&&/ps\.score<90/.test(read('lib/duplicateDetector.js'))],
+
  ['Review Center uses plain user-facing identity language',
   /duplicates:\{title:'Duplicates',tag:'PEOPLE'/.test(reviewCenter)&&/POSSIBLE DUPLICATE/.test(reviewCenter)&&!/DATABASE DUPLICATE/.test(reviewCenter)],
  ['Daily briefing makes scan review a canonical grouped item',

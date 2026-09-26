@@ -71,3 +71,18 @@ The product claim remains organizational memory and intelligent care. The scanne
 
 ## Pilot verification
 Run at least one real service with several operators, intentionally toggle airplane mode, restore connectivity, close from one operator, and verify all queued marks reconcile without manual retry.
+
+## Offline cold-reopen contract
+
+Field Mode must survive the operator closing and reopening the browser/PWA while disconnected after a real attendance session has been warmed on that device.
+
+The service worker may cache the unauthenticated Home application shell because the shell contains no organization data. It must not cache authenticated API responses or organization/person records.
+
+When the cached shell starts offline:
+- Supabase's persisted browser session remains the authentication source;
+- IndexedDB restores the active Field Mode session and roster;
+- Attendance opens from local state without attempting a required network bootstrap;
+- marks continue to update the local outbox immediately;
+- reconnect handling resumes through the existing authenticated sync path.
+
+This is a stronger requirement than merely keeping an already-open tab usable offline.

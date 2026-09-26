@@ -16,7 +16,7 @@ export default withOrg(async function handler(req,res){
  const orgId=req.org.id;
 
  try{
-  const[base,observations,actions]=await Promise.all([
+  const[base,observations,actions,directorData]=await Promise.all([
    pool.query(`SELECT
      name,aria_instructions,settings,
      (SELECT COUNT(*)::int FROM people WHERE organization_id=$1 AND COALESCE(status,'active')='active') people_count,
@@ -90,7 +90,8 @@ export default withOrg(async function handler(req,res){
    ORDER BY CASE WHEN a.action_metadata->>'kind'='attendance_absence_check_in' THEN 5 WHEN a.action_metadata->>'kind'='returned_after_absence' THEN 4 ELSE 0 END DESC,
      CASE a.priority WHEN 'critical' THEN 4 WHEN 'high' THEN 3 WHEN 'medium' THEN 2 ELSE 1 END DESC,
      a.proposed_at ASC
-   LIMIT 30`,[orgId])
+   LIMIT 30`,[orgId]),
+   getDirectorBriefing(orgId,{limit:8})
   ]);
 
   const items=[];
@@ -142,8 +143,27 @@ export default withOrg(async function handler(req,res){
    });
   }
 
+  const directorFocus=directorData?.decisions?.human_focus||[];
+  const directorRank=new Map(directorFocus.map((x,i)=>[String(x.person_id),i]));
+  for(const focus of directorFocus){
+   if(!focus?.person_id)continue;
+   const exists=items.some(item=>String(item.person_id||'')===String(focus.person_id));
+   if(exists)continue;
+   items.push({
+    id:focus.action_id||('director:'+focus.person_id),person_id:focus.person_id,category:'care',
+    priority:Math.max(50,80-(directorRank.get(String(focus.person_id))||0)*5),
+    label:'ARIA FOCUS',title:focus.name||'Person',message:focus.reason||'ARIA identified a meaningful person-level signal.',
+    knowledge:'ARIA selected this focus from the reconciled organizational state.',suggestion:'Open the person context and decide whether a human response is useful.',
+    action:{type:'care',label:focus.action?'Review next step':'Open context'},action_id:focus.action_id||null,action_type:focus.action||null,action_status:null,metadata:{director_focus:true},observation_id:focus.observation_id||null
+   });
+  }
+
   const seen=new Set(),top=[];
-  for(const item of items.sort((a,b)=>b.priority-a.priority)){
+  for(const item of items.sort((a,b)=>{
+   const ar=directorRank.has(String(a.person_id))?directorRank.get(String(a.person_id)):999;
+   const br=directorRank.has(String(b.person_id))?directorRank.get(String(b.person_id)):999;
+   return ar-br || b.priority-a.priority;
+  })){
    const key=item.person_id?(item.category+':'+item.person_id):item.id;
    if(seen.has(key))continue;
    seen.add(key);top.push(item);
@@ -154,14 +174,7 @@ export default withOrg(async function handler(req,res){
     vocabulary=settings?.aria?.vocabulary||{person:'people',members:'members',leaders:'leaders',care:'care',prayer:'prayer'},
     now=new Date(),date=now.toISOString().slice(0,10),count=top.length,s=org.latest_session||null,c=org.latest_completed_session||null;
 
-  const director={
-    director:'ARIA',version:ARIA_DIRECTOR_VERSION,
-    people:Number(org.people_count)||0,
-    pending_scan_reviews:Number(org.review_count)||0,
-    latest_session:s?{id:s.id,name:s.name,status:s.status,aria_processing_status:s.aria_processing_status,aria_processing_error:s.aria_processing_error}:null,
-    latest_completed_session:c?{id:c.id,name:c.name,closed_at:c.closed_at}:null,
-    active_observations:observations.rows.length,open_actions:actions.rows.length
-  };
+  const director={...directorData,legacy_version:ARIA_DIRECTOR_VERSION,pending_scan_reviews:Number(org.review_count)||0,latest_session:s?{id:s.id,name:s.name,status:s.status,aria_processing_status:s.aria_processing_status,aria_processing_error:s.aria_processing_error}:null,latest_completed_session:c?{id:c.id,name:c.name,closed_at:c.closed_at}:null};
 
   return res.status(200).json({
     date,generatedAt:now.toISOString(),director,
@@ -188,8 +201,8 @@ export default withOrg(async function handler(req,res){
       started_at:org.latest_background_session.aria_processing_started_at,
       completed_at:org.latest_background_session.aria_processing_completed_at
     }:null,
-    notification:{hasSomething:count>0,text:count?'ARIA has concrete things for you today.':'ARIA is keeping watch today.',count},
-    briefing:{headline:count?'Here are '+count+' things with a clear next step.':'Nothing needs your immediate attention today.',items:top},
+    notification:{hasSomething:directorData?.primary_focus?.priority!=='low'||count>0,text:directorData?.primary_focus?.title||'ARIA is keeping watch today.',count},
+    briefing:{headline:[directorData?.primary_focus?.title,directorData?.primary_focus?.summary].filter(Boolean).join(' — ')||'ARIA is keeping watch today.',items:top,director:directorData},
     categories:{scan:[],care:top.filter(x=>x.category==='care').slice(0,3)},
     peopleCount:Number(org.people_count)||0,reviewCount:Number(org.review_count)||0,
     nextRefresh:date+'T23:59:59.999'

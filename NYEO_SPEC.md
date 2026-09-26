@@ -2046,4 +2046,7 @@ On offline restart:
 4. marking remains optimistic and coalesced locally;
 5. reconnect automatically returns to the canonical server sync and session-finalization path.
 
+### Discard semantics
+Discard is an authoritative session-destruction action, not a local UI-only mutation. Only organization owners/admins may see or invoke it. The permission is returned by the active-session API and persisted with the Field Mode session so an authorized cached/offline reopen does not silently lose the action. When offline, NYEOCARE keeps the discard control safe by requiring reconnection before deleting the server session; it must never pretend a local-only discard has ended the shared organization session.
+
 Any future change that removes this capability must be treated as a Field Mode regression.

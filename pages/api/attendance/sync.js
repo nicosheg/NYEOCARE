@@ -29,7 +29,7 @@ export default withOrg(async function handler(req,res){
   let reprocessingQueued=false;
   if(session.status==='closed'&&ops.length){
    const total=(await client.query("SELECT COUNT(*)::int AS count FROM people WHERE organization_id=$1 AND COALESCE(status,'active')='active'",[orgId])).rows[0]?.count||0;
-   const reset=(await client.query("UPDATE sessions SET aria_processing_status='pending',aria_processing_stage='persist',aria_processing_progress=0,aria_processing_processed=0,aria_processing_total=$2,aria_processing_attempts=0,aria_processing_started_at=NULL,aria_processing_completed_at=NULL,aria_processing_error=NULL,aria_processing_heartbeat_at=NULL WHERE id=$1 AND organization_id=$3 AND status='closed' RETURNING id",[session_id,Number(total)||0,orgId])).rows;
+   const reset=(await client.query("UPDATE sessions SET aria_processing_status='pending',aria_processing_stage='persist',aria_processing_progress=0,aria_processing_processed=0,aria_processing_total=$2,aria_processing_attempts=0,aria_processing_started_at=NULL,aria_processing_completed_at=NULL,aria_processing_error=NULL,aria_processing_heartbeat_at=NULL WHERE id=$1 AND organization_id=$3 AND status='closed' AND aria_processing_status<>'pending' RETURNING id",[session_id,Number(total)||0,orgId])).rows;
    if(reset.length){await enqueueAttendanceProcessing({organizationId:orgId,sessionId:session_id,actorId:userId,stage:'persist',db:client});reprocessingQueued=true}
   }
   await client.query('COMMIT');

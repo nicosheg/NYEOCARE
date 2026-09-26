@@ -1828,3 +1828,111 @@ This prevents past signals from accumulating indefinitely as if they were still 
 If ARIA cannot resolve a conversational referent, it asks for the missing scope instead of falling back to a generic organization summary. If the user asks for a specific observation, person or cohort that cannot be verified, ARIA says so and does not guess.
 
 The goal is conversational continuity without sacrificing evidence, permissions or human control.
+
+
+# 60. CANONICAL ARIA DIRECTOR — ORGANIZATIONAL INTELLIGENCE CORE v4
+
+ARIA is not a chatbot layered on top of NYEOCARE. The canonical Director is the deterministic intelligence layer that reconciles the organization's current state before any language model is asked to speak.
+
+### One ARIA, one interpretation
+
+Organization-level surfaces must use the same Director state:
+- ARIA Today / daily briefing.
+- Talk to ARIA organization questions.
+- Attention and care views.
+- Future proactive ARIA surfaces.
+
+They must not independently invent alternative definitions of "attention", "weakening", "growth", or "what matters".
+
+### Director loop
+
+```
+EVENTS + PEOPLE + ATTENDANCE + MEMORY + RELATIONSHIPS + ACTIONS + OUTCOMES
+                                ↓
+                       EVIDENCE RECONCILIATION
+                                ↓
+                         ARIA DIRECTOR STATE
+                                ↓
+       WHAT MATTERS → WHY NOW → CONFLICTS → UNCERTAINTY → NEXT STEP
+                                ↓
+                     HUMAN DECISION / ACTION
+                                ↓
+                           OUTCOME
+                                ↓
+                           LEARNING
+```
+
+### Intelligence classes
+
+ARIA separates:
+- **Human care** — a person may benefit from relationship attention.
+- **Organization opportunity** — something positive may be worth strengthening.
+- **Operational risk** — the system or organizational process needs intervention.
+- **Watch / uncertainty** — the evidence is not strong enough to justify intervention.
+
+A raw observation is not automatically a problem.
+
+### Temporal reconciliation
+
+Attendance changes must be interpreted with:
+- lifecycle state;
+- amount of available personal history;
+- participation volume;
+- relationship state;
+- recent confirmed participation;
+- active observations;
+- existing actions.
+
+For example, an attendance decline signal on an onboarding relationship is classified as a watch rather than silently escalated as disengagement.
+
+### Contradiction handling
+
+When two intelligence paths disagree, ARIA must surface the disagreement and resolve it through evidence rather than silently selecting one path.
+
+### Non-obvious insight
+
+When evidence supports it, the Director should surface a useful organizational insight the operator did not explicitly ask for. Surprise must come from discovering real relationships between verified signals, never from invented facts.
+
+### Human-memory coverage
+
+ARIA tracks how much of the active population has human-supplied memory/context. Fast population growth with low human-memory coverage is an organizational intelligence condition: the organization may be growing faster than its relational memory.
+
+### Operational signal lifecycle
+
+Stale attendance-processing failures must not remain active forever. Successful later processing supersedes the failure observation/action, and old orphaned failure signals are cleaned from active attention.
+
+### LLM boundary
+
+The language model is not the canonical source of organizational state.
+
+The model:
+- explains Director state;
+- adapts wording and depth;
+- answers natural-language questions;
+- drafts human-readable messages.
+
+The model does not:
+- define authoritative counts;
+- decide whether an observation exists;
+- silently resolve contradictory database facts;
+- authorize external actions;
+- invent organizational memory.
+
+### Director explainability
+
+The Director provides bounded evidence summaries and decision reasons. It does not store or expose hidden chain-of-thought. Operators see the conclusion, evidence category, uncertainty and next-step rationale.
+
+### Current implementation
+
+Canonical implementation:
+- `lib/aria/directorEngine.js`
+- `lib/aria/director.js`
+- `lib/aria/capabilityEngine.js`
+- `lib/aria/commandEngine.js`
+- `lib/aria/conversationEngine.js`
+- `pages/api/aria/daily.js`
+
+Regression coverage:
+- `scripts/aria-director-regression.js`
+- `npm run test:aria-director`
+

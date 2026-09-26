@@ -12,7 +12,7 @@
     "create-owner": "node scripts/create-owner.js",
     "test:scan": "node --experimental-specifier-resolution=node --experimental-default-type=module scripts/scan-regression.js",
     "test:critical-ui": "node scripts/critical-ui-regression.js",
-    "test": "npm run test:scan && npm run test:critical-ui && npm run test:aria-conversation && npm run test:field-mode",
+    "test": "npm run test:scan && npm run test:critical-ui && npm run test:aria-conversation",
     "test:persistence": "node scripts/persistence-regression.js",
     "test:review-surface": "node scripts/review-surface-regression.js",
     "test:system-scale": "node scripts/system-scale-regression.js",

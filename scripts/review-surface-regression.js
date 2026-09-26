@@ -4,7 +4,7 @@ const home=fs.readFileSync('pages/index.js','utf8');
 const people=fs.readFileSync('pages/people.js','utf8');
 const config=fs.readFileSync('next.config.js','utf8');
 
-assert.match(home,/const ReviewCenterTab=dynamic\(\(\)=>import\('\.\.\/components\/ReviewCenterTab'\)/);
+assert.ok(home.includes("const ReviewCenterTab=dynamic(()=>import('../components/ReviewCenterTab')"));
 assert.equal((home.match(/<ReviewCenterTab/g)||[]).length,1);
 assert.match(people,/import ReviewCenterTab from'\.\.\/components\/ReviewCenterTab';/);
 assert.equal((people.match(/<ReviewCenterTab modal/g)||[]).length,1);

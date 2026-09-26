@@ -9,11 +9,11 @@ export default function FieldModeRuntime(){
  useEffect(()=>{
   registerServiceWorker();let timer=null;
   const run=()=>{if(document.visibilityState==='visible')syncFieldMode().catch(()=>{})};
-  const schedule=()=>{if(timer)window.clearTimeout(timer);timer=window.setTimeout(run,300)};
-  const onOnline=()=>run(),onVisible=()=>{if(document.visibilityState==='visible')schedule()},onFocus=()=>schedule();
-  schedule();window.addEventListener('online',onOnline);document.addEventListener('visibilitychange',onVisible);window.addEventListener('focus',onFocus);
+  const schedule=()=>{if(timer)window.clearTimeout(timer);timer=window.setTimeout(run,1000)};
+  const onOnline=()=>run(),onVisible=()=>{if(document.visibilityState==='visible')schedule()};
+  schedule();window.addEventListener('online',onOnline);document.addEventListener('visibilitychange',onVisible);
   const interval=window.setInterval(run,15000);
-  return()=>{if(timer)window.clearTimeout(timer);window.clearInterval(interval);window.removeEventListener('online',onOnline);document.removeEventListener('visibilitychange',onVisible);window.removeEventListener('focus',onFocus)}
+  return()=>{if(timer)window.clearTimeout(timer);window.clearInterval(interval);window.removeEventListener('online',onOnline);document.removeEventListener('visibilitychange',onVisible);}
  },[]);
  return null;
 }

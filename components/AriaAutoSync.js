@@ -1,6 +1,6 @@
 // components/AriaAutoSync.js
 import{useEffect,useRef}from'react';import{getClientSession,refreshClientSession}from'../lib/clientSession';
-const COOLDOWN=15000,IDLE_DELAY=15000;
+const COOLDOWN=60000,IDLE_DELAY=30000;
 export default function AriaAutoSync(){
  const lastRun=useRef(0);
  useEffect(()=>{
@@ -26,7 +26,7 @@ export default function AriaAutoSync(){
    if(typeof window.requestIdleCallback==='function')idleId=window.requestIdleCallback(run,{timeout:IDLE_DELAY});
    else timer=setTimeout(run,IDLE_DELAY);
   };
-  const onFocus=run;
+  const onFocus=()=>schedule();
   const onVisible=()=>{if(document.visibilityState==='visible')schedule()};
   schedule();window.addEventListener('focus',onFocus);document.addEventListener('visibilitychange',onVisible);
   const interval=setInterval(schedule,COOLDOWN);

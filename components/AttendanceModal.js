@@ -396,6 +396,7 @@ export default function AttendanceModal({isOpen,onClose}){
   if(!isOpen||typeof document==='undefined')return null;
 
   const percent=total?Math.round((present/total)*100):0;
+  const fieldStatus=networkOnline?(pendingCount?`Syncing ${pendingCount} change${pendingCount===1?'':'s'}`:'Online'):`Offline${pendingCount?' · '+pendingCount+' pending':''}`;
   const backgroundLabel=background
     ? background.progress>=100?'ARIA updated'
       : background.processing_status==='needs_attention'?'ARIA needs attention'
@@ -501,7 +502,7 @@ export default function AttendanceModal({isOpen,onClose}){
         </div>
 
         <footer style={footer}>
-          <div style={live}><i/>Live attendance <span style={fieldState}>{networkOnline?(pendingCount?('Syncing '+pendingCount+' change'+(pendingCount===1?'':'s'):'Online'):('Offline'+(pendingCount?' · '+pendingCount+' pending':''))}</span></div>
+          <div style={live}><i/>Live attendance <span style={fieldState}>{fieldStatus}</span></div>
           <div style={footerActions}>
             {canDiscard&&<button style={discardButton} disabled={closing} onClick={discard}>Discard</button>}
             <button style={keepButton} disabled={closing||loading} onClick={keep}>

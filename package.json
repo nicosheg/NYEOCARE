@@ -22,7 +22,8 @@
     "test:aria-v2": "node scripts/aria-organizational-intelligence-v2-regression.js",
     "test:aria-final": "node scripts/aria-final-architecture-regression.js",
     "test:aria-conversation": "node scripts/aria-conversation-cohort-regression.js",
-    "test:aria-director": "node scripts/aria-director-regression.js"
+    "test:aria-director": "node scripts/aria-director-regression.js",
+    "test:field-mode": "node scripts/field-mode-regression.js"
   },
   "dependencies": {
     "next": "15.5.24",

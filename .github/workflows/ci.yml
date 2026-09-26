@@ -37,6 +37,7 @@ jobs:
       - run: npm run test:aria
       - run: npm run test:auth
       - run: npm run test:system-scale
+      - run: npm run test:field-mode
       - name: Build application
         if: github.event_name != 'push' || github.ref != 'refs/heads/main'
         run: npm run build

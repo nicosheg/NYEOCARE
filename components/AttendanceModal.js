@@ -31,6 +31,7 @@ export default function AttendanceModal({isOpen,onClose}){
   const[pendingCount,setPendingCount]=useState(0);
   const searchSeq=useRef(0);
   const markingIds=useRef(new Set());
+  const fieldWarmAt=useRef(0);
 
   const refreshFieldPending=useCallback(async(sessionId)=>{
     try{setPendingCount(await getFieldPendingCount(sessionId))}catch{setPendingCount(0)}
@@ -190,6 +191,7 @@ export default function AttendanceModal({isOpen,onClose}){
       saveFieldSession(s.user.id,{...live,user_id:s.user.id}).catch(()=>{});
       if(seq===searchSeq.current&&mounted.current)setLoading(false);
       timing('ok',{cached:Boolean(cached),field_cached:Boolean(fieldCached)});
+      if(fieldCached&&fieldWarmAt.current&&Date.now()-fieldWarmAt.current<300000)return;
       fetch('/api/attendance/field-roster?session_id='+encodeURIComponent(live.session_id)+'&limit=5000',{headers:{Authorization:'Bearer '+s.access_token},cache:'no-store'})
         .then(async r=>{if(!r.ok)return null;return r.json()}).then(async data=>{
           if(!data?.success||!Array.isArray(data.people))return;
@@ -202,7 +204,7 @@ export default function AttendanceModal({isOpen,onClose}){
           }
           if(!mounted.current)return;
           await saveFieldPeople(live.session_id,all,{replace:true});
-          setFieldRoster(all);setFieldReady(all.length>0);setTotal(Number(data.total)||all.length);setPresent(Number(data.present_count)||all.filter(p=>p.marked===true).length);
+          setFieldRoster(all);setFieldReady(all.length>0);setTotal(Number(data.total)||all.length);setPresent(Number(data.present_count)||all.filter(p=>p.marked===true).length);fieldWarmAt.current=Date.now();
           const visible=localRosterSearch(all,query,80);setPeople(visible);setCursor(null);setHasMore(false);await refreshFieldPending(live.session_id);
         }).catch(()=>{});
     }catch(e){
@@ -216,25 +218,46 @@ export default function AttendanceModal({isOpen,onClose}){
 
   useEffect(()=>{if(isOpen)load();},[isOpen,load]);
 
+  const refreshSessionState=useCallback(async()=>{
+    if(!isOpen||!session?.session_id)return;
+    try{
+      const s=await getClientSession();if(!s)return;
+      const response=await fetch('/api/attendance/active-session',{headers:{Authorization:`Bearer ${s.access_token}`},cache:'no-store'});
+      const data=await read(response);if(!response.ok)return;
+      if(!data.active||String(data.session_id)!==String(session.session_id)){
+        await clearFieldSession(s.user.id,session.session_id).catch(()=>{});
+        clearCached('attendance:'+s.user.id);
+        setSession(null);setPeople([]);setFieldRoster([]);setFieldReady(false);setPendingCount(0);setCanDiscard(false);
+        publishDataChange('attendance');onClose();return;
+      }
+      const live=normalizeSession(data);if(!live)return;
+      setSession(current=>current?{...current,...live,user_id:s.user.id}:current);
+      setCanDiscard(live.can_discard===true);
+      setBackground(data.background_processing||null);
+      await refreshFieldPending(live.session_id);
+    }catch{}
+  },[isOpen,session?.session_id,refreshFieldPending,onClose]);
+
   useEffect(()=>{
     if(!isOpen)return;
-    const onSync=()=>{
+    const onSync=e=>{
       if(!session?.session_id)return;
       refreshFieldPending(session.session_id).catch(()=>{});
-      load({showLoading:false}).catch(()=>{});
+      const kind=e?.detail?.kind;
+      if(kind==='sync'||kind==='clear')refreshSessionState().catch(()=>{});
     };
     window.addEventListener('nyeocare:field-sync',onSync);
     return()=>window.removeEventListener('nyeocare:field-sync',onSync)
-  },[isOpen,session?.session_id,load,refreshFieldPending]);
+  },[isOpen,session?.session_id,refreshFieldPending,refreshSessionState]);
 
   useEffect(()=>{
     if(!isOpen)return;
     let cancelled=false;
     const timer=window.setInterval(()=>{
-      if(!cancelled&&document.visibilityState==='visible')load({showLoading:false});
-    },12000);
+      if(!cancelled&&document.visibilityState==='visible')refreshSessionState();
+    },30000);
     return()=>{cancelled=true;window.clearInterval(timer)};
-  },[isOpen,load]);
+  },[isOpen,refreshSessionState]);
 
   useEffect(()=>{
     if(!isOpen||!session||session.status!=='active')return;
@@ -255,27 +278,31 @@ export default function AttendanceModal({isOpen,onClose}){
   },[isOpen,session?.session_id,session?.status,query,fetchPage,fieldReady,fieldRoster,networkOnline]);
 
   useEffect(()=>{
-    if(!isOpen)return;
-    let channel=null;
-    let timer=null;
-    let stopped=false;
-    const refresh=()=>{
-      if(stopped||timer)return;
-      timer=window.setTimeout(()=>{timer=null;if(!stopped)load({showLoading:false})},250);
+    if(!isOpen||!session?.session_id)return;
+    let channel=null,stopped=false;
+    const applyAttendanceRow=row=>{
+      if(!row||String(row.session_id)!==String(session.session_id)||!row.people_id)return;
+      const personId=String(row.people_id),nextMarked=row.present===true;
+      setPeople(current=>{
+        const prev=current.find(p=>String(p.id)===personId);
+        if(!prev||Boolean(prev.marked)===nextMarked)return current;
+        setPresent(v=>Math.max(0,v+(nextMarked?1:-1)));
+        return current.map(p=>String(p.id)===personId?{...p,marked:nextMarked,marked_by_name:nextMarked?(p.marked_by_name||'') : null}:p);
+      });
+      setFieldRoster(current=>current.map(p=>String(p.id)===personId?{...p,marked:nextMarked}:p));
     };
     getClientSession().then(s=>{
       if(!s||stopped)return;
-      channel=supabase.channel('attendance-live-'+String(s.user.id))
-        .on('postgres_changes',{event:'*',schema:'public',table:'sessions'},refresh)
-        .on('postgres_changes',{event:'*',schema:'public',table:'attendance_records'},refresh)
+      const sessionId=String(session.session_id);
+      channel=supabase.channel('attendance-live-'+sessionId+'-'+String(s.user.id))
+        .on('postgres_changes',{event:'*',schema:'public',table:'sessions',filter:'id=eq.'+sessionId},()=>refreshSessionState())
+        .on('postgres_changes',{event:'INSERT',schema:'public',table:'attendance_records',filter:'session_id=eq.'+sessionId},payload=>applyAttendanceRow(payload.new))
+        .on('postgres_changes',{event:'UPDATE',schema:'public',table:'attendance_records',filter:'session_id=eq.'+sessionId},payload=>applyAttendanceRow(payload.new))
+        .on('postgres_changes',{event:'DELETE',schema:'public',table:'attendance_records'},payload=>applyAttendanceRow(payload.old))
         .subscribe();
     }).catch(()=>{});
-    return()=>{
-      stopped=true;
-      if(timer)window.clearTimeout(timer);
-      if(channel)supabase.removeChannel(channel);
-    };
-  },[isOpen,load]);
+    return()=>{stopped=true;if(channel)supabase.removeChannel(channel)};
+  },[isOpen,session?.session_id,refreshSessionState]);
 
   const createSession=async()=>{
     const name=sessionName.trim();

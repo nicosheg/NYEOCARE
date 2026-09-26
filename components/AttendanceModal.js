@@ -30,6 +30,7 @@ export default function AttendanceModal({isOpen,onClose}){
   const[fieldReady,setFieldReady]=useState(false);
   const[pendingCount,setPendingCount]=useState(0);
   const searchSeq=useRef(0);
+  const markingIds=useRef(new Set());
 
   const refreshFieldPending=useCallback(async(sessionId)=>{
     try{setPendingCount(await getFieldPendingCount(sessionId))}catch{setPendingCount(0)}
@@ -312,6 +313,9 @@ export default function AttendanceModal({isOpen,onClose}){
 
   const mark=async(id,isMarked)=>{
     if(!session||session.status!=='active'||closing)return;
+    const markKey=String(id);
+    if(markingIds.current.has(markKey))return;
+    markingIds.current.add(markKey);
     const previous=people,nextValue=!isMarked,perf=measurePerformance('attendance_mark',{network:networkOnline?'online':'offline'});
     setPeople(current=>current.map(p=>String(p.id)===String(id)?{...p,marked:nextValue,marked_by_name:nextValue?'You':null}:p));
     setFieldRoster(current=>current.map(p=>String(p.id)===String(id)?{...p,marked:nextValue,marked_by_name:nextValue?'You':null}:p));
@@ -332,8 +336,10 @@ export default function AttendanceModal({isOpen,onClose}){
     }catch(e){
       const transient=e?.transient||e instanceof TypeError||typeof navigator!=='undefined'&&!navigator.onLine;
       if(transient){await enqueueFieldMutation({sessionId:session.session_id,personId:id,present:nextValue});await refreshFieldPending(session.session_id);setNotice('Saved on this device. Syncing automatically when the connection returns.');perf('queued');return}
-      setPeople(previous);setFieldRoster(current=>current.map(p=>String(p.id)===String(id)?{...p,marked:isMarked}:p));setPresent(value=>Math.max(0,value+(nextValue?-1:1)));setError(e.message||'Could not update attendance.');perf('error');
-    }
+      setPeople(current=>current.map(p=>String(p.id)===String(id)?{...p,marked:isMarked,marked_by_name:isMarked?(p.marked_by_name||'You'):null}:p));
+      setFieldRoster(current=>current.map(p=>String(p.id)===String(id)?{...p,marked:isMarked,marked_by_name:isMarked?(p.marked_by_name||'You'):null}:p));
+      setPresent(value=>Math.max(0,value+(nextValue?-1:1)));setError(e.message||'Could not update attendance.');perf('error');
+    }finally{markingIds.current.delete(markKey)}
   };
 
   const loadMore=async()=>{

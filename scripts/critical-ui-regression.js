@@ -3,6 +3,9 @@ import{existsSync,readFileSync}from'node:fs';
 
 const read=p=>readFileSync(p,'utf8');
 const attendance=read('components/AttendanceModal.js');
+const fieldMode=read('lib/attendanceFieldMode.js');
+const layout=read('components/Layout.js');
+const duplicateApi=read('pages/api/review/duplicate-action.js');
 const home=read('pages/index.js');
 const peoplePage=read('pages/people.js');
 const personPage=read('pages/person/[id].js');
@@ -65,6 +68,17 @@ const checks=[
   /background_processing/.test(attendance)&&(/You can start the next attendance now/.test(attendance)||/You can start the next session while ARIA finishes this one/.test(attendance))],
  ['Attendance UI has no ARIA retry action',
   !attendance.includes('Retry processing')&&!attendance.includes('retry processing')],
+ ['Attendance discard is idempotent and closes stale UI',
+  /clearFieldSession\(s\.user\.id,session\.session_id\)/.test(attendance)&&/onClose\(\)/.test(attendance)&&/\[404,409\]/.test(attendance)],
+ ['Attendance Field Mode distinguishes local writes from syncs',
+  /emit\('local'/.test(fieldMode)&&/emit\('sync'/.test(fieldMode)&&/kind==='sync'/.test(attendance)&&/kind==='clear'/.test(attendance)],
+ ['Attendance live refresh is reduced to a 30s state check',
+  /setInterval\(\(\)=>\{/.test(attendance)&&/30000/.test(attendance)&&/refreshSessionState\(\)/.test(attendance)],
+ ['Attendance live updates are scoped to the current session',
+  /filter:'id=eq\.'\+sessionId/.test(attendance)&&/filter:'session_id=eq\.'\+sessionId/.test(attendance)],
+ ['Attendance roster warming is not repeated on every refresh',
+  /fieldWarmAt=useRef/.test(attendance)&&/Date\.now\(\)-fieldWarmAt\.current<300000/.test(attendance)],
+
  ['Home shows ARIA progress as background state',
   /aria_processing/.test(homeBootstrap)&&/AriaProcessingStatus/.test(home)&&/ariaAttendance/.test(home)],
  ['Home has no attendance retry action',
@@ -155,6 +169,21 @@ const checks=[
   /function inlineMarkdown/.test(ariaPage)&&/MarkdownMessage/.test(ariaPage)&&/ariaMarkdown/.test(ariaPage)&&/m\.role==="assistant"\?/.test(ariaPage)],
  ['Home action row is intentionally lifted above the launcher baseline',
   /\.nyHomeTools\{position:relative;z-index:4;transform:translateY\(-12px\)\}/.test(home)],
+
+ ['Navigation does not force React rerender for route progress',
+  /progressRef=useRef/.test(layout)&&/ref=\{progressRef\}/.test(layout)&&!/,\[navigating,setNavigating\]=useState/.test(layout)],
+ ['Navigation does not force smooth scrolling',
+  /html\{scroll-behavior:auto\}/.test(layout)&&!layout.includes('scroll-behavior:smooth')],
+ ['Mobile navigation disables expensive continuous effects',
+  /\.liquidNav g\{filter:none!important\}/.test(layout)&&/\.navGlass\{animation:none!important;will-change:auto\}/.test(layout)&&/\.livingCanvas::before\{animation:none!important\}/.test(layout)],
+ ['Duplicate merge consolidates overlapping attendance history before moving identities',
+  /mergeAttendanceHistory/.test(duplicateApi)&&/attendance_records/.test(duplicateApi)&&/present=\(COALESCE\(c\.present,false\) OR COALESCE\(d\.present,false\)\)/.test(duplicateApi)],
+ ['Duplicate merge never exposes raw database constraint errors',
+  !/Could not safely move .*history:\$\{err\.message\}/.test(duplicateApi)&&/Nothing was changed\./.test(duplicateApi)],
+ ['Review Center uses plain user-facing identity language',
+  /duplicates:\{title:'Duplicates',tag:'PEOPLE'/.test(reviewCenter)&&/POSSIBLE DUPLICATE/.test(reviewCenter)&&!/DATABASE DUPLICATE/.test(reviewCenter)],
+ ['Daily briefing makes scan review a canonical grouped item',
+  /pendingScan/.test(briefing)&&/category:'scan'/.test(briefing)&&/scan_review_required/.test(briefing)&&/continue/.test(briefing)],
  ['Auth caches bearer verification',
   /AUTH_TTL=2500/.test(auth)],
  ['Review identity actions prioritize correction before direct remembering',/Edit & remember/.test(reviewCenter)&&/Remember as read/.test(reviewCenter)&&reviewCenter.indexOf('Edit & remember')<reviewCenter.indexOf('Remember as read')],

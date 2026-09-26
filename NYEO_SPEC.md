@@ -897,6 +897,33 @@ The goal is not to build the most features.
 
 ---
 
+
+
+# 26. SEPTEMBER 26, 2026 — NYEOCARE FIELD MODE / OFFLINE ATTENDANCE
+
+The existing attendance backend was audited before this change. Durable Postgres/PGMQ processing, set-based ARIA stages, organization isolation, session uniqueness, and background processing remain the canonical server architecture. Field Mode adds resilience around that foundation rather than replacing it.
+
+### Implemented
+- IndexedDB field session/roster cache.
+- Optimistic attendance marks that remain usable during temporary network loss.
+- One coalesced pending mutation per person/session, so rapid toggles do not create an outbox storm.
+- Automatic reconnect synchronization in batches of 100 changes.
+- Server-side batch validation for organization, session membership and active people.
+- Closed-session reconciliation for late offline marks, with durable ARIA reprocessing when needed.
+- Large field roster endpoint with keyset pagination for pre-service warming.
+- Static-asset service worker and installable web-app metadata without caching authenticated HTML.
+- Offline fallback page for navigation while disconnected.
+- Authenticated bounded performance telemetry for core attendance interactions.
+- Regression suite wired into CI as test:field-mode.
+
+### Product behavior
+The operator should experience “saved here immediately” rather than a retry loop. Connectivity state is visible but calm. The system automatically syncs when the connection returns. ARIA remains asynchronous and never becomes a gate in the live attendance interaction.
+
+### Intentional boundary
+A brand-new attendance session still requires an authoritative online create operation. Offline-first begins once the organization has an active server session and the device has a warmed roster. This avoids inventing a fake local session that other organization operators cannot see.
+
+### Field validation still required
+The implementation is not a substitute for a real church stress test. Pilot validation must exercise poor connectivity, multiple concurrent ushers, large people counts, reconnects, late synchronization, and real handset performance. Handwriting accuracy claims require a measured Nigerian benchmark rather than an assumption.
 ## Documentary record
 **Last updated:** 23 September 2026
 

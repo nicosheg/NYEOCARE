@@ -219,7 +219,7 @@ const checks=[
  ['Scan progress covers provider wait and retry states',
   /provider_wait/.test(scanProgress)&&/retrying/.test(scanProgress)&&/onProgress\?\.\('provider_wait'\)/.test(scanProvider)&&/onProgress\?\.\('retrying'\)/.test(scanProvider)],
  ['Scan cancellation cannot be overwritten by a late worker update',
-  /SCAN_CANCELLED/.test(scanCancelApi)&&/error_code='SCAN_CANCELLED'/.test(scanCancelApi)&&/NOT\(status='failed' AND error_code='SCAN_CANCELLED'\)/.test(scanProcessor)&&/FOR UPDATE/.test(scanProcessor)],
+  /SCAN_CANCELLED/.test(scanCancelApi)&&/error_code='SCAN_CANCELLED'/.test(scanCancelApi)&&/NOT\(status='failed' AND error_code='SCAN_CANCELLED'\)/.test(scanProcessor)&&/nyeocare:scan-job/.test(scanProcessor)&&/nyeocare:scan-job/.test(scanCancelApi)],
  ['Daily briefing makes scan review a canonical grouped item',
   /pendingScan/.test(briefing)&&/category:'scan'/.test(briefing)&&/scan_review_required/.test(briefing)&&/continue/.test(briefing)],
  ['Auth caches bearer verification',

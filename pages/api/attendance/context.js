@@ -9,23 +9,25 @@ export default withOrg(async function handler(req,res){
  if(!session_id||!people_id)return res.status(400).json({error:'session_id and people_id are required.'});
  if(!REASONS.has(String(reason_code)))return res.status(400).json({error:'Invalid absence reason.'});
  if(!['unknown','next_gathering','specific_date'].includes(String(return_option)))return res.status(400).json({error:'Invalid return option.'});
- const orgId=req.org.id,db=await pool.connect();
+ const orgId=req.org.id;
  try{
-  await db.query('BEGIN');
-  const s=await db.query('SELECT id,started_at,service_type,status,aria_processing_status FROM sessions WHERE id=$1 AND organization_id=$2 LIMIT 1',[session_id,orgId]);
+  const s=await pool.query('SELECT id,started_at,service_type,status,aria_processing_status FROM sessions WHERE id=$1 AND organization_id=$2 LIMIT 1',[session_id,orgId]);
   if(!s.rows.length)return res.status(404).json({error:'Attendance session not found.'});
   if(s.rows[0].status!=='active')return res.status(409).json({error:'Attendance is already saved; add context from the person story instead.'});
-  const p=await db.query('SELECT id FROM people WHERE id=$1 AND organization_id=$2 AND status=\'active\' LIMIT 1',[people_id,orgId]);
+  const p=await pool.query('SELECT id FROM people WHERE id=$1 AND organization_id=$2 AND status=\'active\' LIMIT 1',[people_id,orgId]);
   if(!p.rows.length)return res.status(404).json({error:'Person not found.'});
-  const a=await db.query('SELECT 1 FROM attendance_records WHERE organization_id=$1 AND session_id=$2 AND people_id=$3 AND present=true LIMIT 1',[orgId,session_id,people_id]);
+  const a=await pool.query('SELECT 1 FROM attendance_records WHERE organization_id=$1 AND session_id=$2 AND people_id=$3 AND present=true LIMIT 1',[orgId,session_id,people_id]);
   if(a.rows.length)return res.status(409).json({error:'This person is already marked present.'});
   let returnDate=null,known=false;
   if(return_option==='specific_date'){if(!/^\d{4}-\d{2}-\d{2}$/.test(String(expected_return_date||'')))return res.status(400).json({error:'Choose a return date.'});returnDate=expected_return_date;known=true}
   if(return_option==='next_gathering'){returnDate=nextDate(s.rows[0].started_at,s.rows[0].service_type);known=true}
-  const result=await db.query('INSERT INTO aria_attendance_contexts(organization_id,person_id,session_id,reason_code,reason_note,expected_return_date,expected_service_type,expected_return_known,source,created_by,updated_at,resolved_at,resolved_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,\'human\',$9,NOW(),NULL,NULL) ON CONFLICT(organization_id,session_id,person_id) DO UPDATE SET reason_code=EXCLUDED.reason_code,reason_note=EXCLUDED.reason_note,expected_return_date=EXCLUDED.expected_return_date,expected_service_type=EXCLUDED.expected_service_type,expected_return_known=EXCLUDED.expected_return_known,source=\'human\',created_by=EXCLUDED.created_by,updated_at=NOW(),resolved_at=NULL,resolved_by=NULL RETURNING id,reason_code,reason_note,expected_return_date,expected_service_type,expected_return_known',[orgId,people_id,session_id,String(reason_code),String(reason_note||'').trim().slice(0,1000)||null,returnDate,s.rows[0].service_type||null,known,req.user.id]);
-  const resolved=await resolveCareWorkInTransaction({db,organizationId:orgId,actorId:req.user.id,personId:people_id,actionId:action_id,observationId:observation_id,reason:'Human context recorded from Tell ARIA.',source:'operator'});
-  await db.query('COMMIT');
-  return res.status(200).json({success:true,context:result.rows[0],resolved});
- }catch(e){await db.query('ROLLBACK').catch(()=>{});console.error('[ATTENDANCE] Context error:',e);return res.status(500).json({error:'Could not save this attendance context.'});}
- finally{db.release()}
+  const db=await pool.connect();
+  try{
+   await db.query('BEGIN');
+   const result=await db.query('INSERT INTO aria_attendance_contexts(organization_id,person_id,session_id,reason_code,reason_note,expected_return_date,expected_service_type,expected_return_known,source,created_by,updated_at,resolved_at,resolved_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,\'human\',$9,NOW(),NULL,NULL) ON CONFLICT(organization_id,session_id,person_id) DO UPDATE SET reason_code=EXCLUDED.reason_code,reason_note=EXCLUDED.reason_note,expected_return_date=EXCLUDED.expected_return_date,expected_service_type=EXCLUDED.expected_service_type,expected_return_known=EXCLUDED.expected_return_known,source=\'human\',created_by=EXCLUDED.created_by,updated_at=NOW(),resolved_at=NULL,resolved_by=NULL RETURNING id,reason_code,reason_note,expected_return_date,expected_service_type,expected_return_known',[orgId,people_id,session_id,String(reason_code),String(reason_note||'').trim().slice(0,1000)||null,returnDate,s.rows[0].service_type||null,known,req.user.id]);
+   const resolved=await resolveCareWorkInTransaction({db,organizationId:orgId,actorId:req.user.id,personId:people_id,actionId:action_id,observationId:observation_id,reason:'Human context recorded from Tell ARIA.',source:'operator'});
+   await db.query('COMMIT');
+   return res.status(200).json({success:true,context:result.rows[0],resolved});
+  }catch(e){await db.query('ROLLBACK').catch(()=>{});throw e}finally{db.release()}
+ }catch(e){console.error('[ATTENDANCE] Context error:',e);return res.status(500).json({error:'Could not save this attendance context.'});}
 });

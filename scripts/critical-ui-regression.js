@@ -21,6 +21,8 @@ const profile=read('pages/profile.js');
 const onboarding=read('components/OnboardingProvider.js');
 const scanRecovery=read('components/ScanRecovery.js');
 const autoSync=read('components/AriaAutoSync.js');
+const fieldRuntime=read('components/FieldModeRuntime.js');
+const serviceWorker=read('public/sw.js');
 const ariaLauncher=read('components/AriaCommandCenter.js');
 const ariaPage=read('pages/aria.js');
 const aiGateway=read('lib/aiGateway.js');
@@ -195,11 +197,15 @@ const checks=[
   /duplicates:\{title:'Duplicates',tag:'PEOPLE'/.test(reviewCenter)&&/POSSIBLE DUPLICATE/.test(reviewCenter)&&!/DATABASE DUPLICATE/.test(reviewCenter)],
  ['Review detail back stays inside the queue',
   /function backToQueue\(\)/.test(reviewCenter)&&/__nyeocareReviewDetail/.test(reviewCenter)&&/popstate/.test(reviewCenter)&&/Review queue/.test(reviewCenter)&&/function finish\(\)\{backToQueue\(\)\}/.test(reviewCenter)],
- ['Client error boundary resets when the route changes',
-  /ClientErrorBoundary resetKey=\{router\.asPath\}/.test(appPage)&&/componentDidUpdate\(prevProps\)/.test(errorBoundary)],
+ ['Client error boundary resets when the route changes and can recover globally',
+  /ClientErrorBoundary key=\{router\.asPath\} resetKey=\{router\.asPath\}/.test(appPage)&&/componentDidMount\(\)/.test(errorBoundary)&&/nyeocare:app-refresh/.test(errorBoundary)],
  ['Attendance never treats online local cache as authoritative',
   /hydrateFieldSession=useCallback\(async\(userId,\{allowLocalSession=false\}=\{\}\)/.test(attendanceModal)&&/allowLocalSession:offline/.test(attendanceModal)&&/if\(offline\)\{/.test(attendanceModal)&&/fieldCached&&fieldCached\.session\?\.status==='active'/.test(attendanceModal)],
- ['Environment weather state cannot crash the app',
+ ['Global app runtime revalidates auth/data invisibly',
+  /getClientSession/.test(fieldRuntime)&&/nyeocare:app-refresh/.test(fieldRuntime)&&/pageshow/.test(fieldRuntime)&&/setInterval\(run,60000\)/.test(fieldRuntime)],
+ ['Service worker cache rotates with the client recovery release',
+  /nyeocare-static-v4/.test(serviceWorker)&&/self\.skipWaiting\(\)/.test(serviceWorker)&&/self\.clients\.claim\(\)/.test(serviceWorker)],
+['Environment weather state cannot crash the app',
   /const WEATHER_KEY='nyeocare:weather:v2'/.test(environment)&&/let weatherInFlight=false/.test(environment)&&/const run=\(\)=>\{try\{getWeather\(\)/.test(environment)],
  ['ARIA care draft initializes phone before database metadata insert',
   /rawPhone=person\.phone/.test(draftEngine)&&!/INSERT INTO person_communications[\\s\\S]{0,1200}const rawPhone=/.test(draftEngine)],
@@ -218,7 +224,7 @@ const checks=[
  ['Review identity actions are explicit and correction-first',/Use this person/.test(reviewCenter)&&/This is a different person/.test(reviewCenter)&&/Edit scanned record/.test(reviewCenter)&&/Selected:/.test(reviewCenter)],
  ['Review Center supports audited bulk dismissal of selected scan reviews',/bulk_dismissed/.test(reviewResolveApi)&&/status='rejected'/.test(reviewResolveApi)&&/id=ANY\(\$4::uuid\[\]\)/.test(reviewResolveApi)&&/selected_count/.test(reviewResolveApi)],
  ['Review Center supports long-press scan selection only for scan reviews',/onPointerDown/.test(reviewCenter)&&/setTimeout\(\(\)=>beginSelection/.test(reviewCenter)&&/item\.kind==='scan_identity_review'/.test(reviewCenter)&&/bulkDismiss/.test(reviewCenter)],
- ['Camera and gallery scans use the same low-memory-safe image-preparation path',/async function prepare\(file\)/.test(scanModal)&&/deviceMemory/.test(scanModal)&&/2200/.test(scanModal)&&/2600/.test(scanModal)&&/\.88/.test(scanModal)&&!/3200\/Math\.max/.test(scanModal)&&/Take photo/.test(scanModal)&&/Upload image/.test(scanModal)],
+ ['Camera and gallery scans use the stable mobile preparation path',/async function prepare\(file\)/.test(scanModal)&&/image\\\/(jpeg\|jpg)/.test(scanModal)&&/MAX=4000000/.test(scanModal)&&/SCAN_IMAGE_DECODE_TIMEOUT/.test(scanModal)&&/SCAN_IMAGE_ENCODE_TIMEOUT/.test(scanModal)],
  ['Camera and gallery both call the same scan starter after preparation',/onChange=\{pick\}/.test(scanModal)&&/const pick=e=>/.test(scanModal)&&/if\(f\)start\(f\)/.test(scanModal)&&/const image_base64=await prepare\(file\)/.test(scanModal)],
  ['Person editing preserves the displayed honorific/prefix',/setEditName\(p\.display_name\|\|/.test(personPage)],
  ['People API preserves an existing honorific when an edit omits it',/existing=normalizeDisplayName\(check\.rows\[0\]\.display_name/.test(peopleApi)&&/existing\.honorific&&!parsed\.honorific/.test(peopleApi)],

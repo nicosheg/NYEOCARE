@@ -60,7 +60,7 @@ const fetchPeople=useCallback(async({token,reset=true,cursor=null,searchValue=se
   if(reset)setPeople(Array.isArray(data.items)?data.items:[]);else setPeople(prev=>[...prev,...(Array.isArray(data.items)?data.items:[])]);
   setNextCursor(data.next_cursor||null);
   if(data.total_count!==null&&data.total_count!==undefined)setTotalPeople(Number(data.total_count)||0);
- }catch(err){if(err?.name!=='AbortError')flash(err.message||'Unable to load people')}finally{if(!controller.signal.aborted){if(reset&&!background)setLoading(false);else if(!reset)setLoadingMore(false)}}
+ }catch(err){if(err?.name!=='AbortError'&&!background)flash(err.message||'Unable to load people')}finally{if(!controller.signal.aborted){if(reset&&!background)setLoading(false);else if(!reset)setLoadingMore(false)}}
 },[flash,search,roleFilter,showLivingTruthOnly]);
 useEffect(()=>{let mounted=true;getClientSession().then(session=>{if(!mounted)return;if(session){setAccessToken(session.access_token);firstLoadRef.current=true}else setLoading(false)}).catch(()=>{if(mounted)setLoading(false)});return()=>{mounted=false;if(longPressTimer.current)window.clearTimeout(longPressTimer.current);if(abortRef.current)abortRef.current.abort()}},[]);
 

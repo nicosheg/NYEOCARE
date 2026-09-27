@@ -383,16 +383,21 @@ async function removeUniquePersonCollisions(db,org,canonicalId,duplicateId){
  ];
  for(const [table,key] of pairs){
   if(table==='person_aliases'){
-   await db.query(`DELETE FROM ${table} d USING ${table} c WHERE d.organization_id=$1 AND c.organization_id=$1 AND d.person_id=$2 AND c.person_id=$3 AND lower(d.alias)=lower(c.alias)`,[org,duplicateId,canonicalId]);
+   await db.query(\`DELETE FROM person_aliases d USING person_aliases c WHERE d.organization_id=$1 AND c.organization_id=$1 AND d.person_id=$2 AND c.person_id=$3 AND lower(d.alias)=lower(c.alias)\`,[org,duplicateId,canonicalId]);
+   await db.query('UPDATE person_aliases SET person_id=$1 WHERE organization_id=$2 AND person_id=$3',[canonicalId,org,duplicateId]);
   }else if(table==='person_roles'){
-   await db.query(`DELETE FROM ${table} d USING ${table} c WHERE d.organization_id=$1 AND c.organization_id=$1 AND d.person_id=$2 AND c.person_id=$3 AND d.role=c.role`,[org,duplicateId,canonicalId]);
+   await db.query(\`DELETE FROM person_roles d USING person_roles c WHERE d.organization_id=$1 AND c.organization_id=$1 AND d.person_id=$2 AND c.person_id=$3 AND d.role=c.role\`,[org,duplicateId,canonicalId]);
+   await db.query('UPDATE person_roles SET person_id=$1 WHERE organization_id=$2 AND person_id=$3',[canonicalId,org,duplicateId]);
   }else if(table==='person_field_values'){
-   await db.query(`DELETE FROM ${table} d USING ${table} c WHERE d.organization_id=$1 AND c.organization_id=$1 AND d.person_id=$2 AND c.person_id=$3 AND d.field_id=c.field_id`,[org,duplicateId,canonicalId]);
+   await db.query(\`DELETE FROM person_field_values d USING person_field_values c WHERE d.organization_id=$1 AND c.organization_id=$1 AND d.person_id=$2 AND c.person_id=$3 AND d.field_id=c.field_id\`,[org,duplicateId,canonicalId]);
+   await db.query('UPDATE person_field_values SET person_id=$1 WHERE organization_id=$2 AND person_id=$3',[canonicalId,org,duplicateId]);
   }else{
-   await db.query(`DELETE FROM ${table} d USING ${table} c WHERE d.organization_id=$1 AND c.organization_id=$1 AND d.person_id=$2 AND c.person_id=$3 AND d.segment_id=c.segment_id`,[org,duplicateId,canonicalId]);
+   await db.query(\`DELETE FROM person_segment_members d USING person_segment_members c WHERE d.organization_id=$1 AND c.organization_id=$1 AND d.person_id=$2 AND c.person_id=$3 AND d.segment_id=c.segment_id\`,[org,duplicateId,canonicalId]);
+   await db.query('UPDATE person_segment_members SET person_id=$1 WHERE organization_id=$2 AND person_id=$3',[canonicalId,org,duplicateId]);
   }
  }
- await db.query(`DELETE FROM aria_brain_feed d USING aria_brain_feed c WHERE d.organization_id=$1 AND c.organization_id=$1 AND d.person_id=$2 AND c.person_id=$3 AND d.dedupe_key IS NOT DISTINCT FROM c.dedupe_key`,[org,duplicateId,canonicalId]);
+ await db.query(\`DELETE FROM aria_brain_feed d USING aria_brain_feed c WHERE d.organization_id=$1 AND c.organization_id=$1 AND d.person_id=$2 AND c.person_id=$3 AND d.dedupe_key IS NOT DISTINCT FROM c.dedupe_key\`,[org,duplicateId,canonicalId]);
+ await db.query('UPDATE aria_brain_feed SET person_id=$1 WHERE organization_id=$2 AND person_id=$3',[canonicalId,org,duplicateId]);
 }
 async function mergePeople(db,org,canonicalId,duplicateId,actorId,evidence){
  if(canonicalId===duplicateId)throw Object.assign(new Error('A person cannot be merged with themselves.'),{statusCode:400});
@@ -403,6 +408,8 @@ async function mergePeople(db,org,canonicalId,duplicateId,actorId,evidence){
  await mergeParticipationHistory(db,org,canonicalId,duplicateId);
  await mergeCurrentMemory(db,org,canonicalId,duplicateId);
  await removeUniquePersonCollisions(db,org,canonicalId,duplicateId);
+ await mergeIdentitySharedContacts(db,org,canonicalId,duplicateId);
+ await mergeIdentityPairDecisions(db,org,canonicalId,duplicateId);
  await mergeLearningHistory(db,org,canonicalId,duplicateId);
  await mergeActionHistory(db,org,canonicalId,duplicateId);
  await mergeEventHistory(db,org,canonicalId,duplicateId);
@@ -420,6 +427,7 @@ async function mergePeople(db,org,canonicalId,duplicateId,actorId,evidence){
   ['person_documents','person_id'],
   ['person_tasks','person_id'],
   ['person_communications','person_id'],
+  ['aria_daily_queue_items','person_id'],
  ]) {
   const[i,col]=spec;
   await db.query(`UPDATE ${i} SET ${col}=$1 WHERE ${col}=$2`,[canonicalId,duplicateId]);

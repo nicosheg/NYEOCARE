@@ -12,6 +12,12 @@ const personPage=read('pages/person/[id].js');
 const peopleApi=read('pages/api/people.js');
 const peopleSizing=read('styles/people-sizing.css');
 const reviewCenter=read('components/ReviewCenterTab.js');
+const appPage=read('pages/_app.js');
+const errorBoundary=read('components/ClientErrorBoundary.js');
+const attendanceModal=read('components/AttendanceModal.js');
+const environment=read('components/NyeoEnvironment.js');
+const draftEngine=read('lib/aria/draftEngine.js');
+const layout=read('components/Layout.js');
 const profile=read('pages/profile.js');
 const onboarding=read('components/OnboardingProvider.js');
 const scanRecovery=read('components/ScanRecovery.js');
@@ -190,6 +196,16 @@ const checks=[
   /duplicates:\{title:'Duplicates',tag:'PEOPLE'/.test(reviewCenter)&&/POSSIBLE DUPLICATE/.test(reviewCenter)&&!/DATABASE DUPLICATE/.test(reviewCenter)],
  ['Review detail back stays inside the queue',
   /function backToQueue\(\)/.test(reviewCenter)&&/__nyeocareReviewDetail/.test(reviewCenter)&&/popstate/.test(reviewCenter)&&/Review queue/.test(reviewCenter)&&/function finish\(\)\{backToQueue\(\)\}/.test(reviewCenter)],
+ ['Client error boundary resets when the route changes',
+  /ClientErrorBoundary resetKey=\{router\.asPath\}/.test(appPage)&&/componentDidUpdate\(prevProps\)/.test(errorBoundary)],
+ ['Attendance never treats online local cache as authoritative',
+  /hydrateFieldSession=useCallback\(async\(userId,\{allowLocalSession=false\}=\{\}\)/.test(attendanceModal)&&/allowLocalSession:offline/.test(attendanceModal)&&/offline&&fieldCached&&fieldCached\.session\?\.status==='active'/.test(attendanceModal)],
+ ['Environment weather state cannot crash the app',
+  /const WEATHER_KEY='nyeocare:weather:v2'/.test(environment)&&/let weatherInFlight=false/.test(environment)&&/const run=\(\)=>\{try\{getWeather\(\)/.test(environment)],
+ ['ARIA care draft initializes phone before database metadata insert',
+  /rawPhone=person\.phone/.test(draftEngine)&&!/INSERT INTO person_communications[\\s\\S]{0,1200}const rawPhone=/.test(draftEngine)],
+ ['ARIA launcher is isolated from page-wide client failures',
+  /ClientErrorBoundary surface="aria-launcher"/.test(layout)&&/fallback=\{null\}/.test(layout)],
 
  ['Daily briefing is a per-operator compressed queue',/getDailyQueue/.test(briefing)&&/capacityPerOperator:5/.test(briefing)&&/laterCount/.test(briefing)&&/aria_daily_queue_items/.test(dailyQueue)],
  ['Daily queue distributes work across active owner/admin operators',/role IN\('owner','admin'\)/.test(dailyQueue)&&/DAY_CAPACITY=5/.test(dailyQueue)&&/HORIZON_DAYS=31/.test(dailyQueue)],

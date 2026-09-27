@@ -2258,3 +2258,62 @@ After any change affecting _app.js, Layout, navigation, shared providers, global
     EXPECTED PEOPLE CONTENT
 
 This incident is now a permanent regression case and must be used when reviewing future NYEOCARE navigation, caching, hydration, and client-runtime changes.
+
+## Production reliability hardening — September 27, 2026: navigation regression resolved
+
+The navigation-path client exception described above has now been resolved and the production app was rechecked successfully.
+
+### Confirmed behavior after the fix
+
+- **Home → People:** loads normally.
+- **Profile → People:** loads normally.
+- **Direct production entry:** loads normally.
+- **Fresh/incognito production entry:** loads normally.
+- The previous browser-level **“Application error: a client-side exception has occurred”** is no longer reproduced in the verified flow.
+
+### Permanent lesson
+
+A production route must be considered healthy only after both **cold-entry** and **warm-navigation** paths have been exercised. A successful page render from one route must never be used as evidence that another navigation path is safe.
+
+When this class of failure returns, do not immediately patch the People page or its API. First compare:
+
+```
+DIRECT /people
+HOME → PEOPLE
+PROFILE → PEOPLE
+FRESH / INCOGNITO → PEOPLE
+```
+
+Then inspect, in order:
+
+```
+browser console / client exception
+        ↓
+pre-hydration errors
+        ↓
+shared _app / Layout / providers
+        ↓
+dynamic chunks and page modules
+        ↓
+navigation lifecycle
+        ↓
+browser-only APIs / effects
+        ↓
+People data/API layer
+```
+
+This order prevents a client-shell/navigation failure from being incorrectly “fixed” by changing server data behavior.
+
+### Future regression gate
+
+Any change touching `pages/_app.js`, `Layout`, shared providers, navigation, dynamic imports, service-worker caching, authentication/session warming, global runtime components, or People page loading must re-run the navigation matrix before being considered production-safe:
+
+- cold Home;
+- Home → People;
+- Profile → People;
+- direct /people;
+- fresh/incognito production entry;
+- runtime/client telemetry review.
+
+The goal is not merely that the route eventually renders. The goal is that **navigation history does not change whether a critical route works**.
+

@@ -192,7 +192,7 @@ const checks=[
  ['Daily queue distributes work across active owner/admin operators',/role IN\('owner','admin'\)/.test(dailyQueue)&&/DAY_CAPACITY=5/.test(dailyQueue)&&/HORIZON_DAYS=31/.test(dailyQueue)],
  ['Daily queue defers work without rejecting the underlying ARIA action',/deferDailyQueueItem/.test(dailyQueueDefer)&&/queue_date/.test(dailyQueueDefer)&&/\/api\/daily-queue\/defer/.test(scanModal)===false&&/\/api\/daily-queue\/defer/.test(read('pages/index.js'))],
  ['Daily queue has durable one-source scheduling',/UNIQUE \(organization_id, task_kind, source_id\)/.test(dailyQueueMigration)],
- ['Review Center excludes attendance follow-ups',/pending_count:scanItems\.length\+groups\.length/.test(reviewCenterApi)&&!/attendanceItems/.test(reviewCenterApi)],
+ ['Review Center excludes attendance follow-ups',/pending_count:scanItems\.length\+groups\.length/.test(reviewApi)&&!/attendanceItems/.test(reviewApi)],
  ['Daily briefing makes scan review a canonical grouped item',
   /pendingScan/.test(briefing)&&/category:'scan'/.test(briefing)&&/scan_review_required/.test(briefing)&&/continue/.test(briefing)],
  ['Auth caches bearer verification',

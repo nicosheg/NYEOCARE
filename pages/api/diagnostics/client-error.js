@@ -25,6 +25,6 @@ export default withOrg(async function handler(req,res){
   metadata:body.metadata&&typeof body.metadata==='object'?body.metadata:{}
  };
  console.error('[NYEOCARE_CLIENT_ERROR]',JSON.stringify(event));
- await recordDiagnosticEvent(event);
+ void recordDiagnosticEvent(event);
  return res.status(204).end();
 });

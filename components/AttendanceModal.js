@@ -51,7 +51,7 @@ export default function AttendanceModal({isOpen,onClose}){
       setFieldRoster(cachedPeople);
       setFieldReady(cachedPeople.length>0);
       await refreshFieldPending(cached.sessionId);
-      if(mounted.current)setLoading(false);
+      if(mounted.current&&allowLocalSession)setLoading(false);
       return cached;
     }catch{return null}
   },[refreshFieldPending]);
@@ -144,12 +144,19 @@ export default function AttendanceModal({isOpen,onClose}){
       const fieldCached=await hydrateFieldSession(s.user.id,{allowLocalSession:offline});
       const timing=measurePerformance('attendance_open',{network:typeof navigator==='undefined'?'unknown':navigator.onLine?'online':'offline'});
 
-      if(offline&&fieldCached&&fieldCached.session?.status==='active'){
-        setBackground(null);
-        setError('');
-        setNotice('Offline mode is active. Your local attendance session is ready and will sync automatically when the connection returns.');
+      if(offline){
+        if(fieldCached&&fieldCached.session?.status==='active'){
+          setBackground(null);
+          setError('');
+          setNotice('Offline mode is active. Your local attendance session is ready and will sync automatically when the connection returns.');
+          if(seq===searchSeq.current&&mounted.current)setLoading(false);
+          timing('offline-cached');
+          return;
+        }
+        if(fieldCached)await clearFieldSession(s.user.id,fieldCached.sessionId).catch(()=>{});
+        setSession(null);setPeople([]);setFieldRoster([]);setFieldReady(false);setPendingCount(0);setCanDiscard(false);setCursor(null);setHasMore(false);
         if(seq===searchSeq.current&&mounted.current)setLoading(false);
-        timing('offline-cached');
+        timing('offline-no-session');
         return;
       }
 

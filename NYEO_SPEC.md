@@ -2130,3 +2130,36 @@ ARIA can send a private in-app message from one authenticated organization opera
 - **Invisible revalidation is part of the runtime:** focus, pageshow, online, visibility and periodic checks warm the authenticated session and emit a background refresh event. Home and People revalidate quietly; background failures do not interrupt the operator.
 - **Service-worker cache versioning is rotated with client recovery releases:** old static caches are retired when the new worker activates, preventing stale hashed bundles from remaining the canonical client after a production fix.
 - **Scope boundary:** these changes do not alter identity evidence rules, attendance truth, server-authoritative session semantics, or human confirmation requirements.
+
+## Production reliability hardening — September 27, 2026: navigation-specific client exception
+
+A production client exception was reproduced with a path-dependent pattern:
+
+- Profile → People: People loaded normally.
+- Home → People: People could fail with the browser-level "Application error: a client-side exception has occurred" screen.
+- Fresh/incognito opening of the normal production URL: the same generic client exception could appear.
+
+This establishes an important reliability rule: a route can be healthy when entered from one already-mounted page while still failing when entered from another route or from a cold browser context. Therefore, "People works from Profile" is not sufficient evidence that the People route is production-safe.
+
+### Diagnostic interpretation
+
+The server route itself was not the primary failure signal. Production HTML for the homepage returned HTTP 200 and contained the current Next.js build assets and the early client-recovery script. The failure class is therefore treated as a client navigation / hydration / module-loading boundary, including failures that can occur before the React error boundary has a chance to render its friendly recovery UI.
+
+The earlier generic NYEOCARE error boundary remains useful for post-mount React failures, but it must never be treated as proof that the underlying client exception is fixed.
+
+### Permanent navigation reliability contract
+
+1. Test cold and warm navigation separately: direct/cold load; Home → route; Profile → route; at least one other primary route → route; and a fresh/incognito browser context.
+2. Do not validate a route through only one navigation path. Shared app shell, layout, global runtime modules, dynamic chunks, browser APIs, and hydration state can behave differently depending on what was already mounted.
+3. Keep non-critical global modules isolated. A failure in environment enhancement, background sync, auth warming, scan recovery, or Field Mode runtime must not become a global route failure.
+4. Keep heavy/optional route surfaces lazy. Review Center, Birthday Picker, Scan Modal and similar optional surfaces must not be required to initialize the base People directory.
+5. Protect browser-only APIs. Feature-detect APIs such as IntersectionObserver and Permissions before invoking them.
+6. Recover stale/missing chunks before hydration. The document-level recovery listener must remain available for chunk/module loading failures that occur before React mounts, with bounded recovery so it cannot loop.
+7. Instrument post-hydration exceptions. Unhandled client errors must be sent to the diagnostics endpoint with pathname/surface information so navigation-specific failures can be distinguished from server failures.
+8. Verify the actual production alias after deployment. A successful CI/build is necessary but insufficient; verify fresh HTML, referenced chunks, direct route loads, navigation paths, and runtime telemetry after the alias moves.
+9. Never replace the root cause with a permanent manual Reload instruction. Recovery should be automatic where the failure is known to be transient/stale; unknown exceptions must be captured and fixed at their source.
+10. Preserve server truth. Client recovery must not delete attendance, people, scan, ARIA, organization, or other server-owned data.
+
+### Regression requirement
+
+A future production reliability change is incomplete until the critical navigation matrix has been exercised and the result is recorded. At minimum: cold Home, Home → People, Profile → People, and incognito/cold production open. Any discrepancy between paths is treated as a first-class client reliability bug rather than a user-cache problem.

@@ -5,6 +5,9 @@ const weatherState=c=>{if(c==null)return'unknown';c=Number(c);if([95,96,99].incl
 const timeState=()=>{const h=new Date().getHours();return h>=5&&h<8?'dawn':h>=8&&h<12?'morning':h>=12&&h<17?'afternoon':h>=17&&h<21?'evening':'night'};
 const timeIntensity={dawn:.82,morning:1,afternoon:1,evening:.82,night:.48};
 const weatherIntensity={clear:1,cloudy:.86,rain:.68,storm:.5,unknown:.92};
+const WEATHER_KEY='nyeocare:weather:v2';
+let weatherInFlight=false;
+let lastWeatherAttempt=0;
 
 export default function NyeoEnvironment(){
 useEffect(()=>{
@@ -18,8 +21,8 @@ root.style.setProperty('--ny-environment-time',`'${time}'`);root.style.setProper
 };
 const updateTime=()=>apply(timeState(),document.documentElement.dataset.nyeoWeather||'unknown',document.documentElement.dataset.nyeoWeatherStatus||'unknown',document.documentElement.dataset.nyeoTemperature||null);
 const getWeather=()=>{
-if(weatherInFlight||Date.now()-lastWeatherAttempt<15000)return;
-try{const saved=sessionStorage.getItem(WEATHER_KEY);if(saved){const d=JSON.parse(saved);if(d&&Date.now()-Number(d.at)<3600000){apply(timeState(),d.weather||'unknown','ready',d.temperature);return}}}catch{}
+try{
+if(weatherInFlight||Date.now()-lastWeatherAttempt<15000)return;const saved=sessionStorage.getItem(WEATHER_KEY);if(saved){const d=JSON.parse(saved);if(d&&Date.now()-Number(d.at)<3600000){apply(timeState(),d.weather||'unknown','ready',d.temperature);return}}}catch{}
 if(!navigator.geolocation){apply(timeState(),'unknown','unavailable');return}
 weatherInFlight=true;lastWeatherAttempt=Date.now();
 apply(timeState(),document.documentElement.dataset.nyeoWeather||'unknown','requesting',document.documentElement.dataset.nyeoTemperature||null);
@@ -35,7 +38,7 @@ const d=await r.json();if(!alive){finish();return}const weather=weatherState(d.c
 };
 const update=()=>updateTime();
 update();
-const scheduleWeather=()=>{if(typeof window.requestIdleCallback==='function')window.requestIdleCallback(()=>getWeather(),{timeout:3000});else setTimeout(()=>getWeather(),1500)};
+const scheduleWeather=()=>{const run=()=>{try{getWeather()}catch(error){weatherInFlight=false;console.warn('[NYEo ENV] weather update skipped:',error?.message||error)}};if(typeof window.requestIdleCallback==='function')window.requestIdleCallback(run,{timeout:3000});else setTimeout(run,1500)};
 scheduleWeather();
 const timeTimer=setInterval(updateTime,60000),weatherTimer=setInterval(getWeather,3600000);
 if(navigator.permissions?.query){navigator.permissions.query({name:'geolocation'}).then(permission=>{if(!alive)return;const handle=()=>{if(permission.state==='denied')apply(timeState(),'unknown','unavailable')};permission.addEventListener?.('change',handle);weatherWatch={permission,handle};if(permission.state==='granted')getWeather();else if(permission.state==='denied')apply(timeState(),'unknown','unavailable')}).catch(()=>{})}

@@ -2068,6 +2068,7 @@ ARIA can send a private in-app message from one authenticated organization opera
 ### ARIA Today synchronization
 
 - Unseen internal messages are first-class ARIA Today queue items with task kind `internal_message`.
+- Private internal messages are notification/inbox work, not part of the five-item care/action capacity. They remain pinned to the recipient and may appear alongside the recipient's compressed daily care queue.
 - Assignment is pinned to the actual recipient; a message must never be redistributed to another administrator merely to satisfy the normal daily queue allocation.
 - Opening a message records `seen_at` and completes its queue item transactionally.
 - ARIA Today refreshes while open and on focus so message arrival/removal is reflected without requiring a hard reload.

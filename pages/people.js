@@ -2,9 +2,9 @@
 import{useState,useEffect,useRef,useCallback}from'react';
 import{useRouter}from'next/router';import dynamic from'next/dynamic';
 import Layout from'../components/Layout';
-import ReviewCenterTab from'../components/ReviewCenterTab';
+const ReviewCenterTab=dynamic(()=>import('../components/ReviewCenterTab'),{ssr:false,loading:()=>null});
 import FirstExperience from'../components/FirstExperience';
-import BirthdayPicker from'../components/BirthdayPicker';
+const BirthdayPicker=dynamic(()=>import('../components/BirthdayPicker'),{ssr:false,loading:()=>null});
 import{getClientSession,refreshClientSession}from'../lib/clientSession';import{publishDataChange}from'../lib/appData';
 import{useOnboarding}from'../components/OnboardingProvider';
 

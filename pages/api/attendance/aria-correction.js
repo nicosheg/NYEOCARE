@@ -1,11 +1,7 @@
 // pages/api/attendance/aria-correction.js
 import pool from'../../../lib/db';
 import{withAdmin}from'../../../lib/apiHelpers';
-import{updateEngagementMetricsForPerson}from'../../../lib/aria/engagementIntelligence';
-import{computeRelationshipScore}from'../../../lib/aria/relationshipScore';
-import{updatePeopleIntelligence}from'../../../lib/aria/peopleIntelligence';
-import{updatePersonState}from'../../../lib/aria/stateManager';
-import{createCareDraft}from'../../../lib/aria/draftEngine';
+import{enqueueAttendanceProcessing}from'../../../lib/aria/attendanceQueue';
 
 const clean=(v,max=1000)=>String(v??'').trim().slice(0,max);
 
@@ -84,25 +80,40 @@ export default withAdmin(async function handler(req,res){
      {session_id,service_type:session.service_type||null,present,note:clean(note)},
      new Date().toISOString()
   ]);
+
+  // The human correction is synchronous; derived ARIA intelligence is durable and asynchronous.
+  await db.query(`UPDATE sessions
+    SET aria_processing_status='pending',
+        aria_processing_stage='persist',
+        aria_processing_progress=0,
+        aria_processing_processed=0,
+        aria_processing_error=NULL,
+        aria_processing_started_at=NULL,
+        aria_processing_completed_at=NULL,
+        aria_processing_heartbeat_at=NULL
+    WHERE id=$1 AND organization_id=$2 AND status='closed'`,[session_id,orgId]);
+
+  const queued=await enqueueAttendanceProcessing({
+   organizationId:orgId,
+   sessionId:session_id,
+   actorId:userId,
+   stage:'persist',
+   db
+  });
+
   await db.query('COMMIT');
 
-  await updateEngagementMetricsForPerson(people_id,orgId);
-  await computeRelationshipScore(orgId,[people_id]);
-  await updatePeopleIntelligence(people_id,orgId);
-  await updatePersonState(people_id,orgId);
-
-  let draft=null;
-  if(!present){
-   try{
-    draft=await createCareDraft({
-      organizationId:orgId,
-      personId:people_id,
-      actionType:'attendance_check_in',
-      actorId:userId
-    });
-   }catch(e){console.warn('[ATTENDANCE] follow-up draft skipped:',e?.message||e)}
-  }
-  return res.status(200).json({success:true,present,session_id,person_id:people_id,resolved:true,draft});
+  return res.status(202).json({
+   success:true,
+   present,
+   session_id,
+   person_id:people_id,
+   resolved:true,
+   processing_pending:true,
+   queued:true,
+   queue_message_id:queued.messageId,
+   draft:null
+  });
  }catch(e){
   await db.query('ROLLBACK').catch(()=>{});
   console.error('[ATTENDANCE] ARIA correction error:',e);

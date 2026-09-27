@@ -38,6 +38,7 @@ jobs:
       - run: npm run test:scan-review
       - run: npm run test:aria-internal-messaging
       - run: npm run test:critical-ui
+      - run: npm run test:experience
       - run: npm run test:aria
       - run: npm run test:auth
       - run: npm run test:system-scale

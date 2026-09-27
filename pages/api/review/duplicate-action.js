@@ -95,6 +95,177 @@ async function mergeCurrentMemory(db,org,canonicalId,duplicateId){
  await db.query('UPDATE person_memory SET person_id=$1 WHERE organization_id=$3 AND person_id=$2',[canonicalId,duplicateId,org]);
 }
 
+async function mergeLearningHistory(db,org,canonicalId,duplicateId){
+ const collisions=(await db.query(`
+  SELECT c.id canonical_id,d.id duplicate_id
+  FROM aria_learning c
+  JOIN aria_learning d
+    ON d.organization_id=c.organization_id
+   AND d.scope_key=c.scope_key
+   AND d.learning_type=c.learning_type
+   AND d.learning_key=c.learning_key
+  WHERE c.organization_id=$1 AND c.person_id=$2 AND d.person_id=$3
+  FOR UPDATE OF c,d
+ `,[org,canonicalId,duplicateId])).rows;
+ for(const row of collisions){
+  await db.query(`
+   UPDATE aria_learning c
+   SET
+     confidence=GREATEST(COALESCE(c.confidence,0),COALESCE(d.confidence,0)),
+     active=(COALESCE(c.active,false) OR COALESCE(d.active,false)),
+     updated_at=GREATEST(c.updated_at,d.updated_at),
+     value=CASE
+       WHEN c.updated_at>=d.updated_at THEN c.value
+       ELSE d.value
+     END,
+     source_id=CASE
+       WHEN d.updated_at>c.updated_at THEN d.source_id
+       ELSE c.source_id
+     END
+   FROM aria_learning d
+   WHERE c.id=$1 AND d.id=$2
+  `,[row.canonical_id,row.duplicate_id]);
+  await db.query('DELETE FROM aria_learning WHERE id=$1',[row.duplicate_id]);
+ }
+ await db.query('UPDATE aria_learning SET person_id=$1 WHERE organization_id=$3 AND person_id=$2',[canonicalId,duplicateId,org]);
+}
+
+async function mergeActionHistory(db,org,canonicalId,duplicateId){
+ const collisions=(await db.query(`
+  SELECT c.id canonical_id,d.id duplicate_id
+  FROM aria_actions c
+  JOIN aria_actions d
+    ON d.organization_id=c.organization_id
+   AND d.action_key=c.action_key
+  WHERE c.organization_id=$1 AND c.person_id=$2 AND d.person_id=$3
+  FOR UPDATE OF c,d
+ `,[org,canonicalId,duplicateId])).rows;
+ for(const row of collisions){
+  await db.query(`
+   UPDATE aria_actions c
+   SET
+     status=CASE WHEN COALESCE(d.updated_at,d.proposed_at,d.created_at) > COALESCE(c.updated_at,c.proposed_at,c.created_at) THEN d.status ELSE c.status END,
+     priority=GREATEST(COALESCE(c.priority,0),COALESCE(d.priority,0)),
+     proposed_at=LEAST(COALESCE(c.proposed_at,d.proposed_at),COALESCE(d.proposed_at,c.proposed_at)),
+     approved_by=COALESCE(c.approved_by,d.approved_by),
+     approved_at=GREATEST(c.approved_at,d.approved_at),
+     executed_at=GREATEST(c.executed_at,d.executed_at),
+     outcome=CASE WHEN COALESCE(d.updated_at,d.proposed_at,d.created_at)>COALESCE(c.updated_at,c.proposed_at,c.created_at) THEN d.outcome ELSE c.outcome END,
+     failure_reason=CASE WHEN COALESCE(d.updated_at,d.proposed_at,d.created_at)>COALESCE(c.updated_at,c.proposed_at,c.created_at) THEN d.failure_reason ELSE c.failure_reason END,
+     expires_at=GREATEST(c.expires_at,d.expires_at),
+     action_metadata=CASE WHEN jsonb_typeof(c.action_metadata)='object' AND jsonb_typeof(d.action_metadata)='object' THEN COALESCE(c.action_metadata,'{}'::jsonb)||COALESCE(d.action_metadata,'{}'::jsonb) ELSE COALESCE(c.action_metadata,d.action_metadata) END,
+     updated_at=GREATEST(c.updated_at,d.updated_at)
+   FROM aria_actions d
+   WHERE c.id=$1 AND d.id=$2
+  `,[row.canonical_id,row.duplicate_id]);
+  await db.query('DELETE FROM aria_actions WHERE id=$1',[row.duplicate_id]);
+ }
+ await db.query('UPDATE aria_actions SET person_id=$1 WHERE organization_id=$3 AND person_id=$2',[canonicalId,duplicateId,org]);
+}
+
+async function mergeEventHistory(db,org,canonicalId,duplicateId){
+ const collisions=(await db.query(`
+  SELECT c.id canonical_id,d.id duplicate_id
+  FROM aria_events c
+  JOIN aria_events d
+    ON d.organization_id=c.organization_id
+   AND d.event_key=c.event_key
+  WHERE c.organization_id=$1 AND c.person_id=$2 AND d.person_id=$3
+  FOR UPDATE OF c,d
+ `,[org,canonicalId,duplicateId])).rows;
+ for(const row of collisions){
+  await db.query(`
+   UPDATE aria_events c
+   SET
+     metadata=CASE WHEN jsonb_typeof(c.metadata)='object' AND jsonb_typeof(d.metadata)='object' THEN COALESCE(c.metadata,'{}'::jsonb)||COALESCE(d.metadata,'{}'::jsonb) ELSE COALESCE(c.metadata,d.metadata) END,
+     occurred_at=LEAST(c.occurred_at,d.occurred_at),
+     processed_at=GREATEST(c.processed_at,d.processed_at),
+     processing_status=CASE
+       WHEN c.processing_status='processed' OR d.processing_status='processed' THEN 'processed'
+       WHEN c.processing_status='failed' OR d.processing_status='failed' THEN 'failed'
+       ELSE COALESCE(c.processing_status,d.processing_status)
+     END,
+     processing_attempts=GREATEST(COALESCE(c.processing_attempts,0),COALESCE(d.processing_attempts,0)),
+     verification_status=CASE WHEN c.verification_status='verified' OR d.verification_status='verified' THEN 'verified' ELSE COALESCE(c.verification_status,d.verification_status) END,
+     confidence=GREATEST(COALESCE(c.confidence,0),COALESCE(d.confidence,0))
+   FROM aria_events d
+   WHERE c.id=$1 AND d.id=$2
+  `,[row.canonical_id,row.duplicate_id]);
+  await db.query('DELETE FROM aria_events WHERE id=$1',[row.duplicate_id]);
+ }
+ await db.query('UPDATE aria_events SET person_id=$1 WHERE organization_id=$3 AND person_id=$2',[canonicalId,duplicateId,org]);
+}
+
+async function mergeObservationHistory(db,org,canonicalId,duplicateId){
+ const collisions=(await db.query(`
+  SELECT c.id canonical_id,d.id duplicate_id
+  FROM aria_observations c
+  JOIN aria_observations d
+    ON d.organization_id=c.organization_id
+   AND COALESCE(d.metadata->>'source_event_id','')=COALESCE(c.metadata->>'source_event_id','')
+   AND COALESCE(d.metadata->>'source_event_id','')<>''
+  WHERE c.organization_id=$1 AND c.person_id=$2 AND d.person_id=$3
+  FOR UPDATE OF c,d
+ `,[org,canonicalId,duplicateId])).rows;
+ for(const row of collisions){
+  await db.query(`
+   UPDATE aria_observations c
+   SET
+     confidence=GREATEST(COALESCE(c.confidence,0),COALESCE(d.confidence,0)),
+     attention_score=GREATEST(COALESCE(c.attention_score,0),COALESCE(d.attention_score,0)),
+     evidence=CASE WHEN jsonb_typeof(c.evidence)='object' AND jsonb_typeof(d.evidence)='object' THEN COALESCE(c.evidence,'{}'::jsonb)||COALESCE(d.evidence,'{}'::jsonb) ELSE COALESCE(c.evidence,d.evidence) END,
+     metadata=CASE WHEN jsonb_typeof(c.metadata)='object' AND jsonb_typeof(d.metadata)='object' THEN COALESCE(c.metadata,'{}'::jsonb)||COALESCE(d.metadata,'{}'::jsonb) ELSE COALESCE(c.metadata,d.metadata) END,
+     detected_at=LEAST(c.detected_at,d.detected_at),
+     expires_at=GREATEST(c.expires_at,d.expires_at),
+     resolved_at=GREATEST(c.resolved_at,d.resolved_at),
+     updated_at=GREATEST(c.updated_at,d.updated_at)
+   FROM aria_observations d
+   WHERE c.id=$1 AND d.id=$2
+  `,[row.canonical_id,row.duplicate_id]);
+  await db.query('DELETE FROM aria_observations WHERE id=$1',[row.duplicate_id]);
+ }
+ await db.query('UPDATE aria_observations SET person_id=$1 WHERE organization_id=$3 AND person_id=$2',[canonicalId,duplicateId,org]);
+}
+
+async function mergePersonRelationships(db,org,canonicalId,duplicateId){
+ const selfEdges=await db.query(`
+  DELETE FROM person_relationships
+  WHERE organization_id=$1
+    AND ((person_id=$2 AND related_person_id=$3) OR (person_id=$3 AND related_person_id=$2))
+ `,[org,canonicalId,duplicateId]);
+ const rows=(await db.query(`
+  SELECT id,person_id,related_person_id,relationship_type,is_current,active,confidence,evidence,created_at,updated_at
+  FROM person_relationships
+  WHERE organization_id=$1 AND (person_id=$2 OR related_person_id=$2)
+  FOR UPDATE
+ `,[org,duplicateId])).rows;
+ for(const row of rows){
+  const newPersonId=String(row.person_id)===String(duplicateId)?canonicalId:row.person_id;
+  const newRelatedId=String(row.related_person_id)===String(duplicateId)?canonicalId:row.related_person_id;
+  if(String(newPersonId)===String(newRelatedId)){await db.query('DELETE FROM person_relationships WHERE id=$1',[row.id]);continue}
+  if(row.is_current){
+   const existing=(await db.query(`
+    SELECT id,confidence,evidence,updated_at
+    FROM person_relationships
+    WHERE organization_id=$1 AND person_id=$2 AND related_person_id=$3 AND relationship_type=$4 AND is_current=true AND id<>$5
+    FOR UPDATE
+   `,[org,newPersonId,newRelatedId,row.relationship_type,row.id])).rows[0];
+   if(existing){
+    await db.query(`
+     UPDATE person_relationships
+     SET confidence=GREATEST(COALESCE(confidence,0),COALESCE($2,0)),
+         evidence=CASE WHEN jsonb_typeof(evidence)='object' AND jsonb_typeof($3::jsonb)='object' THEN COALESCE(evidence,'{}'::jsonb)||$3::jsonb ELSE COALESCE(evidence,$3::jsonb) END,
+         updated_at=GREATEST(updated_at,$4)
+     WHERE id=$1
+    `,[existing.id,row.confidence,JSON.stringify(row.evidence||{}),row.updated_at]);
+    await db.query('DELETE FROM person_relationships WHERE id=$1',[row.id]);
+    continue;
+   }
+  }
+  await db.query('UPDATE person_relationships SET person_id=$1,related_person_id=$2 WHERE id=$3',[newPersonId,newRelatedId,row.id]);
+ }
+}
+
 async function removeUniquePersonCollisions(db,org,canonicalId,duplicateId){
  const pairs=[
   ['person_aliases','alias'],
@@ -115,7 +286,6 @@ async function removeUniquePersonCollisions(db,org,canonicalId,duplicateId){
  }
  await db.query(`DELETE FROM aria_brain_feed d USING aria_brain_feed c WHERE d.organization_id=$1 AND c.organization_id=$1 AND d.person_id=$2 AND c.person_id=$3 AND d.dedupe_key IS NOT DISTINCT FROM c.dedupe_key`,[org,duplicateId,canonicalId]);
 }
-
 async function mergePeople(db,org,canonicalId,duplicateId,actorId,evidence){
  if(canonicalId===duplicateId)throw Object.assign(new Error('A person cannot be merged with themselves.'),{statusCode:400});
  const canonical=await person(db,canonicalId,org),duplicate=await person(db,duplicateId,org);
@@ -125,22 +295,30 @@ async function mergePeople(db,org,canonicalId,duplicateId,actorId,evidence){
  await mergeParticipationHistory(db,org,canonicalId,duplicateId);
  await mergeCurrentMemory(db,org,canonicalId,duplicateId);
  await removeUniquePersonCollisions(db,org,canonicalId,duplicateId);
+ await mergeLearningHistory(db,org,canonicalId,duplicateId);
+ await mergeActionHistory(db,org,canonicalId,duplicateId);
+ await mergeEventHistory(db,org,canonicalId,duplicateId);
+ await mergeObservationHistory(db,org,canonicalId,duplicateId);
+ await mergePersonRelationships(db,org,canonicalId,duplicateId);
 
- const tables=['timeline_events:people_id','person_aliases:person_id','aria_learning:person_id','aria_conversations:person_id','aria_care_contexts:person_id','aria_actions:person_id','aria_observations:person_id','aria_events:person_id','care_feedback:person_id','intelligence_outcomes:person_id','person_memberships:person_id','person_roles:person_id','person_field_values:person_id','person_lifecycle:person_id','person_documents:person_id','person_tasks:person_id','person_communications:person_id','person_segment_members:person_id','relationship_scores:person_id','engagement_metrics:person_id','people_intelligence:person_id'];
- for(const spec of tables){
-  const[i,col]=spec.split(':');
-  try{
-   if(['relationship_scores','engagement_metrics','people_intelligence'].includes(i))
-    await db.query(`DELETE FROM ${i} WHERE organization_id=$1 AND ${col}=$2 AND EXISTS(SELECT 1 FROM ${i} c WHERE c.organization_id=$1 AND c.${col}=$3)`,[org,duplicateId,canonicalId]);
-   await db.query(`UPDATE ${i} SET ${col}=$1 WHERE ${col}=$2 AND EXISTS(SELECT 1 FROM people p WHERE p.id=$2 AND p.organization_id=$3)`,[canonicalId,duplicateId,org]);
-  }catch(err){
-   throw Object.assign(new Error('Some history could not be safely combined. Nothing was changed.'),{statusCode:409,code:'IDENTITY_HISTORY_CONFLICT'});
-  }
+ for(const spec of [
+  ['timeline_events','people_id'],
+  ['aria_conversations','person_id'],
+  ['aria_care_contexts','person_id'],
+  ['care_feedback','person_id'],
+  ['intelligence_outcomes','person_id'],
+  ['person_memberships','person_id'],
+  ['person_lifecycle','person_id'],
+  ['person_documents','person_id'],
+  ['person_tasks','person_id'],
+  ['person_communications','person_id'],
+ ]) {
+  const[i,col]=spec;
+  await db.query(`UPDATE ${i} SET ${col}=$1 WHERE ${col}=$2`,[canonicalId,duplicateId]);
  }
- try{
-  await db.query(`UPDATE person_relationships SET person_id=CASE WHEN person_id=$1 THEN $2 ELSE person_id END,related_person_id=CASE WHEN related_person_id=$1 THEN $2 ELSE related_person_id END WHERE organization_id=$3 AND (person_id=$1 OR related_person_id=$1)`,[duplicateId,canonicalId,org]);
- }catch(err){
-  throw Object.assign(new Error('Some relationship history could not be safely combined. Nothing was changed.'),{statusCode:409,code:'IDENTITY_RELATIONSHIP_CONFLICT'});
+ for(const [table,col] of [['relationship_scores','person_id'],['engagement_metrics','person_id'],['people_intelligence','person_id']]){
+   await db.query(`DELETE FROM ${table} WHERE organization_id=$1 AND ${col}=$2 AND EXISTS(SELECT 1 FROM ${table} c WHERE c.organization_id=$1 AND c.${col}=$3)`,[org,duplicateId,canonicalId]);
+   await db.query(`UPDATE ${table} SET ${col}=$1 WHERE organization_id=$2 AND ${col}=$3`,[canonicalId,org,duplicateId]);
  }
  try{
   await db.query(`DELETE FROM aria_person_state WHERE organization_id=$1 AND person_id=$2 AND EXISTS(SELECT 1 FROM aria_person_state x WHERE x.organization_id=$1 AND x.person_id=$3)`,[org,duplicateId,canonicalId]);

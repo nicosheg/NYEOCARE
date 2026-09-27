@@ -32,4 +32,7 @@ create index if not exists system_diagnostic_events_org_last_idx
 create index if not exists system_diagnostic_events_fingerprint_idx
   on public.system_diagnostic_events (fingerprint);
 
+create index if not exists system_diagnostic_events_user_idx
+  on public.system_diagnostic_events (user_id, last_seen_at desc);
+
 alter table public.system_diagnostic_events enable row level security;

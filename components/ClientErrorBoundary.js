@@ -38,7 +38,7 @@ export default class ClientErrorBoundary extends React.Component{
    let r=await fetch('/api/diagnostics/client-error',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},body:JSON.stringify(body),keepalive:true});
    if(r.status===401){
     session=await refreshClientSession().catch(()=>null);
-    if(session)await fetch('/api/diagnostics/client-error',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},body:JSON.stringify(body),keepalive:true);
+    if(session)await fetch('/api/diagnostics/client-error',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},body:JSON.stringify(body),keepalive:true});
    }
   }catch{}
  }

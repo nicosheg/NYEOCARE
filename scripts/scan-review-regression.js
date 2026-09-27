@@ -18,14 +18,16 @@ assert(/const needsIdentityReview=!decision\|\|decision\.status==='conflict'\|\|
 assert(/if\(decision\?\.status==='alive'&&decision\.best_candidate_id\)/.test(vision)&&/touchRecognizedPerson/.test(vision),'Strong existing identities must be persisted as recognized before any field review is created.');
 assert(!/if\(needsIdentityReview\|\|fieldReasons\.length\)/.test(vision),'Field uncertainty must not demote an already-resolved identity into an identity review.');
 assert(/keep_separate/.test(resolveApi)&&/identity_pair_decisions/.test(resolveApi),'Review resolve must persist keep-separate decisions.');
-assert(/mergeLearningHistory/.test(duplicateAction)&&/mergeActionHistory/.test(duplicateAction)&&/mergeEventHistory/.test(duplicateAction)&&/mergeObservationHistory/.test(duplicateAction),'Duplicate merge must reconcile ARIA history before moving person references.');
-assert(/mergePersonRelationships/.test(duplicateAction)&&/aria_person_state/.test(duplicateAction),'Duplicate merge must reconcile relationship and ARIA person-state uniqueness safely.');
+assert(/mergeLearningHistory/.test(duplicateAction)&&/mergeActionHistory/.test(duplicateAction)&&/mergeEventHistory/.test(duplicateAction)&&/mergeObservationHistory/.test(duplicateAction)&&/mergeAttendanceContexts/.test(duplicateAction),'Duplicate merge must reconcile ARIA history, including attendance-context uniqueness, before moving person references.');
+assert(/mergePersonRelationships/.test(duplicateAction)&&/mergeIdentitySharedContacts/.test(duplicateAction)&&/mergeIdentityPairDecisions/.test(duplicateAction)&&/aria_person_state/.test(duplicateAction),'Duplicate merge must reconcile relationships, shared-contact/pair-decision history, and ARIA person-state uniqueness safely.');
 assert(/identity_alias/.test(duplicateAction)&&/human_confirmed_merge/.test(duplicateAction)&&/person_aliases/.test(duplicateAction),'A confirmed merge must teach ARIA the duplicate name as a future identity alias.');
 assert(/mergeAttendanceHistory/.test(duplicateAction)&&/mergeParticipationHistory/.test(duplicateAction)&&/mergeCurrentMemory/.test(duplicateAction),'Duplicate merge must reconcile attendance, participation, and current person memory before identity collapse.');
 assert(/people_intelligence/.test(duplicateAction)&&/aria_person_state/.test(duplicateAction),'Duplicate merge must explicitly reconcile current intelligence/state collisions rather than relying on a generic person_id move.');
-assert(/mergedPhones=\[\.\.\.new Set\(\[\.\.\.phoneList\(canonical\),\.\.\.phoneList\(duplicate\)\]\)/.test(duplicateAction),'A same-name duplicate merge must preserve compatible phone history from both records instead of losing the verified phone.');
+assert(/mergedPhones=\[\.\.\.new Set\(\[\.\.\.phoneList\(canonical\),\.\.\.phoneList\(duplicate\)\]\)/.test(duplicateAction)&&!mergedPhonesLimitHack(duplicateAction),'A same-name duplicate merge must preserve all compatible phone history from both records instead of truncating the verified phone set.');
 
+function mergedPhonesLimitHack(source){return /mergedPhones[^\n]*\.slice\(0,2\)/.test(source)}
 assert(!/Some history could not be safely combined\. Nothing was changed\./.test(duplicateAction),'Merge implementation must not collapse distinct history conflicts into the old generic failure path.');
+assert(/d\.role=c\.role/.test(duplicateAction)&&!/d\.role=c\.role AND d\.status=c\.status/.test(duplicateAction),'Role collision handling must respect the actual unique key and not incorrectly split by status.');
 assert(/return_to=/.test(people),'People cards must preserve the source location.');
 assert(/safeReturnTo/.test(person)&&/window\.history\.length/.test(person),'Person Journey back navigation must use a safe explicit return destination with history fallback.');
 console.log('[SCAN REVIEW] live refresh + navigation checks passed.');

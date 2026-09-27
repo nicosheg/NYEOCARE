@@ -1227,6 +1227,20 @@ A module may own its domain transaction, validation, or presentation. It must no
 
 
 
+## Production reliability hardening — September 27, 2026
+
+### Client error recovery
+The application-wide ClientErrorBoundary must reset when Next.js route state changes. A single client rendering exception must never permanently blank unrelated screens until a manual hard reload. The ARIA launcher is additionally isolated in its own boundary so launcher failures cannot take down the underlying application.
+
+### Attendance session truth
+When online, server session state is authoritative. Local Field Mode/attendance cache may be used as an offline recovery source, but a cached session must never be rendered as live before the server confirms that an active session exists. A closed session must therefore disappear from the live attendance surface even if stale local data survives.
+
+### ARIA care-draft reliability
+Care-draft construction must initialize all derived contact values before any database INSERT uses them. Draft generation is human-review/human-send only; failure to build the draft must surface a recoverable error and must not partially create an outbound communication record.
+
+### Environment safety
+Weather/environment enhancement code is non-critical UI enrichment. Its state must be explicitly initialized and every background update must fail closed without producing an application-wide client failure.
+
 ## Review Center detail continuity — September 27, 2026
 
 Opening a scan identity review is a nested Review Center state, not a new destination. The detail sheet must preserve the current Review Center group. The sheet back control, backdrop dismissal, and device/browser back all return to that same review list instead of closing the parent Review Center surface. Resolving an item also returns to the queue so an operator can continue through the remaining work; only the explicit Review Center close action returns to the parent surface.

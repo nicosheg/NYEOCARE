@@ -39,13 +39,12 @@ export default function AttendanceModal({isOpen,onClose}){
     try{setPendingCount(await getFieldPendingCount(sessionId))}catch{setPendingCount(0)}
   },[]);
 
-  const hydrateFieldSession=useCallback(async(userId)=>{
+  const hydrateFieldSession=useCallback(async(userId,{allowLocalSession=false}={})=>{
     try{
       const cached=await getFieldSession(userId);
       if(!cached)return null;
       const cachedPeople=await getFieldPeople(cached.sessionId);
-      setSession({...cached.session,user_id:userId});
-      setCanDiscard(cached.session?.can_discard===true);
+      if(allowLocalSession){setSession({...cached.session,user_id:userId});setCanDiscard(cached.session?.can_discard===true);}
       setPeople(cachedPeople.slice(0,80));
       setTotal(cachedPeople.length);
       setPresent(cachedPeople.filter(p=>p.marked===true).length);
@@ -141,11 +140,11 @@ export default function AttendanceModal({isOpen,onClose}){
 
       if(showLoading&&mounted.current)setLoading(true);
       setError('');
-      const fieldCached=await hydrateFieldSession(s.user.id);
-      const timing=measurePerformance('attendance_open',{network:typeof navigator==='undefined'?'unknown':navigator.onLine?'online':'offline'});
       const offline=typeof navigator!=='undefined'&&!navigator.onLine;
+      const fieldCached=await hydrateFieldSession(s.user.id,{allowLocalSession:offline});
+      const timing=measurePerformance('attendance_open',{network:typeof navigator==='undefined'?'unknown':navigator.onLine?'online':'offline'});
 
-      if(offline&&fieldCached){
+      if(offline&&fieldCached&&fieldCached.session?.status==='active'){
         setBackground(null);
         setError('');
         setNotice('Offline mode is active. Your local attendance session is ready and will sync automatically when the connection returns.');

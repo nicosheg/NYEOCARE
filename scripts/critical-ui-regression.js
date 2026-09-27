@@ -211,7 +211,7 @@ const checks=[
  ['People optional browser observers cannot crash the page',
   /typeof IntersectionObserver==='undefined'/.test(peoplePage)&&/new IntersectionObserver/.test(peoplePage)],
  ['People review and birthday surfaces are lazy-loaded',
-  /dynamic\(\(\)=>import\('\.\.\/components\/ReviewCenterTab'\)/.test(peoplePage)&&/dynamic\(\(\)=>import\('\.\.\/components\/BirthdayPicker'\)/.test(peoplePage)],
+  /const ReviewCenterTab=dynamic/.test(peoplePage)&&/import\('\.\.\/components\/ReviewCenterTab'/.test(peoplePage)&&/const BirthdayPicker=dynamic/.test(peoplePage)&&/import\('\.\.\/components\/BirthdayPicker'/.test(peoplePage)],
  ['Non-critical root runtimes are individually isolated',
   /surface="environment-runtime"/.test(appPage)&&/surface="auth-runtime"/.test(appPage)&&/surface="aria-sync-runtime"/.test(appPage)&&/surface="scan-recovery-runtime"/.test(appPage)&&/surface="field-mode-runtime"/.test(appPage)&&/dynamic\(\(\)=>import\('\.\.\/components\/ScanRecovery'\)/.test(appPage)],
  ['Attendance never treats online local cache as authoritative',

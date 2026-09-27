@@ -188,6 +188,9 @@ const checks=[
 
  ['Review Center uses plain user-facing identity language',
   /duplicates:\{title:'Duplicates',tag:'PEOPLE'/.test(reviewCenter)&&/POSSIBLE DUPLICATE/.test(reviewCenter)&&!/DATABASE DUPLICATE/.test(reviewCenter)],
+ ['Review detail back stays inside the queue',
+  /function backToQueue\(\)/.test(reviewCenter)&&/__nyeocareReviewDetail/.test(reviewCenter)&&/popstate/.test(reviewCenter)&&/Review queue/.test(reviewCenter)&&/function finish\(\)\{backToQueue\(\)\}/.test(reviewCenter)],
+
  ['Daily briefing is a per-operator compressed queue',/getDailyQueue/.test(briefing)&&/capacityPerOperator:5/.test(briefing)&&/laterCount/.test(briefing)&&/aria_daily_queue_items/.test(dailyQueue)],
  ['Daily queue distributes work across active owner/admin operators',/role IN\('owner','admin'\)/.test(dailyQueue)&&/DAY_CAPACITY=5/.test(dailyQueue)&&/HORIZON_DAYS=31/.test(dailyQueue)],
  ['Daily queue defers work without rejecting the underlying ARIA action',/deferDailyQueueItem/.test(dailyQueueDefer)&&/queue_date/.test(dailyQueueDefer)&&/\/api\/daily-queue\/defer/.test(scanModal)===false&&/\/api\/daily-queue\/defer/.test(read('pages/index.js'))],

@@ -2112,6 +2112,16 @@ ARIA can send a private in-app message from one authenticated organization opera
 - **People hydration/recovery is hardened:** browser storage is no longer read during the render phase; expired roster sessions can refresh automatically; stale Next.js chunk navigation performs a single automatic reload instead of leaving the user on the generic error screen.
 - **Scope boundary:** these changes do not alter identity evidence rules, attendance truth, server-authoritative session semantics, or human confirmation requirements.
 
+## Production reliability hardening — September 27, 2026: client exception containment
+
+- **Client render failures are treated as engineering incidents:** the application must not rely on the friendly recovery screen as the diagnosis. Exact client exceptions must be traced and regression-tested.
+- **Non-critical modules must not be part of the global failure domain:** scan recovery, environment enhancement, auth warming, ARIA background sync, and Field Mode runtime are loaded/isolateable independently so a failure in one cannot blank People/Home.
+- **People optional browser APIs are feature-detected:** an unavailable IntersectionObserver or geolocation permission API must degrade quietly rather than throwing during a page effect.
+- **People heavy review surfaces are lazy-loaded:** Review Center and Birthday Picker are not required to hydrate the People directory itself.
+- **Stale Next.js/static-chunk recovery begins before React hydration:** a tiny document-level recovery listener watches for known module/chunk loading failures and performs one guarded cache-busting navigation. This complements, rather than replaces, the application-level route recovery.
+- **Recovery is bounded:** a recovery key in sessionStorage prevents reload loops. A client exception that is not a known stale-chunk failure is never blindly reloaded repeatedly.
+- **Deployment verification requirement:** a successful build is necessary but not sufficient. Verify fresh production HTML, the referenced client chunks, runtime error telemetry, and the People route after the deployment alias moves.
+
 ## Production reliability hardening — September 27, 2026: scan and app recovery
 
 - **Client scan preparation is no longer needlessly fragile:** normal JPEG camera images within the server-safe size limit use a direct base64 path; larger/non-JPEG images use a bounded resize/encode path. Preparation/auth watchdogs use cancellable timers so successful operations do not leave timeout timers alive.

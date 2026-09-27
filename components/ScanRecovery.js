@@ -1,5 +1,6 @@
 // components/ScanRecovery.js
-import{useCallback,useEffect,useState}from'react';import{getClientSession}from'../lib/clientSession';import{getScanState,setScanState}from'../lib/scanStore';import ScanModal from'./ScanModal';
+import{useCallback,useEffect,useState}from'react';import{getClientSession}from'../lib/clientSession';import{getScanState,setScanState}from'../lib/scanStore';import dynamic from'next/dynamic';
+const ScanModal=dynamic(()=>import('./ScanModal'),{ssr:false,loading:()=>null});
 const timeout=ms=>new Promise((_,reject)=>setTimeout(()=>reject(Error('timeout')),ms));const same=(a,b)=>a.stage===b.stage&&a.jobId===b.jobId&&a.progress===b.progress&&a.message===b.message;
 export default function ScanRecovery(){
  const[open,setOpen]=useState(false);

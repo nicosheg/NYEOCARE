@@ -23,6 +23,8 @@ const scanRecovery=read('components/ScanRecovery.js');
 const autoSync=read('components/AriaAutoSync.js');
 const fieldRuntime=read('components/FieldModeRuntime.js');
 const serviceWorker=read('public/sw.js');
+const documentPage=read('pages/_document.js');
+const scanRecoverySurface=read('components/ScanRecovery.js');
 const ariaLauncher=read('components/AriaCommandCenter.js');
 const ariaPage=read('pages/aria.js');
 const aiGateway=read('lib/aiGateway.js');
@@ -202,6 +204,16 @@ const checks=[
   /ClientErrorBoundary key=\{router\.asPath\} resetKey=\{router\.asPath\}/.test(appPage)&&/componentDidMount\(\)/.test(errorBoundary)&&/nyeocare:app-refresh/.test(errorBoundary)],
  ['Navigation automatically recovers stale Next.js chunks once',
   /routeChangeError/.test(appPage)&&/ChunkLoadError|Loading chunk|dynamically imported module/.test(appPage)&&/sessionStorage/.test(appPage)&&/window\.location\.reload\(\)/.test(appPage)],
+ ['Early document layer recovers stale client chunks before React mounts',
+  /EARLY_RECOVERY_SCRIPT/.test(documentPage)&&/window\.addEventListener\('error'/.test(documentPage)&&/unhandledrejection/.test(documentPage)&&/early-client-recovery:v1/.test(documentPage)&&/location\.replace/.test(documentPage)],
+ ['Scan recovery cannot make scan module loading part of the global shell',
+  /dynamic\(\(\)=>import\('\.\/ScanModal'\)/.test(scanRecoverySurface)&&!/import ScanModal from/.test(scanRecoverySurface)],
+ ['People optional browser observers cannot crash the page',
+  /typeof IntersectionObserver==='undefined'/.test(peoplePage)&&/new IntersectionObserver/.test(peoplePage)],
+ ['People review and birthday surfaces are lazy-loaded',
+  /const ReviewCenterTab=dynamic/.test(peoplePage)&&/import\('\.\.\/components\/ReviewCenterTab'/.test(peoplePage)&&/const BirthdayPicker=dynamic/.test(peoplePage)&&/import\('\.\.\/components\/BirthdayPicker'/.test(peoplePage)],
+ ['Non-critical root runtimes are individually isolated',
+  /surface="environment-runtime"/.test(appPage)&&/surface="auth-runtime"/.test(appPage)&&/surface="aria-sync-runtime"/.test(appPage)&&/surface="scan-recovery-runtime"/.test(appPage)&&/surface="field-mode-runtime"/.test(appPage)&&/dynamic\(\(\)=>import\('\.\.\/components\/ScanRecovery'\)/.test(appPage)],
  ['Attendance never treats online local cache as authoritative',
   /hydrateFieldSession=useCallback\(async\(userId,\{allowLocalSession=false\}=\{\}\)/.test(attendanceModal)&&/allowLocalSession:offline/.test(attendanceModal)&&/if\(offline\)\{/.test(attendanceModal)&&/fieldCached&&fieldCached\.session\?\.status==='active'/.test(attendanceModal)],
  ['Global app runtime revalidates auth/data invisibly',

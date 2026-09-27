@@ -1,10 +1,10 @@
 // pages/people.js
 import{useState,useEffect,useRef,useCallback}from'react';
-import{useRouter}from'next/router';
+import{useRouter}from'next/router';import dynamic from'next/dynamic';
 import Layout from'../components/Layout';
-import ReviewCenterTab from'../components/ReviewCenterTab';
+const ReviewCenterTab=dynamic(()=>import('../components/ReviewCenterTab'),{ssr:false,loading:()=>null});
 import FirstExperience from'../components/FirstExperience';
-import BirthdayPicker from'../components/BirthdayPicker';
+const BirthdayPicker=dynamic(()=>import('../components/BirthdayPicker'),{ssr:false,loading:()=>null});
 import{getClientSession,refreshClientSession}from'../lib/clientSession';import{publishDataChange}from'../lib/appData';
 import{useOnboarding}from'../components/OnboardingProvider';
 
@@ -76,7 +76,7 @@ useEffect(()=>{if(!accessToken)return;let cancelled=false;const refresh=async()=
 useEffect(()=>{if(router.query.review==='1'&&accessToken)setShowReviewPanel(true)},[router.query.review,accessToken]);
 useEffect(()=>{if(loading||!people.length||scrollRestoreRef.current)return;try{const raw=sessionStorage.getItem(PEOPLE_SCROLL_KEY);if(!raw)return;const saved=JSON.parse(raw);if(saved?.pathname&&saved.pathname!==router.asPath)return;const y=Math.max(0,Number(saved?.y)||0);scrollRestoreRef.current=true;sessionStorage.removeItem(PEOPLE_SCROLL_KEY);requestAnimationFrame(()=>requestAnimationFrame(()=>window.scrollTo(0,y)))}catch{}},[loading,people.length,router.asPath]);
 const filtered=people;const orderedFiltered=people;
-const markScanSeen=useCallback(id=>{if(!id)return;setSeenScanIds(prev=>{if(prev.has(id))return prev;const next=new Set(prev);next.add(id);try{localStorage.setItem('nyeocare:seen-scan-cards:v1',JSON.stringify([...next]))}catch{}return next})},[]);useEffect(()=>{const nodes=[...document.querySelectorAll('.person-card.new-scan-card:not([data-scan-seen="true"])')];if(!nodes.length)return;const timers=scanTimers.current;const observer=new IntersectionObserver(entries=>{for(const entry of entries){const id=entry.target.getAttribute('data-person-id');if(!id)continue;if(entry.isIntersecting&&entry.intersectionRatio>=.55){if(timers.has(id))continue;timers.set(id,window.setTimeout(()=>{markScanSeen(id);timers.delete(id)},5000))}else if(timers.has(id)){window.clearTimeout(timers.get(id));timers.delete(id)}}},{threshold:[.55]});nodes.forEach(n=>observer.observe(n));return()=>{observer.disconnect();timers.forEach(t=>window.clearTimeout(t));timers.clear()}},[orderedFiltered,markScanSeen,seenScanIds]);const prefetchPerson=useCallback(id=>{if(!id||selectMode)return;router.prefetch(`/person/${id}`).catch(()=>{})},[router,selectMode]);
+const markScanSeen=useCallback(id=>{if(!id)return;setSeenScanIds(prev=>{if(prev.has(id))return prev;const next=new Set(prev);next.add(id);try{localStorage.setItem('nyeocare:seen-scan-cards:v1',JSON.stringify([...next]))}catch{}return next})},[]);useEffect(()=>{const nodes=[...document.querySelectorAll('.person-card.new-scan-card:not([data-scan-seen="true"])')];if(!nodes.length||typeof IntersectionObserver==='undefined')return;const timers=scanTimers.current;const observer=new IntersectionObserver(entries=>{for(const entry of entries){const id=entry.target.getAttribute('data-person-id');if(!id)continue;if(entry.isIntersecting&&entry.intersectionRatio>=.55){if(timers.has(id))continue;timers.set(id,window.setTimeout(()=>{markScanSeen(id);timers.delete(id)},5000))}else if(timers.has(id)){window.clearTimeout(timers.get(id));timers.delete(id)}}},{threshold:[.55]});nodes.forEach(n=>observer.observe(n));return()=>{observer.disconnect();timers.forEach(t=>window.clearTimeout(t));timers.clear()}},[orderedFiltered,markScanSeen,seenScanIds]);const prefetchPerson=useCallback(id=>{if(!id||selectMode)return;router.prefetch(`/person/${id}`).catch(()=>{})},[router,selectMode]);
 const beginLongPress=id=>{longPressTriggered.current=false;prefetchPerson(id);if(longPressTimer.current)window.clearTimeout(longPressTimer.current);longPressTimer.current=window.setTimeout(()=>{longPressTriggered.current=true;setSelectMode(true);setSelectedIds(prev=>new Set(prev).add(id));setExpandedId(null);if(navigator.vibrate)navigator.vibrate(50)},650)};
 const endLongPress=()=>{if(longPressTimer.current){window.clearTimeout(longPressTimer.current);longPressTimer.current=null}};
 const enterSelectMode=()=>{setSelectMode(true);setExpandedId(null);setEditingId(null)};

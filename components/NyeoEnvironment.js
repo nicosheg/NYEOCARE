@@ -41,7 +41,7 @@ update();
 const scheduleWeather=()=>{const run=()=>{try{getWeather()}catch(error){weatherInFlight=false;console.warn('[NYEo ENV] weather update skipped:',error?.message||error)}};if(typeof window.requestIdleCallback==='function')window.requestIdleCallback(run,{timeout:3000});else setTimeout(run,1500)};
 scheduleWeather();
 const timeTimer=setInterval(updateTime,60000),weatherTimer=setInterval(getWeather,3600000);
-if(navigator.permissions?.query){navigator.permissions.query({name:'geolocation'}).then(permission=>{if(!alive)return;const handle=()=>{if(permission.state==='denied')apply(timeState(),'unknown','unavailable')};permission.addEventListener?.('change',handle);weatherWatch={permission,handle};if(permission.state==='granted')getWeather();else if(permission.state==='denied')apply(timeState(),'unknown','unavailable')}).catch(()=>{})}
+try{if(navigator.permissions?.query){navigator.permissions.query({name:'geolocation'}).then(permission=>{if(!alive)return;const handle=()=>{if(permission.state==='denied')apply(timeState(),'unknown','unavailable')};permission.addEventListener?.('change',handle);weatherWatch={permission,handle};if(permission.state==='granted')getWeather();else if(permission.state==='denied')apply(timeState(),'unknown','unavailable')}).catch(()=>{})}}catch{}
 return()=>{alive=false;clearInterval(timeTimer);clearInterval(weatherTimer);if(weatherWatch?.permission&&weatherWatch.handle)weatherWatch.permission.removeEventListener?.('change',weatherWatch.handle)};
 },[]);
 return <style jsx global>{`

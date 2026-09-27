@@ -133,7 +133,7 @@ const checks=[
  ['People restores the previous scroll position after a person journey',
   /PEOPLE_SCROLL_KEY/.test(peoplePage)&&/sessionStorage\.setItem\(PEOPLE_SCROLL_KEY/.test(peoplePage)&&/window\.scrollTo\(0,y\)/.test(peoplePage)],
  ['Person Journey returns to an explicit safe source location with history fallback',
-  /return_to/.test(personPage)&&/safeReturnTo/.test(personPage)&&/window\.history\.length>1/.test(personPage)&&/r\.push\('/people'\)/.test(personPage)],
+  /return_to/.test(personPage)&&/safeReturnTo/.test(personPage)&&/window\.history\.length>1/.test(personPage)&&/r\.push\(['\"]\/people['\"]\)/.test(personPage)],
  ['ARIA launcher remains above application surfaces and interactive',
   /position:fixed;z-index:2147483000/.test(ariaLauncher)&&/pointer-events:auto/.test(ariaLauncher)&&/nyeocare:aria-open/.test(ariaLauncher)],
  ['ARIA welcome prompt controls are not covered by the empty thread layer',

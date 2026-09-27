@@ -2480,3 +2480,45 @@ This gate exists because repository correctness and production correctness are s
 - **Regression gates:** `test:critical-ui` now verifies that attendance correction is durable and non-blocking. A new `test:experience` contract sweep scans transactional API routes for the broader class of post-commit DB/AI work performed while a serverless client is still held.
 - **CI/deployment gate:** `test:experience` runs before the remaining intelligence/auth/scale/field-mode suites and before the Vercel production build/deploy. A future endpoint that recreates this connection-lifetime pattern should fail CI before reaching production.
 - **Audit method:** production experience review now combines (1) critical-path contract tests, (2) broad architectural hazard scans, (3) full regression/scale/auth suites, (4) production deployment verification, and (5) deployment-scoped runtime error scans. This does not mathematically prove the absence of all future bugs, but it makes this class of failure mechanically detectable rather than dependent on a user discovering it first.
+
+
+## NYEOCARE Sentinel — Full-stack reliability and production diagnostics
+
+### Purpose
+Sentinel is the engineering safety layer for NYEOCARE. It is designed to turn production failures from user discoveries into observable, reproducible, triageable signals.
+
+It covers:
+- browser render failures and unhandled promise failures
+- API 5xx/408/429 failures and client-observed slow API calls
+- server-side unhandled route errors
+- request correlation through `X-NYEO-Request-ID`
+- database reachability and connection-pool pressure
+- durable attendance queue state and worker availability
+- stuck ARIA attendance processing
+- expired ARIA actions and AI budget reservations
+- aggregated diagnostic history reported by real authenticated users
+- static high-confidence architecture hazards in CI
+- production health checks after deployment and every 30 minutes
+
+### Permanent interaction contract
+The application must separate human-fact persistence from derived intelligence. A user-facing request should save the smallest durable fact atomically, release the database client, and return. Background intelligence belongs behind a durable queue or other recoverable async boundary.
+
+### Browser telemetry
+`components/ClientDiagnostics.js` installs once for the client runtime. It observes same-origin `/api/*` failures, network failures, and materially slow API calls without recording request bodies or authentication headers. Diagnostic reports are authenticated before persistence and are deduplicated into `system_diagnostic_events`.
+
+### Server telemetry
+`lib/apiHelpers.js` assigns or preserves a request ID and returns it through `X-NYEO-Request-ID`. Unhandled exceptions that escape an authenticated API handler are persisted as diagnostic events without blocking the API response path.
+
+### Diagnostic storage
+`system_diagnostic_events` is a server-written, RLS-enabled aggregation table. The same issue is incremented rather than creating one row per occurrence. Each record keeps severity, status, fingerprint, route, build, request ID, bounded message/stack context, first/last seen timestamps, and occurrence count.
+
+### Sentinel surfaces
+- `GET /api/health` is a safe public liveness/readiness probe.
+- `/system/diagnostics` is an owner/admin control-room page.
+- `GET/POST /api/system/diagnostics` returns current system checks and updates issue status.
+- `npm run test:diagnostics` runs the repository-wide high-confidence architectural sweep.
+- `.github/workflows/sentinel.yml` probes production every 30 minutes.
+- Production CI performs a health probe immediately after deployment.
+
+### What Sentinel does not claim
+Sentinel does not mathematically prove that no future bug exists. It creates multiple independent detection layers so that frontend, backend, data/queue, deployment, and real-user failures become visible and actionable instead of remaining hidden until a user reports them.

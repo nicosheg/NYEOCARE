@@ -416,6 +416,9 @@ async function mergePeople(db,org,canonicalId,duplicateId,actorId,evidence){
  await mergeEventHistory(db,org,canonicalId,duplicateId);
  await mergeObservationHistory(db,org,canonicalId,duplicateId);
  await mergePersonRelationships(db,org,canonicalId,duplicateId);
+ // scan_review_items.proposed_person_id is a live pointer into the identity graph, not immutable scan evidence.
+ // Repoint it before the duplicate person is archived so Review Center never strands resolved work on an archived identity.
+ await db.query(\`UPDATE scan_review_items SET proposed_person_id=$1,updated_at=NOW() WHERE organization_id=$2 AND proposed_person_id=$3\`,[canonicalId,org,duplicateId]);
 
  for(const spec of [
   ['timeline_events','people_id'],

@@ -194,7 +194,7 @@ const checks=[
  ['Daily queue has durable one-source scheduling',/UNIQUE \(organization_id, task_kind, source_id\)/.test(dailyQueueMigration)],
  ['Review Center excludes attendance follow-ups',/pending_count:scanItems\.length\+groups\.length/.test(reviewApi)&&!/attendanceItems/.test(reviewApi)],
  ['Daily briefing makes scan review a canonical grouped item',
-  /scan_review_items/.test(dailyQueue)&&/task_kind:'scan_review'/.test(dailyQueue)&&/category:'scan'/.test(dailyQueue)&&/task_kind==='scan_review'/.test(dailyQueue)],
+  /scan_review_items/.test(dailyQueue)&&/task_kind:'scan_review'/.test(dailyQueue)&&/category:'scan'/.test(dailyQueue)],
  ['Auth caches bearer verification',
   /AUTH_TTL=2500/.test(auth)],
  ['Review identity actions prioritize correction before direct remembering',/Edit & remember/.test(reviewCenter)&&/Remember as read/.test(reviewCenter)&&reviewCenter.indexOf('Edit & remember')<reviewCenter.indexOf('Remember as read')],

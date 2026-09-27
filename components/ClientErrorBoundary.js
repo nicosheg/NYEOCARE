@@ -4,6 +4,8 @@ import React from'react';
 export default class ClientErrorBoundary extends React.Component{
  constructor(props){super(props);this.state={hasError:false,error:null};}
  static getDerivedStateFromError(error){return{hasError:true,error};}
+ componentDidMount(){if(typeof window!=='undefined'){this._onAutoRefresh=()=>{if(this.state.hasError)this.setState({hasError:false,error:null})};window.addEventListener('nyeocare:app-refresh',this._onAutoRefresh)}}
+ componentWillUnmount(){if(typeof window!=='undefined'&&this._onAutoRefresh)window.removeEventListener('nyeocare:app-refresh',this._onAutoRefresh)}
  componentDidUpdate(prevProps){
   if(this.state.hasError&&prevProps.resetKey!==this.props.resetKey)this.setState({hasError:false,error:null});
  }

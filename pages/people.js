@@ -43,11 +43,11 @@ return <><div style={{maxWidth:1100,margin:'0 auto',padding:20}}><div className=
 export default function PeoplePage(){
 const router=useRouter();const onboarding=useOnboarding();const[people,setPeople]=useState([]);const[search,setSearch]=useState('');const[roleFilter,setRoleFilter]=useState('all');const[showLivingTruthOnly,setShowLivingTruthOnly]=useState(false);const[msg,setMsg]=useState('');const[loading,setLoading]=useState(true);const[showAdd,setShowAdd]=useState(false);const[form,setForm]=useState({full_name:'',phone:'',email:'',type:'visitor',birthday:''});const[expandedId,setExpandedId]=useState(null);const[addingNote,setAddingNote]=useState(false);const[noteText,setNoteText]=useState('');const[importingConv,setImportingConv]=useState(false);const[convText,setConvText]=useState('');const[showPicker,setShowPicker]=useState(false);const[pickerTarget,setPickerTarget]=useState(null);const[editingId,setEditingId]=useState(null);const[editName,setEditName]=useState('');const[editPhone,setEditPhone]=useState('');const[editEmail,setEditEmail]=useState('');const[editBirthday,setEditBirthday]=useState('');const[selectMode,setSelectMode]=useState(false);const[selectedIds,setSelectedIds]=useState(new Set());const[reviewCount,setReviewCount]=useState(0);const[totalPeople,setTotalPeople]=useState(0);const[nextCursor,setNextCursor]=useState(null);const[loadingMore,setLoadingMore]=useState(false);const abortRef=useRef(null);const firstLoadRef=useRef(false);const[seenScanIds,setSeenScanIds]=useState(()=>{try{return new Set(JSON.parse(localStorage.getItem('nyeocare:seen-scan-cards:v1')||'[]'))}catch{return new Set()}});const scanTimers=useRef(new Map());const[showReviewPanel,setShowReviewPanel]=useState(false);const[accessToken,setAccessToken]=useState(null);const longPressTimer=useRef(null);const longPressTriggered=useRef(false);const scrollRestoreRef=useRef(false);const PEOPLE_SCROLL_KEY='nyeocare:people-scroll:v1';
 const flash=useCallback(text=>{setMsg(text);window.setTimeout(()=>setMsg(''),3000)},[]);
-const fetchPeople=useCallback(async({token,reset=true,cursor=null,searchValue=search,typeValue=roleFilter,livingValue=showLivingTruthOnly}={})=>{
+const fetchPeople=useCallback(async({token,reset=true,cursor=null,searchValue=search,typeValue=roleFilter,livingValue=showLivingTruthOnly,background=false}={})=>{
  if(!token)return;
  if(abortRef.current)abortRef.current.abort();
  const controller=new AbortController();abortRef.current=controller;
- if(reset)setLoading(true);else setLoadingMore(true);
+ if(reset&&!background)setLoading(true);else if(!reset)setLoadingMore(true);
  try{
   const params=new URLSearchParams({limit:'60'});
   if(searchValue.trim())params.set('search',searchValue.trim());
@@ -60,7 +60,7 @@ const fetchPeople=useCallback(async({token,reset=true,cursor=null,searchValue=se
   if(reset)setPeople(Array.isArray(data.items)?data.items:[]);else setPeople(prev=>[...prev,...(Array.isArray(data.items)?data.items:[])]);
   setNextCursor(data.next_cursor||null);
   if(data.total_count!==null&&data.total_count!==undefined)setTotalPeople(Number(data.total_count)||0);
- }catch(err){if(err?.name!=='AbortError')flash(err.message||'Unable to load people')}finally{if(!controller.signal.aborted){if(reset)setLoading(false);else setLoadingMore(false)}}
+ }catch(err){if(err?.name!=='AbortError'&&!background)flash(err.message||'Unable to load people')}finally{if(!controller.signal.aborted){if(reset&&!background)setLoading(false);else if(!reset)setLoadingMore(false)}}
 },[flash,search,roleFilter,showLivingTruthOnly]);
 useEffect(()=>{let mounted=true;getClientSession().then(session=>{if(!mounted)return;if(session){setAccessToken(session.access_token);firstLoadRef.current=true}else setLoading(false)}).catch(()=>{if(mounted)setLoading(false)});return()=>{mounted=false;if(longPressTimer.current)window.clearTimeout(longPressTimer.current);if(abortRef.current)abortRef.current.abort()}},[]);
 
@@ -69,6 +69,7 @@ useEffect(()=>{if(!accessToken||!firstLoadRef.current)return;setSelectedIds(new 
 const loadMore=useCallback(()=>{if(!nextCursor||loadingMore||!accessToken)return;fetchPeople({token:accessToken,reset:false,cursor:nextCursor})},[nextCursor,loadingMore,accessToken,fetchPeople]);
 
 useEffect(()=>{let cancelled=false;if(!accessToken)return;fetch('/api/review?summary=1',{cache:'no-store',headers:{Authorization:'Bearer '+accessToken}}).then(r=>r.ok?r.json():null).then(d=>{if(cancelled||!d)return;setReviewCount(Number(d.pending_count)||0)}).catch(()=>{});return()=>{cancelled=true}},[accessToken]);
+useEffect(()=>{if(!accessToken)return;let cancelled=false;const refresh=async()=>{if(cancelled||document.visibilityState==='hidden'||editingId||showAdd||selectMode)return;try{const session=await getClientSession();if(!session||cancelled)return;await fetchPeople({token:session.access_token,reset:true,background:true});const r=await fetch('/api/review?summary=1',{cache:'no-store',headers:{Authorization:'Bearer '+session.access_token}});const d=await r.json().catch(()=>null);if(!cancelled&&d)setReviewCount(Number(d.pending_count)||0)}catch{}};const onRefresh=()=>refresh();window.addEventListener('nyeocare:app-refresh',onRefresh);return()=>{cancelled=true;window.removeEventListener('nyeocare:app-refresh',onRefresh)}},[accessToken,fetchPeople,editingId,showAdd,selectMode]);
 useEffect(()=>{if(router.query.review==='1'&&accessToken)setShowReviewPanel(true)},[router.query.review,accessToken]);
 useEffect(()=>{if(loading||!people.length||scrollRestoreRef.current)return;try{const raw=sessionStorage.getItem(PEOPLE_SCROLL_KEY);if(!raw)return;const saved=JSON.parse(raw);if(saved?.pathname&&saved.pathname!==router.asPath)return;const y=Math.max(0,Number(saved?.y)||0);scrollRestoreRef.current=true;sessionStorage.removeItem(PEOPLE_SCROLL_KEY);requestAnimationFrame(()=>requestAnimationFrame(()=>window.scrollTo(0,y)))}catch{}},[loading,people.length,router.asPath]);
 const filtered=people;const orderedFiltered=people;

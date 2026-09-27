@@ -2081,3 +2081,40 @@ ARIA can send a private in-app message from one authenticated organization opera
 - `unsend it` can resolve the most recent internal message referenced by the current ARIA conversation state.
 - `unsend my last message` resolves the sender's latest still-sent internal message, optionally narrowed to a named recipient.
 - Unsend and read are serialized at the database row level so a simultaneous open/unsend cannot create a contradictory seen state.
+
+
+---
+
+## 2026-09-27 Architecture Addendum — ARIA operator messaging and current identity review
+
+### Internal operator messaging
+ARIA can now send a private in-app message from one active organization operator to another active organization operator. The recipient receives the message as work in ARIA Today; it is not a People-record message, WhatsApp message, email, or external notification.
+
+The command must name an active operator and the exact message body. Recipient resolution is organization-scoped and ambiguous matches require clarification. Sending is idempotent when the same conversation request is retried.
+
+Message lifecycle:
+- 'sent' — visible to the recipient's ARIA Today queue while unseen.
+- 'seen_at' is written atomically when the recipient opens the message.
+- The sender may ask ARIA to unsend their own message.
+- When unsent before the recipient opens it, the message disappears from the recipient's active ARIA Today work and the recipient is not told that a message existed.
+- Once 'seen_at' exists, unsend remains allowed but ARIA must state that the recipient had already seen it; it must never claim the message was unseen.
+- The recipient's daily queue item is marked completed when the message is opened.
+- Internal messages are server-owned and protected by RLS deny policies; browser clients never receive direct write access.
+
+ARIA conversation state remembers the most recent internal message references so follow-up commands such as "unsend it" can resolve without asking the user to repeat the recipient.
+
+### Identity review evidence
+Scan identity reconciliation now uses an explicit 50/50 evidence model:
+- name evidence = 50% of the identity score;
+- phone evidence = 50% of the identity score;
+- exact phone plus compatible name may resolve automatically only when row-linkage and field evidence are safe;
+- exact name without confirmed phone evidence remains a human decision;
+- exact name with a conflicting phone remains a human decision;
+- row-linkage uncertainty blocks automatic resolution.
+
+Pending Review Center rows are re-evaluated against the canonical current resolver before display, so older pending rows do not remain permanently bound to a previous weighting model.
+
+Review Center shows name score, phone score, combined score, current identity status, and readable pause reasons. Raw database reason codes must not be the primary user-facing language.
+
+### Person navigation
+Person Journey receives an explicit internal returnTo route from its caller when available. The People page preserves its current path and scroll position before opening a person. Person Journey returns to that originating path instead of blindly relying on browser history, which prevents a normal People → Person → Back flow from unexpectedly landing on the homepage.

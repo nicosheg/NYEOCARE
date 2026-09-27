@@ -2317,3 +2317,55 @@ Any change touching `pages/_app.js`, `Layout`, shared providers, navigation, dyn
 
 The goal is not merely that the route eventually renders. The goal is that **navigation history does not change whether a critical route works**.
 
+
+
+## Production reliability hardening — September 27, 2026: Review Center bulk dismissal contract
+
+A Review Center bulk-dismissal regression was identified and fixed.
+
+### Failure
+The Review Center represents scan-review queue IDs in the UI as `scan:<uuid>` so scan-review items remain distinguishable from other review groups. The bulk action sends those selected IDs to `/api/review/resolve`.
+
+The API previously accepted only bare UUIDs for the bulk `ids` array. Because `scan:<uuid>` failed that UUID validation, the API treated the request as if no valid bulk IDs had been supplied and then fell through to the single-review action validator, producing:
+
+> `Invalid review action.`
+
+This was a contract mismatch between the Review Center's display/selection identifier and the API's accepted identifier format. It was not a database corruption or identity-resolution failure.
+
+### Permanent contract
+The bulk review endpoint must normalize the UI's scan-review identifier before UUID validation:
+
+```text
+scan:<uuid> → <uuid>
+```
+
+The API must then:
+- validate the normalized value as a UUID;
+- accept only authorized scan-review records belonging to the current organization;
+- require an allowed bulk action;
+- transition pending scan-review items to `rejected`;
+- preserve the original scan evidence, scan job, and person records;
+- write an auditable dismissal decision;
+- return the number of actually dismissed records.
+
+The existing audit rule remains:
+
+**Dismissed reviews stay in the scan audit history.**
+
+The API remains the security boundary. The frontend may continue using prefixed identifiers for UI identity, but server-side normalization and authorization must always be applied before mutation.
+
+### Regression gate
+Any future Review Center bulk-action change must verify:
+1. selecting one scan review works;
+2. selecting multiple scan reviews works;
+3. `scan:<uuid>` identifiers are normalized to UUIDs at the API boundary;
+4. unauthorized/nonexistent IDs cannot be dismissed;
+5. dismissed items disappear from the pending queue;
+6. original scan evidence and scan jobs remain intact;
+7. the audit decision records the bulk dismissal;
+8. duplicate groups cannot accidentally enter the scan-review bulk-dismissal path;
+9. the UI does not show a generic `Invalid review action` error for a valid scan-review bulk dismissal.
+
+This incident reinforces a general NYEOCARE rule:
+
+**UI identifiers and persistence identifiers may differ, but every boundary must explicitly normalize the identifier contract before validation or mutation.**

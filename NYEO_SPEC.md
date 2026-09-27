@@ -2434,3 +2434,23 @@ The permanent rule is:
 7. Regression coverage must keep the same-name/one-phone-missing case, current-state collisions, and phone preservation.
 
 This case exists because **“same name” and “same person” are not interchangeable**. Duplicate detection may surface the pair; only the explicit human merge decision establishes that these two records are one person.
+
+
+## Production merge deployment gate — September 27, 2026
+
+The human-confirmed duplicate merge hardening is incomplete until the production alias is actually running the same commit as `main`.
+
+For identity-merge changes, deployment verification is mandatory:
+
+1. Confirm `main` contains the merge reconciliation implementation and regression guards.
+2. Confirm a new Vercel production deployment is created from the resulting `main` commit.
+3. Confirm the deployment reaches READY before any operator retries a production merge.
+4. Confirm production runtime logs for `/api/review/duplicate-action` no longer execute the legacy `IDENTITY_HISTORY_CONFLICT` path.
+5. Retry the concrete same-name case only after the new deployment is live:
+   - canonical candidate: `Sister Blessing` with verified `+2348065366272`;
+   - duplicate candidate: `Sister Blessing` with no phone;
+   - unrelated person: `Blessing Emelile` with `+2342066199143`, which must remain untouched.
+6. Verify the post-merge database state: one active Sister Blessing, one archived duplicate, verified phone preserved, compatible history reconciled, merge audit recorded, alias/learning recorded, and Blessing Emelile still active and unchanged.
+7. A production merge retry against an older deployment is explicitly considered a failed verification, not a user error.
+
+This gate exists because repository correctness and production correctness are separate release states.

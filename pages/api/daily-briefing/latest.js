@@ -20,7 +20,7 @@ export default withOrg(async function handler(req,res){
    const p=row.payload&&typeof row.payload==='object'?row.payload:{};
    return{...p,queue_item_id:row.id,queue_date:String(row.queue_date),assigned_user_id:row.assigned_user_id,task_kind:row.task_kind,priority:row.priority,defer_count:row.defer_count||0};
   });
-  const groupedCounts={scan:0,follow_up:0,care:0};
+  const groupedCounts={scan:0,follow_up:0,message:0,care:0};
   for(const item of items){if(item.category==='scan')groupedCounts.scan++;else if(item.task_kind==='follow_up'||item.label==='FOLLOW-UP')groupedCounts.follow_up++;else groupedCounts.care++}
   const todayCount=items.length,laterCount=Number(queue.later_count)||0,openCount=Number(queue.open_count)||0;
   const settings=org.rows[0]?.settings||{},vocabulary=settings?.aria?.vocabulary||{person:'people',members:'members',leaders:'leaders',care:'care',prayer:'prayer'};
@@ -40,7 +40,8 @@ export default withOrg(async function handler(req,res){
    categories:{
     scan:items.filter(x=>x.category==='scan'),
     follow_up:items.filter(x=>x.task_kind==='follow_up'||x.label==='FOLLOW-UP'),
-    care:items.filter(x=>x.category!=='scan'&&x.task_kind!=='follow_up'&&x.label!=='FOLLOW-UP')
+    message:items.filter(x=>x.task_kind==='internal_message'),
+   care:items.filter(x=>x.category!=='scan'&&x.task_kind!=='follow_up'&&x.label!=='FOLLOW-UP'&&x.task_kind!=='internal_message')
    },
    peopleCount:people.rows[0]?.count||0,
    nextRefresh:`${queue.today}T23:59:59.999`

@@ -79,7 +79,8 @@ function BriefingModal({data,onClose,onAction}){
     const r=await fetch('/api/internal-messages/read',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.access_token},body:JSON.stringify({message_id:item.internal_message_id||item.source_id,queue_item_id:item.queue_item_id||null})});
     const d=await r.json().catch(()=>({}));
     if(!r.ok){
-     if(r.status===409){if(active){setStatus('unsent');setError('This message was unsent before you opened it.');}return}
+     if(r.status===404){if(active)onDone();return}
+     if(r.status===409){if(active){setStatus('unsent');setError('This message was unsent after it had already been seen.');}return}
      throw new Error(d.error||'Unable to open this message.');
     }
     if(active)setStatus('seen');

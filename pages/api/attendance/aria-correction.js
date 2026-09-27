@@ -1,13 +1,13 @@
 // pages/api/attendance/aria-correction.js
 import pool from'../../../lib/db';
 import{withAdmin}from'../../../lib/apiHelpers';
-import{enqueueAttendanceProcessing}from'../../../lib/aria/attendanceQueue';
+import{enqueueAttendanceProcessing}from'../../../lib/aria/attendanceQueue';import{resolveCareWorkInTransaction}from'../../../lib/aria/canonicalCare';
 
 const clean=(v,max=1000)=>String(v??'').trim().slice(0,max);
 
 export default withAdmin(async function handler(req,res){
  if(req.method!=='POST')return res.status(405).json({error:'Method not allowed'});
- const{session_id,people_id,present,note='',action_id=null}=req.body||{};
+ const{session_id,people_id,present,note='',action_id=null,observation_id=null}=req.body||{};
  if(!session_id||!people_id||typeof present!=='boolean')return res.status(400).json({error:'session_id, people_id and present are required.'});
  const orgId=req.org.id,userId=req.user.id,db=await pool.connect();
  try{
@@ -73,6 +73,8 @@ export default withAdmin(async function handler(req,res){
       )`,[
        present?'Resolved by human attendance correction.':'Attendance context corrected by a human; review action no longer applies.',orgId,people_id,session_id
   ]);
+  await resolveCareWorkInTransaction({db,organizationId:orgId,actorId:userId,personId:people_id,actionId:action_id,observationId:observation_id,reason:present?'Human confirmed attendance.':'Human corrected the attendance and context.',source:'attendance_correction'});
+
   await db.query(`INSERT INTO timeline_events(people_id,event_type,title,description,metadata,source,occurred_at,created_at)
     VALUES($1,'attendance_correction','Attendance corrected',$2,$3,'human',COALESCE($4::timestamptz,NOW()),NOW())`,[
      people_id,

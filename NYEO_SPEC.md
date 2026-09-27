@@ -2393,3 +2393,11 @@ The incident was verified in production runtime logs before the fix; the failing
 - **Persistence order is mandatory:** for a resolved existing identity, update/touch the existing person and preserve the scan observation first; only then create a Review Center item for remaining field uncertainty. Never apply the old `needsIdentityReview || fieldReasons.length` gate because it incorrectly converted known identities into unresolved reviews.
 - **Existing-register rescan expectation:** rescanning a register already represented in People must primarily refresh existing identity observations and last-scan memory. Review Center should contain only genuine unresolved identities or specific field corrections, not every row from the register.
 - **Regression gate:** every scan identity change must test exact name + exact phone with omitted pair evidence; unique exact name with a non-exact phone; unique exact phone with a noisy/ambiguous name; duplicate exact names separated by a unique phone; explicit same-page phone conflicts; and strong existing matches carrying non-identity field-review reasons. Expected invariant: identity truth remains recognized whenever the identity evidence is strong enough, while field corrections remain auditable.
+
+
+### Current scan reconciliation applied — scan job `812b6ad9-375b-40d8-8328-1e2e73aacf07`
+
+- The production scan originally completed as `0 recognized / 0 new / 13 review` even though multiple rows had decisive existing-person evidence.
+- The affected scan was reconciled without deleting evidence or People records: **9 scan rows are now attached to existing People, 4 exact/decisive rows were safely resolved from the Review Center, and 5 remain as field-level reviews attached to an existing person.** Four rows remain genuinely unresolved identity decisions because their evidence contains real conflicts/ambiguity.
+- The scan job record was updated to reflect the post-scan reconciliation: `9 existing recognized / 0 new / 9 needing attention`, with the reconciliation source recorded in the verification metadata.
+- Because two rows belonged to the same Happiness person, the reconciliation represents 9 recognized scan observations across 8 distinct existing People IDs.

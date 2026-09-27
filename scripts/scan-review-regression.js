@@ -21,6 +21,10 @@ assert(/keep_separate/.test(resolveApi)&&/identity_pair_decisions/.test(resolveA
 assert(/mergeLearningHistory/.test(duplicateAction)&&/mergeActionHistory/.test(duplicateAction)&&/mergeEventHistory/.test(duplicateAction)&&/mergeObservationHistory/.test(duplicateAction),'Duplicate merge must reconcile ARIA history before moving person references.');
 assert(/mergePersonRelationships/.test(duplicateAction)&&/aria_person_state/.test(duplicateAction),'Duplicate merge must reconcile relationship and ARIA person-state uniqueness safely.');
 assert(/identity_alias/.test(duplicateAction)&&/human_confirmed_merge/.test(duplicateAction)&&/person_aliases/.test(duplicateAction),'A confirmed merge must teach ARIA the duplicate name as a future identity alias.');
+assert(/mergeAttendanceHistory/.test(duplicateAction)&&/mergeParticipationHistory/.test(duplicateAction)&&/mergeCurrentMemory/.test(duplicateAction),'Duplicate merge must reconcile attendance, participation, and current person memory before identity collapse.');
+assert(/people_intelligence/.test(duplicateAction)&&/aria_person_state/.test(duplicateAction),'Duplicate merge must explicitly reconcile current intelligence/state collisions rather than relying on a generic person_id move.');
+assert(/mergedPhones=\[\.\.\.new Set\(\[\.\.\.phoneList\(canonical\),\.\.\.phoneList\(duplicate\)\]\)/.test(duplicateAction),'A same-name duplicate merge must preserve compatible phone history from both records instead of losing the verified phone.');
+
 assert(!/Some history could not be safely combined\. Nothing was changed\./.test(duplicateAction),'Merge implementation must not collapse distinct history conflicts into the old generic failure path.');
 assert(/return_to=/.test(people),'People cards must preserve the source location.');
 assert(/safeReturnTo/.test(person)&&/window\.history\.length/.test(person),'Person Journey back navigation must use a safe explicit return destination with history fallback.');

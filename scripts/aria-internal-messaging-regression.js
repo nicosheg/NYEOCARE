@@ -18,8 +18,8 @@ assert(/send_internal_message/.test(registry)&&/unsend_internal_message/.test(re
 assert(/parseInternalMessageIntent/.test(command)&&/explicit:true/.test(command),'Internal message sending must use deterministic explicit intent parsing.');
 assert(/resolveInternalRecipient/.test(command)&&/sendInternalMessage/.test(command)&&/unsendInternalMessage/.test(command),'Command execution must use the organization-scoped internal messaging service.');
 assert(/referenced_internal_messages/.test(state)&&/internal_message/.test(state),'Conversation state must retain internal message references for follow-up commands.');
-assert(/organization_id=$1/.test(messaging)&&/sender_user_id=$2/.test(messaging)&&/recipient_user_id/.test(messaging),'Internal messaging must remain organization and operator scoped.');
-assert(/status='unsent'/.test(messaging)&&/sender_user_id=$3/.test(messaging),'Only the original sender may unsend a message.');
+assert(/organization_id=\$1/.test(messaging)&&/sender_user_id=\$2/.test(messaging)&&/recipient_user_id/.test(messaging),'Internal messaging must remain organization and operator scoped.');
+assert(/status='unsent'/.test(messaging)&&/sender_user_id=\$3/.test(messaging),'Only the original sender may unsend a message.');
 assert(/seen_at/.test(messaging)&&/MESSAGE_UNSENT/.test(messaging),'Read/unsend race handling must be explicit.');
 assert(/aria_daily_queue_items/.test(messaging)&&/task_kind='internal_message'/.test(messaging),'Internal message lifecycle must synchronize with the daily queue.');
 assert(/fixed_assignee_id/.test(queue)&&/m\.seen_at IS NULL/.test(queue),'Internal messages must remain pinned to the recipient and only unseen messages enter the daily queue.');

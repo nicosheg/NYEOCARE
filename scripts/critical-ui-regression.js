@@ -17,7 +17,6 @@ const errorBoundary=read('components/ClientErrorBoundary.js');
 const attendanceModal=read('components/AttendanceModal.js');
 const environment=read('components/NyeoEnvironment.js');
 const draftEngine=read('lib/aria/draftEngine.js');
-const layout=read('components/Layout.js');
 const profile=read('pages/profile.js');
 const onboarding=read('components/OnboardingProvider.js');
 const scanRecovery=read('components/ScanRecovery.js');

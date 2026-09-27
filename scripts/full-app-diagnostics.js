@@ -25,7 +25,8 @@ for(const file of apiFiles){
  if(/\.query\(\s*['\"]BEGIN['\"]\s*\)/.test(source)&&!(/\.query\(\s*['\"]COMMIT['\"]\s*\)/.test(source)||/\.query\(\s*['\"]ROLLBACK['\"]\s*\)/.test(source)))
   failures.push(file+': transaction begins without COMMIT/ROLLBACK');
 
- const commitMatch=source.match(/\.query\(\s*['\"]COMMIT['\"]\s*\)/);\n const commit=commitMatch?commitMatch.index:-1;
+ const commitMatch=source.match(/\.query\(\s*['\"]COMMIT['\"]\s*\)/);
+ const commit=commitMatch?commitMatch.index:-1;
  if(commit>=0){
   const releaseMatch=source.slice(commit).match(/[A-Za-z_$][A-Za-z0-9_$]*\.release\(\)/);
   const boundary=releaseMatch?commit+releaseMatch.index:source.length;

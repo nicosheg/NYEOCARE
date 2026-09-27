@@ -197,7 +197,7 @@ const checks=[
  ['Scan review makes merge vs separate an explicit human decision',
   /This is a different person/.test(reviewCenter)&&/Use this person/.test(reviewCenter)&&/action==='separate'/.test(reviewCenter)&&!/setMode\('merge'\)/.test(reviewCenter)],
  ['Scan review filters weak stale candidate evidence',
-  /Number\(c\.score\|\|0\)>=60/.test(reviewCenter)&&/filter\(c=>Number\(c\.score\|\|0\)>=60\)/.test(reviewCenter)],
+  /Number\(c\.score\|\|0\)>=60/.test(reviewCenter)&&/Number\(c\.name_score\|\|0\)>=85/.test(reviewCenter)&&/filter\(c=>active\.kind==='database_duplicate'/.test(reviewCenter)],
  ['Scan review stores and reuses human keep-separate decisions',
   /decision='keep_separate'/.test(identityResolver)&&/keepSeparate/.test(identityResolver)&&/identity_pair_decisions/.test(reviewResolveApi)],
  ['Identity resolver uses balanced 50/50 evidence',

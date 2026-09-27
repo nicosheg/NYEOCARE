@@ -2412,3 +2412,25 @@ The incident was verified in production runtime logs before the fix; the failing
 - **History reconciliation:** duplicate merges now have explicit reconciliation paths for `aria_learning`, `aria_actions`, `aria_events`, `aria_observations`, `person_relationships`, and the existing attendance, participation, memory, alias, role, custom-field, segment, relationship-score, engagement, intelligence, and ARIA-state paths. Logical duplicates are merged or discarded only where they represent the same keyed fact/action/event; unrelated history is retained.
 - **Safety invariant:** any unexpected database error remains transactionally atomic — the canonical person, duplicate person, history, learning, and audit state must all roll back together. The user must never see a successful merge when only part of the person's history moved.
 - **Regression gate:** test human-edited existing identities, explicit separate→later-merge flows, duplicate alias learning, overlapping ARIA action/event/learning keys, relationship collisions, ARIA person-state collisions, attendance/participation collisions, and full rollback on an unexpected constraint. The expected outcome is one surviving person with complete compatible history, one archived duplicate, durable aliases/learning, and no silent history loss.
+
+### Regression case added — same-name duplicate records with one missing phone
+
+A concrete production case established the required merge behavior:
+
+- Person A: **Sister Blessing**, active, no phone, unverified.
+- Person B: **Sister Blessing**, active, **+234 806 536 6272**, human-verified.
+- Separate person: **Blessing Emelile**, **+234 206 619 9143**, must remain a completely different identity.
+
+The duplicate-review action shown to the operator was for the **two Sister Blessing records**. It was not a merge request for Blessing Emelile.
+
+The permanent rule is:
+
+1. Exact normalized name may legitimately surface two database records as a possible duplicate.
+2. A human may explicitly merge those two records when the records are confirmed to represent one person.
+3. The merge must preserve compatible phone data; the verified phone must survive on the canonical record.
+4. The merge must combine compatible history across its own uniqueness domains and archive only the duplicate record.
+5. A different person such as Blessing Emelile must not be touched by that merge.
+6. A prior scan decision that created Sister Blessing separately from Blessing Emelile remains a separate identity decision; it does not become a merge merely because another duplicate group is later merged.
+7. Regression coverage must keep the same-name/one-phone-missing case, current-state collisions, and phone preservation.
+
+This case exists because **“same name” and “same person” are not interchangeable**. Duplicate detection may surface the pair; only the explicit human merge decision establishes that these two records are one person.

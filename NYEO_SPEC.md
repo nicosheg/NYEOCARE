@@ -2163,3 +2163,98 @@ The earlier generic NYEOCARE error boundary remains useful for post-mount React 
 ### Regression requirement
 
 A future production reliability change is incomplete until the critical navigation matrix has been exercised and the result is recorded. At minimum: cold Home, Home → People, Profile → People, and incognito/cold production open. Any discrepancy between paths is treated as a first-class client reliability bug rather than a user-cache problem.
+
+## Production reliability hardening — September 27, 2026: navigation-path client exception regression
+
+A production client exception was reproduced with a specific navigation pattern:
+
+- **Profile → People:** People loaded normally.
+- **Home → People:** People could fail with the browser-level **“Application error: a client-side exception has occurred while loading nyeocare.vercel.app”** screen.
+- **Fresh/incognito open of the normal production URL:** the same client exception could appear.
+- This demonstrated that the failure could not safely be classified as a People-page data/API failure or as a generic stale-chunk problem.
+
+### Diagnostic lesson
+
+A route working after one navigation path does **not** prove that its client dependency graph is healthy.
+
+The production investigation must compare:
+1. direct cold load;
+2. authenticated navigation from Home → People;
+3. authenticated navigation from Profile → People;
+4. the exact client chunks loaded by each path;
+5. shared _app / Layout / runtime modules;
+6. browser-side exceptions before and after hydration;
+7. Vercel runtime telemetry.
+
+For this incident, production HTML for Home was healthy and the server-side route itself was reachable. The useful signal came from reproducing the navigation difference and treating the browser exception as a client dependency/runtime problem rather than assuming the People API was broken.
+
+### Permanent engineering rule
+
+**Navigation history is part of the reproduction state.**
+
+Every critical route regression test must include both:
+- **cold entry** into the route; and
+- **warm client-side navigation** into the route from each major shell surface that can reach it.
+
+At minimum for the primary shell:
+- Home → People;
+- Profile → People;
+- direct /people cold open;
+- authenticated fresh-session /people;
+- stale-cache/chunk recovery path where applicable.
+
+A route that only works after another page has warmed the browser is not considered production-correct.
+
+### Recovery architecture requirement
+
+The friendly NYEOCARE error boundary is a containment layer, not proof that the application is healthy. Client exceptions must be diagnosed at the earliest layer possible:
+
+    COLD HTML / STATIC CHUNKS
+            ↓
+    PRE-HYDRATION RUNTIME
+            ↓
+    NEXT APP SHELL / SHARED RUNTIME
+            ↓
+    PAGE MODULE
+            ↓
+    CLIENT-SIDE NAVIGATION
+            ↓
+    PAGE EFFECTS / BROWSER APIs
+            ↓
+    DATA / AUTH REQUESTS
+
+When a route fails only after a particular navigation path, inspect shared modules and navigation lifecycle before changing the route's data layer.
+
+### Regression protection
+
+Future reliability changes must preserve:
+- bounded pre-React stale-chunk recovery;
+- route-keyed application error-boundary reset;
+- isolated non-critical global runtimes;
+- lazy loading of heavy/optional surfaces;
+- feature detection for browser APIs;
+- automatic auth/session recovery where safe;
+- client exception telemetry to /api/diagnostics/client-error;
+- production verification of cold load **and** navigation paths.
+
+A browser-level **“Application error”** is an engineering incident even when Vercel reports no server runtime error. Absence of server logs must never be used to conclude that the client is healthy.
+
+### Verification standard
+
+After any change affecting _app.js, Layout, navigation, shared providers, global runtime modules, service-worker caching, or page-level dynamic imports, verify the following against the production deployment:
+
+    DIRECT /people COLD LOAD
+            +
+    HOME → PEOPLE
+            +
+    PROFILE → PEOPLE
+            +
+    FRESH / INCOGNITO ENTRY
+            ↓
+    NO CLIENT EXCEPTION
+            ↓
+    NO UNEXPECTED SERVER ERROR
+            ↓
+    EXPECTED PEOPLE CONTENT
+
+This incident is now a permanent regression case and must be used when reviewing future NYEOCARE navigation, caching, hydration, and client-runtime changes.

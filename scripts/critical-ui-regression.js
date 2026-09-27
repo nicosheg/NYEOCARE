@@ -39,6 +39,9 @@ const intelligence=read('lib/aria/attendanceIntelligence.js');
 const director=read('lib/aria/director.js');
 const eventProcessor=read('lib/aria/eventProcessor.js');
 const briefing=read('pages/api/daily-briefing/latest.js');
+const dailyQueue=read('lib/dailyQueue.js');
+const dailyQueueDefer=read('pages/api/daily-queue/defer.js');
+const dailyQueueMigration=read('supabase/migrations/20260927060000_add_aria_daily_queue.sql');
 const homeBootstrap=read('pages/api/home/bootstrap.js');
 const durableMigration=read('supabase/migrations/20260920154000_durable_attendance_processing.sql');
 const recoveryMigration=read('supabase/migrations/20260920154500_harden_attendance_queue_recovery.sql');
@@ -185,8 +188,13 @@ const checks=[
 
  ['Review Center uses plain user-facing identity language',
   /duplicates:\{title:'Duplicates',tag:'PEOPLE'/.test(reviewCenter)&&/POSSIBLE DUPLICATE/.test(reviewCenter)&&!/DATABASE DUPLICATE/.test(reviewCenter)],
+ ['Daily briefing is a per-operator compressed queue',/getDailyQueue/.test(briefing)&&/capacityPerOperator:5/.test(briefing)&&/laterCount/.test(briefing)&&/aria_daily_queue_items/.test(dailyQueue)],
+ ['Daily queue distributes work across active owner/admin operators',/role IN\('owner','admin'\)/.test(dailyQueue)&&/DAY_CAPACITY=5/.test(dailyQueue)&&/HORIZON_DAYS=31/.test(dailyQueue)],
+ ['Daily queue defers work without rejecting the underlying ARIA action',/deferDailyQueueItem/.test(dailyQueueDefer)&&/queue_date/.test(dailyQueueDefer)&&/\/api\/daily-queue\/defer/.test(scanModal)===false&&/\/api\/daily-queue\/defer/.test(read('pages/index.js'))],
+ ['Daily queue has durable one-source scheduling',/UNIQUE \(organization_id, task_kind, source_id\)/.test(dailyQueueMigration)],
+ ['Review Center excludes attendance follow-ups',/pending_count:scanItems\.length\+groups\.length/.test(reviewApi)&&!/attendanceItems/.test(reviewApi)],
  ['Daily briefing makes scan review a canonical grouped item',
-  /pendingScan/.test(briefing)&&/category:'scan'/.test(briefing)&&/scan_review_required/.test(briefing)&&/continue/.test(briefing)],
+  /scan_review_items/.test(dailyQueue)&&/task_kind:'scan_review'/.test(dailyQueue)&&/category:'scan'/.test(dailyQueue)],
  ['Auth caches bearer verification',
   /AUTH_TTL=2500/.test(auth)],
  ['Review identity actions prioritize correction before direct remembering',/Edit & remember/.test(reviewCenter)&&/Remember as read/.test(reviewCenter)&&reviewCenter.indexOf('Edit & remember')<reviewCenter.indexOf('Remember as read')],

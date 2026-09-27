@@ -2050,3 +2050,34 @@ On offline restart:
 Discard is an authoritative session-destruction action, not a local UI-only mutation. Only organization owners/admins may see or invoke it. The permission is returned by the active-session API and persisted with the Field Mode session so an authorized cached/offline reopen does not silently lose the action. When offline, NYEOCARE keeps the discard control safe by requiring reconnection before deleting the server session; it must never pretend a local-only discard has ended the shared organization session.
 
 Any future change that removes this capability must be treated as a Field Mode regression.
+
+---
+
+## ARIA Internal Operator Messaging
+
+ARIA can send a private in-app message from one authenticated organization operator to another authenticated active operator. This is distinct from WhatsApp and must remain inside the current organization.
+
+### Truth and authorization
+
+- The recipient is always an active row in `users`; ARIA must never resolve an internal message recipient from `people`.
+- The sender is the authenticated operator. Owner, admin, and user operators may send to other active operators in the same organization.
+- The explicit command must contain both a recipient and the exact message body. ARIA must not invent missing recipient text or message content.
+- A message is persisted as a server-owned `aria_internal_messages` record. Browser clients do not receive direct table write access.
+- Sending is idempotent for a single ARIA request so retries cannot create duplicate internal messages.
+
+### ARIA Today synchronization
+
+- Unseen internal messages are first-class ARIA Today queue items with task kind `internal_message`.
+- Private internal messages are notification/inbox work, not part of the five-item care/action capacity. They remain pinned to the recipient and may appear alongside the recipient's compressed daily care queue.
+- Assignment is pinned to the actual recipient; a message must never be redistributed to another administrator merely to satisfy the normal daily queue allocation.
+- Opening a message records `seen_at` and completes its queue item transactionally.
+- ARIA Today refreshes while open and on focus so message arrival/removal is reflected without requiring a hard reload.
+- If a message is unsent before it is seen, the queue item is dismissed and the recipient does not receive an in-app message record on the next synchronized read.
+- If a recipient has already seen the message, unsending changes the message to an unsent state rather than rewriting history to claim it was unseen.
+
+### Unsend semantics
+
+- Only the original sender may unsend their own message.
+- `unsend it` can resolve the most recent internal message referenced by the current ARIA conversation state.
+- `unsend my last message` resolves the sender's latest still-sent internal message, optionally narrowed to a named recipient.
+- Unsend and read are serialized at the database row level so a simultaneous open/unsend cannot create a contradictory seen state.

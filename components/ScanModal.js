@@ -22,7 +22,7 @@ function readFile(file){return new Promise((ok,no)=>{const r=new FileReader();r.
 async function prepare(file){
  if(!file)throw Error('No image selected.');
  const type=String(file.type||'').toLowerCase();
- if(file.size&&file.size<=MAX&&/^image\\/(jpeg|jpg|png|webp)$/i.test(type))return readFile(file);
+ if(file.size&&file.size<=MAX&&/^image\/(jpeg|jpg|png|webp)$/i.test(type))return readFile(file);
  const u=URL.createObjectURL(file);
  try{
   const im=await Promise.race([

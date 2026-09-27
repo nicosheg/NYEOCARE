@@ -43,7 +43,17 @@ const personRows=await safe(`SELECT p.*,pi.lifecycle_state AS intelligence_lifec
         )z) AS last_interaction_at,rs.score AS relationship_score,rs.relationship_state,aps.engagement_state,aps.care_state,aps.followup_state,aps.open_observation_count,aps.open_action_count,aps.attention_reason FROM people p LEFT JOIN people_intelligence pi ON pi.organization_id=p.organization_id AND pi.person_id=p.id LEFT JOIN engagement_metrics em ON em.organization_id=p.organization_id AND em.person_id=p.id LEFT JOIN relationship_scores rs ON rs.organization_id=p.organization_id AND rs.person_id=p.id LEFT JOIN aria_person_state aps ON aps.organization_id=p.organization_id AND aps.person_id=p.id WHERE p.organization_id=$1 AND p.id=$2 LIMIT 1`,[orgId,id]);
 if(!personRows.length)return res.status(404).json({error:'Person not found'});
 const journey=(await pool.query(`
-WITH person AS(
+WITH RECURSIVE merged_lineage AS(
+ SELECT $2::uuid AS person_id
+ UNION ALL
+ SELECT p.id
+ FROM people p
+ JOIN merged_lineage ml
+   ON p.organization_id=$1
+  AND p.metadata->>'identity_merged_into'=ml.person_id::text
+ WHERE p.status='archived'
+),
+person AS(
  SELECT p.*,pi.lifecycle_state AS intelligence_lifecycle,pi.engagement_score,pi.attention_score,pi.attention_level,pi.next_best_action,pi.action_reason,
         em.participation_count,em.participation_rate,em.participation_streak,em.inactivity_streak,em.first_seen,em.last_meaningful_event,
         COALESCE(
@@ -165,7 +175,7 @@ SELECT
    SELECT * FROM care_feedback WHERE organization_id=$1 AND person_id=$2 ORDER BY observed_at DESC,created_at DESC LIMIT 50
  )x),'[]'::json) AS feedback,
  COALESCE((SELECT json_agg(x) FROM(
-   SELECT * FROM aria_events WHERE organization_id=$1 AND person_id=$2 ORDER BY occurred_at DESC,created_at DESC LIMIT 100
+   SELECT * FROM aria_events WHERE organization_id=$1 AND person_id IN(SELECT person_id FROM merged_lineage) ORDER BY occurred_at DESC,created_at DESC LIMIT 100
  )x),'[]'::json) AS aria_events
 FROM person
 `,[orgId,id])).rows[0];

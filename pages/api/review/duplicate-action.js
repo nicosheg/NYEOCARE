@@ -195,38 +195,11 @@ async function mergeActionHistory(db,org,canonicalId,duplicateId){
  await db.query('UPDATE aria_actions SET person_id=$1 WHERE organization_id=$3 AND person_id=$2',[canonicalId,duplicateId,org]);
 }
 
-async function mergeEventHistory(db,org,canonicalId,duplicateId){
- const collisions=(await db.query(`
-  SELECT c.id canonical_id,d.id duplicate_id
-  FROM aria_events c
-  JOIN aria_events d
-    ON d.organization_id=c.organization_id
-   AND d.event_key=c.event_key
-  WHERE c.organization_id=$1 AND c.person_id=$2 AND d.person_id=$3
-  FOR UPDATE OF c,d
- `,[org,canonicalId,duplicateId])).rows;
- for(const row of collisions){
-  await db.query(`
-   UPDATE aria_events c
-   SET
-     metadata=CASE WHEN jsonb_typeof(c.metadata)='object' AND jsonb_typeof(d.metadata)='object' THEN COALESCE(c.metadata,'{}'::jsonb)||COALESCE(d.metadata,'{}'::jsonb) ELSE COALESCE(c.metadata,d.metadata) END,
-     occurred_at=LEAST(c.occurred_at,d.occurred_at),
-     processed_at=GREATEST(c.processed_at,d.processed_at),
-     processing_status=CASE
-       WHEN c.processing_status='processed' OR d.processing_status='processed' THEN 'processed'
-       WHEN c.processing_status='failed' OR d.processing_status='failed' THEN 'failed'
-       ELSE COALESCE(c.processing_status,d.processing_status)
-     END,
-     processing_attempts=GREATEST(COALESCE(c.processing_attempts,0),COALESCE(d.processing_attempts,0)),
-     verification_status=CASE WHEN c.verification_status='verified' OR d.verification_status='verified' THEN 'verified' ELSE COALESCE(c.verification_status,d.verification_status) END,
-     confidence=GREATEST(COALESCE(c.confidence,0),COALESCE(d.confidence,0))
-   FROM aria_events d
-   WHERE c.id=$1 AND d.id=$2
-  `,[row.canonical_id,row.duplicate_id]);
-  await db.query('DELETE FROM aria_events WHERE id=$1',[row.duplicate_id]);
- }
- await db.query('UPDATE aria_events SET person_id=$1 WHERE organization_id=$3 AND person_id=$2',[canonicalId,duplicateId,org]);
-}
+// ARIA event history is append-only and intentionally immutable.
+// Historical events remain attached to the original person identity.
+// The archived person's metadata.identity_merged_into points to the canonical identity,
+// and Person Journey follows that lineage when reading historical ARIA events.
+async function preserveImmutableEventHistory(){return}
 
 async function mergeObservationHistory(db,org,canonicalId,duplicateId){
  const collisions=(await db.query(`
@@ -413,7 +386,7 @@ async function mergePeople(db,org,canonicalId,duplicateId,actorId,evidence){
  await mergeIdentityPairDecisions(db,org,canonicalId,duplicateId);
  await mergeLearningHistory(db,org,canonicalId,duplicateId);
  await mergeActionHistory(db,org,canonicalId,duplicateId);
- await mergeEventHistory(db,org,canonicalId,duplicateId);
+ await preserveImmutableEventHistory();
  await mergeObservationHistory(db,org,canonicalId,duplicateId);
  await mergePersonRelationships(db,org,canonicalId,duplicateId);
  // scan_review_items.proposed_person_id is a live pointer into the identity graph, not immutable scan evidence.

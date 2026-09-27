@@ -1,4 +1,4 @@
-const CACHE='nyeocare-static-v3',APP_SHELL='/',STATIC_PREFIXES=['/_next/static/','/icons/'],OFFLINE_PATHS=['/offline.html','/manifest.json'];
+const CACHE='nyeocare-static-v4',APP_SHELL='/',STATIC_PREFIXES=['/_next/static/','/icons/'],OFFLINE_PATHS=['/offline.html','/manifest.json'];
 self.addEventListener('install',event=>{event.waitUntil((async()=>{const cache=await caches.open(CACHE);await cache.addAll([...OFFLINE_PATHS,APP_SHELL]);await self.skipWaiting()})())});
 self.addEventListener('activate',event=>{event.waitUntil((async()=>{const keys=await caches.keys();await Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)));await self.clients.claim()})())});
 self.addEventListener('fetch',event=>{

@@ -1,0 +1,16 @@
+import{parsePeopleRoster}from'../lib/aria/peopleMutationEngine.js';
+const sample="Mummy Christiana\n08022597401\n\nSIS Sandra Isiocha\n08039579758\nPlease she's very strong,\n\nSIS Ruth nwoke \n07032360332\n\nSIS Joy CHISA\n07053576543\n\nSIS Julianna Nnabuife \n07065938725\n\nSIS Adaeze Patric \n08065622779\n\nSIS Elizabeth Enne\n08037410314\n\nSIS Evelyn John \n07089946471\n\nSIS Amaka \n07033386402\n\nMummy Adebayo \n08052160814\n\nMummy withrey \n0808997362\n\nSIS Tina\n08066768446\n\nSIS blessing back of the church \n08159471212\n\nMama OMOSAYE Walne\n\nSIS Gress Akere\n08161876028\n\nSIS blessing emefel \n07066179143\n\nSIS Patricia\n08028658904\n\nSIS Rita Obi\n09122030048\n\nSIS Joy Grace compound \n08033203778\n\nPlease let call them and know why they are not in Sunday service today,";
+const result=parsePeopleRoster(sample);
+const names=result.rows.map(x=>x.name);
+const expect=(condition,message)=>{if(!condition)throw new Error(message)};
+expect(result.rows.length>=18,'Roster parser should keep the supplied person rows.');
+expect(names.includes('Mummy Christiana'),'Christiana row missing.');
+expect(names.includes('SIS Sandra Isiocha'),'Sandra row missing.');
+expect(names.includes('Mama OMOSAYE Walne'),'Name-only row must be retained.');
+expect(result.rows.some(x=>x.name==='Mummy Christiana'&&x.phone==='08022597401'),'Christiana phone missing.');
+expect(result.rows.some(x=>x.name==='SIS Sandra Isiocha'&&x.phone==='08039579758'),'Sandra phone missing.');
+expect(result.rows.some(x=>x.name==='Mummy withrey'&&x.phone==='0808997362'),'Invalid/incomplete phone input should remain attached to its row for review.');
+expect(result.rows.some(x=>x.name==='SIS Sandra Isiocha'&&/strong/i.test(x.note||'')),'Sandra context note should remain attached to the row.');
+console.log('[ARIA PEOPLE REGRESSION]');
+console.log('Parsed rows:',result.rows.length,'Ignored lines:',result.ignored.length);
+console.log('PASS: roster names, phones, notes and invalid-number review boundaries are preserved.');

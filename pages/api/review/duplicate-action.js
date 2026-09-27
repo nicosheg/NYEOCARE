@@ -405,6 +405,7 @@ async function mergePeople(db,org,canonicalId,duplicateId,actorId,evidence){
  if(!canonical||!duplicate)throw Object.assign(new Error('Both active people must still exist.'),{statusCode:404});
  await db.query(`SELECT id FROM people WHERE organization_id=$1 AND id=ANY($2::uuid[]) ORDER BY id FOR UPDATE`,[org,[String(canonicalId),String(duplicateId)].sort()]);
  await mergeAttendanceHistory(db,org,canonicalId,duplicateId);
+ await mergeAttendanceContexts(db,org,canonicalId,duplicateId);
  await mergeParticipationHistory(db,org,canonicalId,duplicateId);
  await mergeCurrentMemory(db,org,canonicalId,duplicateId);
  await removeUniquePersonCollisions(db,org,canonicalId,duplicateId);

@@ -2436,6 +2436,19 @@ The permanent rule is:
 This case exists because **“same name” and “same person” are not interchangeable**. Duplicate detection may surface the pair; only the explicit human merge decision establishes that these two records are one person.
 
 
+## Production merge hardening follow-up — September 27, 2026: keep Review Center pointers attached to surviving identities
+
+The people merge path must reconcile not only historical person rows but also active application pointers into the identity graph.
+
+The scan_review_items.proposed_person_id field is a live pointer used by Review Center to associate a review with the person currently represented by that review. During a confirmed merge:
+
+- resolved scan-review items whose proposed_person_id is the archived duplicate must be repointed to the surviving canonical person before the duplicate is archived;
+- immutable scan evidence such as raw/extracted names, phones, evidence, candidates, and decision history must not be rewritten merely because the person identity was merged;
+- the merge must leave Review Center capable of opening historical/resolved work without pointing at an archived identity as its current subject;
+- regression coverage must explicitly guard the scan_review_items.proposed_person_id reconciliation.
+
+This closes the remaining person-reference gap found by comparing every public table containing a person identifier against the production merge implementation.
+
 ## Production merge deployment gate — September 27, 2026
 
 The human-confirmed duplicate merge hardening is incomplete until the production alias is actually running the same commit as `main`.

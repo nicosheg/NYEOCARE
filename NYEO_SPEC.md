@@ -2467,3 +2467,16 @@ For identity-merge changes, deployment verification is mandatory:
 7. A production merge retry against an older deployment is explicitly considered a failed verification, not a user error.
 
 This gate exists because repository correctness and production correctness are separate release states.
+
+
+## Production experience hardening — September 27, 2026: Tell ARIA corrections must never block on derived intelligence
+
+- **Observed production failure:** clicking **Tell ARIA → They attended** returned `timeout exceeded when trying to connect` from `POST /api/attendance/aria-correction`.
+- **Exact root cause:** the endpoint correctly committed the human attendance correction first, but then kept its single serverless PostgreSQL client checked out while running engagement metrics, relationship scoring, people intelligence, ARIA person-state updates, and sometimes AI care-draft generation. NYEOCARE's bounded serverless pool uses `max:1` with a short connection timeout, so those post-commit operations could exhaust the only available client and turn a successful correction into a user-visible 500/timeout.
+- **Important data-safety finding:** the failed response did **not** mean the human correction was lost. The transaction had already committed the attendance correction and timeline event before the later connection acquisition failed. Returning an error after a successful commit created a false failure in the UI.
+- **Permanent interaction contract:** the synchronous request path must save the smallest human fact atomically, publish durable background work, commit, release the database client, and return immediately. Derived ARIA intelligence must not run inline after commit.
+- **Attendance correction implementation:** `pages/api/attendance/aria-correction.js` now resets the closed session's ARIA processing state, enqueues the existing `nyeocare-attendance` PGMQ pipeline at `persist`, commits, and returns `202` with `processing_pending:true`. The durable worker recomputes the downstream attendance intelligence asynchronously.
+- **User experience contract:** the Tell ARIA attendance modal closes immediately for an attendance confirmation. For an absence correction, the UI acknowledges the saved human fact and explains that ARIA is continuing in the background; it never makes the user wait for an AI draft.
+- **Regression gates:** `test:critical-ui` now verifies that attendance correction is durable and non-blocking. A new `test:experience` contract sweep scans transactional API routes for the broader class of post-commit DB/AI work performed while a serverless client is still held.
+- **CI/deployment gate:** `test:experience` runs before the remaining intelligence/auth/scale/field-mode suites and before the Vercel production build/deploy. A future endpoint that recreates this connection-lifetime pattern should fail CI before reaching production.
+- **Audit method:** production experience review now combines (1) critical-path contract tests, (2) broad architectural hazard scans, (3) full regression/scale/auth suites, (4) production deployment verification, and (5) deployment-scoped runtime error scans. This does not mathematically prove the absence of all future bugs, but it makes this class of failure mechanically detectable rather than dependent on a user discovering it first.

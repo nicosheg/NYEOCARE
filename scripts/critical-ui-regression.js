@@ -12,6 +12,9 @@ const personPage=read('pages/person/[id].js');
 const peopleApi=read('pages/api/people.js');
 const peopleSizing=read('styles/people-sizing.css');
 const reviewCenter=read('components/ReviewCenterTab.js');
+const identityResolver=read('lib/identityResolver.js');
+const processingStatus=read('components/AriaProcessingStatus.js');
+const scanReviewDbMigration=read('supabase/migrations/20260927043500_allow_identity_pair_keep_separate.sql');
 const profile=read('pages/profile.js');
 const onboarding=read('components/OnboardingProvider.js');
 const scanRecovery=read('components/ScanRecovery.js');
@@ -185,11 +188,25 @@ const checks=[
 
  ['Review Center uses plain user-facing identity language',
   /duplicates:\{title:'Duplicates',tag:'PEOPLE'/.test(reviewCenter)&&/POSSIBLE DUPLICATE/.test(reviewCenter)&&!/DATABASE DUPLICATE/.test(reviewCenter)],
+ ['Scan review makes merge vs separate an explicit human decision',
+  /This is a different person/.test(reviewCenter)&&/Use this person/.test(reviewCenter)&&/action==='separate'/.test(reviewCenter)&&!/setMode\('merge'\)/.test(reviewCenter)],
+ ['Scan review filters weak stale candidate evidence',
+  /Number\(c\.score\|\|0\)>=60/.test(reviewCenter)&&/filter\(c=>Number\(c\.score\|\|0\)>=60\)/.test(reviewCenter)],
+ ['Scan review stores and reuses human keep-separate decisions',
+  /decision='keep_separate'/.test(identityResolver)&&/keepSeparate/.test(identityResolver)&&/strongIds/.test(identityResolver)&&/decision='keep_separate'/.test(reviewResolveApi)],
+ ['Identity-pair schema permits keep-separate',
+  /keep_separate/.test(scanReviewDbMigration)&&/identity_pair_decisions_decision_check/.test(scanReviewDbMigration)],
+ ['Scan processing uses real stage feedback and a moving indeterminate bar',
+  /ariaScanProcess/.test(processingStatus)&&/ariaScanSweep/.test(processingStatus)&&/ariaProcessTrack\.indeterminate/.test(processingStatus)&&/reading_full_page/.test(processingStatus)],
+ ['Scan processing screen is compact and removes duplicate status copy',
+  /processBody/.test(scanModal)&&/elapsedText\(state\.elapsedSeconds\).*elapsed/.test(scanModal)&&!/You may close this screen/.test(scanModal)],
+ ['Scan extraction remains capped at 50 logical rows',
+  /const MAX=50/.test(read('lib/hybridScanProvider.js'))&&/maxItems:MAX/.test(read('lib/hybridScanProvider.js'))&&/rows\.slice\(0,MAX\)/.test(read('lib/hybridScanProvider.js'))],
  ['Daily briefing makes scan review a canonical grouped item',
   /pendingScan/.test(briefing)&&/category:'scan'/.test(briefing)&&/scan_review_required/.test(briefing)&&/continue/.test(briefing)],
  ['Auth caches bearer verification',
   /AUTH_TTL=2500/.test(auth)],
- ['Review identity actions prioritize correction before direct remembering',/Edit & remember/.test(reviewCenter)&&/Remember as read/.test(reviewCenter)&&reviewCenter.indexOf('Edit & remember')<reviewCenter.indexOf('Remember as read')],
+ ['Review identity actions use explicit scan outcomes',/This is a different person/.test(reviewCenter)&&/Use this person/.test(reviewCenter)&&/Edit scanned record/.test(reviewCenter)],
  ['Review Center supports audited bulk dismissal of selected scan reviews',/bulk_dismissed/.test(reviewResolveApi)&&/status='rejected'/.test(reviewResolveApi)&&/id=ANY\(\$4::uuid\[\]\)/.test(reviewResolveApi)&&/selected_count/.test(reviewResolveApi)],
  ['Review Center supports long-press scan selection only for scan reviews',/onPointerDown/.test(reviewCenter)&&/setTimeout\(\(\)=>beginSelection/.test(reviewCenter)&&/item\.kind==='scan_identity_review'/.test(reviewCenter)&&/bulkDismiss/.test(reviewCenter)],
  ['Camera and gallery scans use the same low-memory-safe image-preparation path',/async function prepare\(file\)/.test(scanModal)&&/deviceMemory/.test(scanModal)&&/2200/.test(scanModal)&&/2600/.test(scanModal)&&/\.88/.test(scanModal)&&!/3200\/Math\.max/.test(scanModal)&&/Take photo/.test(scanModal)&&/Upload image/.test(scanModal)],

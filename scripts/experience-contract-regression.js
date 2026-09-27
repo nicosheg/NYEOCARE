@@ -15,8 +15,9 @@ for(const file of apiFiles){
  const source=read(file);
  if(!source.includes('pool.connect()')||!source.includes('COMMIT'))continue;
  const commit=source.indexOf('COMMIT');
- const release=source.indexOf('db.release()',commit);
- const boundary=release>=0?release:source.length;
+ const releaseMatch=source.slice(commit).match(/[A-Za-z_$][A-Za-z0-9_$]*\.release\(\)/);
+ const release=releaseMatch?commit+releaseMatch.index:source.length;
+ const boundary=release;
  const postCommit=source.slice(commit,boundary);
  if(/await\s+(?:pool\.)?query\(/.test(postCommit)||
     /await\s+(?:updateEngagementMetricsForPerson|computeRelationshipScore|updatePeopleIntelligence|updatePersonState|createCareDraft|generateText)\s*\(/.test(postCommit)){

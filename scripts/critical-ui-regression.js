@@ -36,6 +36,7 @@ const auth=read('lib/auth.js');
 const reviewApi=read('pages/api/review/index.js');
 const reviewResolveApi=read('pages/api/review/resolve.js');
 const scanModal=read('components/ScanModal.js');
+const scanProvider=read('lib/hybridScanProvider.js');
 const activeApi=read('pages/api/attendance/active-session.js');
 const attendanceCorrectionApi=read('pages/api/attendance/aria-correction.js');
 const attendancePeopleApi=read('pages/api/attendance/people.js');
@@ -135,8 +136,8 @@ const checks=[
  ['Navigation prefetches routes centrally during idle time',/requestIdleCallback/.test(layout)&&/r\.prefetch\('\/'\)/.test(layout)&&/r\.prefetch\('\/people'\)/.test(layout)&&/r\.prefetch\('\/profile'\)/.test(layout)&&!/router\.prefetch\('\/people'\)/.test(home)],
  ['People enhancer is not globally mounted',
   !/PeopleSurfaceEnhancer/.test(app)],
- ['People roster cards are painted immediately instead of deferred on scroll',
-  !/content-visibility:auto/.test(peoplePage)&&/peopleSoftBreeze/.test(peoplePage)],
+ ['People roster does not read browser storage during the render phase',
+  /useState\(\(\)=>new Set\(\)\)/.test(peoplePage)&&/localStorage\.getItem\('nyeocare:seen-scan-cards:v1'\)/.test(peoplePage)],
  ['People restores the previous scroll position after a person journey',
   /PEOPLE_SCROLL_KEY/.test(peoplePage)&&/sessionStorage\.setItem\(PEOPLE_SCROLL_KEY/.test(peoplePage)&&/window\.scrollTo\(0,y\)/.test(peoplePage)],
  ['Person Journey returns to an explicit safe source location with history fallback',
@@ -199,6 +200,8 @@ const checks=[
   /function backToQueue\(\)/.test(reviewCenter)&&/__nyeocareReviewDetail/.test(reviewCenter)&&/popstate/.test(reviewCenter)&&/Review queue/.test(reviewCenter)&&/function finish\(\)\{backToQueue\(\)\}/.test(reviewCenter)],
  ['Client error boundary resets when the route changes and can recover globally',
   /ClientErrorBoundary key=\{router\.asPath\} resetKey=\{router\.asPath\}/.test(appPage)&&/componentDidMount\(\)/.test(errorBoundary)&&/nyeocare:app-refresh/.test(errorBoundary)],
+ ['Navigation automatically recovers stale Next.js chunks once',
+  /routeChangeError/.test(appPage)&&/ChunkLoadError|Loading chunk|dynamically imported module/.test(appPage)&&/sessionStorage/.test(appPage)&&/window\.location\.reload\(\)/.test(appPage)],
  ['Attendance never treats online local cache as authoritative',
   /hydrateFieldSession=useCallback\(async\(userId,\{allowLocalSession=false\}=\{\}\)/.test(attendanceModal)&&/allowLocalSession:offline/.test(attendanceModal)&&/if\(offline\)\{/.test(attendanceModal)&&/fieldCached&&fieldCached\.session\?\.status==='active'/.test(attendanceModal)],
  ['Global app runtime revalidates auth/data invisibly',
@@ -224,8 +227,14 @@ const checks=[
  ['Review identity actions are explicit and correction-first',/Use this person/.test(reviewCenter)&&/This is a different person/.test(reviewCenter)&&/Edit scanned record/.test(reviewCenter)&&/Selected:/.test(reviewCenter)],
  ['Review Center supports audited bulk dismissal of selected scan reviews',/bulk_dismissed/.test(reviewResolveApi)&&/status='rejected'/.test(reviewResolveApi)&&/id=ANY\(\$4::uuid\[\]\)/.test(reviewResolveApi)&&/selected_count/.test(reviewResolveApi)],
  ['Review Center supports long-press scan selection only for scan reviews',/onPointerDown/.test(reviewCenter)&&/setTimeout\(\(\)=>beginSelection/.test(reviewCenter)&&/item\.kind==='scan_identity_review'/.test(reviewCenter)&&/bulkDismiss/.test(reviewCenter)],
- ['Camera and gallery scans use the stable mobile preparation path',/async function prepare\(file\)/.test(scanModal)&&scanModal.includes('image\\/(jpeg|jpg)')&&/MAX=4000000/.test(scanModal)&&/withTimeout/.test(scanModal)&&/SCAN_IMAGE_DECODE_TIMEOUT/.test(scanModal)&&/SCAN_IMAGE_ENCODE_TIMEOUT/.test(scanModal)&&!/timeoutError/.test(scanModal)],
+ ['Camera and gallery scans preserve supported source-image detail',/async function prepare\(file\)/.test(scanModal)&&scanModal.includes('^image')&&scanModal.includes('(jpeg|jpg|png|webp)')&&/MAX=4000000/.test(scanModal)&&/withTimeout/.test(scanModal)&&/SCAN_IMAGE_DECODE_TIMEOUT/.test(scanModal)&&/SCAN_IMAGE_ENCODE_TIMEOUT/.test(scanModal)&&/3000/.test(scanModal)&&!/timeoutError/.test(scanModal)],
  ['Camera and gallery both call the same scan starter after preparation',/onChange=\{pick\}/.test(scanModal)&&/const pick=e=>/.test(scanModal)&&/if\(f\)start\(f\)/.test(scanModal)&&/const image_base64=await prepare\(file\)/.test(scanModal)],
+ ['Scan extraction uses the proven overlapping-region pipeline',
+  /v65-hybrid-multiregion-crosscheck-revived/.test(scanProvider)&&/regions=await makeRegions/.test(scanProvider)&&/Math\.round\(H\*\.62\)/.test(scanProvider)&&/normalize\(\)\.sharpen/.test(scanProvider)&&/reasoning_effort:'high'/.test(scanProvider)&&/cross_checking/.test(scanProvider)],
+ ['Scan extraction performs conservative independent cross-checking when configured',
+  /GEMINI_API_KEY/.test(scanProvider)&&/geminiCrosscheck/.test(scanProvider)&&/flagDisagreements/.test(scanProvider)&&/row_ownership_uncertain/.test(scanProvider)],
+ ['People roster silently refreshes expired auth sessions',
+  /if\(res\.status===401\)/.test(peoplePage)&&/refreshClientSession\(\)/.test(peoplePage)&&/setAccessToken\(activeToken\)/.test(peoplePage)],
  ['Person editing preserves the displayed honorific/prefix',/setEditName\(p\.display_name\|\|/.test(personPage)],
  ['People API preserves an existing honorific when an edit omits it',/existing=normalizeDisplayName\(check\.rows\[0\]\.display_name/.test(peopleApi)&&/existing\.honorific&&!parsed\.honorific/.test(peopleApi)],
  ['People roster API projects canonical last_seen from engagement metrics',/em\.last_seen/.test(peopleApi)&&/AS last_seen/.test(peopleApi)&&/SELECT r\.id,/.test(peopleApi)&&/r\.last_seen/.test(peopleApi)],

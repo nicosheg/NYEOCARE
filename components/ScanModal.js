@@ -22,20 +22,25 @@ function readFile(file){return new Promise((ok,no)=>{const r=new FileReader();r.
 async function prepare(file){
  if(!file)throw Error('No image selected.');
  const type=String(file.type||'').toLowerCase();
- if(file.size&&file.size<=MAX&&/image\/(jpeg|jpg)/i.test(type))return readFile(file);
+ if(file.size&&file.size<=MAX&&/^image\/(jpeg|jpg|png|webp)$/i.test(type))return readFile(file);
  const u=URL.createObjectURL(file);
  try{
-  const im=await withTimeout(new Promise((ok,no)=>{const x=new Image();x.onload=()=>ok(x);x.onerror=()=>no(Object.assign(new Error('This image could not be decoded. Please retake it as JPG or PNG.'),{code:'SCAN_IMAGE_DECODE_FAILED'}));x.src=u}),PREP,'SCAN_IMAGE_DECODE_TIMEOUT');
+  const im=await Promise.race([
+   new Promise((ok,no)=>{const x=new Image();x.onload=()=>ok(x);x.onerror=()=>no(Object.assign(new Error('This image could not be decoded. Please retake it as JPG or PNG.'),{code:'SCAN_IMAGE_DECODE_FAILED'}));x.src=u}),
+   withTimeout(PREP,'SCAN_IMAGE_DECODE_TIMEOUT')
+  ]);
   const w=im.naturalWidth||im.width||0,h=im.naturalHeight||im.height||0;
   if(!w||!h)throw Object.assign(new Error('This image has no readable dimensions. Please retake it as JPG or PNG.'),{code:'SCAN_IMAGE_DIMENSIONS'});
-  const lowMemory=typeof navigator!=='undefined'&&Number(navigator.deviceMemory||4)<=2;
-  const maxDimension=lowMemory?2200:2800,scale=Math.min(1,maxDimension/Math.max(w,h)),width=Math.max(1,Math.round(w*scale)),height=Math.max(1,Math.round(h*scale)),c=document.createElement('canvas');
-  c.width=width;c.height=height;
-  const x=c.getContext('2d',{alpha:false,willReadFrequently:false});
-  if(!x)throw Object.assign(new Error('Image processing is unavailable on this device.'),{code:'SCAN_CANVAS_UNAVAILABLE'});
-  x.imageSmoothingEnabled=true;x.imageSmoothingQuality=lowMemory?'medium':'high';x.fillStyle='#fff';x.fillRect(0,0,width,height);x.drawImage(im,0,0,width,height);
-  let out=await withTimeout(new Promise(r=>c.toBlob(r,'image/jpeg',.88)),12000,'SCAN_IMAGE_ENCODE_TIMEOUT');
-  if(!out||out.size>MAX)out=await withTimeout(new Promise(r=>c.toBlob(r,'image/jpeg',.76)),12000,'SCAN_IMAGE_ENCODE_TIMEOUT');
+  const maxDimension=3000,scale=Math.min(1,maxDimension/Math.max(w,h)),width=Math.max(1,Math.round(w*scale)),height=Math.max(1,Math.round(h*scale)),canvas=document.createElement('canvas');
+  canvas.width=width;canvas.height=height;
+  const ctx=canvas.getContext('2d',{alpha:false,willReadFrequently:false});
+  if(!ctx)throw Object.assign(new Error('Image processing is unavailable on this device.'),{code:'SCAN_CANVAS_UNAVAILABLE'});
+  ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.fillStyle='#fff';ctx.fillRect(0,0,width,height);ctx.drawImage(im,0,0,width,height);
+  let out=null;
+  for(const quality of [.92,.84,.76]){
+   out=await Promise.race([new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',quality)),withTimeout(12000,'SCAN_IMAGE_ENCODE_TIMEOUT')]);
+   if(out&&out.size<=MAX)break;
+  }
   if(!out||out.size>MAX)throw Object.assign(new Error('This photo is too large to process on this device. Please retake it a little closer to the register.'),{code:'SCAN_IMAGE_TOO_LARGE'});
   return readFile(out);
  }finally{URL.revokeObjectURL(u)}

@@ -2103,6 +2103,15 @@ ARIA can send a private in-app message from one authenticated organization opera
 - Unsend and read are serialized at the database row level so a simultaneous open/unsend cannot create a contradictory seen state.
 
 
+## Production reliability hardening — September 27, 2026: scan quality and People recovery
+
+- **Proven scan extraction architecture restored:** the production vision provider again reads tall registers as overlapping physical regions, merges observations using vertical position/name/phone evidence, and optionally performs an independent Gemini cross-check. This restores the multi-region behavior from the previously successful scan pipeline.
+- **Physical-row accuracy remains primary:** Qwen is instructed to preserve literal name/phone characters, avoid autofill, keep continuation phones attached only when physical placement supports it, and flag ambiguity instead of guessing.
+- **Current identity pipeline is preserved:** the restored extraction layer emits the current validator's evidence fields and continues into the existing identity resolution, Living Truth, review, duplicate protection and human-confirmation flow. A scan result never becomes attendance automatically.
+- **Both camera and upload share the same client path:** supported JPEG/JPG/PNG/WebP files under the safe limit retain their original pixels; larger files use bounded high-quality preparation. This prevents PNG/WebP uploads from being needlessly degraded before vision.
+- **People hydration/recovery is hardened:** browser storage is no longer read during the render phase; expired roster sessions can refresh automatically; stale Next.js chunk navigation performs a single automatic reload instead of leaving the user on the generic error screen.
+- **Scope boundary:** these changes do not alter identity evidence rules, attendance truth, server-authoritative session semantics, or human confirmation requirements.
+
 ## Production reliability hardening — September 27, 2026: scan and app recovery
 
 - **Client scan preparation is no longer needlessly fragile:** normal JPEG camera images within the server-safe size limit use a direct base64 path; larger/non-JPEG images use a bounded resize/encode path. Preparation/auth watchdogs use cancellable timers so successful operations do not leave timeout timers alive.

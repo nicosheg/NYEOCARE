@@ -5,7 +5,7 @@ import Layout from'../components/Layout';
 import ReviewCenterTab from'../components/ReviewCenterTab';
 import FirstExperience from'../components/FirstExperience';
 import BirthdayPicker from'../components/BirthdayPicker';
-import{getClientSession}from'../lib/clientSession';import{publishDataChange}from'../lib/appData';
+import{getClientSession,refreshClientSession}from'../lib/clientSession';import{publishDataChange}from'../lib/appData';
 import{useOnboarding}from'../components/OnboardingProvider';
 
 const ICONS={
@@ -41,8 +41,8 @@ return <><div style={{maxWidth:1100,margin:'0 auto',padding:20}}><div className=
 }
 
 export default function PeoplePage(){
-const router=useRouter();const onboarding=useOnboarding();const[people,setPeople]=useState([]);const[search,setSearch]=useState('');const[roleFilter,setRoleFilter]=useState('all');const[showLivingTruthOnly,setShowLivingTruthOnly]=useState(false);const[msg,setMsg]=useState('');const[loading,setLoading]=useState(true);const[showAdd,setShowAdd]=useState(false);const[form,setForm]=useState({full_name:'',phone:'',email:'',type:'visitor',birthday:''});const[expandedId,setExpandedId]=useState(null);const[addingNote,setAddingNote]=useState(false);const[noteText,setNoteText]=useState('');const[importingConv,setImportingConv]=useState(false);const[convText,setConvText]=useState('');const[showPicker,setShowPicker]=useState(false);const[pickerTarget,setPickerTarget]=useState(null);const[editingId,setEditingId]=useState(null);const[editName,setEditName]=useState('');const[editPhone,setEditPhone]=useState('');const[editEmail,setEditEmail]=useState('');const[editBirthday,setEditBirthday]=useState('');const[selectMode,setSelectMode]=useState(false);const[selectedIds,setSelectedIds]=useState(new Set());const[reviewCount,setReviewCount]=useState(0);const[totalPeople,setTotalPeople]=useState(0);const[nextCursor,setNextCursor]=useState(null);const[loadingMore,setLoadingMore]=useState(false);const abortRef=useRef(null);const firstLoadRef=useRef(false);const[seenScanIds,setSeenScanIds]=useState(()=>{try{return new Set(JSON.parse(localStorage.getItem('nyeocare:seen-scan-cards:v1')||'[]'))}catch{return new Set()}});const scanTimers=useRef(new Map());const[showReviewPanel,setShowReviewPanel]=useState(false);const[accessToken,setAccessToken]=useState(null);const longPressTimer=useRef(null);const longPressTriggered=useRef(false);const scrollRestoreRef=useRef(false);const PEOPLE_SCROLL_KEY='nyeocare:people-scroll:v1';
-const flash=useCallback(text=>{setMsg(text);window.setTimeout(()=>setMsg(''),3000)},[]);
+const router=useRouter();const onboarding=useOnboarding();const[people,setPeople]=useState([]);const[search,setSearch]=useState('');const[roleFilter,setRoleFilter]=useState('all');const[showLivingTruthOnly,setShowLivingTruthOnly]=useState(false);const[msg,setMsg]=useState('');const[loading,setLoading]=useState(true);const[showAdd,setShowAdd]=useState(false);const[form,setForm]=useState({full_name:'',phone:'',email:'',type:'visitor',birthday:''});const[expandedId,setExpandedId]=useState(null);const[addingNote,setAddingNote]=useState(false);const[noteText,setNoteText]=useState('');const[importingConv,setImportingConv]=useState(false);const[convText,setConvText]=useState('');const[showPicker,setShowPicker]=useState(false);const[pickerTarget,setPickerTarget]=useState(null);const[editingId,setEditingId]=useState(null);const[editName,setEditName]=useState('');const[editPhone,setEditPhone]=useState('');const[editEmail,setEditEmail]=useState('');const[editBirthday,setEditBirthday]=useState('');const[selectMode,setSelectMode]=useState(false);const[selectedIds,setSelectedIds]=useState(new Set());const[reviewCount,setReviewCount]=useState(0);const[totalPeople,setTotalPeople]=useState(0);const[nextCursor,setNextCursor]=useState(null);const[loadingMore,setLoadingMore]=useState(false);const abortRef=useRef(null);const firstLoadRef=useRef(false);const[seenScanIds,setSeenScanIds]=useState(()=>new Set());const scanTimers=useRef(new Map());const[showReviewPanel,setShowReviewPanel]=useState(false);const[accessToken,setAccessToken]=useState(null);const longPressTimer=useRef(null);const longPressTriggered=useRef(false);const scrollRestoreRef=useRef(false);const PEOPLE_SCROLL_KEY='nyeocare:people-scroll:v1';
+const flash=useCallback(text=>{setMsg(text);if(typeof window!=='undefined')window.setTimeout(()=>setMsg(''),3000)},[]);
 const fetchPeople=useCallback(async({token,reset=true,cursor=null,searchValue=search,typeValue=roleFilter,livingValue=showLivingTruthOnly,background=false}={})=>{
  if(!token)return;
  if(abortRef.current)abortRef.current.abort();
@@ -54,14 +54,17 @@ const fetchPeople=useCallback(async({token,reset=true,cursor=null,searchValue=se
   if(typeValue!=='all')params.set('type',typeValue);
   if(livingValue)params.set('living_truth','1');
   if(cursor)params.set('cursor',cursor);
-  const res=await fetch('/api/people?'+params.toString(),{headers:{Authorization:`Bearer ${token}`},cache:'no-store',signal:controller.signal});
-  const data=await res.json();
+  let activeToken=token;
+  let res=await fetch('/api/people?'+params.toString(),{headers:{Authorization:`Bearer ${activeToken}`},cache:'no-store',signal:controller.signal});
+  if(res.status===401){const refreshed=await refreshClientSession().catch(()=>null);if(refreshed?.access_token){activeToken=refreshed.access_token;setAccessToken(activeToken);res=await fetch('/api/people?'+params.toString(),{headers:{Authorization:`Bearer ${activeToken}`},cache:'no-store',signal:controller.signal})}}
+  const data=await res.json().catch(()=>({error:`Unable to read People response (${res.status}).`}));
   if(!res.ok)throw new Error(data.error||'Unable to load people');
   if(reset)setPeople(Array.isArray(data.items)?data.items:[]);else setPeople(prev=>[...prev,...(Array.isArray(data.items)?data.items:[])]);
   setNextCursor(data.next_cursor||null);
   if(data.total_count!==null&&data.total_count!==undefined)setTotalPeople(Number(data.total_count)||0);
  }catch(err){if(err?.name!=='AbortError'&&!background)flash(err.message||'Unable to load people')}finally{if(!controller.signal.aborted){if(reset&&!background)setLoading(false);else if(!reset)setLoadingMore(false)}}
 },[flash,search,roleFilter,showLivingTruthOnly]);
+useEffect(()=>{try{const raw=localStorage.getItem('nyeocare:seen-scan-cards:v1');if(raw)setSeenScanIds(new Set(JSON.parse(raw)))}catch{}},[]);
 useEffect(()=>{let mounted=true;getClientSession().then(session=>{if(!mounted)return;if(session){setAccessToken(session.access_token);firstLoadRef.current=true}else setLoading(false)}).catch(()=>{if(mounted)setLoading(false)});return()=>{mounted=false;if(longPressTimer.current)window.clearTimeout(longPressTimer.current);if(abortRef.current)abortRef.current.abort()}},[]);
 
 useEffect(()=>{if(!accessToken||!firstLoadRef.current)return;setSelectedIds(new Set());const timer=window.setTimeout(()=>fetchPeople({token:accessToken,reset:true}),250);return()=>window.clearTimeout(timer)},[search,roleFilter,showLivingTruthOnly,accessToken,fetchPeople]);

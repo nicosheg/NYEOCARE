@@ -6,7 +6,7 @@ const config=fs.readFileSync('next.config.js','utf8');
 
 assert.ok(home.includes("const ReviewCenterTab=dynamic(()=>import('../components/ReviewCenterTab')"));
 assert.equal((home.match(/<ReviewCenterTab/g)||[]).length,1);
-assert.match(people,/import ReviewCenterTab from'\.\.\/components\/ReviewCenterTab';/);
+assert.match(people,/const ReviewCenterTab=dynamic\(\(\)=>import\('\.\.\/components\/ReviewCenterTab'\)/);
 assert.equal((people.match(/<ReviewCenterTab modal/g)||[]).length,1);
 assert.doesNotMatch(people,/const resolveReview=async/);
 assert.doesNotMatch(people,/review-panel-overlay/);

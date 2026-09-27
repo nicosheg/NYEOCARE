@@ -22,7 +22,7 @@ export default withOrg(async function handler(req,res){
   });
   const groupedCounts={scan:0,follow_up:0,care:0};
   for(const item of items){if(item.category==='scan')groupedCounts.scan++;else if(item.task_kind==='follow_up'||item.label==='FOLLOW-UP')groupedCounts.follow_up++;else groupedCounts.care++}
-  const todayCount=items.length,laterCount=Number(queue.later_count)||0,openCount=Number(queue.openCount)||0;
+  const todayCount=items.length,laterCount=Number(queue.later_count)||0,openCount=Number(queue.open_count)||0;
   const settings=org.rows[0]?.settings||{},vocabulary=settings?.aria?.vocabulary||{person:'people',members:'members',leaders:'leaders',care:'care',prayer:'prayer'};
   const headline=todayCount
    ? `Your ARIA queue has ${todayCount} thing${todayCount===1?'':'s'} lined up for today.`

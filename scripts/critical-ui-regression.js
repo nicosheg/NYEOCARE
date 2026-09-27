@@ -198,7 +198,7 @@ const checks=[
  ['Client error boundary resets when the route changes',
   /ClientErrorBoundary resetKey=\{router\.asPath\}/.test(appPage)&&/componentDidUpdate\(prevProps\)/.test(errorBoundary)],
  ['Attendance never treats online local cache as authoritative',
-  /hydrateFieldSession=useCallback\(async\(userId,\{allowLocalSession=false\}=\{\}\)/.test(attendanceModal)&&/allowLocalSession:offline/.test(attendanceModal)&&/offline&&fieldCached&&fieldCached\.session\?\.status==='active'/.test(attendanceModal)],
+  /hydrateFieldSession=useCallback\(async\(userId,\{allowLocalSession=false\}=\{\}\)/.test(attendanceModal)&&/allowLocalSession:offline/.test(attendanceModal)&&/if\(offline\)\{/.test(attendanceModal)&&/fieldCached&&fieldCached\.session\?\.status==='active'/.test(attendanceModal)],
  ['Environment weather state cannot crash the app',
   /const WEATHER_KEY='nyeocare:weather:v2'/.test(environment)&&/let weatherInFlight=false/.test(environment)&&/const run=\(\)=>\{try\{getWeather\(\)/.test(environment)],
  ['ARIA care draft initializes phone before database metadata insert',

@@ -81,6 +81,19 @@ if(!existsSync('components/ClientDiagnostics.js'))
 if(!existsSync('pages/api/system/diagnostics/index.js'))
  failures.push('pages/api/system/diagnostics/index.js: admin diagnostics surface is missing');
 
+const clientDiagnostics=existsSync('components/ClientDiagnostics.js')?read('components/ClientDiagnostics.js'):'';
+if(clientDiagnostics&&!clientDiagnostics.includes("window.addEventListener('error'")) failures.push('components/ClientDiagnostics.js: global browser error listener is missing');
+if(clientDiagnostics&&!clientDiagnostics.includes("window.addEventListener('unhandledrejection'")) failures.push('components/ClientDiagnostics.js: unhandled rejection listener is missing');
+if(clientDiagnostics&&!clientDiagnostics.includes("Authorization:'Bearer '+session.access_token")) failures.push('components/ClientDiagnostics.js: diagnostic requests are not authenticated');
+if(clientDiagnostics&&!clientDiagnostics.includes("/api/diagnostics/client-error")) failures.push('components/ClientDiagnostics.js: diagnostic endpoint is missing');
+
+const apiHelper=existsSync('lib/apiHelpers.js')?read('lib/apiHelpers.js'):'';
+if(apiHelper&&!apiHelper.includes('X-NYEO-Request-ID')) failures.push('lib/apiHelpers.js: API request correlation header is missing');
+if(apiHelper&&!apiHelper.includes('recordDiagnosticEvent')) failures.push('lib/apiHelpers.js: server exception persistence hook is missing');
+
+const clientErrorRoute=existsSync('pages/api/diagnostics/client-error.js')?read('pages/api/diagnostics/client-error.js'):'';
+if(clientErrorRoute&&!clientErrorRoute.includes('recordDiagnosticEvent')) failures.push('pages/api/diagnostics/client-error.js: diagnostic persistence is missing');
+
 console.log('[FULL APP DIAGNOSTICS]');
 console.log('Scanned '+files.length+' JS/JSX files and '+apiFiles.length+' API routes.');
 console.log('High-confidence failures: '+failures.length);

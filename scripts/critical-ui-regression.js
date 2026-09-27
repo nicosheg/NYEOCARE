@@ -124,6 +124,8 @@ const checks=[
   /attachDatabasePool\(pool\)/.test(db)],
  ['Home coalesces bootstrap loads',
   /loadPromiseRef\.current/.test(home)],
+ ['Home cleanup has no stale prefetch timer references',
+  !/cancelIdleCallback\(idle\)/.test(home)&&!/clearTimeout\(fallback\)/.test(home)],
  ['People does not initialize ARIA on page open',
   !peoplePage.includes('/api/aria/initialize')],
  ['Profile uses one bootstrap request',

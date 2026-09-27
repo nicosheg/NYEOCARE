@@ -5,6 +5,7 @@ import{detectDuplicates}from'../../../lib/duplicateDetector';
 async function person(db,id,org){const q=await db.query(`SELECT id,display_name,first_name,last_name,phone,phone_numbers,metadata,living_truth,identity_verification_status,identity_verified_at,identity_verified_by FROM people WHERE id=$1 AND organization_id=$2 AND status='active' FOR UPDATE`,[id,org]);return q.rows[0]||null}
 function nameOf(p){return String(p.display_name||[p.first_name,p.last_name].filter(Boolean).join(' ')||p.first_name||'').trim()}
 function phoneList(p){const v=Array.isArray(p.phone_numbers)?p.phone_numbers:p.phone?[p.phone]:[];return[...new Set(v.filter(Boolean).map(x=>typeof x==='string'?x:x?.normalized||x?.raw||x?.phone).filter(Boolean))]}
+function normalizeAliasKey(value){return String(value||'').normalize('NFKD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'').trim().slice(0,160)}
 async function mergeAttendanceHistory(db,org,canonicalId,duplicateId){
  const collisions=(await db.query(`
   SELECT c.id canonical_id,d.id duplicate_id
@@ -326,9 +327,20 @@ async function mergePeople(db,org,canonicalId,duplicateId,actorId,evidence){
  }catch(err){
   throw Object.assign(new Error('ARIA history could not be safely combined. Nothing was changed.'),{statusCode:409,code:'IDENTITY_ARIA_CONFLICT'});
  }
+ const duplicateName=nameOf(duplicate);
  try{
-  await db.query(`INSERT INTO person_aliases(organization_id,person_id,alias,created_by) SELECT $1,$2,$3,$4 WHERE $3<>'' AND NOT EXISTS(SELECT 1 FROM person_aliases WHERE organization_id=$1 AND person_id=$2 AND lower(alias)=lower($3))`,[org,canonicalId,nameOf(duplicate),actorId]);
+  await db.query(`INSERT INTO person_aliases(organization_id,person_id,alias,created_by) SELECT $1,$2,$3,$4 WHERE $3<>'' AND NOT EXISTS(SELECT 1 FROM person_aliases WHERE organization_id=$1 AND person_id=$2 AND lower(alias)=lower($3))`,[org,canonicalId,duplicateName,actorId]);
  }catch(err){console.warn('[DUPLICATE] Alias preservation skipped:',err.message)}
+ try{
+  const learningKey=normalizeAliasKey(duplicateName);
+  if(learningKey){
+   await db.query(`INSERT INTO aria_learning(organization_id,person_id,scope_key,learning_type,learning_key,value,confidence,source_type,source_id,active,learning_domain,scope_level,learning_context,privacy_class)
+   VALUES($1,$2,$3,'identity_alias',$4,$5,1,'human_review',NULL,true,'scan','personal','scan_extraction','identity_private')
+   ON CONFLICT(organization_id,scope_key,learning_type,learning_key)
+   DO UPDATE SET value=EXCLUDED.value,confidence=1,active=true,updated_at=NOW(),person_id=EXCLUDED.person_id`,
+   [org,canonicalId,`person:${canonicalId}`,learningKey,JSON.stringify({observed_name:duplicateName,canonical_name:nameOf(canonical),merged_from:duplicateId,merged_at:new Date().toISOString(),reason:'human_confirmed_merge'})]);
+  }
+ }catch(err){console.warn('[DUPLICATE] Identity learning skipped:',err.message)}
  const mergedPhones=[...new Set([...phoneList(canonical),...phoneList(duplicate)])].slice(0,2),phoneJson=JSON.stringify(mergedPhones.map((p,i)=>({raw:p,normalized:p,source:'identity_merge',index:i+1})));
  const mergedMetadata={...(canonical.metadata||{}),identity_verified:true,last_identity_merge:{duplicate_id:duplicateId,merged_at:new Date().toISOString(),merged_by:actorId,evidence}};
  const truth={...(canonical.living_truth||{}),status:'alive',source:'human_review',confirmed_at:(canonical.identity_verified_at||new Date().toISOString()),confirmed_by:(canonical.identity_verified_by||actorId)};

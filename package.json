@@ -30,7 +30,8 @@
     "test:aria-internal-messaging": "node scripts/aria-internal-messaging-regression.js",
     "test:experience": "node scripts/experience-contract-regression.js",
     "test:diagnostics": "node scripts/full-app-diagnostics.js",
-    "test:aria-today": "node scripts/aria-today-regression.js"
+    "test:aria-today": "node scripts/aria-today-regression.js",
+    "test:aria-people": "node --experimental-specifier-resolution=node --experimental-default-type=module scripts/aria-people-regression.js"
   },
   "dependencies": {
     "next": "15.5.24",

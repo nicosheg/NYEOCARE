@@ -2369,3 +2369,15 @@ Any future Review Center bulk-action change must verify:
 This incident reinforces a general NYEOCARE rule:
 
 **UI identifiers and persistence identifiers may differ, but every boundary must explicitly normalize the identifier contract before validation or mutation.**
+
+
+### Follow-up root cause: PostgreSQL parameter typing in bulk dismissal
+The first identifier normalization fix exposed a second, database-level defect in the bulk dismissal query. PostgreSQL could not infer the type of the `$3` parameter used inside `jsonb_build_object(..., 'selected_count', $3, ...)`, returning SQLSTATE `42P18` (`could not determine data type of parameter $3`).
+
+The permanent fix explicitly casts the selected-count parameter to integer before passing it to `jsonb_build_object`.
+
+This is a required lesson for parameterized JSON construction in NYEOCARE:
+
+**When a PostgreSQL parameter is used in a polymorphic JSON function and its type cannot be inferred from surrounding SQL, cast it explicitly at the SQL boundary.**
+
+The incident was verified in production runtime logs before the fix; the failing request was `POST /api/review/resolve` and the database error was SQLSTATE `42P18`.

@@ -13,7 +13,7 @@ const walk=dir=>{
 
 const files=[...new Set(['pages','components','lib'].flatMap(walk))];
 const apiFiles=files.filter(x=>x.startsWith('pages/api/'));
-const clientFiles=files.filter(x=>x.startsWith('pages/')||x.startsWith('components/'));
+const clientFiles=files.filter(x=>(x.startsWith('pages/')&&!x.startsWith('pages/api/'))||x.startsWith('components/'));
 const failures=[],warnings=[];
 
 for(const file of apiFiles){
@@ -22,10 +22,10 @@ for(const file of apiFiles){
  if(source.includes('pool.connect()')&&!/\.release\(\)/.test(source))
   failures.push(file+': pool.connect() without release()');
 
- if(/await\s+[^\n;]*['"]BEGIN['"]/.test(source)&&!(/COMMIT/.test(source)||/ROLLBACK/.test(source)))
+ if(/\.query\(\s*['\"]BEGIN['\"]\s*\)/.test(source)&&!(/\.query\(\s*['\"]COMMIT['\"]\s*\)/.test(source)||/\.query\(\s*['\"]ROLLBACK['\"]\s*\)/.test(source)))
   failures.push(file+': transaction begins without COMMIT/ROLLBACK');
 
- const commit=source.indexOf('COMMIT');
+ const commitMatch=source.match(/\.query\(\s*['\"]COMMIT['\"]\s*\)/);\n const commit=commitMatch?commitMatch.index:-1;
  if(commit>=0){
   const releaseMatch=source.slice(commit).match(/[A-Za-z_$][A-Za-z0-9_$]*\.release\(\)/);
   const boundary=releaseMatch?commit+releaseMatch.index:source.length;

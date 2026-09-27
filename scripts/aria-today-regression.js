@@ -18,7 +18,7 @@ const state=read('lib/aria/conversationState.js');
 const profile=read('pages/profile.js');
 const peopleMutation=read('lib/aria/peopleMutationEngine.js');
 
-expect(queue.includes("m?.kind==='attendance_absence_check_in'?'follow_up':'action'"),'Attendance absence actions must be canonical follow-up queue items.');
+expect(queue.includes("m?.kind==='attendance_absence_check_in'||m?.kind==='returned_after_absence'?'follow_up':'action'"),'Attendance absence actions must be canonical follow-up queue items.');
 expect(queue.includes("task_kind:first?'follow_up':'action'"),'UNUSUAL_ABSENCE observations must be canonical follow-up queue items.');
 expect(home.includes("getDailyQueue(orgId,req.user.id)"),'Home must consume the canonical Daily Queue.');
 expect(home.includes("queue:{todayCount:count,laterCount:Number(dailyQueue.later_count)||0,items:top}"),'Home must expose canonical queue state.');

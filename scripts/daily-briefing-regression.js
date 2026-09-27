@@ -17,7 +17,7 @@ assert(/\/api\/daily-queue\/defer/.test(home)&&/queue_item_id:item\.queue_item_i
 assert(/queueMetaBlock/.test(home)&&/Scheduled later/.test(home),'ARIA Today must expose compressed later-work state.');
 assert(/scan_review_items/.test(review)&&!/attendanceItems/.test(review)&&/pending_count:scanItems\.length\+groups\.length/.test(review),'Review Center must exclude attendance follow-up queue work.');
 assert(/getDailyQueue/.test(briefing)&&/capacityPerOperator:5/.test(briefing)&&/laterCount/.test(briefing),'Daily briefing API must be backed by the operator queue.');
-assert(/aria_daily_queue_items/.test(queue)&&/DAY_CAPACITY=5/.test(queue)&&/role\s+IN\s*\('owner','admin'\)/.test(queue),'Daily queue must be durable, capped and admin/owner distributed.');
+assert(/aria_daily_queue_items/.test(queue)&&/DAY_CAPACITY=5/.test(queue)&&/role\s+IN\s*\('owner','admin'\)/.test(queue)&&/internal_message/.test(queue),'Daily queue must be durable, capped, message-aware and admin/owner distributed.');
 assert(/queue_date/.test(defer)&&/deferDailyQueueItem/.test(defer),'Daily queue defer endpoint must reschedule work instead of rejecting it.');
 assert(/UNIQUE \(organization_id, task_kind, source_id\)/.test(migration),'One active queue assignment must exist per source item.');
 console.log('[DAILY BRIEFING] queue and crash regression checks passed.');

@@ -1,11 +1,11 @@
 // pages/api/attendance/context.js
-import pool from'../../../lib/db';import{withOrg}from'../../../lib/apiHelpers';
+import pool from'../../../lib/db';import{withOrg}from'../../../lib/apiHelpers';import{resolveCareWorkInTransaction}from'../../../lib/aria/canonicalCare';
 const REASONS=new Set(['health','travel','work_school','family','personal','transport','other','unknown','not_attending']);
 function weekday(v){const n=new Date(v).getUTCDay();return n===0?7:n}
 function nextDate(start,service){const base=new Date(start),baseDay=weekday(start),m=String(service||'').match(/^weekday:(\d)$/);const target=m?Number(m[1]):baseDay,delta=((target-baseDay+7)%7)||7;base.setUTCDate(base.getUTCDate()+delta);return base.toISOString().slice(0,10)}
 export default withOrg(async function handler(req,res){
  if(req.method!=='POST')return res.status(405).json({error:'Method not allowed'});
- const{session_id,people_id,reason_code='unknown',reason_note='',return_option='unknown',expected_return_date=null}=req.body||{};
+ const{session_id,people_id,reason_code='unknown',reason_note='',return_option='unknown',expected_return_date=null,action_id=null,observation_id=null}=req.body||{};
  if(!session_id||!people_id)return res.status(400).json({error:'session_id and people_id are required.'});
  if(!REASONS.has(String(reason_code)))return res.status(400).json({error:'Invalid absence reason.'});
  if(!['unknown','next_gathering','specific_date'].includes(String(return_option)))return res.status(400).json({error:'Invalid return option.'});
@@ -21,7 +21,13 @@ export default withOrg(async function handler(req,res){
   let returnDate=null,known=false;
   if(return_option==='specific_date'){if(!/^\d{4}-\d{2}-\d{2}$/.test(String(expected_return_date||'')))return res.status(400).json({error:'Choose a return date.'});returnDate=expected_return_date;known=true}
   if(return_option==='next_gathering'){returnDate=nextDate(s.rows[0].started_at,s.rows[0].service_type);known=true}
-  const result=await pool.query('INSERT INTO aria_attendance_contexts(organization_id,person_id,session_id,reason_code,reason_note,expected_return_date,expected_service_type,expected_return_known,source,created_by,updated_at,resolved_at,resolved_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,\'human\',$9,NOW(),NULL,NULL) ON CONFLICT(organization_id,session_id,person_id) DO UPDATE SET reason_code=EXCLUDED.reason_code,reason_note=EXCLUDED.reason_note,expected_return_date=EXCLUDED.expected_return_date,expected_service_type=EXCLUDED.expected_service_type,expected_return_known=EXCLUDED.expected_return_known,source=\'human\',created_by=EXCLUDED.created_by,updated_at=NOW(),resolved_at=NULL,resolved_by=NULL RETURNING id,reason_code,reason_note,expected_return_date,expected_service_type,expected_return_known',[orgId,people_id,session_id,String(reason_code),String(reason_note||'').trim().slice(0,1000)||null,returnDate,s.rows[0].service_type||null,known,req.user.id]);
-  return res.status(200).json({success:true,context:result.rows[0]});
+  const db=await pool.connect();
+  try{
+   await db.query('BEGIN');
+   const result=await db.query('INSERT INTO aria_attendance_contexts(organization_id,person_id,session_id,reason_code,reason_note,expected_return_date,expected_service_type,expected_return_known,source,created_by,updated_at,resolved_at,resolved_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,\'human\',$9,NOW(),NULL,NULL) ON CONFLICT(organization_id,session_id,person_id) DO UPDATE SET reason_code=EXCLUDED.reason_code,reason_note=EXCLUDED.reason_note,expected_return_date=EXCLUDED.expected_return_date,expected_service_type=EXCLUDED.expected_service_type,expected_return_known=EXCLUDED.expected_return_known,source=\'human\',created_by=EXCLUDED.created_by,updated_at=NOW(),resolved_at=NULL,resolved_by=NULL RETURNING id,reason_code,reason_note,expected_return_date,expected_service_type,expected_return_known',[orgId,people_id,session_id,String(reason_code),String(reason_note||'').trim().slice(0,1000)||null,returnDate,s.rows[0].service_type||null,known,req.user.id]);
+   const resolved=await resolveCareWorkInTransaction({db,organizationId:orgId,actorId:req.user.id,personId:people_id,actionId:action_id,observationId:observation_id,reason:'Human context recorded from Tell ARIA.',source:'operator'});
+   await db.query('COMMIT');
+   return res.status(200).json({success:true,context:result.rows[0],resolved});
+  }catch(e){await db.query('ROLLBACK').catch(()=>{});throw e}finally{db.release()}
  }catch(e){console.error('[ATTENDANCE] Context error:',e);return res.status(500).json({error:'Could not save this attendance context.'});}
 });

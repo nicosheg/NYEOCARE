@@ -17,6 +17,7 @@ const conversation=read('lib/aria/conversationEngine.js');
 const state=read('lib/aria/conversationState.js');
 const profile=read('pages/profile.js');
 const peopleMutation=read('lib/aria/peopleMutationEngine.js');
+const peopleParser=read('lib/aria/peopleRosterParser.js');
 
 expect(queue.includes("m?.kind==='attendance_absence_check_in'||m?.kind==='returned_after_absence'?'follow_up':'action'"),'Attendance absence actions must be canonical follow-up queue items.');
 expect(queue.includes("task_kind:first?'follow_up':'action'"),'UNUSUAL_ABSENCE observations must be canonical follow-up queue items.');
@@ -39,7 +40,8 @@ expect(conversation.includes("parsePeopleRoster(input)"),'Conversation engine mu
 expect(state.includes("pending_person_update"),'Conversation state must persist pending person update confirmation.');
 expect(profile.includes('<strong>ARIA guidance</strong>'), 'Profile should retain guidance without duplicating Tell ARIA.');
 expect(!profile.includes('ariaLaunchButton'), 'Profile must not contain a duplicate Tell ARIA launcher.');
-expect(peopleMutation.includes("export function parsePeopleRoster"),'People parser must be independently testable.');
+expect(peopleParser.includes('export function parsePeopleRoster'),'People parser must be independently testable.');
+expect(peopleMutation.includes("from'./peopleRosterParser'"),'People mutation engine must use the isolated roster parser.');
 
 console.log('[ARIA TODAY REGRESSION]');
 console.log('Canonical queue, Tell ARIA resolution, People import/update and Profile launcher checks.');

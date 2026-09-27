@@ -96,6 +96,37 @@ async function mergeCurrentMemory(db,org,canonicalId,duplicateId){
  await db.query('UPDATE person_memory SET person_id=$1 WHERE organization_id=$3 AND person_id=$2',[canonicalId,duplicateId,org]);
 }
 
+
+async function mergeAttendanceContexts(db,org,canonicalId,duplicateId){
+ const collisions=(await db.query(`
+  SELECT c.id canonical_id,d.id duplicate_id
+  FROM aria_attendance_contexts c
+  JOIN aria_attendance_contexts d
+    ON d.organization_id=c.organization_id AND d.session_id=c.session_id
+  WHERE c.organization_id=$1 AND c.person_id=$2 AND d.person_id=$3
+  FOR UPDATE OF c,d
+ `,[org,canonicalId,duplicateId])).rows;
+ for(const row of collisions){
+  await db.query(`
+   UPDATE aria_attendance_contexts c
+   SET
+     reason_code=COALESCE(c.reason_code,d.reason_code),
+     reason_note=COALESCE(NULLIF(c.reason_note,''),d.reason_note),
+     expected_return_date=COALESCE(c.expected_return_date,d.expected_return_date),
+     expected_service_type=COALESCE(c.expected_service_type,d.expected_service_type),
+     expected_return_known=(COALESCE(c.expected_return_known,false) OR COALESCE(d.expected_return_known,false)),
+     source=CASE WHEN d.updated_at>c.updated_at THEN d.source ELSE c.source END,
+     updated_at=GREATEST(c.updated_at,d.updated_at),
+     resolved_at=GREATEST(c.resolved_at,d.resolved_at),
+     resolved_by=CASE WHEN d.resolved_at IS NOT NULL AND (c.resolved_at IS NULL OR d.resolved_at>c.resolved_at) THEN d.resolved_by ELSE c.resolved_by END
+   FROM aria_attendance_contexts d
+   WHERE c.id=$1 AND d.id=$2
+  `,[row.canonical_id,row.duplicate_id]);
+  await db.query('DELETE FROM aria_attendance_contexts WHERE id=$1',[row.duplicate_id]);
+ }
+ await db.query(`UPDATE aria_attendance_contexts SET person_id=$1 WHERE organization_id=$3 AND person_id=$2`,[canonicalId,duplicateId,org]);
+}
+
 async function mergeLearningHistory(db,org,canonicalId,duplicateId){
  const collisions=(await db.query(`
   SELECT c.id canonical_id,d.id duplicate_id
@@ -228,6 +259,82 @@ async function mergeObservationHistory(db,org,canonicalId,duplicateId){
  await db.query('UPDATE aria_observations SET person_id=$1 WHERE organization_id=$3 AND person_id=$2',[canonicalId,duplicateId,org]);
 }
 
+
+async function mergeIdentitySharedContacts(db,org,canonicalId,duplicateId){
+ const rows=(await db.query(`
+  SELECT id,person_a_id,person_b_id,phone,confirmed_by,confirmed_at,metadata,created_at
+  FROM identity_shared_contacts
+  WHERE organization_id=$1 AND (person_a_id=$2 OR person_b_id=$2)
+  FOR UPDATE
+ `,[org,duplicateId])).rows;
+ for(const row of rows){
+  const a=String(row.person_a_id)===String(duplicateId)?canonicalId:row.person_a_id;
+  const b=String(row.person_b_id)===String(duplicateId)?canonicalId:row.person_b_id;
+  if(String(a)===String(b)){await db.query('DELETE FROM identity_shared_contacts WHERE id=$1',[row.id]);continue}
+  const existing=(await db.query(`
+   SELECT id,confirmed_by,confirmed_at,metadata
+   FROM identity_shared_contacts
+   WHERE organization_id=$1
+     AND LEAST(person_a_id,person_b_id)=LEAST($2::uuid,$3::uuid)
+     AND GREATEST(person_a_id,person_b_id)=GREATEST($2::uuid,$3::uuid)
+     AND phone=$4
+     AND id<>$5
+   FOR UPDATE
+  `,[org,a,b,row.phone,row.id])).rows[0];
+  if(existing){
+   await db.query(`
+    UPDATE identity_shared_contacts
+    SET confirmed_by=COALESCE(existing.confirmed_by,$2),
+        confirmed_at=GREATEST(existing.confirmed_at,$3),
+        metadata=CASE WHEN jsonb_typeof(existing.metadata)='object' AND jsonb_typeof($4::jsonb)='object' THEN COALESCE(existing.metadata,'{}'::jsonb)||$4::jsonb ELSE COALESCE(existing.metadata,$4::jsonb) END
+    FROM identity_shared_contacts existing
+    WHERE identity_shared_contacts.id=existing.id
+      AND existing.id=$1
+   `,[existing.id,row.confirmed_by,row.confirmed_at,JSON.stringify(row.metadata||{})]);
+   await db.query('DELETE FROM identity_shared_contacts WHERE id=$1',[row.id]);
+  }else{
+   await db.query('UPDATE identity_shared_contacts SET person_a_id=$1,person_b_id=$2 WHERE id=$3',[a,b,row.id]);
+  }
+ }
+}
+
+
+async function mergeIdentityPairDecisions(db,org,canonicalId,duplicateId){
+ const rows=(await db.query(`
+  SELECT id,person_a_id,person_b_id,decision,decided_by,evidence,created_at,updated_at
+  FROM identity_pair_decisions
+  WHERE organization_id=$1 AND (person_a_id=$2 OR person_b_id=$2)
+  FOR UPDATE
+ `,[org,duplicateId])).rows;
+ for(const row of rows){
+  const a=String(row.person_a_id)===String(duplicateId)?canonicalId:row.person_a_id;
+  const b=String(row.person_b_id)===String(duplicateId)?canonicalId:row.person_b_id;
+  if(String(a)===String(b)){await db.query('DELETE FROM identity_pair_decisions WHERE id=$1',[row.id]);continue}
+  const existing=(await db.query(`
+   SELECT id,decision,decided_by,evidence,updated_at
+   FROM identity_pair_decisions
+   WHERE organization_id=$1
+     AND LEAST(person_a_id,person_b_id)=LEAST($2::uuid,$3::uuid)
+     AND GREATEST(person_a_id,person_b_id)=GREATEST($2::uuid,$3::uuid)
+     AND id<>$4
+   FOR UPDATE
+  `,[org,a,b,row.id])).rows[0];
+  if(existing){
+   const useIncoming=row.updated_at>existing.updated_at;
+   await db.query(`
+    UPDATE identity_pair_decisions
+    SET decision=$2,decided_by=COALESCE($3,decided_by),
+        evidence=CASE WHEN jsonb_typeof(evidence)='object' AND jsonb_typeof($4::jsonb)='object' THEN COALESCE(evidence,'{}'::jsonb)||jsonb_build_object('merge_history',$4::jsonb) ELSE evidence END,
+        updated_at=GREATEST(updated_at,$5)
+    WHERE id=$1
+   `,[existing.id,useIncoming?row.decision:existing.decision,useIncoming?row.decided_by:existing.decided_by,JSON.stringify(row.evidence||{}),row.updated_at]);
+   await db.query('DELETE FROM identity_pair_decisions WHERE id=$1',[row.id]);
+  }else{
+   await db.query('UPDATE identity_pair_decisions SET person_a_id=$1,person_b_id=$2 WHERE id=$3',[a,b,row.id]);
+  }
+ }
+}
+
 async function mergePersonRelationships(db,org,canonicalId,duplicateId){
  const selfEdges=await db.query(`
   DELETE FROM person_relationships
@@ -278,7 +385,7 @@ async function removeUniquePersonCollisions(db,org,canonicalId,duplicateId){
   if(table==='person_aliases'){
    await db.query(`DELETE FROM ${table} d USING ${table} c WHERE d.organization_id=$1 AND c.organization_id=$1 AND d.person_id=$2 AND c.person_id=$3 AND lower(d.alias)=lower(c.alias)`,[org,duplicateId,canonicalId]);
   }else if(table==='person_roles'){
-   await db.query(`DELETE FROM ${table} d USING ${table} c WHERE d.organization_id=$1 AND c.organization_id=$1 AND d.person_id=$2 AND c.person_id=$3 AND d.role=c.role AND d.status=c.status`,[org,duplicateId,canonicalId]);
+   await db.query(`DELETE FROM ${table} d USING ${table} c WHERE d.organization_id=$1 AND c.organization_id=$1 AND d.person_id=$2 AND c.person_id=$3 AND d.role=c.role`,[org,duplicateId,canonicalId]);
   }else if(table==='person_field_values'){
    await db.query(`DELETE FROM ${table} d USING ${table} c WHERE d.organization_id=$1 AND c.organization_id=$1 AND d.person_id=$2 AND c.person_id=$3 AND d.field_id=c.field_id`,[org,duplicateId,canonicalId]);
   }else{
@@ -341,7 +448,7 @@ async function mergePeople(db,org,canonicalId,duplicateId,actorId,evidence){
    [org,canonicalId,`person:${canonicalId}`,learningKey,JSON.stringify({observed_name:duplicateName,canonical_name:nameOf(canonical),merged_from:duplicateId,merged_at:new Date().toISOString(),reason:'human_confirmed_merge'})]);
   }
  }catch(err){console.warn('[DUPLICATE] Identity learning skipped:',err.message)}
- const mergedPhones=[...new Set([...phoneList(canonical),...phoneList(duplicate)])].slice(0,2),phoneJson=JSON.stringify(mergedPhones.map((p,i)=>({raw:p,normalized:p,source:'identity_merge',index:i+1})));
+ const mergedPhones=[...new Set([...phoneList(canonical),...phoneList(duplicate)])],phoneJson=JSON.stringify(mergedPhones.map((p,i)=>({raw:p,normalized:p,source:'identity_merge',index:i+1})));
  const mergedMetadata={...(canonical.metadata||{}),identity_verified:true,last_identity_merge:{duplicate_id:duplicateId,merged_at:new Date().toISOString(),merged_by:actorId,evidence}};
  const truth={...(canonical.living_truth||{}),status:'alive',source:'human_review',confirmed_at:(canonical.identity_verified_at||new Date().toISOString()),confirmed_by:(canonical.identity_verified_by||actorId)};
  await db.query(`UPDATE people SET phone=$2,phone_numbers=$3,identity_verification_status='verified',identity_verified_at=COALESCE(identity_verified_at,NOW()),identity_verified_by=COALESCE(identity_verified_by,$4),identity_verification_source=COALESCE(identity_verification_source,'human_review'),metadata=$5,living_truth=$6,updated_at=NOW() WHERE id=$1 AND organization_id=$7`,[canonicalId,mergedPhones[0]||null,phoneJson,actorId,mergedMetadata,truth,org]);

@@ -28,7 +28,8 @@
     "test:identity-evidence": "node scripts/identity-evidence-regression.js",
     "test:scan-review": "node scripts/scan-review-regression.js",
     "test:aria-internal-messaging": "node scripts/aria-internal-messaging-regression.js",
-    "test:experience": "node scripts/experience-contract-regression.js"
+    "test:experience": "node scripts/experience-contract-regression.js",
+    "test:diagnostics": "node scripts/full-app-diagnostics.js"
   },
   "dependencies": {
     "next": "15.5.24",

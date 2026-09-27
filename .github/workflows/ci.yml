@@ -39,6 +39,7 @@ jobs:
       - run: npm run test:aria-internal-messaging
       - run: npm run test:critical-ui
       - run: npm run test:experience
+      - run: npm run test:diagnostics
       - run: npm run test:aria
       - run: npm run test:auth
       - run: npm run test:system-scale
@@ -72,3 +73,6 @@ jobs:
       - name: Deploy Vercel prebuilt artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: vercel deploy --prebuilt --prod --archive=tgz --token="${{ secrets.VERCEL_TOKEN }}"
+      - name: Verify production health after deploy
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: curl --fail --silent --show-error --retry 6 --retry-delay 3 --retry-all-errors --max-time 15 https://nyeocare.vercel.app/api/health

@@ -1,18 +1,46 @@
-// components/ClientErrorBoundary.js
 import React from'react';
+import ClientDiagnostics from'./ClientDiagnostics';
+import{getClientSession,refreshClientSession}from'../lib/clientSession';
 
 export default class ClientErrorBoundary extends React.Component{
  constructor(props){super(props);this.state={hasError:false,error:null};}
  static getDerivedStateFromError(error){return{hasError:true,error};}
- componentDidMount(){if(typeof window!=='undefined'){this._onAutoRefresh=()=>{if(this.state.hasError)this.setState({hasError:false,error:null})};window.addEventListener('nyeocare:app-refresh',this._onAutoRefresh)}}
- componentWillUnmount(){if(typeof window!=='undefined'&&this._onAutoRefresh)window.removeEventListener('nyeocare:app-refresh',this._onAutoRefresh)}
+ componentDidMount(){
+  if(typeof window!=='undefined'){
+   this._onAutoRefresh=()=>{if(this.state.hasError)this.setState({hasError:false,error:null})};
+   window.addEventListener('nyeocare:app-refresh',this._onAutoRefresh);
+  }
+ }
+ componentWillUnmount(){
+  if(typeof window!=='undefined'&&this._onAutoRefresh)window.removeEventListener('nyeocare:app-refresh',this._onAutoRefresh);
+ }
  componentDidUpdate(prevProps){
   if(this.state.hasError&&prevProps.resetKey!==this.props.resetKey)this.setState({hasError:false,error:null});
  }
  componentDidCatch(error,info){
-  const payload={surface:String(this.props.surface||'app'),message:String(error?.message||error||'Unknown client error').slice(0,2000),stack:String(error?.stack||'').slice(0,6000),componentStack:String(info?.componentStack||'').slice(0,6000),pathname:typeof window!=='undefined'?window.location.pathname:''};
+  const payload={
+   kind:'client_render_error',
+   severity:'error',
+   surface:String(this.props.surface||'app'),
+   message:String(error?.message||error||'Unknown client error').slice(0,2000),
+   stack:String(error?.stack||'').slice(0,6000),
+   componentStack:String(info?.componentStack||'').slice(0,6000),
+   pathname:typeof window!=='undefined'?window.location.pathname:''
+  };
   console.error('[NYEOCARE] Client error boundary caught:',payload);
-  try{fetch('/api/diagnostics/client-error',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),keepalive:true}).catch(()=>{})}catch{}
+  void this.report(payload);
+ }
+ async report(payload){
+  try{
+   let session=await getClientSession();
+   if(!session)return;
+   let body={...payload,pathname:typeof window!=='undefined'?window.location.pathname:''};
+   let r=await fetch('/api/diagnostics/client-error',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},body:JSON.stringify(body),keepalive:true});
+   if(r.status===401){
+    session=await refreshClientSession().catch(()=>null);
+    if(session)await fetch('/api/diagnostics/client-error',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},body:JSON.stringify(body),keepalive:true});
+   }
+  }catch{}
  }
  recover=()=>{if(typeof window!=='undefined')window.location.reload()};
  render(){
@@ -20,6 +48,6 @@ export default class ClientErrorBoundary extends React.Component{
    if(this.props.fallback)return typeof this.props.fallback==='function'?this.props.fallback(this.state.error):this.props.fallback;
    return <main style={{minHeight:'100dvh',display:'grid',placeItems:'center',padding:'28px',background:'var(--ny-bg)',color:'var(--ny-text)'}}><section style={{width:'min(520px,100%)',padding:'28px',border:'1px solid var(--ny-border)',borderRadius:'var(--ny-radius-major)',background:'var(--ny-surface)',boxShadow:'var(--ny-shadow-xl)',textAlign:'center'}}><div style={{fontSize:10,letterSpacing:3,color:'var(--ny-text-whisper)',marginBottom:12}}>NYEOCARE</div><h1 style={{margin:'0 0 10px',fontSize:24}}>Something went wrong.</h1><p style={{margin:'0 auto 20px',maxWidth:410,color:'var(--ny-text-muted)',lineHeight:1.6,fontSize:14}}>The current screen hit an unexpected error. Your server-side data is not deleted by a client display error.</p><button onClick={this.recover} style={{padding:'11px 18px',border:0,borderRadius:999,background:'var(--ny-text)',color:'var(--ny-bg)',fontWeight:700,cursor:'pointer'}}>Reload NYEOCARE</button></section></main>;
   }
-  return this.props.children;
+  return <><ClientDiagnostics/>{this.props.children}</>;
  }
 }

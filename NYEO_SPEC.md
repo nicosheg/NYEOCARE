@@ -209,6 +209,28 @@ When a user reviews an attendance-derived care signal, ARIA can accept an explic
 ### Review queue clearing
 Review Center distinguishes evidence that still needs a human decision from evidence the operator intentionally dismisses. Scan review items may be selected individually, including by a mobile long-press gesture, and dismissed in bulk. Bulk dismissal changes the review item to `rejected` with an auditable decision record; it must not delete the original scan evidence, scan job, or person records. Database duplicate groups are never part of scan-review bulk dismissal and retain their dedicated merge/keep-separate workflow.
 
+### Identity evidence balance
+Identity candidate scoring uses a balanced 50/50 model:
+
+- **Name evidence — 50%:** normalized identity text may contain an honorific/prefix plus first, middle and last names. Honorifics are identity noise for matching but remain preserved in display truth.
+- **Phone evidence — 50%:** the complete Nigerian number is the unit of comparison. A valid local 0XXXXXXXXXX form is normalized to +234XXXXXXXXXX. Exact full-number equality is distinct from near-digit similarity.
+- Phone suffix overlap alone MUST NOT behave like an exact phone match.
+- Phone evidence is also weighted by the scan's phone-reading certainty and name-to-phone row ownership certainty.
+- A non-exact phone match cannot by itself justify automatic identity resolution.
+- Exact phone + sufficiently compatible name may resolve automatically; exact name + a different phone must remain a human decision/conflict.
+- The composite score helps ARIA rank candidates; deterministic safety gates still control whether identity may become durable truth.
+
+### Scan identity review — human decision contract
+A scan candidate is evidence, not a merge instruction.
+
+- A **same/similar name only** is weak evidence and must never be presented as if ARIA already decided the identities are the same.
+- A candidate with a non-matching phone must visibly say that the phone differs or was not matched.
+- Selecting a candidate only selects it for comparison. It MUST NOT silently enter merge/edit mode.
+- The review surface exposes three understandable outcomes: **Use this person**, **This is a different person**, or **Edit scanned record**.
+- **This is a different person** creates a new reviewed person from the scan and records a durable `identity_pair_decisions.decision='keep_separate'` relationship against the meaningful candidates that were shown.
+- A keep-separate relationship suppresses weak/name-only re-suggestions when a known separated person is present, while materially stronger phone evidence may reopen the comparison for human review.
+- Weak stale candidate records below the review threshold must not clutter the operator's decision surface.
+
 ### Physical register is the extraction unit
 The physical row is the fundamental unit. Extraction must preserve:
 - original name/title spelling where readable;
@@ -299,6 +321,9 @@ Shared phone numbers are evidence, not automatic identity.
 
 ### Scan safety principle
 If the pixels genuinely do not contain enough information, the correct result is **uncertain**, not a fabricated answer.
+
+### Scan extraction capacity
+The full-page vision observer is deliberately capped at **50 logical people per scan**. The 50-row bound exists in the model schema and deterministic post-processing; it must not be silently increased. Operators processing a register larger than one image should segment the register into additional scans rather than relying on an unseen overflow.
 
 ---
 

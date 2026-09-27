@@ -1,16 +1,16 @@
 // components/ScanModal.js
 import{useEffect,useRef,useState}from'react';import{createPortal}from'react-dom';import{useRouter}from'next/router';import{getClientSession,refreshClientSession}from'../lib/clientSession';import{getScanState,setScanState,clearScanState}from'../lib/scanStore';import AriaProcessingStatus from'./AriaProcessingStatus';
-const POLL=1800,SESSION=7000,PREP=30000,MAX=4000000,REQ=12000;const timeoutError=(ms,code)=>new Promise((_,r)=>setTimeout(()=>r(Object.assign(new Error(code),{code})),ms)),sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const POLL=1800,SESSION=7000,PREP=30000,MAX=4000000,REQ=12000;const withTimeout=(promise,ms,code)=>{let timer;return Promise.race([promise,new Promise((_,r)=>{timer=setTimeout(()=>r(Object.assign(new Error(code),{code})),ms)})]).finally(()=>{if(timer)clearTimeout(timer)})},sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function netError(e){const m=String(e?.message||e||'').toLowerCase();return typeof navigator!=='undefined'&&!navigator.onLine||e?.name==='TypeError'||e?.name==='AbortError'||/failed to fetch|network|offline|timed out|timeout|load failed|connection/.test(m)}
 async function session(force=false){
  let last=null;
  for(let attempt=0;attempt<3;attempt++){
   try{
-   const fresh=await Promise.race([getClientSession({forceRefresh:force&&attempt===0}),timeoutError(SESSION,'SCAN_SESSION_TIMEOUT')]);
+   const fresh=await withTimeout(getClientSession({forceRefresh:force&&attempt===0}),SESSION,'SCAN_SESSION_TIMEOUT');
    if(fresh)return fresh;
   }catch(e){last=e}
   try{
-   const recovered=await Promise.race([refreshClientSession(),timeoutError(SESSION,'SCAN_SESSION_REFRESH_TIMEOUT')]);
+   const recovered=await withTimeout(refreshClientSession(),SESSION,'SCAN_SESSION_REFRESH_TIMEOUT');
    if(recovered)return recovered;
   }catch(e){last=e}
   if(attempt<2)await sleep(350*(attempt+1));
@@ -25,10 +25,7 @@ async function prepare(file){
  if(file.size&&file.size<=MAX&&/image\/(jpeg|jpg)/i.test(type))return readFile(file);
  const u=URL.createObjectURL(file);
  try{
-  const im=await Promise.race([
-   new Promise((ok,no)=>{const x=new Image();x.onload=()=>ok(x);x.onerror=()=>no(Object.assign(new Error('This image could not be decoded. Please retake it as JPG or PNG.'),{code:'SCAN_IMAGE_DECODE_FAILED'}));x.src=u}),
-   timeoutError(PREP,'SCAN_IMAGE_DECODE_TIMEOUT')
-  ]);
+  const im=await withTimeout(new Promise((ok,no)=>{const x=new Image();x.onload=()=>ok(x);x.onerror=()=>no(Object.assign(new Error('This image could not be decoded. Please retake it as JPG or PNG.'),{code:'SCAN_IMAGE_DECODE_FAILED'}));x.src=u}),PREP,'SCAN_IMAGE_DECODE_TIMEOUT');
   const w=im.naturalWidth||im.width||0,h=im.naturalHeight||im.height||0;
   if(!w||!h)throw Object.assign(new Error('This image has no readable dimensions. Please retake it as JPG or PNG.'),{code:'SCAN_IMAGE_DIMENSIONS'});
   const lowMemory=typeof navigator!=='undefined'&&Number(navigator.deviceMemory||4)<=2;
@@ -37,8 +34,8 @@ async function prepare(file){
   const x=c.getContext('2d',{alpha:false,willReadFrequently:false});
   if(!x)throw Object.assign(new Error('Image processing is unavailable on this device.'),{code:'SCAN_CANVAS_UNAVAILABLE'});
   x.imageSmoothingEnabled=true;x.imageSmoothingQuality=lowMemory?'medium':'high';x.fillStyle='#fff';x.fillRect(0,0,width,height);x.drawImage(im,0,0,width,height);
-  let out=await Promise.race([new Promise(r=>c.toBlob(r,'image/jpeg',.88)),timeoutError(12000,'SCAN_IMAGE_ENCODE_TIMEOUT')]);
-  if(!out||out.size>MAX)out=await Promise.race([new Promise(r=>c.toBlob(r,'image/jpeg',.76)),timeoutError(12000,'SCAN_IMAGE_ENCODE_TIMEOUT')]);
+  let out=await withTimeout(new Promise(r=>c.toBlob(r,'image/jpeg',.88)),12000,'SCAN_IMAGE_ENCODE_TIMEOUT');
+  if(!out||out.size>MAX)out=await withTimeout(new Promise(r=>c.toBlob(r,'image/jpeg',.76)),12000,'SCAN_IMAGE_ENCODE_TIMEOUT');
   if(!out||out.size>MAX)throw Object.assign(new Error('This photo is too large to process on this device. Please retake it a little closer to the register.'),{code:'SCAN_IMAGE_TOO_LARGE'});
   return readFile(out);
  }finally{URL.revokeObjectURL(u)}

@@ -2101,3 +2101,13 @@ ARIA can send a private in-app message from one authenticated organization opera
 - `unsend it` can resolve the most recent internal message referenced by the current ARIA conversation state.
 - `unsend my last message` resolves the sender's latest still-sent internal message, optionally narrowed to a named recipient.
 - Unsend and read are serialized at the database row level so a simultaneous open/unsend cannot create a contradictory seen state.
+
+
+## Production reliability hardening — September 27, 2026: scan and app recovery
+
+- **Client scan preparation is no longer needlessly fragile:** normal JPEG camera images within the server-safe size limit use a direct base64 path; larger/non-JPEG images use a bounded resize/encode path. Preparation/auth watchdogs use cancellable timers so successful operations do not leave timeout timers alive.
+- **Scan timeout errors are user-safe:** internal timeout codes are translated into clear ARIA recovery messages; raw `TIMEOUT` is never the intended user-facing failure text. Session acquisition can refresh/retry before failing safely.
+- **The client error boundary covers the full application tree:** route keys force a clean boundary instance when navigation changes, and the app's invisible revalidation signal can recover transient display failures without deleting server state.
+- **Invisible revalidation is part of the runtime:** focus, pageshow, online, visibility and periodic checks warm the authenticated session and emit a background refresh event. Home and People revalidate quietly; background failures do not interrupt the operator.
+- **Service-worker cache versioning is rotated with client recovery releases:** old static caches are retired when the new worker activates, preventing stale hashed bundles from remaining the canonical client after a production fix.
+- **Scope boundary:** these changes do not alter identity evidence rules, attendance truth, server-authoritative session semantics, or human confirmation requirements.

@@ -78,7 +78,7 @@ const endLongPress=()=>{if(longPressTimer.current){window.clearTimeout(longPress
 const enterSelectMode=()=>{setSelectMode(true);setExpandedId(null);setEditingId(null)};
 const toggleSelected=id=>setSelectedIds(prev=>{const next=new Set(prev);if(next.has(id))next.delete(id);else next.add(id);return next});
 const rememberPeopleScroll=useCallback(()=>{try{sessionStorage.setItem(PEOPLE_SCROLL_KEY,JSON.stringify({y:window.scrollY,pathname:router.asPath}))}catch{}},[router.asPath]);
-const handleCardClick=id=>{if(longPressTriggered.current){longPressTriggered.current=false;return}if(selectMode){toggleSelected(id);return}if(editingId===id)return;rememberPeopleScroll();setExpandedId(null);setAddingNote(false);setImportingConv(false);setNoteText('');setConvText('');router.push(`/person/${id}`)};
+const handleCardClick=id=>{if(longPressTriggered.current){longPressTriggered.current=false;return}if(selectMode){toggleSelected(id);return}if(editingId===id)return;rememberPeopleScroll();setExpandedId(null);setAddingNote(false);setImportingConv(false);setNoteText('');setConvText('');router.push(`/person/${id}?return_to=${encodeURIComponent(router.asPath)}`)};
 const selectAll=()=>setSelectedIds(new Set(filtered.map(p=>p.id)));const clearSelection=()=>setSelectedIds(new Set());const cancelSelect=()=>{setSelectMode(false);setSelectedIds(new Set());longPressTriggered.current=false};
 const startEdit=person=>{setExpandedId(person.id);setEditingId(person.id);setEditName(personDisplayName(person));setEditPhone(person.phone||'');setEditEmail(person.email||'');setEditBirthday(person.birthday||'');setAddingNote(false);setImportingConv(false)};
 const cancelEdit=()=>{setEditingId(null);setEditName('');setEditPhone('');setEditEmail('');setEditBirthday('')};

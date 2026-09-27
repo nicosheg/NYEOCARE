@@ -22,3 +22,10 @@ assert.match(review,/title:'Scan review'/);
 assert.match(review,/title:'Duplicates'/);
 assert.match(review,/Needs attendance confirmation/);
 assert.match(review,/Scan identity needs review/);
+
+
+const reviewResolve=fs.readFileSync('pages/api/review/resolve.js','utf8');
+assert.match(reviewResolve,/startsWith\('scan:'\)/);
+assert.match(reviewResolve,/Invalid bulk review action/);
+assert.match(reviewResolve,/status='rejected'/);
+console.log('NYEOCARE bulk scan-review dismissal regression checks passed.');

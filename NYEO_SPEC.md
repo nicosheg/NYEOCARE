@@ -1227,6 +1227,12 @@ A module may own its domain transaction, validation, or presentation. It must no
 
 
 
+## Review Center detail continuity — September 27, 2026
+
+Opening a scan identity review is a nested Review Center state, not a new destination. The detail sheet must preserve the current Review Center group. The sheet back control, backdrop dismissal, and device/browser back all return to that same review list instead of closing the parent Review Center surface. Resolving an item also returns to the queue so an operator can continue through the remaining work; only the explicit Review Center close action returns to the parent surface.
+
+Pending scan-review evidence remains truthful historical evidence. New scan-pipeline releases must not silently rewrite an unresolved row or auto-merge a person merely because a current candidate is now verified. Current candidate records are hydrated from live People data, while the original extraction and uncertainty remain auditable until an authorized human decision resolves the review.
+
 ## 25.6 SEPTEMBER 22, 2026 — ARIA CONVERSATION RESPONSE TRUNCATION
 
 A production ARIA conversation answered the request **“What should I do next?”** but the assistant message ended mid-sentence at **“He”**.

@@ -61,7 +61,7 @@ expect(capabilityRegistry.includes("requiredRole:'owner_or_admin'"),'Capability 
 expect(capabilityRegistry.includes("import_people_roster:{description:"),'People roster import must remain an explicitly registered capability.');
 
 expect(command.includes("listCapabilitiesForRole"),'ARIA command planning must use the authoritative capability catalog.');
-expect(!conversation.includes("const rosterIntent=inferPeopleRosterIntent(input)"),'Conversation engine must not independently route roster execution.');
+expect(!conversation.includes("if(!result&&rosterIntent.match)"),'Conversation engine must not own a separate roster-execution bypass.');
 expect(conversation.includes("const OBSERVATION_FOLLOW_UP=/^"),'Observation follow-up matching must be anchored to prevent sentence-level false positives.');
 expect(conversation.includes("CAPABILITY AWARENESS AND RECOVERY"),'Natural ARIA responses must include capability-aware recovery guidance.');
 expect(!ariaPage.includes("onKeyDown={e=>{if(e.key==='Enter'"),'Tell ARIA must not send on Enter.');

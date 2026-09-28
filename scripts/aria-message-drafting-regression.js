@@ -44,6 +44,7 @@ const personalized=personalizeWhatsAppMessage('Hello Blessing, Hi Blessing, than
 if(!personalized.startsWith('Hello Bro Eze,'))throw new Error('Message personalization did not replace the model salutation.');
 if(/Blessing/i.test(personalized))throw new Error('Wrong recipient name survived personalization.');
 
+const crossPerson=personalizeWhatsAppMessage('Brother Vincent, it was lovely having you with us.',bro);if(/Brother Vincent/i.test(crossPerson))throw new Error('Cross-person salutation survived personalization.');
 const alternate=getWhatsAppPhone({phone:'+2342067841674',phone_numbers:[{normalized:'+2348032173632'}]});
 if(!alternate.valid||alternate.waNumber!=='2348032173632')throw new Error('Safe alternate WhatsApp phone candidate was not selected.');
 const root=process.cwd(),read=p=>fs.readFileSync(path.join(root,p),'utf8');
@@ -54,8 +55,8 @@ for(const needle of ['WHATSAPP_SESSION_KEY','startWhatsAppSession','openWhatsApp
 
 const batch=read('lib/aria/batchDraftEngine.js'),draft=read('lib/aria/draftEngine.js'),queue=read('pages/api/aria/drafts.js');
 for(const [file,...needles] of [
- ['lib/aria/batchDraftEngine.js','whatsapp_v3','phone_not_safe_for_whatsapp','duplicate_whatsapp_recipient'],
- ['lib/aria/draftEngine.js','whatsapp_v3','personalizeWhatsAppMessage','metadata->>\'draft_version\'','address_name'],
+ ['lib/aria/batchDraftEngine.js','whatsapp_v4','phone_not_safe_for_whatsapp','duplicate_whatsapp_recipient'],
+ ['lib/aria/draftEngine.js','whatsapp_v4','personalizeWhatsAppMessage','metadata->>\'draft_version\'','address_name'],
  ['pages/api/aria/drafts.js','whatsapp_v2','needs_phone_review_count','whatsappChatUrl']
 ]){
  const content=read(file);

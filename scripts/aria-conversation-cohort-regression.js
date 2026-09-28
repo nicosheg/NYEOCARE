@@ -10,7 +10,7 @@ const required=[
  ['lib/aria/capabilityRegistry.js','get_observation_context','draft_message_cohort'],
  ['lib/aria/capabilityEngine.js','observationContext','draft_message_cohort'],
  ['lib/aria/commandEngine.js','draft_message_cohort'],
- ['lib/aria/cohortEngine.js','(?:for|to)','past_absentees'],
+ ['lib/aria/cohortIntent.js','(?:for|to)','past_absentees'],
  ['lib/aria/conversationEngine.js','resolveConversationalFollowUp','get_observation_context'],
  ['pages/aria.js','MESSAGE DRAFTS','Open WhatsApp'],
  ['pages/index.js','Draft these follow-ups','/api/aria/draft-batch']

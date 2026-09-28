@@ -38,7 +38,9 @@ expect(command.includes("type:'person_update_confirmation'"),'Command planner mu
 expect(conversation.includes("resolvePendingPersonUpdate"),'Conversation engine must resolve pending person updates.');
 expect(conversation.includes("parsePeopleRoster(input)"),'Conversation engine must recognize pasted rosters directly.');
 expect(state.includes("pending_person_update"),'Conversation state must persist pending person update confirmation.');
-expect(profile.includes('<strong>ARIA guidance</strong>'), 'Profile should retain guidance without duplicating Tell ARIA.');
+expect(!profile.includes('ARIA guidance'), 'Profile must not contain the duplicate ARIA guidance surface.');
+expect(!profile.includes('ariaInstructions'), 'Profile must not edit ARIA guidance through its save path.');
+expect(!profile.includes('setAria'), 'Profile must not retain ARIA guidance state.');
 expect(!profile.includes('ariaLaunchButton'), 'Profile must not contain a duplicate Tell ARIA launcher.');
 expect(peopleParser.includes('export function parsePeopleRoster'),'People parser must be independently testable.');
 expect(peopleMutation.includes("from'./peopleRosterParser'"),'People mutation engine must use the isolated roster parser.');

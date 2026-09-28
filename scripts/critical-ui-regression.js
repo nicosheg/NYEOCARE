@@ -32,6 +32,7 @@ const ariaConversation=read('lib/aria/conversationEngine.js');
 const ariaCommand=read('lib/aria/commandEngine.js');
 const ariaRecommendation=read('lib/aria/recommendationEngine.js');
 const ariaDraft=read('lib/aria/draftEngine.js');
+const whatsappHelper=read('lib/aria/whatsapp.js');
 const app=read('pages/_app.js');
 const db=read('lib/db.js');
 const auth=read('lib/auth.js');
@@ -178,8 +179,8 @@ const checks=[
   /u\.role IN\('owner','admin'\)/.test(ariaRecommendation)],
  ['ARIA approved-only drafting cannot bypass confirmation',
   /approvedOnly&&!actionId/.test(ariaDraft)],
- ['ARIA WhatsApp links normalize Nigerian local numbers',
-  /startsWith\('234'\)/.test(ariaDraft)&&/startsWith\('0'\)&&digits\.length===11/.test(ariaDraft)],
+ ['ARIA WhatsApp handoff uses the shared safe-number helper',
+  /getWhatsAppPhone/.test(ariaDraft)&&/whatsappChatUrl/.test(ariaDraft)&&/draftVersion='whatsapp_v2'/.test(ariaDraft)&&/metadata->>'draft_version'/.test(ariaDraft)&&/getWhatsAppPhone/.test(whatsappHelper)&&/personalizeWhatsAppMessage/.test(whatsappHelper)],
  ['ARIA chat renders Markdown emphasis and lists',
   /function inlineMarkdown/.test(ariaPage)&&/MarkdownMessage/.test(ariaPage)&&/ariaMarkdown/.test(ariaPage)&&/m\.role==="assistant"\?/.test(ariaPage)],
  ['Home action row is intentionally lifted above the launcher baseline',
@@ -224,8 +225,8 @@ const checks=[
   /nyeocare-static-v4/.test(serviceWorker)&&/self\.skipWaiting\(\)/.test(serviceWorker)&&/self\.clients\.claim\(\)/.test(serviceWorker)],
 ['Environment weather state cannot crash the app',
   /const WEATHER_KEY='nyeocare:weather:v2'/.test(environment)&&/let weatherInFlight=false/.test(environment)&&/const run=\(\)=>\{try\{getWeather\(\)/.test(environment)],
- ['ARIA care draft initializes phone before database metadata insert',
-  /rawPhone=person\.phone/.test(draftEngine)&&!/INSERT INTO person_communications[\\s\\S]{0,1200}const rawPhone=/.test(draftEngine)],
+ ['ARIA care draft initializes a safe WhatsApp phone before database metadata insert',
+  /selectedPhone=getWhatsAppPhone\(person\)/.test(draftEngine)&&!/INSERT INTO person_communications[\\s\\S]{0,1200}selectedPhone=/.test(draftEngine)],
  ['ARIA launcher is isolated from page-wide client failures',
   /ClientErrorBoundary surface="aria-launcher"/.test(layout)&&/fallback=\{null\}/.test(layout)],
 

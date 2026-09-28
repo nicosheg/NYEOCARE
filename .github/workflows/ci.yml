@@ -1,4 +1,5 @@
 name: NYEOCARE CI
+# Production deploy path verified: push to main runs the full test gate and Vercel prebuilt deployment.
 
 on:
   push:

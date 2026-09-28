@@ -2543,3 +2543,66 @@ This reasoning layer is deliberately deterministic for high-confidence structure
 ### Profile surface — one ARIA entry point
 
 The Profile page must not contain a second ARIA guidance/editor surface. Profile is for organization, access, invitations, and account/security settings. ARIA interaction belongs to the global Tell ARIA experience and the canonical Today/Review surfaces. Do not reintroduce a duplicate “ARIA guidance” editor or launcher into Profile merely under a different label.
+
+
+## ARIA Cognitive Conversation Architecture — September 28, 2026
+
+### ARIA must understand intent before choosing a tool
+
+Talk to ARIA is the natural-language operating surface for NYEOCARE. It must not behave as a collection of keyword-triggered commands.
+
+For every user message, ARIA should internally separate:
+1. the user's literal words;
+2. the intended outcome;
+3. the entities and scope involved;
+4. facts or data contained in the message;
+5. the capabilities currently available to this operator;
+6. the smallest safe action that can move the request forward;
+7. what is uncertain, blocked, unavailable, or requires human approval.
+
+Natural English, imperfect English, shorthand, missing punctuation, voice transcription, pasted text, compressed contact lists, and mixed instructions/facts are valid inputs.
+
+ARIA must never ask the user to translate an already understandable request into product terminology.
+
+### Capability self-awareness is authoritative
+
+The ARIA capability registry is the source of truth for what ARIA can currently do. Each capability describes whether it reads or mutates data, requires a person, requires explicit user intent, requires human approval, and whether owner/admin permission is required.
+
+The capability catalog is available to ARIA during planning and response synthesis. When a user asks what ARIA can do, ARIA should explain the real current capability set in human language. It may group capabilities by purpose, but must not invent unsupported features.
+
+When an action is not supported, ARIA should say that it cannot perform that action yet and identify the closest supported path. When an action is supported but permission-restricted, ARIA should say what role is needed. When execution fails, ARIA should distinguish attempted failure from unsupported capability and explain the next requirement at a safe level.
+
+### Attempt → verify → recover
+
+For supported actions:
+- ARIA should attempt the smallest high-confidence safe action first.
+- A successful capability result is the only basis for claiming completion.
+- A failed capability must never be represented as successful.
+- After failure, ARIA should reassess whether another existing capability can satisfy the same underlying goal before asking the user to repeat themselves.
+- Consequential external actions remain approval-gated.
+
+### Natural data-entry understanding
+
+When a message contains both data and an instruction, ARIA separates them.
+
+Example: a pasted roster containing names, phones, introductory sentences, comments, and a final request to contact people should be understood as:
+- the names and phone numbers are People data;
+- surrounding prose is task context unless explicitly requested as memory;
+- incomplete/uncertain phone values remain visible for review rather than being guessed;
+- the final requested outreach is a separate potential action and must obey the normal drafting/approval rules.
+
+This separation applies even when the pasted content is flattened into one paragraph with no line breaks.
+
+### Conversation disambiguation
+
+Follow-up detectors must use the whole utterance. Common words such as “why”, “what”, “where”, or “tell” inside an otherwise ordinary sentence must not trigger a specialized observation or action flow.
+
+For example, “Please let call them and know why they are not in Sunday service today” is a roster/task instruction, not a request to explain an ARIA observation.
+
+### Talk to ARIA composer
+
+Enter must create a new line and must never submit the message. Sending happens only through the explicit Send button.
+
+The composer expands vertically for multiline and pasted content up to its defined visual maximum, preserves line breaks, and remains comfortable for long natural-language input.
+
+User messages displayed in the conversation must preserve their original line breaks so a pasted roster remains readable. This is important both for human review and for trust that ARIA received the same structure the operator supplied.

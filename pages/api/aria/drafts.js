@@ -1,7 +1,7 @@
 // pages/api/aria/drafts.js
 import{withOrg}from'../../../lib/apiHelpers';
 import pool from'../../../lib/db';
-import{normalizeWhatsAppPhone,whatsappChatUrl,getAddressName}from'../../../lib/aria/whatsapp.js';
+import{getWhatsAppPhone,whatsappChatUrl,getAddressName}from'../../../lib/aria/whatsapp.js';
 
 const clean=(v,max=300)=>String(v??'').trim().slice(0,max);
 const DRAFT_VERSION='whatsapp_v2';
@@ -25,8 +25,9 @@ export default withOrg(async function handler(req,res){
   );
   const drafts=[],needsPhoneReview=[];
   for(const row of result.rows){
-   const rawPhone=row.metadata?.phone||row.phone||((Array.isArray(row.phone_numbers)&&row.phone_numbers[0]?.normalized)||((Array.isArray(row.phone_numbers)&&row.phone_numbers[0]?.raw)||null));
-   const normalized=normalizeWhatsAppPhone(rawPhone);
+   const personPhone=getWhatsAppPhone({phone:row.metadata?.phone||row.phone,phone_numbers:row.phone_numbers});
+   const rawPhone=personPhone.raw||null;
+   const normalized=personPhone;
    const person={display_name:row.display_name,first_name:row.first_name,last_name:row.last_name,metadata:row.person_metadata||{}};
    const item={
     id:row.id,

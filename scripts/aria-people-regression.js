@@ -18,5 +18,18 @@ for(const[label,input]of[['multiline',multiline],['packed',packed]]){
  expect(result.ignored.some(x=>/very strong/i.test(x)),label+': Sandra incidental prose should be ignored.');
  expect(result.ignored.some(x=>/Please let call them/i.test(x)),label+': trailing action prose should be ignored.');
 }
+const shortRoster="these are some of the women I noticed weren't in service today mummy christiana 08022597401 sis sandra isiocha 08039579758 please she's very strong sis ruth nwoke 07032360332 sis joy chisa 07053576543 mummy withrey 0808997362 mama omosaye walne please don't save anything I said about why they're absent just put the people and numbers in people for me";
+const shortResult=parsePeopleRoster(shortRoster);
+const shortNames=shortResult.rows.map(x=>x.name); const hasShort=(name,phone)=>shortResult.rows.some(x=>x.name.toLowerCase()===name.toLowerCase()&&x.phone===phone);
+expect(hasShort('Mummy Christiana','08022597401'),'Short packed roster: Christiana row missing.');
+expect(hasShort('SIS Sandra Isiocha','08039579758'),'Short packed roster: Sandra row missing.');
+expect(hasShort('SIS Ruth nwoke','07032360332'),'Short packed roster: Ruth row missing.');
+expect(hasShort('SIS Joy Chisa','07053576543'),'Short packed roster: Joy row missing.');
+expect(hasShort('Mummy withrey','0808997362'),'Short packed roster: incomplete Withrey phone must remain attached for review.');
+expect(shortResult.rows.some(x=>x.name==='Mama omosaye walne'&&x.phone===null)||shortNames.some(x=>/^Mama omosaye walne$/i.test(x)),'Short packed roster: name-only Mama Omosaye row missing.');
+expect(!shortResult.rows.some(x=>/please|don't|save anything|why they're absent|put the people/i.test(x.name)),'Short packed roster: trailing task prose must never become part of a person name.');
+expect(shortResult.ignored.some(x=>/please she's very strong/i.test(x)),'Short packed roster: incidental “very strong” prose should be ignored.');
+expect(shortResult.ignored.some(x=>/please don't save anything/i.test(x)),'Short packed roster: memory-boundary instruction should be ignored as task context.');
+
 console.log('[ARIA PEOPLE REGRESSION]');
 console.log('PASS: multiline and packed natural-language rosters resolve to the same 19 People rows; incidental prose is ignored.');

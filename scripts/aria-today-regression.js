@@ -72,7 +72,7 @@ expect(ariaPage.includes('.message.user>div{white-space:pre-wrap'), 'User messag
 
 expect(peopleParser.includes('export function parsePeopleRoster'),'People parser must be independently testable.');
 expect(peopleMutation.includes("from'./peopleRosterParser'"),'People mutation engine must use the isolated roster parser.');
-expect(dailyQueue.includes("extracted_phones AS extracted_phone"),'Daily Queue must use the live scan-review schema for extracted phone data.');
+expect(dailyQueue.includes("extracted_phones->>0 AS extracted_phone"),'Daily Queue must use the live scan-review schema for extracted phone data.');
 expect(diagnostics.includes('.toLowerCase().slice(0,500)'),'Diagnostic fingerprinting must use the valid String API.');
 expect(clientDiagnostics.includes('isExpectedAbort'),'Client telemetry must ignore expected browser aborts.');
 expect(peopleMutationEngine.includes("COALESCE(living_truth->>'status','alive')"),'Confirmed People updates must not reject records with a missing Living Truth status.');

@@ -1,7 +1,7 @@
 // scripts/aria-message-drafting-regression.js
 import fs from'fs';import path from'path';
 import{inferMessageDraftIntent}from'../lib/aria/messageIntent.js';
-import{normalizeWhatsAppPhone,whatsappChatUrl,getAddressName,personalizeWhatsAppMessage}from'../lib/aria/whatsapp.js';
+import{normalizeWhatsAppPhone,whatsappChatUrl,getAddressName,personalizeWhatsAppMessage,getWhatsAppPhone}from'../lib/aria/whatsapp.js';
 
 const cases=[
  {
@@ -43,6 +43,8 @@ if(getAddressName(bro)!=='Bro Eze')throw new Error('Honorific addressing failed.
 const personalized=personalizeWhatsAppMessage('Hi Blessing, thank you for being with us.',bro);
 if(!personalized.startsWith('Hello Bro Eze,'))throw new Error('Message personalization did not replace the model salutation.');
 if(/Hello Blessing/i.test(personalized))throw new Error('Wrong recipient name survived personalization.');
+const alternate=getWhatsAppPhone({phone:'+2342067841674',phone_numbers:[{normalized:'+2348032173632'}]});
+if(!alternate.valid||alternate.waNumber!=='2348032173632')throw new Error('Safe alternate WhatsApp phone candidate was not selected.');
 const root=process.cwd(),read=p=>fs.readFileSync(path.join(root,p),'utf8');
 const batch=read('lib/aria/batchDraftEngine.js'),draft=read('lib/aria/draftEngine.js'),queue=read('pages/api/aria/drafts.js');
 for(const [file,...needles] of [

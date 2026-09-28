@@ -1,8 +1,10 @@
 // pages/api/aria/drafts.js
 import{withOrg}from'../../../lib/apiHelpers';
 import pool from'../../../lib/db';
+import{getWhatsAppPhone,whatsappChatUrl,getAddressName}from'../../../lib/aria/whatsapp.js';
+
 const clean=(v,max=300)=>String(v??'').trim().slice(0,max);
-const whatsappUrl=raw=>{const digits=String(raw||'').replace(/\D/g,'');const wa=digits.startsWith('00')?digits.slice(2):digits.startsWith('234')?digits:digits.startsWith('0')&&digits.length===11?'234'+digits.slice(1):/^[789]\d{9}$/.test(digits)?'234'+digits:digits;return wa?`https://wa.me/${wa}`:null};
+const DRAFT_VERSION='whatsapp_v2';
 
 export default withOrg(async function handler(req,res){
  if(req.method!=='GET')return res.status(405).json({error:'Method not allowed'});
@@ -10,24 +12,28 @@ export default withOrg(async function handler(req,res){
   const limit=Math.min(Math.max(Number(req.query?.limit)||100,1),200);
   const result=await pool.query(
    `SELECT c.id,c.person_id,c.channel,c.status,c.subject,c.content,c.metadata,c.created_at,c.updated_at,
-           p.display_name,p.first_name,p.last_name,p.phone,p.phone_numbers
+           p.display_name,p.first_name,p.last_name,p.phone,p.phone_numbers,p.metadata AS person_metadata
     FROM person_communications c
     JOIN people p ON p.id=c.person_id AND p.organization_id=c.organization_id
     WHERE c.organization_id=$1 AND c.direction='outbound' AND c.status='draft'
-      AND c.channel='whatsapp' AND p.status='active'
+      AND c.channel='whatsapp'
+      AND c.metadata->>'draft_version'=$2
+      AND p.status='active'
     ORDER BY c.created_at DESC
-    LIMIT $2`,
-   [req.org.id,limit]
+    LIMIT $3`,
+   [req.org.id,DRAFT_VERSION,limit]
   );
-  const drafts=result.rows.map(row=>{
-   const rawPhone=row.metadata?.phone||row.phone||((Array.isArray(row.phone_numbers)&&row.phone_numbers[0])||null);
-   const base=whatsappUrl(rawPhone);
-   const message=String(row.content||'').trim();
-   return{
+  const drafts=[],needsPhoneReview=[];
+  for(const row of result.rows){
+   const personPhone=getWhatsAppPhone({phone:row.metadata?.phone||row.phone,phone_numbers:row.phone_numbers});
+   const rawPhone=personPhone.raw||null;
+   const normalized=personPhone;
+   const person={display_name:row.display_name,first_name:row.first_name,last_name:row.last_name,metadata:row.person_metadata||{}};
+   const item={
     id:row.id,
     person_id:row.person_id,
-    name:row.display_name||[row.first_name,row.last_name].filter(Boolean).join(' ')||'Person',
-    message,
+    name:getAddressName(person),
+    message:String(row.content||'').trim(),
     phone:rawPhone||null,
     channel:'whatsapp',
     created_at:row.created_at,
@@ -35,10 +41,21 @@ export default withOrg(async function handler(req,res){
     batch_id:row.metadata?.batch_id||null,
     message_purpose:clean(row.metadata?.message_purpose,80)||null,
     message_context:row.metadata?.message_context||null,
-    whatsappUrl:base?base+'?text='+encodeURIComponent(message):null
+    whatsappReady:normalized.valid,
+    whatsappUrl:whatsappChatUrl(rawPhone,String(row.content||'').trim())
    };
+   if(normalized.valid)drafts.push(item);
+   else needsPhoneReview.push({...item,whatsappReady:false,whatsappUrl:null,reason:normalized.reason||'invalid_phone'});
+  }
+  return res.status(200).json({
+   success:true,
+   draft_version:DRAFT_VERSION,
+   count:drafts.length,
+   ready_count:drafts.length,
+   needs_phone_review_count:needsPhoneReview.length,
+   drafts,
+   needs_phone_review:needsPhoneReview
   });
-  return res.status(200).json({success:true,count:drafts.length,drafts});
  }catch(error){
   console.error('[ARIA] draft queue',error);
   return res.status(500).json({error:'Unable to load WhatsApp drafts right now.'});

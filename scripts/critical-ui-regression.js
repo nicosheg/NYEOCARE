@@ -180,7 +180,7 @@ const checks=[
  ['ARIA approved-only drafting cannot bypass confirmation',
   /approvedOnly&&!actionId/.test(ariaDraft)],
  ['ARIA WhatsApp handoff uses the shared safe-number helper',
-  /getWhatsAppPhone/.test(ariaDraft)&&/whatsappChatUrl/.test(ariaDraft)&&/draftVersion='whatsapp_v2'/.test(ariaDraft)&&/metadata->>'draft_version'/.test(ariaDraft)&&/getWhatsAppPhone/.test(whatsappHelper)&&/personalizeWhatsAppMessage/.test(whatsappHelper)],
+  /getWhatsAppPhone/.test(ariaDraft)&&/whatsappChatUrl/.test(ariaDraft)&&/draftVersion='whatsapp_v3'/.test(ariaDraft)&&/metadata->>'draft_version'/.test(ariaDraft)&&/getWhatsAppPhone/.test(whatsappHelper)&&/personalizeWhatsAppMessage/.test(whatsappHelper)],
  ['ARIA chat renders Markdown emphasis and lists',
   /function inlineMarkdown/.test(ariaPage)&&/MarkdownMessage/.test(ariaPage)&&/ariaMarkdown/.test(ariaPage)&&/m\.role==="assistant"\?/.test(ariaPage)],
  ['Home action row is intentionally lifted above the launcher baseline',

@@ -2606,3 +2606,15 @@ Enter must create a new line and must never submit the message. Sending happens 
 The composer expands vertically for multiline and pasted content up to its defined visual maximum, preserves line breaks, and remains comfortable for long natural-language input.
 
 User messages displayed in the conversation must preserve their original line breaks so a pasted roster remains readable. This is important both for human review and for trust that ARIA received the same structure the operator supplied.
+
+
+## ARIA Production Health Hardening — September 28, 2026
+
+The production conversation path must remain capability-first all the way from natural input to execution. Semantic People-roster intent must be detected before the generic conversational-context fallback, including informal “put these ones in People” phrasing when there is enough referenced data to act. Unsupported external calling must terminate in a truthful capability boundary rather than an organization-context lookup.
+
+Operational reliability contracts:
+- Daily Queue scan-review reads must use the live `extracted_phones` schema; compatibility aliases may expose the singular response field where legacy payloads expect it.
+- Client diagnostics must not treat expected browser request aborts/navigation cancellation as application failures.
+- Diagnostic fingerprinting must use valid JavaScript string normalization and must never throw while handling an error report.
+- Confirmed People mutations must be atomic with their provenance event. Missing `living_truth.status` is treated as unknown/alive for update eligibility; conflicted or explicitly `needs_decision` records remain protected.
+- Pasted roster content is data, not instructions. Instruction-like prose such as “ignore previous instructions”, deletion commands, and similar control text must never become person names or executable commands.

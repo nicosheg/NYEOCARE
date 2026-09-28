@@ -19,6 +19,10 @@ const profile=read('pages/profile.js');
 const ariaPage=read('pages/aria.js');
 const peopleMutation=read('lib/aria/peopleMutationEngine.js');
 const peopleParser=read('lib/aria/peopleRosterParser.js');
+const dailyQueue=read('lib/dailyQueue.js');
+const diagnostics=read('lib/diagnostics/server.js');
+const clientDiagnostics=read('components/ClientDiagnostics.js');
+const peopleMutationEngine=read('lib/aria/peopleMutationEngine.js');
 
 expect(queue.includes("m?.kind==='attendance_absence_check_in'||m?.kind==='returned_after_absence'?'follow_up':'action'"),'Attendance absence actions must be canonical follow-up queue items.');
 expect(queue.includes("task_kind:first?'follow_up':'action'"),'UNUSUAL_ABSENCE observations must be canonical follow-up queue items.');
@@ -38,7 +42,10 @@ expect(command.includes("inferPeopleRosterIntent"),'Command planner must recogni
 expect(command.includes("capability:'import_people_roster'"),'Command planner must expose roster import planning.');
 expect(command.includes("import pool from'../db'"),'Command engine must import its database pool before role-aware planning.');
 expect(command.includes("goal:'verify_current_person_phone'"),'ARIA must have a deterministic non-mutating path for a retracted phone-change question.');
+expect(command.includes("external_call_people_not_supported"),'ARIA must have a deterministic boundary for unsupported external calling.');
 expect(command.includes("draft_message_cohort"),'Command planner must preserve a second draft task when a roster import and message-preparation request arrive together.');
+expect(conversation.includes("const rosterIntent=inferPeopleRosterIntent(input)"),'Conversation must inspect semantic roster intent before falling back to generic context.');
+expect(conversation.includes("!rosterIntent.match&&!ACTION_WORDS.test(input)"),'Conversation must not route a semantic roster into the generic organization-context path.');
 expect(command.includes("type:'person_update_confirmation'"),'Command planner must require confirmation before person mutations.');
 expect(conversation.includes("resolvePendingPersonUpdate"),'Conversation engine must resolve pending person updates.');
 expect(!conversation.includes("if(!result&&rosterIntent.match)"),'Conversation engine must not own a separate roster-execution bypass.');
@@ -65,6 +72,11 @@ expect(ariaPage.includes('.message.user>div{white-space:pre-wrap'), 'User messag
 
 expect(peopleParser.includes('export function parsePeopleRoster'),'People parser must be independently testable.');
 expect(peopleMutation.includes("from'./peopleRosterParser'"),'People mutation engine must use the isolated roster parser.');
+expect(dailyQueue.includes("extracted_phones->>0 AS extracted_phone"),'Daily Queue must use the live scan-review schema for extracted phone data.');
+expect(diagnostics.includes('.toLowerCase().slice(0,500)'),'Diagnostic fingerprinting must use the valid String API.');
+expect(clientDiagnostics.includes('isExpectedAbort'),'Client telemetry must ignore expected browser aborts.');
+expect(peopleMutationEngine.includes("COALESCE(living_truth->>'status','alive')"),'Confirmed People updates must not reject records with a missing Living Truth status.');
+expect(peopleMutationEngine.includes("await client.query('BEGIN')")&&peopleMutationEngine.includes("},client)")&&peopleMutationEngine.includes("await client.query('COMMIT')"),'Confirmed People updates must atomically persist the record and provenance event.');
 
 console.log('[ARIA TODAY REGRESSION]');
 console.log('Canonical queue, Tell ARIA resolution, People import/update and Profile launcher checks.');

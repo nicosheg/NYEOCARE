@@ -5,7 +5,7 @@ const root=process.cwd();
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 const required=[
  ['lib/aria/conversationState.js','conversation_state','referenced_observations'],
- ['lib/aria/cohortEngine.js','past_absentees','inferCohortFromText'],
+ ['lib/aria/cohortEngine.js','const clean=','past_absentees','inferCohortFromText'],
  ['lib/aria/batchDraftEngine.js','createCareDraftBatch','whatsappNote'],
  ['lib/aria/capabilityRegistry.js','get_observation_context','draft_message_cohort'],
  ['lib/aria/capabilityEngine.js','observationContext','draft_message_cohort'],

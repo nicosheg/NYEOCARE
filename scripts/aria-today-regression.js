@@ -16,6 +16,7 @@ const command=read('lib/aria/commandEngine.js');
 const conversation=read('lib/aria/conversationEngine.js');
 const state=read('lib/aria/conversationState.js');
 const profile=read('pages/profile.js');
+const ariaPage=read('pages/aria.js');
 const peopleMutation=read('lib/aria/peopleMutationEngine.js');
 const peopleParser=read('lib/aria/peopleRosterParser.js');
 
@@ -42,6 +43,17 @@ expect(!profile.includes('ARIA guidance'), 'Profile must not contain the duplica
 expect(!profile.includes('ariaInstructions'), 'Profile must not edit ARIA guidance through its save path.');
 expect(!profile.includes('setAria'), 'Profile must not retain ARIA guidance state.');
 expect(!profile.includes('ariaLaunchButton'), 'Profile must not contain a duplicate Tell ARIA launcher.');
+expect(command.includes("capability_overview"),'ARIA command planning must have a dynamic capability-awareness path.');
+expect(command.includes("listCapabilitiesForRole"),'ARIA command planning must use the authoritative capability catalog.');
+expect(conversation.includes("inferPeopleRosterIntent"),'Conversation engine must use semantic roster intent, including packed input.');
+expect(conversation.includes("const OBSERVATION_FOLLOW_UP=/^"),'Observation follow-up matching must be anchored to prevent sentence-level false positives.');
+expect(conversation.includes("CAPABILITY AWARENESS AND RECOVERY"),'Natural ARIA responses must include capability-aware recovery guidance.');
+expect(!ariaPage.includes("onKeyDown={e=>{if(e.key==='Enter'"),'Tell ARIA must not send on Enter.');
+expect(ariaPage.includes('type="button" onClick={()=>send()}'), 'Tell ARIA Send must be an explicit button action.');
+expect(ariaPage.includes("resizeComposer"),'Tell ARIA composer must auto-expand for pasted/multiline input.');
+expect(ariaPage.includes('max-height:180px'),'Tell ARIA composer must support expanded multiline input.');
+expect(ariaPage.includes('.message.user>div{white-space:pre-wrap'), 'User messages must preserve pasted line breaks visually.');
+
 expect(peopleParser.includes('export function parsePeopleRoster'),'People parser must be independently testable.');
 expect(peopleMutation.includes("from'./peopleRosterParser'"),'People mutation engine must use the isolated roster parser.');
 

@@ -37,7 +37,7 @@ expect(capabilityEngine.includes("updatePersonRecord"),'Capability engine must e
 expect(command.includes("goal:'import_people_roster'"),'Command planner must recognize roster imports.');
 expect(command.includes("type:'person_update_confirmation'"),'Command planner must require confirmation before person mutations.');
 expect(conversation.includes("resolvePendingPersonUpdate"),'Conversation engine must resolve pending person updates.');
-expect(conversation.includes("parsePeopleRoster(input)"),'Conversation engine must recognize pasted rosters directly.');
+expect(conversation.includes("inferPeopleRosterIntent(input)"),'Conversation engine must recognize pasted rosters through semantic intent.');
 expect(state.includes("pending_person_update"),'Conversation state must persist pending person update confirmation.');
 expect(!profile.includes('ARIA guidance'), 'Profile must not contain the duplicate ARIA guidance surface.');
 expect(!profile.includes('ariaInstructions'), 'Profile must not edit ARIA guidance through its save path.');

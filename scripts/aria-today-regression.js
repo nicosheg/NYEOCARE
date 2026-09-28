@@ -44,6 +44,10 @@ expect(!profile.includes('ariaInstructions'), 'Profile must not edit ARIA guidan
 expect(!profile.includes('setAria'), 'Profile must not retain ARIA guidance state.');
 expect(!profile.includes('ariaLaunchButton'), 'Profile must not contain a duplicate Tell ARIA launcher.');
 expect(command.includes("capability_overview"),'ARIA command planning must have a dynamic capability-awareness path.');
+expect(command.includes("people_import_request"),'ARIA must recognize explicit intent to add/import People before generic planning.');
+expect(capabilityRegistry.includes("requiredRole:'owner_or_admin'"),'Capability registry must expose role boundaries to ARIA.');
+expect(capabilityRegistry.includes("import_people_roster:{description:"),'People roster import must remain an explicitly registered capability.');
+
 expect(command.includes("listCapabilitiesForRole"),'ARIA command planning must use the authoritative capability catalog.');
 expect(conversation.includes("inferPeopleRosterIntent"),'Conversation engine must use semantic roster intent, including packed input.');
 expect(conversation.includes("const OBSERVATION_FOLLOW_UP=/^"),'Observation follow-up matching must be anchored to prevent sentence-level false positives.');

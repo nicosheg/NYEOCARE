@@ -34,13 +34,15 @@ expect(capabilityRegistry.includes("import_people_roster"),'ARIA must register P
 expect(capabilityRegistry.includes("update_person_record"),'ARIA must register People update capability.');
 expect(capabilityEngine.includes("importPeopleRoster"),'Capability engine must execute People roster imports.');
 expect(capabilityEngine.includes("updatePersonRecord"),'Capability engine must execute confirmed People updates.');
-expect(command.includes("goal:'import_people_roster'"),'Command planner must recognize roster imports.');
+expect(command.includes("inferPeopleRosterIntent"),'Command planner must recognize semantic roster intent.');
+expect(command.includes("goal:'import_people_roster'"),'Command planner must expose roster import planning.');
 expect(command.includes("import pool from'../db'"),'Command engine must import its database pool before role-aware planning.');
 expect(command.includes("goal:'verify_current_person_phone'"),'ARIA must have a deterministic non-mutating path for a retracted phone-change question.');
 expect(command.includes("draft_message_cohort"),'Command planner must preserve a second draft task when a roster import and message-preparation request arrive together.');
 expect(command.includes("type:'person_update_confirmation'"),'Command planner must require confirmation before person mutations.');
 expect(conversation.includes("resolvePendingPersonUpdate"),'Conversation engine must resolve pending person updates.');
-expect(!conversation.includes("inferPeopleRosterIntent(input)"),'Conversation engine should not bypass the capability-aware command planner for roster requests.');
+expect(!conversation.includes("if(!result&&rosterIntent.match)"),'Conversation engine must not own a separate roster-execution bypass.');
+expect(command.includes("const rosterIntent=inferPeopleRosterIntent(input)"),'Command engine must own semantic roster detection for packed input.');
 expect(state.includes("pending_person_update"),'Conversation state must persist pending person update confirmation.');
 expect(!profile.includes('ARIA guidance'), 'Profile must not contain the duplicate ARIA guidance surface.');
 expect(!profile.includes('ariaInstructions'), 'Profile must not edit ARIA guidance through its save path.');

@@ -39,6 +39,9 @@ expect(command.includes("capability:'import_people_roster'"),'Command planner mu
 expect(command.includes("import pool from'../db'"),'Command engine must import its database pool before role-aware planning.');
 expect(command.includes("goal:'verify_current_person_phone'"),'ARIA must have a deterministic non-mutating path for a retracted phone-change question.');
 expect(command.includes("draft_message_cohort"),'Command planner must preserve a second draft task when a roster import and message-preparation request arrive together.');
+expect(command.includes("unsupported_external_calling"),'ARIA must have a truthful boundary for unsupported live calling.');
+expect(peopleMutation.includes("AND(phone=$2 OR EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(phone_numbers,'[]'::jsonb)) x WHERE x->>'normalized'=$2)) LIMIT 1"),'People phone lookup SQL must keep LIMIT outside the boolean predicate.');
+expect(peopleMutation.includes("AND(phone=$3 OR EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(phone_numbers,'[]'::jsonb)) x WHERE x->>'normalized'=$3)) LIMIT 1"),'People update duplicate-phone SQL must keep LIMIT outside the boolean predicate.');
 expect(command.includes("type:'person_update_confirmation'"),'Command planner must require confirmation before person mutations.');
 expect(conversation.includes("resolvePendingPersonUpdate"),'Conversation engine must resolve pending person updates.');
 expect(!conversation.includes("if(!result&&rosterIntent.match)"),'Conversation engine must not own a separate roster-execution bypass.');
@@ -55,6 +58,8 @@ expect(capabilityRegistry.includes("import_people_roster:{description:"),'People
 
 expect(command.includes("listCapabilitiesForRole"),'ARIA command planning must use the authoritative capability catalog.');
 expect(!conversation.includes("const rosterIntent=inferPeopleRosterIntent(input)"),'Conversation engine must not independently route roster execution.');
+expect(conversation.includes("const isAction=ACTION_WORDS.test(input)"),'Action detection must run before the generic help shortcut.');
+expect(conversation.includes("call|invite|assign|create an action|update|change|correct|edit|add|put|save|import|create|set"),'Natural action verbs must route to command planning instead of organization-context fallback.');
 expect(conversation.includes("const OBSERVATION_FOLLOW_UP=/^"),'Observation follow-up matching must be anchored to prevent sentence-level false positives.');
 expect(conversation.includes("CAPABILITY AWARENESS AND RECOVERY"),'Natural ARIA responses must include capability-aware recovery guidance.');
 expect(!ariaPage.includes("onKeyDown={e=>{if(e.key==='Enter'"),'Tell ARIA must not send on Enter.');

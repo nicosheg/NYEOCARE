@@ -2522,3 +2522,24 @@ The application must separate human-fact persistence from derived intelligence. 
 
 ### What Sentinel does not claim
 Sentinel does not mathematically prove that no future bug exists. It creates multiple independent detection layers so that frontend, backend, data/queue, deployment, and real-user failures become visible and actionable instead of remaining hidden until a user reports them.
+
+
+## ARIA interaction hardening — September 28, 2026
+
+### Tell ARIA is an intent-aware operating surface, not a form parser
+
+Tell ARIA must reason from the shape and purpose of what an operator says or pastes instead of requiring a new command pattern for every natural variation.
+
+For People/roster input, ARIA should recognize a roster task when the message contains multiple person-like rows and multiple phone-like values, especially when the surrounding language indicates names, phone numbers, contacts, women, members, a roster, or similar organizational context. The operator may include ordinary prose before, between, or after the facts.
+
+The default durable payload for a roster import is **identity data**: person name and phone number. Incidental prose is not a person fact merely because it appears next to a row. Sentences such as “Please she's very strong”, “and this the names and phone number…”, or “Please let call them…” are task context and must be ignored by the People import unless the operator explicitly asks ARIA to remember that text as a person fact.
+
+A phone-shaped value that is incomplete or otherwise invalid may remain attached to its intended person row so that the operator can review it; ARIA must not silently invent digits or normalize an uncertain number into a different value.
+
+A name-only row remains a valid People candidate and may be imported without a phone. Existing People matching remains conservative: an exact name match with a conflicting existing phone must not overwrite the stored phone automatically.
+
+This reasoning layer is deliberately deterministic for high-confidence structure because it is fast, auditable, and safer than calling an LLM for simple contact extraction. The conversational/AI layer may still interpret broader intent, but it should hand clear structured roster work to the canonical People mutation capability.
+
+### Profile surface — one ARIA entry point
+
+The Profile page must not contain a second ARIA guidance/editor surface. Profile is for organization, access, invitations, and account/security settings. ARIA interaction belongs to the global Tell ARIA experience and the canonical Today/Review surfaces. Do not reintroduce a duplicate “ARIA guidance” editor or launcher into Profile merely under a different label.

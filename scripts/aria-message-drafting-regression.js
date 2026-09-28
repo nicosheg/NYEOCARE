@@ -40,9 +40,10 @@ if(invalid.valid)throw new Error('Invalid Nigerian mobile range was accepted.');
 if(whatsappChatUrl('+2342067841674','Hello'))throw new Error('Invalid WhatsApp number produced a chat URL.');
 const bro={display_name:'Bro Eze',first_name:'Eze',last_name:'',metadata:{honorific:'Bro'}};
 if(getAddressName(bro)!=='Bro Eze')throw new Error('Honorific addressing failed.');
-const personalized=personalizeWhatsAppMessage('Hi Blessing, thank you for being with us.',bro);
+const personalized=personalizeWhatsAppMessage('Hello Blessing, Hi Blessing, thank you for being with us.',bro);
 if(!personalized.startsWith('Hello Bro Eze,'))throw new Error('Message personalization did not replace the model salutation.');
-if(/Hello Blessing/i.test(personalized))throw new Error('Wrong recipient name survived personalization.');
+if(/Blessing/i.test(personalized))throw new Error('Wrong recipient name survived personalization.');
+
 const alternate=getWhatsAppPhone({phone:'+2342067841674',phone_numbers:[{normalized:'+2348032173632'}]});
 if(!alternate.valid||alternate.waNumber!=='2348032173632')throw new Error('Safe alternate WhatsApp phone candidate was not selected.');
 const root=process.cwd(),read=p=>fs.readFileSync(path.join(root,p),'utf8');
@@ -53,8 +54,8 @@ for(const needle of ['WHATSAPP_SESSION_KEY','startWhatsAppSession','openWhatsApp
 
 const batch=read('lib/aria/batchDraftEngine.js'),draft=read('lib/aria/draftEngine.js'),queue=read('pages/api/aria/drafts.js');
 for(const [file,...needles] of [
- ['lib/aria/batchDraftEngine.js','whatsapp_v2','phone_not_safe_for_whatsapp','duplicate_whatsapp_recipient'],
- ['lib/aria/draftEngine.js','draftVersion','personalizeWhatsAppMessage','metadata->>\'draft_version\''],
+ ['lib/aria/batchDraftEngine.js','whatsapp_v3','phone_not_safe_for_whatsapp','duplicate_whatsapp_recipient'],
+ ['lib/aria/draftEngine.js','whatsapp_v3','personalizeWhatsAppMessage','metadata->>\'draft_version\'','address_name'],
  ['pages/api/aria/drafts.js','whatsapp_v2','needs_phone_review_count','whatsappChatUrl']
 ]){
  const content=read(file);

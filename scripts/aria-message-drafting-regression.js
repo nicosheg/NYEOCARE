@@ -46,6 +46,11 @@ if(/Hello Blessing/i.test(personalized))throw new Error('Wrong recipient name su
 const alternate=getWhatsAppPhone({phone:'+2342067841674',phone_numbers:[{normalized:'+2348032173632'}]});
 if(!alternate.valid||alternate.waNumber!=='2348032173632')throw new Error('Safe alternate WhatsApp phone candidate was not selected.');
 const root=process.cwd(),read=p=>fs.readFileSync(path.join(root,p),'utf8');
+const ariaPage=read('pages/aria.js');
+for(const needle of ['WHATSAPP_SESSION_KEY','startWhatsAppSession','openWhatsAppFromSession','pageshow','Auto-next ON','Start WhatsApp','pendingReturn']){
+ if(!ariaPage.includes(needle))throw new Error('pages/aria.js is missing WhatsApp session contract: '+needle);
+}
+
 const batch=read('lib/aria/batchDraftEngine.js'),draft=read('lib/aria/draftEngine.js'),queue=read('pages/api/aria/drafts.js');
 for(const [file,...needles] of [
  ['lib/aria/batchDraftEngine.js','whatsapp_v2','phone_not_safe_for_whatsapp','duplicate_whatsapp_recipient'],

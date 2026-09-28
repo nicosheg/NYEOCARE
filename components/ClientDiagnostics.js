@@ -13,6 +13,9 @@ function shouldSend(key,windowMs=30000){
 function isChunkError(message){
  return /ChunkLoadError|Loading chunk|dynamically imported module|Failed to fetch dynamically imported module/i.test(String(message||''));
 }
+function isExpectedAbort(message){
+ return /AbortError|operation was aborted|signal is aborted|aborted without reason/i.test(String(message||''));
+}
 
 async function send(payload){
  if(typeof window==='undefined'||payload?.pathname==='/system/diagnostics')return;
@@ -104,6 +107,7 @@ export default function ClientDiagnostics(){
     return response;
    }catch(error){
     const duration=Math.round(performance.now()-started);
+    if(isExpectedAbort(error?.message||error))throw error;
     if(pathname.startsWith('/api/')&&pathname!=='/api/diagnostics/client-error'&&shouldSend('network:'+pathname)){
      void send({
       kind:'client_network_error',

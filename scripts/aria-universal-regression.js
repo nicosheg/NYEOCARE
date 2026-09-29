@@ -49,8 +49,11 @@ expect(command.includes("goal:'synchronized workspace snapshot'"),'Command plann
 expect(command.includes("CONFIRMATION_REQUIRED_CAPABILITIES"),'Command planner must gate high-impact memory/semantics writes.');
 expect(command.includes("workspace_action_confirmation"),'Command planner must create generic action confirmations.');
 expect(conversation.includes("resolvePendingCapabilityAction"),'Conversation engine must resolve generic confirmations.');
+expect(conversation.includes("resolvePendingRosterImport"),'Conversation engine must resolve pending roster imports across turns.');
+expect(conversation.includes("pending_roster_import"),'Conversation engine must preserve bulk roster intent across turns.');
 expect(conversation.includes("pending_workspace_action"),'Conversation state must persist generic workspace actions.');
 expect(state.includes("pending_capability_action"),'Conversation state must persist high-impact capability actions.');
+expect(state.includes("pending_roster_import"),'Conversation state must persist pending roster imports.');
 expect(chat.includes("timeZone:req.body?.timeZone"),'ARIA chat API must accept operator timezone.');
 expect(ariaPage.includes("Intl.DateTimeFormat().resolvedOptions().timeZone"),'ARIA UI must send the operator timezone.');
 expect(apiHelpers.includes("aria_activity_log"),'API requests must be recorded for durable ARIA activity history.');

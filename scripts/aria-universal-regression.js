@@ -28,6 +28,7 @@ expect(workspace.includes("export async function latestAttendance"),'Universal w
 expect(workspace.includes("export async function recentActivity"),'Universal workspace must expose activity history.');
 expect(workspace.includes("export async function workspaceSnapshot"),'Universal workspace must expose whole-workspace state.');
 expect(workspace.includes("mark_attendance"),'Universal workspace must support attendance actions.');
+for(const operation of ['create_session','close_session','discard_session','join_session','leave_session','create_group','update_group','delete_group','add_membership','remove_membership','add_person_role','remove_person_role','add_relationship','remove_relationship'])expect(workspace.includes("op==='"+operation+"'"),'Universal workspace must support '+operation+'.');
 expect(workspace.includes("create_task"),'Universal workspace must support task creation.');
 expect(workspace.includes("complete_task"),'Universal workspace must support task completion.');
 expect(workspace.includes("add_note"),'Universal workspace must support person notes.');
@@ -35,6 +36,7 @@ expect(workspace.includes("record_feedback"),'Universal workspace must support c
 expect(workspace.includes("confirmationOps"),'Universal workspace must centrally gate destructive actions.');
 expect(command.includes("goal:'current date and time'"),'Command planner must understand date/time requests.');
 expect(command.includes("goal:'latest attendance'"),'Command planner must understand latest attendance.');
+expect(command.includes('Supported operations: mark_attendance, create_session, close_session, discard_session'),'Command planner must know the concrete workspace operation catalog.');
 expect(command.includes("goal:'recent NYEOCARE activity'"),'Command planner must understand recent activity.');
 expect(command.includes("goal:'people needing attention today'"),'Command planner must understand people needing attention.');
 expect(command.includes("goal:'synchronized workspace snapshot'"),'Command planner must understand whole-workspace requests.');

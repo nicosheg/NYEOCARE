@@ -254,7 +254,7 @@ export default function AriaPage(){
   const optimistic={id:'local-'+Date.now(),role:'user',content:message,at:Date.now()};
   setMessages(v=>v.concat(optimistic));
   try{
-   const body={message,conversationId:conversationId||null};if(personId)body.personId=personId;
+   const body={message,conversationId:conversationId||null,timeZone:(typeof Intl!=='undefined'&&Intl.DateTimeFormat?Intl.DateTimeFormat().resolvedOptions().timeZone:null)};if(personId)body.personId=personId;
    const r=await api('/api/aria/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),d=await r.json().catch(()=>({}));
    if(!r.ok)throw Error(d.error||'ARIA could not answer that right now.');
    if(mounted.current){

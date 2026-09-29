@@ -31,6 +31,7 @@
     "test:experience": "node scripts/experience-contract-regression.js",
     "test:diagnostics": "node scripts/full-app-diagnostics.js",
     "test:aria-today": "node scripts/aria-today-regression.js",
+    "test:aria-universal": "node scripts/aria-universal-regression.js",
     "test:aria-people": "node --experimental-specifier-resolution=node --experimental-default-type=module scripts/aria-people-regression.js",
     "test:aria-message-drafting": "node --experimental-specifier-resolution=node --experimental-default-type=module scripts/aria-message-drafting-regression.js"
   },

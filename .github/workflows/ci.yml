@@ -42,6 +42,7 @@ jobs:
       - run: npm run test:experience
       - run: npm run test:diagnostics
       - run: npm run test:aria-today
+      - run: npm run test:aria-universal
       - run: npm run test:aria-people
       - run: npm run test:aria-message-drafting
       - run: npm run test:aria

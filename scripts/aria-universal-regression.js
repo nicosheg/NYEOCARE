@@ -1,0 +1,56 @@
+import{readFileSync}from'node:fs';
+
+const read=p=>readFileSync(p,'utf8');
+const failures=[];
+const expect=(condition,message)=>{if(!condition)failures.push(message)};
+
+const registry=read('lib/aria/capabilityRegistry.js');
+const engine=read('lib/aria/capabilityEngine.js');
+const workspace=read('lib/aria/universalWorkspace.js');
+const command=read('lib/aria/commandEngine.js');
+const conversation=read('lib/aria/conversationEngine.js');
+const state=read('lib/aria/conversationState.js');
+const chat=read('pages/api/aria/chat.js');
+const ariaPage=read('pages/aria.js');
+const apiHelpers=read('lib/apiHelpers.js');
+const migration=read('supabase/migrations/20260929100000_aria_universal_continuity.sql');
+
+expect(registry.includes("current_time:{"),'ARIA must register current time.');
+expect(registry.includes("get_latest_attendance:{"),'ARIA must register latest attendance.');
+expect(registry.includes("get_recent_activity:{"),'ARIA must register recent activity.');
+expect(registry.includes("get_today_attention:{"),'ARIA must register today attention.');
+expect(registry.includes("get_workspace_snapshot:{"),'ARIA must register the whole-workspace snapshot.');
+expect(registry.includes("operate_workspace:{"),'ARIA must register the universal action broker.');
+expect(engine.includes("universalWorkspace"),'Capability engine must expose the universal workspace engine.');
+expect(engine.includes("case'operate_workspace'"),'Capability engine must execute allowlisted workspace actions.');
+expect(workspace.includes("export function currentTime"),'Universal workspace must expose current time.');
+expect(workspace.includes("export async function latestAttendance"),'Universal workspace must expose latest attendance.');
+expect(workspace.includes("export async function recentActivity"),'Universal workspace must expose activity history.');
+expect(workspace.includes("export async function workspaceSnapshot"),'Universal workspace must expose whole-workspace state.');
+expect(workspace.includes("mark_attendance"),'Universal workspace must support attendance actions.');
+expect(workspace.includes("create_task"),'Universal workspace must support task creation.');
+expect(workspace.includes("complete_task"),'Universal workspace must support task completion.');
+expect(workspace.includes("add_note"),'Universal workspace must support person notes.');
+expect(workspace.includes("record_feedback"),'Universal workspace must support care feedback.');
+expect(workspace.includes("confirmationOps"),'Universal workspace must centrally gate destructive actions.');
+expect(command.includes("goal:'current date and time'"),'Command planner must understand date/time requests.');
+expect(command.includes("goal:'latest attendance'"),'Command planner must understand latest attendance.');
+expect(command.includes("goal:'recent NYEOCARE activity'"),'Command planner must understand recent activity.');
+expect(command.includes("goal:'people needing attention today'"),'Command planner must understand people needing attention.');
+expect(command.includes("goal:'synchronized workspace snapshot'"),'Command planner must understand whole-workspace requests.');
+expect(command.includes("CONFIRMATION_REQUIRED_CAPABILITIES"),'Command planner must gate high-impact memory/semantics writes.');
+expect(command.includes("workspace_action_confirmation"),'Command planner must create generic action confirmations.');
+expect(conversation.includes("resolvePendingCapabilityAction"),'Conversation engine must resolve generic confirmations.');
+expect(conversation.includes("pending_workspace_action"),'Conversation state must persist generic workspace actions.');
+expect(state.includes("pending_capability_action"),'Conversation state must persist high-impact capability actions.');
+expect(chat.includes("timeZone:req.body?.timeZone"),'ARIA chat API must accept operator timezone.');
+expect(ariaPage.includes("Intl.DateTimeFormat().resolvedOptions().timeZone"),'ARIA UI must send the operator timezone.');
+expect(apiHelpers.includes("aria_activity_log"),'API requests must be recorded for durable ARIA activity history.');
+expect(migration.includes("CREATE TABLE IF NOT EXISTS public.aria_activity_log"),'Migration must create the ARIA activity log.');
+
+console.log('[ARIA UNIVERSAL REGRESSION]');
+console.log('Universal reads, workspace actions, durable activity history and confirmation boundaries.');
+console.log('High-confidence failures:',failures.length);
+for(const failure of failures)console.error('FAIL:',failure);
+if(failures.length)process.exit(1);
+console.log('PASS: ARIA universal contracts are present.');

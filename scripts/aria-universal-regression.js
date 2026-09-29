@@ -6,6 +6,7 @@ const expect=(condition,message)=>{if(!condition)failures.push(message)};
 
 const registry=read('lib/aria/capabilityRegistry.js');
 const engine=read('lib/aria/capabilityEngine.js');
+const peopleMutation=read('lib/aria/peopleMutationEngine.js');
 const workspace=read('lib/aria/universalWorkspace.js');
 const command=read('lib/aria/commandEngine.js');
 const conversation=read('lib/aria/conversationEngine.js');
@@ -26,6 +27,10 @@ expect(engine.includes("universalWorkspace"),'Capability engine must expose the 
 expect(engine.includes("case'operate_workspace'"),'Capability engine must execute allowlisted workspace actions.');
 expect(engine.includes("case'create_person'"),'Capability engine must execute direct person creation.');
 expect(engine.includes('createPerson'), 'Capability engine must use the canonical person creation mutation.');
+expect(!peopleMutation.includes("x->>'normalized'=$2) LIMIT 1"),'People duplicate-phone SQL must close the OR predicate before LIMIT for $2.');
+expect(!peopleMutation.includes("x->>'normalized'=$3) LIMIT 1"),'People duplicate-phone SQL must close the OR predicate before LIMIT for $3.');
+expect(peopleMutation.includes("x->>'normalized'=$2)) LIMIT 1"),'People duplicate-phone SQL must place LIMIT outside the OR predicate for $2.');
+expect(peopleMutation.includes("x->>'normalized'=$3)) LIMIT 1"),'People duplicate-phone SQL must place LIMIT outside the OR predicate for $3.');
 expect(workspace.includes("export function currentTime"),'Universal workspace must expose current time.');
 expect(workspace.includes("export async function latestAttendance"),'Universal workspace must expose latest attendance.');
 expect(workspace.includes("export async function recentActivity"),'Universal workspace must expose activity history.');

@@ -21,8 +21,11 @@ expect(registry.includes("get_recent_activity:{"),'ARIA must register recent act
 expect(registry.includes("get_today_attention:{"),'ARIA must register today attention.');
 expect(registry.includes("get_workspace_snapshot:{"),'ARIA must register the whole-workspace snapshot.');
 expect(registry.includes("operate_workspace:{"),'ARIA must register the universal action broker.');
+expect(registry.includes("create_person:{"),'ARIA must register direct person creation.');
 expect(engine.includes("universalWorkspace"),'Capability engine must expose the universal workspace engine.');
 expect(engine.includes("case'operate_workspace'"),'Capability engine must execute allowlisted workspace actions.');
+expect(engine.includes("case'create_person'"),'Capability engine must execute direct person creation.');
+expect(engine.includes('createPerson'), 'Capability engine must use the canonical person creation mutation.');
 expect(workspace.includes("export function currentTime"),'Universal workspace must expose current time.');
 expect(workspace.includes("export async function latestAttendance"),'Universal workspace must expose latest attendance.');
 expect(workspace.includes("export async function recentActivity"),'Universal workspace must expose activity history.');
@@ -35,6 +38,9 @@ expect(workspace.includes("add_note"),'Universal workspace must support person n
 expect(workspace.includes("record_feedback"),'Universal workspace must support care feedback.');
 expect(workspace.includes("confirmationOps"),'Universal workspace must centrally gate destructive actions.');
 expect(command.includes("goal:'current date and time'"),'Command planner must understand date/time requests.');
+expect(command.includes("goal:'create attendance session'"),'Command planner must understand natural attendance creation requests.');
+expect(command.includes("goal:'create_person'"),'Command planner must understand natural person creation requests.');
+expect(command.includes('parseNaturalDate'),'Command planner must normalize natural-language dates of birth.');
 expect(command.includes("goal:'latest attendance'"),'Command planner must understand latest attendance.');
 expect(command.includes('Supported operations: mark_attendance, create_session, close_session, discard_session'),'Command planner must know the concrete workspace operation catalog.');
 expect(command.includes("goal:'recent NYEOCARE activity'"),'Command planner must understand recent activity.');

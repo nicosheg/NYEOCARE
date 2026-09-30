@@ -138,7 +138,7 @@ const u=profile.user,o=profile.organization;
 const activeUsers=users.filter(x=>x.active);
 
 return <Layout><div className="wrap">
-{onboarding?.loaded&&onboarding.enabled&&!onboarding.isExperienced('profile')&&<FirstExperience experience="profile" onComplete={()=>onboarding.completeExperience('profile')}/>}
+{onboarding?.loaded&&onboarding.enabled&&!onboarding.isExperienced('profile')&&<FirstExperience experience="profile" role={u.role} onComplete={()=>onboarding.completeExperience('profile')}/>}
 <header><div className="avatar">{(u.name||'U').trim().charAt(0).toUpperCase()}</div><div><div className="eyebrow">PROFILE</div><h1>{u.name}</h1><div className="sub">{roleLabel(u.role)} · {u.email}</div></div></header>
 
 <div className="sections">

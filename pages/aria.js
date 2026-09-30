@@ -62,7 +62,7 @@ function MarkdownMessage({content}){
 export default function AriaPage(){
  const router=useRouter(),threadRef=useRef(null),inputRef=useRef(null),mounted=useRef(true);
  const[ready,setReady]=useState(false),[sessionError,setSessionError]=useState('');
- const[personId,setPersonId]=useState(null),[person,setPerson]=useState(null),[search,setSearch]=useState(''),[matches,setMatches]=useState([]);
+ const[personId,setPersonId]=useState(null),[person,setPerson]=useState(null),[surface,setSurface]=useState('aria'),[search,setSearch]=useState(''),[matches,setMatches]=useState([]);
  const[messages,setMessages]=useState([]),[conversationId,setConversationId]=useState(null),[input,setInput]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const[suggestion,setSuggestion]=useState(null),[draft,setDraft]=useState(null),[daily,setDaily]=useState(null),[todayOpen,setTodayOpen]=useState(false);
  const[recent,setRecent]=useState([]),[recentOpen,setRecentOpen]=useState(false),[loadingRecent,setLoadingRecent]=useState(true);
@@ -145,7 +145,8 @@ export default function AriaPage(){
     const id=String(router.query.personId||'').trim()||null;
     const conversation=String(router.query.conversation||'').trim()||null;
     const prompt=String(router.query.prompt||'').trim();
-    if(mounted.current){setPersonId(id);setInput(prompt.slice(0,4000))}
+    const sourceSurface=String(router.query.surface||'aria').trim().slice(0,80)||'aria';
+    if(mounted.current){setPersonId(id);setSurface(sourceSurface);setInput(prompt.slice(0,4000))}
     if(id)await loadPerson(id);else if(mounted.current)setPerson(null);
     if(conversation)await openConversation(conversation);
     await Promise.all([loadRecent(),loadDaily(),loadDraftQueue()]);
@@ -254,7 +255,7 @@ export default function AriaPage(){
   const optimistic={id:'local-'+Date.now(),role:'user',content:message,at:Date.now()};
   setMessages(v=>v.concat(optimistic));
   try{
-   const body={message,conversationId:conversationId||null,timeZone:(typeof Intl!=='undefined'&&Intl.DateTimeFormat?Intl.DateTimeFormat().resolvedOptions().timeZone:null)};if(personId)body.personId=personId;
+   const body={message,conversationId:conversationId||null,surface,timeZone:(typeof Intl!=='undefined'&&Intl.DateTimeFormat?Intl.DateTimeFormat().resolvedOptions().timeZone:null)};if(personId)body.personId=personId;
    const r=await api('/api/aria/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),d=await r.json().catch(()=>({}));
    if(!r.ok)throw Error(d.error||'ARIA could not answer that right now.');
    if(mounted.current){

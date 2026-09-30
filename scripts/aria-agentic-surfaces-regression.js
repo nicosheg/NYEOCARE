@@ -50,6 +50,7 @@ assert.match(accessEngine,/remove_user/,'Canonical access engine must support re
 assert.match(accessEngine,/change_role/,'Canonical access engine must support role changes.');
 assert.match(accessEngine,/transfer_ownership/,'Canonical access engine must support ownership transfer.');
 assert.match(accessEngine,/revoke_invitation/,'Canonical access engine must support invitation revocation.');
+assert.match(accessEngine,/visibleInvitations=\['owner','admin'\]\.includes\(actor\.role\)/,'Canonical access engine must enforce invitation visibility by role.');
 
 console.log('[ARIA AGENTIC SURFACES REGRESSION]');
 console.log('PASS: profile mutation, onboarding ownership, invited-user state model, page context, and WhatsApp session contracts are wired together.');

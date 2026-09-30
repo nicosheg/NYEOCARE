@@ -40,6 +40,7 @@ jobs:
       - run: npm run test:aria-internal-messaging
       - run: npm run test:critical-ui
       - run: npm run test:experience
+      - run: npm run test:aria-agentic-surfaces
       - run: npm run test:diagnostics
       - run: npm run test:aria-today
       - run: npm run test:aria-universal

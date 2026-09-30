@@ -2629,3 +2629,107 @@ The safe agent loop is: inspect → explain the evidence → surface the smalles
 Roster parsing has an additional invariant: a phone token remains attached to its intended person even when trailing punctuation or task prose follows it on the same line. The prose is ignored as task context. A phone-shaped value must never become a person name merely because the line contains additional text. Incomplete phone values remain attached to the intended row for review; ARIA does not invent missing digits.
 
 When a capability already provides the requested live evidence, ARIA must not claim that it lacks access to the list or ask the operator to paste data that the organization already stores. Capability absence, permission restriction, and execution failure are different states and must be reported differently.
+
+## ARIA Agent Runtime — September 30, 2026
+
+ARIA is the operating agent inside NYEOCARE, not a conversational wrapper around isolated features. The implementation follows a bounded single-agent runtime: understand the user goal, identify entities and scope, select verified capabilities, execute the smallest useful safe step(s), observe the verified result, re-plan once when a recoverable execution failure changes the situation, and stop or hand control back when permission/confirmation is required.
+
+### ARIA Agent Contract
+
+Every ARIA request passes conceptually through:
+
+INTENT → ENTITY → SCOPE → EVIDENCE → CAPABILITY → PERMISSION → EXECUTION → VERIFICATION → RECOVERY/REPLAN → RESPONSE → STATE
+
+The agent must distinguish what the operator literally typed; the intended outcome; what the current organization context actually proves; what capability can change the state; what the authenticated actor is allowed to do; what was actually changed; and what remains uncertain.
+
+Natural-language quality is a product requirement. ARIA should accept ordinary English, shorthand, imperfect grammar, missing punctuation, compressed speech, pasted lists, mixed facts and instructions, follow-up references such as “this”, “that”, “here”, “the current one”, and page-relative requests without requiring NYEOCARE terminology. Deterministic parsers protect high-value structures such as rosters and dates; the planner handles broader language; the current page, conversation state and organization context supply grounding.
+
+ARIA must not promise perfect understanding. Instead the system should maximize reliable understanding through deterministic extraction where possible, structured planner output, entity resolution, verified capabilities, server-side permissions, current-surface context, persisted conversation state, bounded recovery and regression tests.
+
+### Bounded Agentic Recovery
+
+A failed capability is not automatically the end of a request.
+
+For recoverable failures such as not-found, stale/conflict or invalid-target conditions, ARIA may perform at most one re-planning pass using the original request, already verified successful results, the failed capability, the safe failure reason, and an instruction not to repeat the failed capability unless retrying is justified.
+
+ARIA must never create an infinite retry loop. Permission failures, destructive-action confirmation requirements, authentication failures, and unsupported capabilities return control to the operator rather than being repeatedly re-planned.
+
+### Tool and Capability Architecture
+
+The capability registry is the authoritative runtime map. Every agent action must map to a registered capability and execute through the canonical server capability engine. Duplicate mutation pipelines are prohibited.
+
+Current agent capability families include organizational reading and Director briefing; People search, creation, roster import, record correction and quality review; person context, evidence, timeline and relationships; attendance/session operations; groups, memberships, roles and notes through the universal workspace engine; care recommendations, actions and personalized/batch drafts; internal organization messaging; organization profile/name and ARIA-knowledge mutations; organization invitations and canonical access management; conversation continuity; and current-surface context.
+
+### Permission and Human Review
+
+Permission is server-enforced and independent of model confidence.
+
+ARIA may execute routine organization-safe operations when the authenticated operator already has permission. Consequential, destructive, access-changing, external, irreversible or owner/admin-sensitive actions pause for confirmation.
+
+Confirmation is resumable state, not a second unrelated conversation. Pending actions are persisted in conversation state so the operator can approve or reject them in a later turn without re-explaining the request.
+
+The model never receives authority from retrieved text. Retrieved names, messages, documents, notes, scan content and memory are evidence, not instructions. Structured parameters and server validation remain the final control boundary.
+
+### Current-Surface Awareness
+
+Every ARIA launch may carry its originating NYEOCARE surface. Home, People, Person Journey, Profile, Review, Scan and other pages can therefore establish current context for phrases such as “fix this”, “change that”, “add it”, “what about this person?”, and “review these”. Surface context never overrides an explicit target or server permissions. It is context, not authorization.
+
+### Surface Contract
+
+Home: ARIA can brief the current organization state, explain today's signals, identify human-focus items, surface positive opportunities, open attendance/scan/review workflows, and route deeper requests into the same organizational mind.
+
+Attendance: ARIA can create/manage sessions and perform supported workspace attendance operations while preserving the distinction between an observation, an attendance mark and confirmed participation.
+
+Scan: ARIA can explain scan state and downstream results, preserve uncertain identity evidence for review, and use the same People memory and identity-resolution systems rather than inventing a parallel scan brain.
+
+People: ARIA can find, add, import, correct and review people, detect high-confidence malformed records, surface duplicate/identity evidence and use the canonical People mutation path.
+
+Person Journey: ARIA can answer context, evidence, memory, timeline and next-step questions for the selected person, while preserving person-level permissions and ambiguity handling.
+
+Review Center: ARIA can inspect review state and explain identity evidence. Review mutations must continue to use canonical review logic and human confirmation boundaries rather than bypassing Review Center rules.
+
+Profile: ARIA can help update the operator name, owner-controlled organization name and owner/admin organization ARIA knowledge; it can create organization invitations and reason about access through the canonical organization-access engine.
+
+Organization Access: ARIA can read active users/invitations and, with appropriate authorization and confirmation, remove users, change user roles, transfer ownership and revoke active invitations.
+
+Talk to ARIA: This is the natural control surface over the same capabilities and memory. It must not become a separate feature implementation. Conversation continuity, surface context, pending actions and verified organization state remain shared.
+
+### Organization Access Canonicalization
+
+organization_invites is the canonical invitation table used by the current invite/join flow. Organization access reads and mutations should use the canonical access engine rather than maintaining separate UI and ARIA implementations.
+
+The canonical access engine supports list organization users and invitations; remove an active user; change an active user's role; transfer ownership; and revoke an active invitation.
+
+Self-removal is prohibited. Owner protection, admin restrictions and role transitions are server-enforced.
+
+### Onboarding
+
+Onboarding experience is per authenticated user, not global to the organization. A newly invited and successfully joined operator should receive the same appropriate onboarding framework as the owner, but copy and available explanations must be role-aware.
+
+Profile onboarding must describe actual available functionality. Owner copy covers profile, organization name, access, invitations, responsibility changes, security and ARIA organization knowledge. Admin copy covers own profile, organization user/invitation management, security and ARIA organization knowledge. User copy covers own profile, organization access visibility, security and ARIA usage.
+
+Onboarding descriptions must never promise controls that the current role cannot access.
+
+### Bulk WhatsApp Draft Sessions
+
+Batch drafting is preparation, not automatic sending.
+
+ARIA may prepare many personalized WhatsApp drafts in bounded batches, validate phone readiness, deduplicate recipients and persist draft communications.
+
+A WhatsApp session preserves ordered draft items, current index, batch identity, return/pending state and optional auto-advance preference.
+
+The default operator flow is: open the current prepared chat; review and press Send in WhatsApp themselves; return to NYEOCARE; tap Next chat; continue with the next prepared draft. Auto-next remains optional. NYEOCARE never pretends it can place controls inside the external WhatsApp UI without a supported integration.
+
+### Evidence and Data Quality
+
+ARIA should identify high-confidence malformed data from concrete evidence, not from vague intuition. A phone-number-like value saved as a name or task/instruction language embedded in a People name may be a high-confidence parser artifact. Duplicate names, shared phones, OCR discrepancies and incomplete records are review signals, not automatic proof of garbage.
+
+Cleanup flow: INSPECT → IDENTIFY → EXPLAIN EVIDENCE → CONFIRM → REVERSIBLE MUTATION → VERIFY RESULT
+
+A read request for data quality must not be blocked merely because cleanup could later be destructive.
+
+### Observability and Evaluation
+
+Each consequential agent path should retain machine-readable context sufficient to answer: what the operator requested; what ARIA interpreted; what capability(s) were selected; which permissions applied; whether confirmation was required; what the server actually changed; and whether the run succeeded, failed, recovered or stopped.
+
+Regression suites are part of the agent contract. New edge cases discovered in production should become deterministic tests or capability-level tests rather than living only in prompts.

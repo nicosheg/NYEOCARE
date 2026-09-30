@@ -1,44 +1,18 @@
 // pages/api/users/invite.js
-import crypto from'crypto';
-import pool from'../../../lib/db';
-import{getCurrentCareUser}from'../../../lib/auth';
+import{withOrg}from'../../../lib/apiHelpers';
+import{createOrganizationInvite}from'../../../lib/organizationMutationEngine';
 
-const hash=t=>crypto.createHash('sha256').update(t).digest('hex');
-
-function appUrl(req){
-return(process.env.NEXT_PUBLIC_APP_URL||process.env.NEXT_PUBLIC_SITE_URL||`${req.headers['x-forwarded-proto']||'https'}://${req.headers.host}`).replace(/\/$/,'');
-}
-
-export default async function handler(req,res){
-if(req.method!=='POST')return res.status(405).json({error:'Method not allowed'});
-
-const user=await getCurrentCareUser(req);
-if(!user)return res.status(401).json({error:'Unauthorized'});
-if(!['owner','admin'].includes(user.role))return res.status(403).json({error:'Only owners and admins can invite users.'});
-
-const role=req.body?.role;
-if(!['admin','user'].includes(role))return res.status(400).json({error:'Invalid responsibility.'});
-
-try{
-const token=crypto.randomBytes(7).toString('base64url');
-const tokenHash=hash(token);
-const expires=new Date(Date.now()+48*60*60*1000);
-
-await pool.query(
-`INSERT INTO organization_invites
-(organization_id,invited_by,email,role,token_hash,expires_at)
-VALUES($1,$2,$3,$4,$5,$6)`,
-[user.organization_id,user.id,null,role,tokenHash,expires]
-);
-
-return res.status(200).json({
-success:true,
-role,
-expires_at:expires.toISOString(),
-url:`${appUrl(req)}/join/${token}`
-});
-}catch(error){
-console.error('[INVITE]',error);
-return res.status(500).json({error:'Unable to create invitation.'});
-}
+export default withOrg(async function handler(req,res){
+ if(req.method!=='POST')return res.status(405).json({error:'Method not allowed'});
+ if(!['owner','admin'].includes(req.user.role))return res.status(403).json({error:'Only owners and admins can invite users.'});
+ const role=req.body?.role;
+ try{
+  const appUrl=(process.env.NEXT_PUBLIC_APP_URL||process.env.NEXT_PUBLIC_SITE_URL||`${req.headers['x-forwarded-proto']||'https'}://${req.headers.host}`).replace(/\/$/,'');
+  const invite=await createOrganizationInvite({organizationId:req.org.id,userId:req.user.id,role,appUrl});
+  return res.status(200).json({success:true,role:invite.role,expires_at:invite.expires_at,url:invite.url});
+ }catch(error){
+  console.error('[INVITE]',error?.message||error);
+  const status=Number(error?.status)||500;
+  return res.status(status).json({error:status<500?(error.message||'Invalid invitation request.'):'Unable to create invitation.',code:error?.code||'INVITE_CREATE_FAILED'});
  }
+});

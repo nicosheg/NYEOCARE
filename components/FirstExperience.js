@@ -5,12 +5,12 @@ import{getClientSession}from'../lib/clientSession';
 const STEP_META={home:'1 of 3',scan:'2 of 3',review:'3 of 3',people:'1 of 1','person-journey':'1 of 1',profile:'1 of 1',briefing:'ARIA · TODAY'};
 
 const EXPERIENCE_COPY={
-home:{eyebrow:'A small beginning',title:'Let ARIA help you remember.',body:'Start with the people in your organization. ARIA will help you notice what matters and what may need your attention.',action:'Start with your people'},
+home:{eyebrow:'A small beginning',title:'Let ARIA help you run the day.',body:'From here you can see what matters today, start attendance, scan a register, review items that need a decision, and open ARIA for deeper work.',action:'Start with your people'},
 scan:{eyebrow:'Your first step',title:'Give ARIA your register.',body:'Take a clear photo of your register. ARIA will turn it into a living memory of the people you know.',action:'Scan the register'},
-people:{eyebrow:'Your people',title:'This is where your people live.',body:'Every person ARIA remembers belongs here. Tap a person to enter their journey. ARIA keeps their history, present state and what may come next connected.',action:'Explore your people'},
+people:{eyebrow:'Your people',title:'This is the organization’s living directory.',body:'Search, add and review people here. Open a person to see their journey, teach ARIA new context, correct safe record details and keep the organization’s memory connected.',action:'Explore your people'},
 'person-journey':{eyebrow:'A person, not a card',title:'Meet the journey ARIA remembers.',body:'This is the living record for one person. Confirmed facts, memories, observations, relationships, participation and prepared actions stay connected here. ARIA does not invent what it does not know.',action:'Continue'},
 review:{eyebrow:'When ARIA is unsure',title:'You stay in control.',body:'When something needs your decision, ARIA brings it here. Nothing important is silently changed without you.',action:'Got it'},
-profile:{eyebrow:'Make ARIA yours',title:'Tell ARIA what to keep in mind.',body:'You can give ARIA a simple message about your organization. You can change it whenever your needs change.',action:'Continue'},
+profile:{eyebrow:'Your organization, your access',title:'Keep your profile and organization in order.',body:'Here you can update your name, manage organization access, invite people, change responsibilities, secure your account and, for owners and admins, maintain the organization knowledge ARIA uses.',action:'Continue'},
 briefing:{eyebrow:'ARIA · Today',title:'See what matters, without hunting.',body:'This is ARIA’s daily briefing: a short view of what changed, what needs your attention, and what can safely wait. When nothing needs you, it stays quiet.',action:'Show me today'}
 };
 

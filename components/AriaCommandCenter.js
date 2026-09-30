@@ -10,7 +10,7 @@ export function openAria(detail={}){
 export default function AriaCommandCenter(){
  const router=useRouter(),launcherRef=useRef(null),drag=useRef(null),moved=useRef(false);
  const[expanded,setExpanded]=useState(true),[hidden,setHidden]=useState(false),[pos,setPos]=useState({right:18,bottom:18});
- const go=detail=>{const query={};if(detail?.personId)query.personId=String(detail.personId);if(detail?.prompt)query.prompt=String(detail.prompt);router.push({pathname:'/aria',query})};
+ const go=detail=>{const query={};if(detail?.personId)query.personId=String(detail.personId);if(detail?.prompt)query.prompt=String(detail.prompt);query.surface=String(detail?.surface||router.pathname||'unknown');router.push({pathname:'/aria',query})};
  useEffect(()=>{const onOpen=e=>go(e?.detail||{});window.addEventListener('nyeocare:aria-open',onOpen);const timer=window.setTimeout(()=>setExpanded(false),6500);return()=>{window.removeEventListener('nyeocare:aria-open',onOpen);window.clearTimeout(timer)}},[]);
  useEffect(()=>{setHidden(router.pathname==='/aria')},[router.pathname]);
  const down=e=>{if(e.pointerType==='mouse'&&e.button!==0)return;drag.current={x:e.clientX,y:e.clientY,right:pos.right,bottom:pos.bottom};moved.current=false;launcherRef.current?.setPointerCapture?.(e.pointerId)};

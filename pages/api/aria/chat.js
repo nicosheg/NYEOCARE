@@ -10,7 +10,7 @@ export default withOrg(async function handler(req,res){
  const message=typeof req.body?.message==='string'?req.body.message.trim():'';
  if(!message)return res.status(400).json({error:'Message is required.'});
  try{
-  const result=await handleConversation({organizationId:req.org.id,userId:req.user.id,message,conversationId:req.body?.conversationId||null,personId:req.body?.personId||null,timeZone:req.body?.timeZone||req.headers?.['x-time-zone']||null});
+  const result=await handleConversation({organizationId:req.org.id,userId:req.user.id,message,conversationId:req.body?.conversationId||null,personId:req.body?.personId||null,surface:req.body?.surface||null,timeZone:req.body?.timeZone||req.headers?.['x-time-zone']||null});
   return res.status(200).json(result);
  }catch(err){
   console.error('[ARIA] Conversation:',err);

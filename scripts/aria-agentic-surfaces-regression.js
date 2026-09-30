@@ -12,6 +12,9 @@ const launcher=read('components/AriaCommandCenter.js');
 const chatApi=read('pages/api/aria/chat.js');
 const conversation=read('lib/aria/conversationEngine.js');
 const registry=read('lib/aria/capabilityRegistry.js');
+const commandEngine=read('lib/aria/commandEngine.js');
+const capabilityEngine=read('lib/aria/capabilityEngine.js');
+const accessEngine=read('lib/organizationAccessEngine.js');
 
 assert.match(profileApi,/updateOrganizationProfile/,'Profile API must use the canonical organization mutation engine.');
 assert.match(mutationEngine,/UPDATE users SET name=/,'Canonical profile engine must update the operator name transactionally.');
@@ -35,6 +38,18 @@ assert.match(conversation,/surfaceLabel/,'Conversation execution must use origin
 
 assert.match(registry,/update_organization_profile/,'ARIA capability registry must expose profile updates.');
 assert.match(registry,/create_organization_invite/,'ARIA capability registry must expose invitation creation.');
+assert.match(registry,/manage_organization_access/,'ARIA capability registry must expose canonical access management.');
+assert.match(commandEngine,/view organization access/,'ARIA must understand organization access reads.');
+assert.match(commandEngine,/remove organization access/,'ARIA must understand organization access removal.');
+assert.match(commandEngine,/change organization user role/,'ARIA must understand role changes.');
+assert.match(commandEngine,/transfer organization ownership/,'ARIA must understand ownership transfer.');
+assert.match(commandEngine,/bounded recovery/,'ARIA command execution must have bounded recovery.');
+assert.match(commandEngine,/recoveryDepth<1/,'ARIA recovery must be bounded to one re-plan.');
+assert.match(capabilityEngine,/manage_organization_access/,'Capability engine must execute the canonical access engine.');
+assert.match(accessEngine,/remove_user/,'Canonical access engine must support removing users.');
+assert.match(accessEngine,/change_role/,'Canonical access engine must support role changes.');
+assert.match(accessEngine,/transfer_ownership/,'Canonical access engine must support ownership transfer.');
+assert.match(accessEngine,/revoke_invitation/,'Canonical access engine must support invitation revocation.');
 
 console.log('[ARIA AGENTIC SURFACES REGRESSION]');
 console.log('PASS: profile mutation, onboarding ownership, invited-user state model, page context, and WhatsApp session contracts are wired together.');

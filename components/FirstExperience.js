@@ -14,10 +14,12 @@ profile:{eyebrow:'Your organization, your access',title:'Keep your profile and o
 briefing:{eyebrow:'ARIA · Today',title:'See what matters, without hunting.',body:'This is ARIA’s daily briefing: a short view of what changed, what needs your attention, and what can safely wait. When nothing needs you, it stays quiet.',action:'Show me today'}
 };
 
-export default function FirstExperience({experience,onComplete,onAction}){
+export default function FirstExperience({experience,onComplete,onAction,role=null}){
 const[visible,setVisible]=useState(false);
 const[saving,setSaving]=useState(false);
-const copy=EXPERIENCE_COPY[experience];
+const baseCopy=EXPERIENCE_COPY[experience];
+const profileRoleCopy=experience==='profile'&&role==='owner'?{eyebrow:'Your organization, your access',title:'Keep your profile and organization in order.',body:'Update your name, manage organization access, invite people, change responsibilities, secure your account and maintain the organization knowledge ARIA uses.',action:'Continue'}:experience==='profile'&&role==='admin'?{eyebrow:'Your profile and access',title:'Keep your work organized.',body:'Update your own profile, manage the organization’s users and invitations, secure your account and maintain the organization knowledge ARIA uses.',action:'Continue'}:experience==='profile'?{eyebrow:'Your profile',title:'Know where your account lives.',body:'Update your name, review your organization access, secure your account and use ARIA from anywhere in NYEOCARE.',action:'Continue'}:null;
+const copy=profileRoleCopy||baseCopy;
 
 useEffect(()=>{
 if(!copy)return;

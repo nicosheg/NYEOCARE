@@ -96,6 +96,8 @@ const checks=[
 
  ['Shared navigation restores the previous internal route and scroll point',
   /nyeocare:navigation-history:v1/.test(navigationBack)&&/scrollTo/.test(navigationBack)&&/router\.push/.test(navigationBack)],
+ ['Shared back navigation excludes authentication pages from return history',
+  /isAuthPath/.test(navigationBack)&&/!isAuthPath\(candidate.url\)/.test(navigationBack)],
  ['Home keeps the daily briefing mounted behind action detail',
   !home.includes("const handleBriefAction=item=>{setBriefOpen(false)")&&/setSelected\(item\)/.test(home)],
  ['Daily briefing explains same-name duplicate records without auto-merging them',

@@ -5,7 +5,7 @@ const HISTORY_KEY='nyeocare:navigation-history:v1';
 const SCROLL_KEY='nyeocare:route-scroll:v1';
 const AUTH_ROUTES=new Set(['/login','/signup','/join','/reset-password','/profile/password-reset']);
 
-const validPath=value=>typeof value==='string'&&value.startsWith('/')&&!value.startsWith('//')&&!value.includes('\\')&&!value.includes('\\0');
+const validPath=value=>typeof value==='string'&&value.startsWith('/')&&!value.startsWith('//')&&!value.includes('\\')&&!value.includes('\0');
 const samePath=(a,b)=>String(a||'').split('#')[0]===String(b||'').split('#')[0];
 function parseStored(key,fallback){try{const value=JSON.parse(sessionStorage.getItem(key)||'null');return value&&typeof value==='object'?value:fallback}catch{return fallback}}
 
@@ -95,7 +95,7 @@ export default function NavigationBack(){
  },[fallbackFor,persistHistory,router]);
 
  const path=router.pathname||'';
- const hidden=path==='/'||path==='/person/[id]'||path==='/review'||AUTH_ROUTES.has(path)||path.startsWith('/join/');
+ const hidden=path==='/'||path==='/person/[id]'||AUTH_ROUTES.has(path)||path.startsWith('/join/');
  if(hidden)return null;
  return <button type="button" onClick={goBack} aria-label="Go back to the previous screen" title="Back to the previous screen" style={{position:'fixed',top:'calc(18px + env(safe-area-inset-top, 0px))',left:'max(14px, env(safe-area-inset-left, 0px))',zIndex:1001,minWidth:68,height:36,padding:'0 12px',display:'inline-flex',alignItems:'center',justifyContent:'center',gap:5,border:'1px solid rgba(255,255,255,.13)',borderRadius:999,background:'rgba(7,13,29,.86)',backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',color:'#F5F7FA',fontSize:13,fontWeight:600,cursor:'pointer',boxShadow:'0 8px 24px rgba(0,0,0,.2)'}}><span aria-hidden="true" style={{fontSize:19,lineHeight:1}}>‹</span><span>Back</span></button>;
 }

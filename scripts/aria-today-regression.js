@@ -38,7 +38,7 @@ expect(home.includes("getDailyQueue(orgId,req.user.id)"),'Home must consume the 
 expect(home.includes("consolidateDuplicateWelcomeItems(queueItems)"),'Same-name welcome tasks must be summarized as one transparent identity-review item.');
 expect(home.includes("kind:'possible_duplicate_identity'"),'Duplicate identity warning must explain that merging requires human confirmation.');
 expect(index.includes("item?.task_kind==='identity_review'"),'Daily briefing must group duplicate warnings as identity review.');
-expect(index.includes("setBriefOpen(false);if(item?.action?.type==='review')"),'Opening Review Center from a briefing item must preserve the briefing behind it.');
+expect(!index.includes("const handleBriefAction=item=>{setBriefOpen(false)"),'Opening Review Center or item detail must preserve the current briefing behind it.');
 expect(!index.includes("const handleBriefAction=item=>{setBriefOpen(false)"),'Opening an item detail must not discard the current briefing state.');
 expect(layout.includes('<NavigationBack/>'),'Shared layout must provide a back control on nested pages.');
 expect(navigationBack.includes('nyeocare:navigation-history:v1')&&navigationBack.includes('scrollTo'),'Shared back control must retain internal route history and scroll position.');

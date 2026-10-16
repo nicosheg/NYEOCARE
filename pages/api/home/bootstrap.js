@@ -45,7 +45,7 @@ function consolidateDuplicateWelcomeItems(items){
    created_at:records.map(item=>item.created_at).filter(Boolean).sort()[0]||null
   });
  }
- return [...items.filter(item=>!groupedIds.has(String(item.person_id))),...notices]
+ return [...items.filter(item=>!(item?.metadata?.kind==='new_person_welcome'&&groupedIds.has(String(item.person_id)))),...notices]
   .sort((a,b)=>Number(b.priority||0)-Number(a.priority||0)||new Date(a.created_at||0)-new Date(b.created_at||0));
 }
 

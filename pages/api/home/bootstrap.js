@@ -11,9 +11,9 @@ const proactiveActions={recognition:'Review recognition',belonging:'Review belon
 const personName=x=>[x.first_name,x.last_name].filter(Boolean).join(' ').replace(/^(sis|sister|bro|brother|mrs|mr|miss|ms|pastor|past|pst|dr|rev|elder|deacon|deaconess)\s+/i,'').trim();
 const cleanType=v=>String(v||'').replace(/_/g,' ').replace(/\s+/g,' ').trim().toUpperCase();
 const identityNameKey=v=>String(v||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim().replace(/\s+/g,' ');
-function consolidateDuplicateWelcomeItems(items){
+function consolidateDuplicateWelcomeItems(items,candidateItems=items){
  const byName=new Map();
- for(const item of items){
+ for(const item of candidateItems){
   if(item?.metadata?.kind!=='new_person_welcome'||!item.person_id)continue;
   const key=identityNameKey(item.title);
   if(!key)continue;
@@ -107,7 +107,7 @@ export default withOrg(async function handler(req,res){
     defer_count:Number(row.defer_count)||0,
     assigned_user_id:row.assigned_user_id||null
   })).filter(item=>item.title||item.message);
-  const visibleQueueItems=consolidateDuplicateWelcomeItems(queueItems);
+  const visibleQueueItems=consolidateDuplicateWelcomeItems(queueItems,dailyQueue.candidateItems||queueItems);
   const top=visibleQueueItems.slice(0,5);
 
   const org=base.rows[0]||{},settings=org.settings||{},

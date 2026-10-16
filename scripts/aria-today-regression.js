@@ -9,6 +9,7 @@ const home=read('pages/api/home/bootstrap.js');
 const index=read('pages/index.js');
 const layout=read('components/Layout.js');
 const navigationBack=read('components/NavigationBack.js');
+const app=read('pages/_app.js');
 const attendanceContext=read('pages/api/attendance/context.js');
 const careQueue=read('pages/api/care-queue.js');
 const attendanceCorrection=read('pages/api/attendance/aria-correction.js');
@@ -41,7 +42,7 @@ expect(home.includes("kind:'possible_duplicate_identity'"),'Duplicate identity w
 expect(index.includes("item?.task_kind==='identity_review'"),'Daily briefing must group duplicate warnings as identity review.');
 expect(!index.includes("const handleBriefAction=item=>{setBriefOpen(false)"),'Opening Review Center or item detail must preserve the current briefing behind it.');
 
-expect(layout.includes('<NavigationBack/>'),'Shared layout must provide a back control on nested pages.');
+expect(app.includes('<NavigationBack/>')&&!layout.includes('NavigationBack'),'Shared navigation must mount once at app level across every screen.');
 expect(navigationBack.includes('nyeocare:navigation-history:v1')&&navigationBack.includes('scrollTo'),'Shared back control must retain internal route history and scroll position.');
 expect(navigationBack.includes('!isAuthPath(current)')&&navigationBack.includes('!isAuthPath(candidate.url)'),'Back navigation must not send signed-in users back to login/signup routes.');
 expect(home.includes("queue:{todayCount:count,laterCount:Number(dailyQueue.later_count)||0,items:top}"),'Home must expose canonical queue state.');

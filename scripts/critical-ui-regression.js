@@ -5,6 +5,7 @@ const read=p=>readFileSync(p,'utf8');
 const attendance=read('components/AttendanceModal.js');
 const fieldMode=read('lib/attendanceFieldMode.js');
 const layout=read('components/Layout.js');
+const navigationBack=read('components/NavigationBack.js');
 const duplicateApi=read('pages/api/review/duplicate-action.js');
 const home=read('pages/index.js');
 const peoplePage=read('pages/people.js');
@@ -93,6 +94,14 @@ const checks=[
  ['Attendance roster warming is not repeated on every refresh',
   /fieldWarmAt=useRef/.test(attendance)&&/Date\.now\(\)-fieldWarmAt\.current<300000/.test(attendance)],
 
+ ['Shared navigation restores the previous internal route and scroll point',
+  /nyeocare:navigation-history:v1/.test(navigationBack)&&/scrollTo/.test(navigationBack)&&/router\.push/.test(navigationBack)],
+ ['Shared back navigation excludes authentication pages from return history',
+  /isAuthPath/.test(navigationBack)&&/!isAuthPath\(candidate.url\)/.test(navigationBack)],
+ ['Home keeps the daily briefing mounted behind action detail',
+  !home.includes("const handleBriefAction=item=>{setBriefOpen(false)")&&/setSelected\(item\)/.test(home)],
+ ['Daily briefing explains same-name duplicate records without auto-merging them',
+  /consolidateDuplicateWelcomeItems\(queueItems,dailyQueue\.candidateItems\|\|queueItems\)/.test(homeBootstrap)&&/possible_duplicate_identity/.test(homeBootstrap)&&/name alone cannot prove they are the same person/.test(homeBootstrap)],
  ['Home shows ARIA progress as background state',
   /aria_processing/.test(homeBootstrap)&&/AriaProcessingStatus/.test(home)&&/ariaAttendance/.test(home)],
  ['Home has no attendance retry action',
@@ -146,7 +155,7 @@ const checks=[
  ['People restores the previous scroll position after a person journey',
   /PEOPLE_SCROLL_KEY/.test(peoplePage)&&/sessionStorage\.setItem\(PEOPLE_SCROLL_KEY/.test(peoplePage)&&/window\.scrollTo\(0,y\)/.test(peoplePage)],
  ['Person Journey returns to an explicit safe source location with history fallback',
-  /return_to/.test(personPage)&&/safeReturnTo/.test(personPage)&&/window\.history\.length>1/.test(personPage)&&/r\.push\(['\"]\/people['\"]\)/.test(personPage)],
+  /nyeocare:navigation-history:v1/.test(navigationBack)&&/RESTORE_KEY/.test(navigationBack)&&/scrollTo/.test(navigationBack)&&!/onClick=\{goBack\}/.test(personPage)],
  ['ARIA launcher remains above application surfaces and interactive',
   /position:fixed;z-index:2147483000/.test(ariaLauncher)&&/pointer-events:auto/.test(ariaLauncher)&&/nyeocare:aria-open/.test(ariaLauncher)],
  ['ARIA welcome prompt controls are not covered by the empty thread layer',

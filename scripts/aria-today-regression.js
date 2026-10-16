@@ -7,6 +7,9 @@ const expect=(condition,message)=>{if(!condition)failures.push(message)};
 const queue=read('lib/dailyQueue.js');
 const home=read('pages/api/home/bootstrap.js');
 const index=read('pages/index.js');
+const layout=read('components/Layout.js');
+const navigationBack=read('components/NavigationBack.js');
+const app=read('pages/_app.js');
 const attendanceContext=read('pages/api/attendance/context.js');
 const careQueue=read('pages/api/care-queue.js');
 const attendanceCorrection=read('pages/api/attendance/aria-correction.js');
@@ -33,6 +36,15 @@ expect(queue.includes('const overdueRows=[...existingByKey.values()]'),'Overdue 
 expect(queue.includes("status='pending',updated_at=NOW()"),'Overdue deferred queue items must become actionable again.');
 expect(queue.includes("welcome?'Draft welcome':'Review action'"),'New-person welcome actions must not be mislabeled as generic action reviews.');
 expect(home.includes("getDailyQueue(orgId,req.user.id)"),'Home must consume the canonical Daily Queue.');
+expect(home.includes("consolidateDuplicateWelcomeItems(queueItems,dailyQueue.candidateItems||queueItems)"),'Same-name welcome tasks must be summarized using current and later queue candidates.');
+expect(queue.includes("candidateItems:sourceItems||[]"),'Home must receive all open candidates so duplicate warnings do not depend on which item is scheduled for today.');
+expect(home.includes("kind:'possible_duplicate_identity'"),'Duplicate identity warning must explain that merging requires human confirmation.');
+expect(index.includes("item?.task_kind==='identity_review'"),'Daily briefing must group duplicate warnings as identity review.');
+expect(!index.includes("const handleBriefAction=item=>{setBriefOpen(false)"),'Opening Review Center or item detail must preserve the current briefing behind it.');
+
+expect(app.includes('<NavigationBack/>')&&!layout.includes('NavigationBack'),'Shared navigation must mount once at app level across every screen.');
+expect(navigationBack.includes('nyeocare:navigation-history:v1')&&navigationBack.includes('scrollTo'),'Shared back control must retain internal route history and scroll position.');
+expect(navigationBack.includes('!isAuthPath(current)')&&navigationBack.includes('!isAuthPath(candidate.url)'),'Back navigation must not send signed-in users back to login/signup routes.');
 expect(home.includes("queue:{todayCount:count,laterCount:Number(dailyQueue.later_count)||0,items:top}"),'Home must expose canonical queue state.');
 expect(index.includes("item?.task_kind==='follow_up'"),'Briefing UI must group from canonical task_kind.');
 expect(index.includes("item?.metadata?.kind==='new_person_welcome')return'welcome'"),'New-person welcome items must have a dedicated briefing group.');

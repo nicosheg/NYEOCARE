@@ -35,7 +35,8 @@ expect(queue.includes('const overdueRows=[...existingByKey.values()]'),'Overdue 
 expect(queue.includes("status='pending',updated_at=NOW()"),'Overdue deferred queue items must become actionable again.');
 expect(queue.includes("welcome?'Draft welcome':'Review action'"),'New-person welcome actions must not be mislabeled as generic action reviews.');
 expect(home.includes("getDailyQueue(orgId,req.user.id)"),'Home must consume the canonical Daily Queue.');
-expect(home.includes("consolidateDuplicateWelcomeItems(queueItems)"),'Same-name welcome tasks must be summarized as one transparent identity-review item.');
+expect(home.includes("consolidateDuplicateWelcomeItems(queueItems,dailyQueue.candidateItems||queueItems)"),'Same-name welcome tasks must be summarized using current and later queue candidates.');
+expect(queue.includes("candidateItems:sourceItems||[]"),'Home must receive all open candidates so duplicate warnings do not depend on which item is scheduled for today.');
 expect(home.includes("kind:'possible_duplicate_identity'"),'Duplicate identity warning must explain that merging requires human confirmation.');
 expect(index.includes("item?.task_kind==='identity_review'"),'Daily briefing must group duplicate warnings as identity review.');
 expect(!index.includes("const handleBriefAction=item=>{setBriefOpen(false)"),'Opening Review Center or item detail must preserve the current briefing behind it.');

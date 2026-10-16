@@ -7,6 +7,7 @@ const RESTORE_KEY='nyeocare:pending-scroll-restore:v1';
 const AUTH_ROUTES=new Set(['/login','/signup','/join','/reset-password','/profile/password-reset']);
 
 const validPath=value=>typeof value==='string'&&value.startsWith('/')&&!value.startsWith('//')&&!value.includes('\\')&&!value.includes('\0');
+const isAuthPath=value=>{const p=String(value||'').split('?')[0];return AUTH_ROUTES.has(p)||p.startsWith('/join/')};
 const samePath=(a,b)=>String(a||'').split('#')[0]===String(b||'').split('#')[0];
 function restorePageScroll(value){
  if(typeof window==='undefined')return;
@@ -42,7 +43,7 @@ export default function NavigationBack(){
 
  useEffect(()=>{
   if(!router.isReady||typeof window==='undefined')return;
-  historyRef.current=parseStored(HISTORY_KEY,[]).filter(x=>x&&validPath(x.url)).slice(-40);
+  historyRef.current=parseStored(HISTORY_KEY,[]).filter(x=>x&&validPath(x.url)&&!isAuthPath(x.url)).slice(-40);
   scrollRef.current=parseStored(SCROLL_KEY,{});
   currentRef.current=router.asPath||router.pathname;
   const onStart=url=>{
@@ -54,7 +55,7 @@ export default function NavigationBack(){
    const stack=historyRef.current;
    const entry={url:current,scrollY:Math.max(0,Number(window.scrollY)||0)};
    if(stack.length&&samePath(stack[stack.length-1].url,current))stack[stack.length-1]=entry;
-   else if(validPath(current))stack.push(entry);
+   else if(validPath(current)&&!isAuthPath(current))stack.push(entry);
    historyRef.current=stack.slice(-40);persistHistory();
   };
   const onComplete=url=>{
@@ -103,7 +104,7 @@ export default function NavigationBack(){
   let destination=null;
   while(stack.length&&!destination){
    const candidate=stack.pop();
-   if(candidate&&validPath(candidate.url)&&!samePath(candidate.url,current))destination=candidate;
+   if(candidate&&validPath(candidate.url)&&!isAuthPath(candidate.url)&&!samePath(candidate.url,current))destination=candidate;
   }
   if(!destination){
    const url=fallbackFor(current);

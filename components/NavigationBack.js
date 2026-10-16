@@ -50,6 +50,9 @@ export default function NavigationBack(){
    const current=currentRef.current||router.asPath||router.pathname;
    scrollRef.current={...scrollRef.current,[current]:Math.max(0,Number(window.scrollY)||0)};
    persistScroll();
+   // Some modals (for example Review Center) push a same-URL history entry.
+   // Those are an in-page back action, not a change in the app route.
+   if(samePath(url,current))return;
    if(popStateRef.current)return;
    if(skipPushRef.current){skipPushRef.current=false;return;}
    const stack=historyRef.current;
@@ -60,6 +63,7 @@ export default function NavigationBack(){
   };
   const onComplete=url=>{
    const next=validPath(url)?url:(router.asPath||router.pathname);
+   const wasPopState=popStateRef.current;
    popStateRef.current=false;
    currentRef.current=next;
    const destination=restoreRef.current;
@@ -68,12 +72,16 @@ export default function NavigationBack(){
     try{sessionStorage.removeItem(RESTORE_KEY)}catch{}
     const y=Math.max(0,Number(destination.scrollY??scrollRef.current[next])||0);
     restorePageScroll(y);
+   }else if(wasPopState){
+    restorePageScroll(Math.max(0,Number(scrollRef.current[next])||0));
    }
   };
   const onError=()=>{skipPushRef.current=false;popStateRef.current=false;restoreRef.current=null};
   const onPopState=()=>{
-   popStateRef.current=true;
    const target=window.location.pathname+window.location.search+window.location.hash;
+   // Ignore modal-only history entries whose URL did not change.
+   if(samePath(target,currentRef.current))return;
+   popStateRef.current=true;
    const stack=historyRef.current;
    if(stack.length&&samePath(stack[stack.length-1].url,target))stack.pop();
    historyRef.current=stack;persistHistory();

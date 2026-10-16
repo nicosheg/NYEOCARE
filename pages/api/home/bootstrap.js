@@ -10,6 +10,44 @@ const proactiveLabels={recognition:'RECOGNITION',belonging:'BELONGING',serve_dis
 const proactiveActions={recognition:'Review recognition',belonging:'Review belonging opportunity',serve_discovery:'Review contribution opportunity'};
 const personName=x=>[x.first_name,x.last_name].filter(Boolean).join(' ').replace(/^(sis|sister|bro|brother|mrs|mr|miss|ms|pastor|past|pst|dr|rev|elder|deacon|deaconess)\s+/i,'').trim();
 const cleanType=v=>String(v||'').replace(/_/g,' ').replace(/\s+/g,' ').trim().toUpperCase();
+const identityNameKey=v=>String(v||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim().replace(/\s+/g,' ');
+function consolidateDuplicateWelcomeItems(items){
+ const byName=new Map();
+ for(const item of items){
+  if(item?.metadata?.kind!=='new_person_welcome'||!item.person_id)continue;
+  const key=identityNameKey(item.title);
+  if(!key)continue;
+  const group=byName.get(key)||[];
+  group.push(item);byName.set(key,group);
+ }
+ const groupedIds=new Set(),notices=[];
+ for(const group of byName.values()){
+  const people=new Map(group.map(item=>[String(item.person_id),item]));
+  if(people.size<2)continue;
+  const records=[...people.values()];
+  const ids=records.map(item=>String(item.person_id)).sort();
+  ids.forEach(id=>groupedIds.add(id));
+  const name=records[0].title||'These people';
+  const hasMissingPhone=records.some(item=>!item.has_contact_number);
+  notices.push({
+   id:'identity-review:'+ids.join(':'),
+   task_kind:'identity_review',
+   category:'identity',
+   source_id:'',
+   person_id:null,
+   priority:95,
+   title:'Possible duplicate · '+name,
+   label:'POSSIBLE DUPLICATE',
+   message:'There are '+records.length+' active records with the same name.'+(hasMissingPhone?' At least one record has no phone number.':'')+' NYEOCARE has not merged them because the name alone cannot prove they are the same person.',
+   suggestion:'Open Review Center → Duplicates to compare the records. Merge only if they belong to the same person; otherwise keep them separate.',
+   action:{type:'review',label:'Compare records'},
+   metadata:{kind:'possible_duplicate_identity',person_ids:ids,record_count:records.length},
+   created_at:records.map(item=>item.created_at).filter(Boolean).sort()[0]||null
+  });
+ }
+ return [...items.filter(item=>!groupedIds.has(String(item.person_id))),...notices]
+  .sort((a,b)=>Number(b.priority||0)-Number(a.priority||0)||new Date(a.created_at||0)-new Date(b.created_at||0));
+}
 
 export default withOrg(async function handler(req,res){
  if(req.method!=='GET')return res.status(405).json({error:'Method not allowed'});
@@ -69,7 +107,8 @@ export default withOrg(async function handler(req,res){
     defer_count:Number(row.defer_count)||0,
     assigned_user_id:row.assigned_user_id||null
   })).filter(item=>item.title||item.message);
-  const top=queueItems.slice(0,5);
+  const visibleQueueItems=consolidateDuplicateWelcomeItems(queueItems);
+  const top=visibleQueueItems.slice(0,5);
 
   const org=base.rows[0]||{},settings=org.settings||{},
     vocabulary=settings?.aria?.vocabulary||{person:'people',members:'members',leaders:'leaders',care:'care',prayer:'prayer'},

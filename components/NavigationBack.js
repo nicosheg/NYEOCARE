@@ -81,12 +81,6 @@ export default function NavigationBack(){
   router.events.on('routeChangeComplete',onComplete);
   router.events.on('routeChangeError',onError);
   window.addEventListener('popstate',onPopState,true);
-  return()=>{
-   router.events.off('routeChangeStart',onStart);
-   router.events.off('routeChangeComplete',onComplete);
-   router.events.off('routeChangeError',onError);
-   window.removeEventListener('popstate',onPopState,true);
-  };
   try{
    const pending=parseStored(RESTORE_KEY,null);
    if(pending&&validPath(pending.url)&&samePath(pending.url,currentRef.current)){
@@ -95,6 +89,12 @@ export default function NavigationBack(){
     requestAnimationFrame(()=>requestAnimationFrame(()=>window.scrollTo({top:y,left:0,behavior:'auto'})));
    }
   }catch{}
+  return()=>{
+   router.events.off('routeChangeStart',onStart);
+   router.events.off('routeChangeComplete',onComplete);
+   router.events.off('routeChangeError',onError);
+   window.removeEventListener('popstate',onPopState,true);
+  };
  },[router.isReady,router.events,persistHistory,persistScroll]);
 
  const goBack=useCallback(()=>{

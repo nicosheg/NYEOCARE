@@ -3,6 +3,7 @@ import{useRouter}from'next/router';
 
 const HISTORY_KEY='nyeocare:navigation-history:v1';
 const SCROLL_KEY='nyeocare:route-scroll:v1';
+const RESTORE_KEY='nyeocare:pending-scroll-restore:v1';
 const AUTH_ROUTES=new Set(['/login','/signup','/join','/reset-password','/profile/password-reset']);
 
 const validPath=value=>typeof value==='string'&&value.startsWith('/')&&!value.startsWith('//')&&!value.includes('\\')&&!value.includes('\0');
@@ -48,12 +49,7 @@ export default function NavigationBack(){
   };
   const onComplete=url=>{
    const next=validPath(url)?url:(router.asPath||router.pathname);
-   if(popStateRef.current){
-    popStateRef.current=false;
-    const stack=historyRef.current;
-    if(stack.length&&samePath(stack[stack.length-1].url,next))stack.pop();
-    historyRef.current=stack;persistHistory();
-   }
+   popStateRef.current=false;
    currentRef.current=next;
    const destination=restoreRef.current;
    if(destination&&samePath(destination.url,next)){
@@ -63,7 +59,13 @@ export default function NavigationBack(){
    }
   };
   const onError=()=>{skipPushRef.current=false;popStateRef.current=false;restoreRef.current=null};
-  const onPopState=()=>{popStateRef.current=true};
+  const onPopState=()=>{
+   popStateRef.current=true;
+   const target=window.location.pathname+window.location.search+window.location.hash;
+   const stack=historyRef.current;
+   if(stack.length&&samePath(stack[stack.length-1].url,target))stack.pop();
+   historyRef.current=stack;persistHistory();
+  };
   router.events.on('routeChangeStart',onStart);
   router.events.on('routeChangeComplete',onComplete);
   router.events.on('routeChangeError',onError);
@@ -74,7 +76,15 @@ export default function NavigationBack(){
    router.events.off('routeChangeError',onError);
    window.removeEventListener('popstate',onPopState,true);
   };
- },[router.isReady,router.asPath,router.pathname,router.events,persistHistory,persistScroll]);
+  try{
+   const pending=parseStored(RESTORE_KEY,null);
+   if(pending&&validPath(pending.url)&&samePath(pending.url,currentRef.current)){
+    sessionStorage.removeItem(RESTORE_KEY);
+    const y=Math.max(0,Number(pending.scrollY??scrollRef.current[pending.url])||0);
+    requestAnimationFrame(()=>requestAnimationFrame(()=>window.scrollTo({top:y,left:0,behavior:'auto'})));
+   }
+  }catch{}
+ },[router.isReady,router.events,persistHistory,persistScroll]);
 
  const goBack=useCallback(()=>{
   const current=currentRef.current||router.asPath||router.pathname;
@@ -90,6 +100,7 @@ export default function NavigationBack(){
   }
   historyRef.current=stack;persistHistory();
   restoreRef.current=destination;
+  try{sessionStorage.setItem(RESTORE_KEY,JSON.stringify(destination))}catch{}
   skipPushRef.current=true;
   router.push(destination.url,undefined,{scroll:false}).catch(()=>{skipPushRef.current=false;restoreRef.current=null});
  },[fallbackFor,persistHistory,router]);
@@ -97,5 +108,5 @@ export default function NavigationBack(){
  const path=router.pathname||'';
  const hidden=path==='/'||path==='/person/[id]'||AUTH_ROUTES.has(path)||path.startsWith('/join/');
  if(hidden)return null;
- return <button type="button" onClick={goBack} aria-label="Go back to the previous screen" title="Back to the previous screen" style={{position:'fixed',top:'calc(18px + env(safe-area-inset-top, 0px))',left:'max(14px, env(safe-area-inset-left, 0px))',zIndex:1001,minWidth:68,height:36,padding:'0 12px',display:'inline-flex',alignItems:'center',justifyContent:'center',gap:5,border:'1px solid rgba(255,255,255,.13)',borderRadius:999,background:'rgba(7,13,29,.86)',backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',color:'#F5F7FA',fontSize:13,fontWeight:600,cursor:'pointer',boxShadow:'0 8px 24px rgba(0,0,0,.2)'}}><span aria-hidden="true" style={{fontSize:19,lineHeight:1}}>‹</span><span>Back</span></button>;
+ return <button type="button" onClick={goBack} aria-label="Go back to the previous screen" title="Back to the previous screen" style={{position:'fixed',top:'calc(18px + env(safe-area-inset-top, 0px))',left:'max(8px, env(safe-area-inset-left, 0px))',zIndex:1001,width:34,minWidth:34,height:36,padding:0,display:'inline-flex',alignItems:'center',justifyContent:'center',border:'1px solid rgba(255,255,255,.13)',borderRadius:999,background:'rgba(7,13,29,.86)',backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',color:'#F5F7FA',fontSize:13,fontWeight:600,cursor:'pointer',boxShadow:'0 8px 24px rgba(0,0,0,.2)'}}><span aria-hidden="true" style={{fontSize:24,lineHeight:1,marginTop:-2}}>‹</span></button>;
 }

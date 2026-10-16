@@ -9,6 +9,7 @@ const people=read('pages/people.js');
 const vision=read('lib/visionProcessor.js');
 const person=read('pages/person/[id].js');
 const journeyApi=read('pages/api/person/journey.js');
+const navigationBack=read('components/NavigationBack.js');
 const duplicateAction=read('pages/api/review/duplicate-action.js');
 function assert(v,m){if(!v)throw new Error(m)}
 assert(/Math\.round\(\(ns\+ps\.score\)\/2\)/.test(identity),'Identity resolver must use balanced 50/50 scoring.');
@@ -33,6 +34,6 @@ function mergedPhonesLimitHack(source){return /mergedPhones[^\n]*\.slice\(0,2\)/
 assert(!/Some history could not be safely combined\. Nothing was changed\./.test(duplicateAction),'Merge implementation must not collapse distinct history conflicts into the old generic failure path.');
 assert(/d\.role=c\.role/.test(duplicateAction)&&!/d\.role=c\.role AND d\.status=c\.status/.test(duplicateAction),'Role collision handling must respect the actual unique key and not incorrectly split by status.');
 assert(/return_to=/.test(people),'People cards must preserve the source location.');
-assert(/safeReturnTo/.test(person)&&/window\.history\.length/.test(person),'Person Journey back navigation must use a safe explicit return destination with history fallback.');
+assert(navigationBack.includes('nyeocare:navigation-history:v1')&&navigationBack.includes('RESTORE_KEY')&&navigationBack.includes('scrollTo')&&!person.includes('onClick={goBack}'),'Person Journey must use shared history-aware back navigation with scroll restoration.');
 assert(/WITH RECURSIVE merged_lineage/.test(journeyApi)&&/person_id IN\(SELECT person_id FROM merged_lineage\)/.test(journeyApi),'Person Journey must include immutable ARIA history from archived identities merged into the canonical person.');
 console.log('[SCAN REVIEW] live refresh + navigation checks passed.');

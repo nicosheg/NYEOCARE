@@ -43,6 +43,7 @@ expect(!index.includes("const handleBriefAction=item=>{setBriefOpen(false)"),'Op
 
 expect(layout.includes('<NavigationBack/>'),'Shared layout must provide a back control on nested pages.');
 expect(navigationBack.includes('nyeocare:navigation-history:v1')&&navigationBack.includes('scrollTo'),'Shared back control must retain internal route history and scroll position.');
+expect(navigationBack.includes('!isAuthPath(current)')&&navigationBack.includes('!isAuthPath(candidate.url)'),'Back navigation must not send signed-in users back to login/signup routes.');
 expect(home.includes("queue:{todayCount:count,laterCount:Number(dailyQueue.later_count)||0,items:top}"),'Home must expose canonical queue state.');
 expect(index.includes("item?.task_kind==='follow_up'"),'Briefing UI must group from canonical task_kind.');
 expect(index.includes("item?.metadata?.kind==='new_person_welcome')return'welcome'"),'New-person welcome items must have a dedicated briefing group.');

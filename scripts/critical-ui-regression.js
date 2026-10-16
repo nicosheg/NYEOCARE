@@ -99,7 +99,7 @@ const checks=[
  ['Home keeps the daily briefing mounted behind action detail',
   !home.includes("const handleBriefAction=item=>{setBriefOpen(false)")&&/setSelected\(item\)/.test(home)],
  ['Daily briefing explains same-name duplicate records without auto-merging them',
-  /consolidateDuplicateWelcomeItems\(queueItems\)/.test(homeBootstrap)&&/possible_duplicate_identity/.test(homeBootstrap)&&/human decision/.test(homeBootstrap)],
+  /consolidateDuplicateWelcomeItems\(queueItems,dailyQueue\.candidateItems\|\|queueItems\)/.test(homeBootstrap)&&/possible_duplicate_identity/.test(homeBootstrap)&&/human decision/.test(homeBootstrap)],
  ['Home shows ARIA progress as background state',
   /aria_processing/.test(homeBootstrap)&&/AriaProcessingStatus/.test(home)&&/ariaAttendance/.test(home)],
  ['Home has no attendance retry action',

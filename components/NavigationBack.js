@@ -126,7 +126,7 @@ export default function NavigationBack(){
  },[fallbackFor,persistHistory,router]);
 
  const path=router.pathname||'';
- const hidden=path==='/'||AUTH_ROUTES.has(path)||path.startsWith('/join/');
+ const hidden=path==='/'||path.startsWith('/people')||path.startsWith('/profile')||AUTH_ROUTES.has(path)||path.startsWith('/join/');
  if(hidden)return null;
  return <button type="button" onClick={goBack} aria-label="Go back to the previous screen" title="Back to the previous screen" style={{position:'fixed',top:'calc(18px + env(safe-area-inset-top, 0px))',left:'max(8px, env(safe-area-inset-left, 0px))',zIndex:1001,width:34,minWidth:34,height:36,padding:0,display:'inline-flex',alignItems:'center',justifyContent:'center',border:'1px solid rgba(255,255,255,.13)',borderRadius:999,background:'rgba(7,13,29,.86)',backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',color:'#F5F7FA',fontSize:13,fontWeight:600,cursor:'pointer',boxShadow:'0 8px 24px rgba(0,0,0,.2)'}}><span aria-hidden="true" style={{fontSize:24,lineHeight:1,marginTop:-2}}>‹</span></button>;
 }

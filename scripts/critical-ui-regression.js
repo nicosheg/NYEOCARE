@@ -98,6 +98,8 @@ const checks=[
   /nyeocare:navigation-history:v1/.test(navigationBack)&&/scrollTo/.test(navigationBack)&&/router\.push/.test(navigationBack)],
  ['Shared back navigation excludes authentication pages from return history',
   /isAuthPath/.test(navigationBack)&&/!isAuthPath\(candidate.url\)/.test(navigationBack)],
+ ['People and Profile pages hide the global back button without disabling app-wide navigation',
+  navigationBack.includes("path.startsWith('/people')")&&navigationBack.includes("path.startsWith('/profile')")&&navigationBack.includes('router.push(destination.url')],
  ['Modal-only history entries do not pollute route navigation',
   /if\(samePath\(url,current\)\)return/.test(navigationBack)&&/if\(samePath\(target,currentRef\.current\)\)return/.test(navigationBack)],
  ['Native browser back restores the saved route scroll position',

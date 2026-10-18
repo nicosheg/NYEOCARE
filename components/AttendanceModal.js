@@ -7,6 +7,25 @@ import{supabase}from'../lib/supabaseClient';import AriaProcessingStatus from'./A
 import{getFieldSession,getFieldPeople,saveFieldSession,saveFieldPeople,enqueueFieldMutation,removeFieldMutation,getFieldPendingCount,localRosterSearch,clearFieldSession}from'../lib/attendanceFieldMode';
 import{measurePerformance}from'../lib/performanceTelemetry';
 
+const ATTENDANCE_REQUEST_TIMEOUT_MS=12000;
+async function fetchAttendanceWithTimeout(url,options={}){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),ATTENDANCE_REQUEST_TIMEOUT_MS);
+  try{
+    return await fetch(url,{...options,signal:controller.signal});
+  }catch(error){
+    if(controller.signal.aborted){
+      const timeout=new Error('Attendance request timed out.');
+      timeout.name='TimeoutError';
+      timeout.transient=true;
+      throw timeout;
+    }
+    throw error;
+  }finally{
+    clearTimeout(timer);
+  }
+}
+
 export default function AttendanceModal({isOpen,onClose}){
   const[session,setSession]=useState(null);
   const[background,setBackground]=useState(null);
@@ -99,7 +118,7 @@ export default function AttendanceModal({isOpen,onClose}){
     if(q.trim())params.set('q',q.trim());
     if(nextCursor)params.set('cursor',nextCursor);
 
-    const response=await fetch('/api/attendance/people?'+params.toString(),{
+    const response=await fetchAttendanceWithTimeout('/api/attendance/people?'+params.toString(),{
       headers:{Authorization:`Bearer ${s.access_token}`},
       cache:'no-store'
     });
@@ -134,14 +153,16 @@ export default function AttendanceModal({isOpen,onClose}){
 
   const load=useCallback(async({showLoading=true}={})=>{
     const seq=++searchSeq.current;
+    let fieldCached=null;
     try{
       const s=await getClientSession();
       if(!s)throw Error('You must be logged in.');
 
       if(showLoading&&mounted.current)setLoading(true);
       setError('');
+      setNotice('');
       const offline=typeof navigator!=='undefined'&&!navigator.onLine;
-      const fieldCached=await hydrateFieldSession(s.user.id,{allowLocalSession:offline});
+      fieldCached=await hydrateFieldSession(s.user.id,{allowLocalSession:true});
       const timing=measurePerformance('attendance_open',{network:typeof navigator==='undefined'?'unknown':navigator.onLine?'online':'offline'});
 
       if(offline){
@@ -160,7 +181,7 @@ export default function AttendanceModal({isOpen,onClose}){
         return;
       }
 
-      const response=await fetch('/api/attendance/active-session',{
+      const response=await fetchAttendanceWithTimeout('/api/attendance/active-session',{
         headers:{Authorization:`Bearer ${s.access_token}`},
         cache:'no-store'
       });
@@ -200,13 +221,13 @@ export default function AttendanceModal({isOpen,onClose}){
       if(seq===searchSeq.current&&mounted.current)setLoading(false);
       timing('ok',{cached:Boolean(cached),field_cached:Boolean(fieldCached)});
       if(fieldCached&&fieldWarmAt.current&&Date.now()-fieldWarmAt.current<300000)return;
-      fetch('/api/attendance/field-roster?session_id='+encodeURIComponent(live.session_id)+'&limit=5000',{headers:{Authorization:'Bearer '+s.access_token},cache:'no-store'})
+      fetchAttendanceWithTimeout('/api/attendance/field-roster?session_id='+encodeURIComponent(live.session_id)+'&limit=5000',{headers:{Authorization:'Bearer '+s.access_token},cache:'no-store'})
         .then(async r=>{if(!r.ok)return null;return r.json()}).then(async data=>{
           if(!data?.success||!Array.isArray(data.people))return;
           let all=data.people.slice();let cursorValue=data.next_cursor||null;let pages=1;
           while(data.has_more&&cursorValue&&pages<8){
             const params=new URLSearchParams({session_id:String(live.session_id),limit:'5000',cursor:String(cursorValue)});
-            const r=await fetch('/api/attendance/field-roster?'+params.toString(),{headers:{Authorization:'Bearer '+s.access_token},cache:'no-store'});
+            const r=await fetchAttendanceWithTimeout('/api/attendance/field-roster?'+params.toString(),{headers:{Authorization:'Bearer '+s.access_token},cache:'no-store'});
             if(!r.ok)break;const more=await r.json();if(!Array.isArray(more.people))break;
             all=all.concat(more.people);cursorValue=more.next_cursor||null;data.has_more=more.has_more===true;pages++;
           }
@@ -218,7 +239,12 @@ export default function AttendanceModal({isOpen,onClose}){
     }catch(e){
       console.error('[ATTENDANCE] Load error:',e);
       if(seq===searchSeq.current&&mounted.current){
-        setError(String(e?.message||'Could not load attendance.'));
+        if(fieldCached?.session?.status==='active'&&String(session?.session_id||'')===String(fieldCached.sessionId)){
+          setNotice('Showing saved attendance while the server reconnects. New marks remain queued on this device until sync succeeds.');
+          setError('');
+        }else{
+          setError(String(e?.message||'Could not load attendance.'));
+        }
         setLoading(false);
       }
     }

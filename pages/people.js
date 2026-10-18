@@ -153,7 +153,7 @@ const bulkAddPeople=async()=>{
   const data=await res.json().catch(()=>({error:'Could not read the bulk-add response.'}));
   if(!res.ok||!data.success)throw new Error(data.error||'Could not add people.');
   setBulkResult(data);
-  const skippedRows=new Set((data.results||[]).filter(row=>row.status!=='created').map(row=>Number(row.row)));
+  const skippedRows=new Set((data.results||[]).filter(row=>row.status!=='created').flatMap(row=>Array.isArray(row.source_line_numbers)?row.source_line_numbers:[row.row]).map(Number));
   const sourceLines=bulkText.split(/\r?\n/);
   setBulkText(skippedRows.size?sourceLines.filter((line,index)=>skippedRows.has(index+1)).join('\n'):'');
   if(data.created>0){

@@ -159,9 +159,10 @@ export default function AttendanceModal({isOpen,onClose}){
 
   const load=useCallback(async({showLoading=true}={})=>{
     const seq=++searchSeq.current;
-    let fieldCached=null;
+    let fieldCached=null,confirmedSessionId=null,sessionUserId=null;
     try{
       const s=await getClientSession();
+      sessionUserId=String(s?.user?.id||'');
       if(!s)throw Error('You must be logged in.');
 
       if(showLoading&&mounted.current)setLoading(true);
@@ -224,6 +225,7 @@ export default function AttendanceModal({isOpen,onClose}){
 
       const live=normalizeSession(data);
       if(!live)throw Error('Attendance session response was incomplete.');
+      confirmedSessionId=String(live.session_id);
 
       if(fieldCached&&String(fieldCached.sessionId)!==String(live.session_id)){
         await syncFieldMode().catch(()=>false);
@@ -272,11 +274,30 @@ export default function AttendanceModal({isOpen,onClose}){
     }catch(e){
       console.error('[ATTENDANCE] Load error:',e);
       if(seq===searchSeq.current&&mounted.current){
-        if(fieldCached?.session?.status==='active'&&(!session?.session_id||String(session.session_id)===String(fieldCached.sessionId))){
-          if(!session?.session_id)setSession({...fieldCached.session,user_id:s?.user?.id});
+        if(fieldCached?.session?.status==='active'&&(!confirmedSessionId||confirmedSessionId===String(fieldCached.sessionId))){
+          const localPeopleRaw=await getFieldPeople(fieldCached.sessionId).catch(()=>[]);
+          const localPending=await getPendingFieldMutations(fieldCached.sessionId).catch(()=>[]);
+          const byPerson=new Map(localPending.map(item=>[String(item.personId),item]));
+          const recoveredPeople=localPeopleRaw.map(person=>{
+            const pending=byPerson.get(String(person.id));
+            return pending?{...person,marked:pending.present,marked_by_name:pending.present?'You':null}:person;
+          });
+          if(!confirmedSessionId)setSession({...fieldCached.session,user_id:sessionUserId});
           setCanDiscard(fieldCached.session?.can_discard===true);
-          setNotice('The server could not confirm this session. Showing saved attendance from this device; new marks remain queued until sync is confirmed.');
-          setError('');
+          setPeople(recoveredPeople.slice(0,80));
+          setFieldRoster(recoveredPeople);
+          setFieldReady(recoveredPeople.length>0);
+          setTotal(recoveredPeople.length);
+          setPresent(recoveredPeople.filter(person=>person.marked===true).length);
+          setCursor(null);setHasMore(false);
+          await refreshFieldPending(fieldCached.sessionId);
+          if(recoveredPeople.length){
+            setNotice('The server could not confirm this session. Showing saved attendance from this device; new marks remain queued until sync is confirmed.');
+            setError('');
+          }else{
+            setNotice('');
+            setError('The session is saved, but its roster is not available on this device. Reconnect to load attendance safely.');
+          }
         }else{
           setError(String(e?.message||'Could not load attendance.'));
         }

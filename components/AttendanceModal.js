@@ -162,7 +162,7 @@ export default function AttendanceModal({isOpen,onClose}){
       setError('');
       setNotice('');
       const offline=typeof navigator!=='undefined'&&!navigator.onLine;
-      fieldCached=await hydrateFieldSession(s.user.id,{allowLocalSession:true});
+      fieldCached=await hydrateFieldSession(s.user.id,{allowLocalSession:offline});
       const timing=measurePerformance('attendance_open',{network:typeof navigator==='undefined'?'unknown':navigator.onLine?'online':'offline'});
 
       if(offline){
@@ -250,8 +250,10 @@ export default function AttendanceModal({isOpen,onClose}){
     }catch(e){
       console.error('[ATTENDANCE] Load error:',e);
       if(seq===searchSeq.current&&mounted.current){
-        if(fieldCached?.session?.status==='active'){
-          setNotice('Showing saved attendance while the server reconnects. New marks remain queued on this device until sync succeeds.');
+        if(fieldCached?.session?.status==='active'&&(!session?.session_id||String(session.session_id)===String(fieldCached.sessionId))){
+          if(!session?.session_id)setSession({...fieldCached.session,user_id:s?.user?.id});
+          setCanDiscard(fieldCached.session?.can_discard===true);
+          setNotice('The server could not confirm this session. Showing saved attendance from this device; new marks remain queued until sync is confirmed.');
           setError('');
         }else{
           setError(String(e?.message||'Could not load attendance.'));

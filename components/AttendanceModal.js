@@ -225,6 +225,22 @@ export default function AttendanceModal({isOpen,onClose}){
       const live=normalizeSession(data);
       if(!live)throw Error('Attendance session response was incomplete.');
 
+      if(fieldCached&&String(fieldCached.sessionId)!==String(live.session_id)){
+        await syncFieldMode().catch(()=>false);
+        const oldPending=await getFieldPendingCount(fieldCached.sessionId).catch(()=>1);
+        if(oldPending>0){
+          setSession({...fieldCached.session,user_id:s.user.id});
+          setCanDiscard(fieldCached.session?.can_discard===true);
+          setNotice('Your previous attendance session still has unsynced marks. NYEOCARE is preserving them on this device while synchronization retries.');
+          setError('');
+          setLoading(false);
+          return;
+        }
+        await clearFieldSession(s.user.id,fieldCached.sessionId).catch(()=>{});
+        fieldCached=null;
+        setPeople([]);setFieldRoster([]);setFieldReady(false);setPendingCount(0);fieldWarmAt.current=0;
+      }
+
       setSession({...live,user_id:s.user.id});
       setCanDiscard(live.can_discard===true);
 
@@ -278,6 +294,20 @@ export default function AttendanceModal({isOpen,onClose}){
       const response=await fetchAttendanceWithTimeout('/api/attendance/active-session',{headers:{Authorization:`Bearer ${s.access_token}`},cache:'no-store'});
       const data=await read(response);if(!response.ok)return;
       if(!data.active||String(data.session_id)!==String(session.session_id)){
+        await syncFieldMode().catch(()=>false);
+        const pending=await getFieldPendingCount(session.session_id).catch(()=>1);
+        if(pending>0){
+          setPendingCount(pending);
+          setNotice('This session is no longer active on the server, but unsynced attendance is still saved on this device. NYEOCARE is preserving it while synchronization retries.');
+          setError('');
+          return;
+        }
+        const cached=await getFieldSession(s.user.id).catch(()=>null);
+        const closedConfirmed=!data.active&&String(data.session_id||'')===String(session.session_id)&&data.status==='closed';
+        if(cached?.closeRequested&&!closedConfirmed){
+          setNotice('Attendance finalization is still being confirmed. Your local session is preserved.');
+          return;
+        }
         await clearFieldSession(s.user.id,session.session_id).catch(()=>{});
         clearCached('attendance:'+s.user.id);
         setSession(null);setPeople([]);setFieldRoster([]);setFieldReady(false);setPendingCount(0);setCanDiscard(false);fieldWarmAt.current=0;

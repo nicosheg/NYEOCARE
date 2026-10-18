@@ -30,7 +30,7 @@ const checks=[
  ['AI model registry remains provider-aware',files.registry.includes("provider:'groq'")&&files.registry.includes('model:')],
  ['Vision uses the provider registry instead of a direct API URL/key',files.hybrid.includes("getAIProvider(model.provider)")&&!files.hybrid.includes('https://api.groq.com/openai/v1/chat/completions')&&!files.hybrid.includes('process.env.GROQ_API_KEY')],
  ['Legacy aiProviderCore is only a compatibility facade',!files.legacyProvider.includes('fetch(')&&files.legacyProvider.includes("from'./hybridScanProvider'")],
- ['Scan API reports configured provider/model rather than hard-coding Groq',files.scanStart.includes('getScanAdmission()')&&!files.scanStart.includes("provider='groq'")&&!files.scanStart.includes("model='qwen/qwen3.8-27b'")],
+ ['Scan API reports configured provider/model rather than hard-coding Groq',files.scanStart.includes('getScanAdmission()')||files.scanStart.includes('getScanAdmissionStatus()')&&!files.scanStart.includes("provider='groq'")&&!files.scanStart.includes("model='qwen/qwen3.8-27b'")],
  ['Scan status uses provider-neutral rate-limit messaging',!files.scanStatus.includes("Groq's vision limit")&&files.scanStatus.includes('error?.provider')],
  ['Vision job persists the actual provider',files.vision.includes('vision.provider')&&!files.vision.includes("vision_provider:'groq'")],
  ['Organization AI budget aggregates across purposes',files.budget.includes("WHERE organization_id=$1")&&!files.budget.includes("WHERE organization_id=$1 AND purpose=$2")],

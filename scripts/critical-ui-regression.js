@@ -41,6 +41,7 @@ const auth=read('lib/auth.js');
 const reviewApi=read('pages/api/review/index.js');
 const reviewResolveApi=read('pages/api/review/resolve.js');
 const scanModal=read('components/ScanModal.js');
+const scanStartApi=read('pages/api/scan/start.js');
 const scanProvider=read('lib/hybridScanProvider.js');
 const activeApi=read('pages/api/attendance/active-session.js');
 const attendanceCorrectionApi=read('pages/api/attendance/aria-correction.js');
@@ -258,12 +259,16 @@ const checks=[
  ['Review identity actions are explicit and correction-first',/Use this person/.test(reviewCenter)&&/This is a different person/.test(reviewCenter)&&/Edit scanned record/.test(reviewCenter)&&/Selected:/.test(reviewCenter)],
  ['Review Center supports audited bulk dismissal of selected scan reviews',/bulk_dismissed/.test(reviewResolveApi)&&/status='rejected'/.test(reviewResolveApi)&&/id=ANY\(\$4::uuid\[\]\)/.test(reviewResolveApi)&&/selected_count/.test(reviewResolveApi)],
  ['Review Center supports long-press scan selection only for scan reviews',/onPointerDown/.test(reviewCenter)&&/setTimeout\(\(\)=>beginSelection/.test(reviewCenter)&&/item\.kind==='scan_identity_review'/.test(reviewCenter)&&/bulkDismiss/.test(reviewCenter)],
- ['Camera and gallery scans preserve supported source-image detail',/async function prepare\(file\)/.test(scanModal)&&scanModal.includes('^image')&&scanModal.includes('(jpeg|jpg|png|webp)')&&/MAX=4000000/.test(scanModal)&&/withTimeout/.test(scanModal)&&/SCAN_IMAGE_DECODE_TIMEOUT/.test(scanModal)&&/SCAN_IMAGE_ENCODE_TIMEOUT/.test(scanModal)&&/3000/.test(scanModal)&&!/timeoutError/.test(scanModal)],
+ ['Camera and gallery scans preserve source detail while keeping uploads under the request limit',/async function prepare\(file\)/.test(scanModal)&&scanModal.includes('^image')&&scanModal.includes('(jpeg|jpg|png|webp)')&&/MAX=4000000,MAX_UPLOAD=2600000/.test(scanModal)&&/file\.size<=MAX_UPLOAD/.test(scanModal)&&/out\.size<=MAX_UPLOAD/.test(scanModal)&&/maxDimension=2600/.test(scanModal)&&/withTimeout/.test(scanModal)&&/SCAN_IMAGE_DECODE_TIMEOUT/.test(scanModal)&&/SCAN_IMAGE_ENCODE_TIMEOUT/.test(scanModal)&&!/timeoutError/.test(scanModal)],
  ['Camera and gallery both call the same scan starter after preparation',/onChange=\{pick\}/.test(scanModal)&&/const pick=e=>/.test(scanModal)&&/if\(f\)start\(f\)/.test(scanModal)&&/const image_base64=await prepare\(file\)/.test(scanModal)],
  ['Scan extraction uses the proven overlapping-region pipeline',
   /v65-hybrid-multiregion-crosscheck-revived/.test(scanProvider)&&/regions=await makeRegions/.test(scanProvider)&&/Math\.round\(H\*\.62\)/.test(scanProvider)&&/normalize\(\)\.sharpen/.test(scanProvider)&&/reasoning_effort:'high'/.test(scanProvider)&&/cross_checking/.test(scanProvider)],
  ['Scan extraction performs conservative independent cross-checking when configured',
   /GEMINI_API_KEY/.test(scanProvider)&&/geminiCrosscheck/.test(scanProvider)&&/flagDisagreements/.test(scanProvider)&&/row_ownership_uncertain/.test(scanProvider)],
+ ['Scan rate limits fail over to an independent vision provider when available',
+  /async function geminiReadRegion/.test(scanProvider)&&/primaryCode==='AI_RATE_LIMIT'/.test(scanProvider)&&/geminiReadRegion\(region,opt,index\)/.test(scanProvider)&&/allGemini\?null:await geminiCrosscheck/.test(scanProvider)],
+ ['Scan admission shares provider cooldown across organizations when no alternate provider is configured',
+  /export async function getScanAdmissionStatus/.test(scanProvider)&&/FROM ai_usage_events WHERE provider=\$1 AND http_status=429/.test(scanProvider)&&/retry_after_seconds:remaining/.test(scanProvider)],
  ['People roster silently refreshes expired auth sessions',
   /if\(res\.status===401\)/.test(peoplePage)&&/refreshClientSession\(\)/.test(peoplePage)&&/setAccessToken\(activeToken\)/.test(peoplePage)],
  ['Person editing preserves the displayed honorific/prefix',/setEditName\(p\.display_name\|\|/.test(personPage)],
@@ -299,6 +304,8 @@ const checks=[
   /withOrg/.test(bulkPeopleApi)&&/\['owner',\s*'admin'\]/.test(bulkPeopleApi)&&/MAX_ROWS = 200/.test(bulkPeopleApi)&&/pg_advisory_xact_lock/.test(bulkPeopleApi)&&/phone_numbers/.test(bulkPeopleApi)&&/Phone number duplicates row/.test(bulkPeopleApi)],
  ['Bulk person creation schedules ARIA updates after the main insert',
   /waitUntil\(processCreatedPeople/.test(bulkPeopleApi)&&/type: 'PERSON_CREATED'/.test(bulkPeopleApi)&&/await client\.query\('COMMIT'\)/.test(bulkPeopleApi)],
+ ['Scan start preserves structured capacity and retry-after details',
+  /getScanAdmissionStatus/.test(scanStartApi)&&/retry_after_seconds:admission\.retry_after_seconds/.test(scanStartApi)&&/failure\.cooldownSeconds=Number\(d\.retry_after_seconds\)/.test(scanModal)],
 ];
 
 const failures=checks.filter(([,ok])=>!ok).map(([name])=>name);

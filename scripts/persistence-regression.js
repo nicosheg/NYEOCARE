@@ -19,7 +19,7 @@ assert.match(bulkPeople,/const MAX_ROWS = 200/);
 assert.match(bulkPeople,/pg_advisory_xact_lock/);
 assert.match(bulkPeople,/Phone number duplicates row/);
 assert.match(bulkPeople,/phone_numbers/);
-assert.match(bulkPeople,/waitUntil\\(processCreatedPeople/);
-assert.match(bulkPeople,/await client\\.query\\('COMMIT'\\)/);
+assert.ok(bulkPeople.includes('waitUntil(processCreatedPeople('));
+assert.ok(bulkPeople.includes("await client.query('COMMIT')"));
 
 console.log('NYEOCARE persistence regression checks passed.');

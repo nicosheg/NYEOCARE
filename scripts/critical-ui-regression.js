@@ -266,7 +266,7 @@ const checks=[
  ['Scan extraction performs conservative independent cross-checking when configured',
   /GEMINI_API_KEY/.test(scanProvider)&&/geminiCrosscheck/.test(scanProvider)&&/flagDisagreements/.test(scanProvider)&&/row_ownership_uncertain/.test(scanProvider)],
  ['Scan rate limits fail over to an independent vision provider when available',
-  /async function geminiReadRegion/.test(scanProvider)&&/primaryCode==='AI_RATE_LIMIT'/.test(scanProvider)&&/geminiReadRegion\(region,opt,index\)/.test(scanProvider)&&/allGemini\?null:await geminiCrosscheck/.test(scanProvider)],
+  /async function geminiReadRegion/.test(scanProvider)&&/primaryCode==='AI_RATE_LIMIT'/.test(scanProvider)&&/geminiReadRegion\(region\)/.test(scanProvider)&&/allGemini\?null:await geminiCrosscheck/.test(scanProvider)],
  ['Scan admission shares provider cooldown across organizations when no alternate provider is configured',
   /export async function getScanAdmissionStatus/.test(scanProvider)&&/FROM ai_usage_events WHERE provider=\$1 AND http_status=429/.test(scanProvider)&&/retry_after_seconds:remaining/.test(scanProvider)],
  ['People roster silently refreshes expired auth sessions',

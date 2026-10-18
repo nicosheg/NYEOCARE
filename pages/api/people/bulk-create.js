@@ -156,7 +156,7 @@ export default withOrg(async function handler(req, res) {
     const existingByPhone = new Map();
     if (phones.length) {
       const existing = await client.query(
-        `SELECT p.id, p.display_name, p.phone
+        `SELECT p.id, p.display_name, p.phone, p.phone_numbers
          FROM people p
          WHERE p.organization_id=$1
            AND COALESCE(p.status,'active')='active'
@@ -172,8 +172,16 @@ export default withOrg(async function handler(req, res) {
         [organizationId, phones]
       );
       for (const person of existing.rows) {
-        const normalized = normalizePhone(person.phone);
-        if (normalized) existingByPhone.set(normalized, person);
+        const phonesOnPerson = [
+          person.phone,
+          ...(Array.isArray(person.phone_numbers)
+            ? person.phone_numbers.flatMap(value => [value?.normalized, value?.raw, value?.phone])
+            : [])
+        ];
+        for (const rawPhone of phonesOnPerson) {
+          const normalized = normalizePhone(rawPhone);
+          if (normalized) existingByPhone.set(normalized, person);
+        }
       }
     }
 

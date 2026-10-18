@@ -390,7 +390,6 @@ export default function AttendanceModal({isOpen,onClose}){
     if(!isOpen||!session||session.status!=='active')return;
     const key=attendanceSearchKey(session.session_id,query);
     if(lastSearchKey.current===key)return;
-    lastSearchKey.current=key;
     const seq=++searchSeq.current;
     const started=typeof performance!=='undefined'?performance.now():Date.now();
     const timer=window.setTimeout(async()=>{
@@ -401,8 +400,8 @@ export default function AttendanceModal({isOpen,onClose}){
         }else if(networkOnline){
           await fetchPage(session,query,'',false);
         }
-        if(seq===searchSeq.current&&mounted.current)measurePerformance('attendance_search',{mode:fieldReady?'local':'server'} )('ok',{duration_ms:Math.round((typeof performance!=='undefined'?performance.now():Date.now())-started)});
-      }catch(e){if(seq===searchSeq.current&&mounted.current){if(lastSearchKey.current===key)lastSearchKey.current='';setError(e.message||'Could not search people.')}}
+        if(seq===searchSeq.current&&mounted.current){lastSearchKey.current=key;measurePerformance('attendance_search',{mode:fieldReady?'local':'server'} )('ok',{duration_ms:Math.round((typeof performance!=='undefined'?performance.now():Date.now())-started)})}
+      }catch(e){if(seq===searchSeq.current&&mounted.current)setError(e.message||'Could not search people.')}
     },fieldReady?0:220);
     return()=>window.clearTimeout(timer);
   },[isOpen,session?.session_id,session?.status,query,fetchPage,fieldReady,fieldRoster,networkOnline]);

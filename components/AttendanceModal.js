@@ -4,7 +4,7 @@ import{createPortal}from'react-dom';
 import{getClientSession}from'../lib/clientSession';
 import{getCached,setCached,clearCached,publishDataChange}from'../lib/appData';
 import{supabase}from'../lib/supabaseClient';import AriaProcessingStatus from'./AriaProcessingStatus';
-import{getFieldSession,getFieldPeople,saveFieldSession,saveFieldPeople,enqueueFieldMutation,removeFieldMutation,getFieldPendingCount,localRosterSearch,clearFieldSession}from'../lib/attendanceFieldMode';
+import{getFieldSession,getFieldPeople,saveFieldSession,saveFieldPeople,enqueueFieldMutation,removeFieldMutation,getFieldPendingCount,localRosterSearch,clearFieldSession,syncFieldMode}from'../lib/attendanceFieldMode';
 import{measurePerformance}from'../lib/performanceTelemetry';
 
 const ATTENDANCE_REQUEST_TIMEOUT_MS=12000;
@@ -193,7 +193,18 @@ export default function AttendanceModal({isOpen,onClose}){
       setBackground(bg);
 
       if(!data.active){
-        if(fieldCached&&typeof navigator!=='undefined'&&navigator.onLine)await clearFieldSession(s.user.id,fieldCached.sessionId);
+        if(fieldCached&&typeof navigator!=='undefined'&&navigator.onLine){
+          await syncFieldMode().catch(()=>false);
+          const pending=await getFieldPendingCount(fieldCached.sessionId).catch(()=>1);
+          const refreshed=await getFieldSession(s.user.id).catch(()=>null);
+          const serverConfirmsClosed=String(data.session_id||'')===String(fieldCached.sessionId)&&data.status==='closed';
+          if(pending>0||(refreshed?.closeRequested&&!serverConfirmsClosed)){
+            setSession({...fieldCached.session,user_id:s.user.id});
+            setNotice(pending>0?'Saved attendance still has marks waiting to sync. NYEOCARE is preserving them on this device.':'Attendance close is still being reconciled; the saved session remains on this device.');
+            setLoading(false);return;
+          }
+          await clearFieldSession(s.user.id,fieldCached.sessionId).catch(()=>{});
+        }
         if(fieldCached&&!navigator.onLine){setLoading(false);return}
         setSession(null);
         setFieldRoster([]);setFieldReady(false);setPendingCount(0);
@@ -239,7 +250,7 @@ export default function AttendanceModal({isOpen,onClose}){
     }catch(e){
       console.error('[ATTENDANCE] Load error:',e);
       if(seq===searchSeq.current&&mounted.current){
-        if(fieldCached?.session?.status==='active'&&String(session?.session_id||'')===String(fieldCached.sessionId)){
+        if(fieldCached?.session?.status==='active'){
           setNotice('Showing saved attendance while the server reconnects. New marks remain queued on this device until sync succeeds.');
           setError('');
         }else{

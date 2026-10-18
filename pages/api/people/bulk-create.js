@@ -81,7 +81,8 @@ export default withOrg(async function handler(req, res) {
     const email = String(row.email ?? '').trim().toLowerCase();
     const type = String(row.type || defaultType).trim().toLowerCase();
     const line = rowNumber(row, index);
-    const outcome = { row: line, name, status: 'skipped', reason: '' };
+    const sourceLines = Array.isArray(row.source_line_numbers) ? row.source_line_numbers.map(Number).filter(value => Number.isInteger(value) && value > 0) : [line];
+    const outcome = { row: line, source_line_numbers: sourceLines.length ? sourceLines : [line], name, status: 'skipped', reason: '' };
 
     if (!name) {
       outcome.reason = 'Name is required.';

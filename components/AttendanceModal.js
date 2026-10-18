@@ -8,9 +8,12 @@ import{getFieldSession,getFieldPeople,saveFieldSession,saveFieldPeople,enqueueFi
 import{measurePerformance}from'../lib/performanceTelemetry';
 
 const ATTENDANCE_REQUEST_TIMEOUT_MS=12000;
-async function fetchAttendanceWithTimeout(url,options={}){
+const ATTENDANCE_LOAD_TIMEOUT_MS=5000;
+const ATTENDANCE_AUTH_TIMEOUT_MS=5000;
+const ATTENDANCE_LOCAL_READ_TIMEOUT_MS=350;
+async function fetchAttendanceWithTimeout(url,options={},timeoutMs=ATTENDANCE_REQUEST_TIMEOUT_MS){
   const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),ATTENDANCE_REQUEST_TIMEOUT_MS);
+  const timer=setTimeout(()=>controller.abort(),timeoutMs);
   try{
     return await fetch(url,{...options,signal:controller.signal});
   }catch(error){
@@ -25,6 +28,16 @@ async function fetchAttendanceWithTimeout(url,options={}){
     clearTimeout(timer);
   }
 }
+
+function withAttendanceDeadline(promise,ms,message){
+  let timer;
+  return Promise.race([Promise.resolve(promise),new Promise((_,reject)=>{timer=setTimeout(()=>{const error=new Error(message);error.name='TimeoutError';error.transient=true;reject(error)},ms)})]).finally(()=>clearTimeout(timer));
+}
+function withAttendanceFallback(promise,ms,fallback){
+  let timer;
+  return Promise.race([Promise.resolve(promise),new Promise(resolve=>{timer=setTimeout(()=>resolve(fallback),ms)})]).finally(()=>clearTimeout(timer));
+}
+const attendanceSearchKey=(sessionId,q)=>String(sessionId)+':'+String(q||'').trim();
 
 export default function AttendanceModal({isOpen,onClose}){
   const[session,setSession]=useState(null);
@@ -48,7 +61,9 @@ export default function AttendanceModal({isOpen,onClose}){
   const[fieldRoster,setFieldRoster]=useState([]);
   const[fieldReady,setFieldReady]=useState(false);
   const[pendingCount,setPendingCount]=useState(0);
+  const loadSeq=useRef(0);
   const searchSeq=useRef(0);
+  const lastSearchKey=useRef('');
   const markingIds=useRef(new Set());
   const fieldWarmAt=useRef(0);
   const onCloseRef=useRef(onClose);
@@ -58,7 +73,7 @@ export default function AttendanceModal({isOpen,onClose}){
     try{setPendingCount(await getFieldPendingCount(sessionId))}catch{setPendingCount(0)}
   },[]);
 
-  const hydrateFieldSession=useCallback(async(userId,{allowLocalSession=false}={})=>{
+  const hydrateFieldSession=useCallback(async(userId)=>{
     try{
       const cached=await getFieldSession(userId);
       if(!cached)return null;
@@ -69,16 +84,20 @@ export default function AttendanceModal({isOpen,onClose}){
         const pending=pendingByPerson.get(String(person.id));
         return pending?{...person,marked:pending.present,marked_by_name:pending.present?'You':null}:person;
       });
-      if(allowLocalSession){setSession({...cached.session,user_id:userId});setCanDiscard(cached.session?.can_discard===true);}
-      setPeople(cachedPeople.slice(0,80));
-      setTotal(cachedPeople.length);
-      setPresent(cachedPeople.filter(p=>p.marked===true).length);
-      setFieldRoster(cachedPeople);
-      setFieldReady(cachedPeople.length>0);
-      await refreshFieldPending(cached.sessionId);
-      if(mounted.current&&allowLocalSession)setLoading(false);
-      return cached;
+      return {...cached,people:cachedPeople};
     }catch{return null}
+  },[]);
+
+  const applyCachedRoster=useCallback((cached)=>{
+    const roster=Array.isArray(cached?.people)?cached.people:[];
+    setPeople(roster.slice(0,80));
+    setTotal(roster.length);
+    setPresent(roster.filter(person=>person.marked===true).length);
+    setFieldRoster(roster);
+    setFieldReady(roster.length>0);
+    setCanDiscard(cached?.session?.can_discard===true);
+    setCursor(null);setHasMore(false);
+    void refreshFieldPending(cached?.sessionId).catch(()=>{});
   },[refreshFieldPending]);
 
   useEffect(()=>{
@@ -127,7 +146,7 @@ export default function AttendanceModal({isOpen,onClose}){
     const response=await fetchAttendanceWithTimeout('/api/attendance/people?'+params.toString(),{
       headers:{Authorization:`Bearer ${s.access_token}`},
       cache:'no-store'
-    });
+    },ATTENDANCE_LOAD_TIMEOUT_MS);
     const data=await read(response);
     if(!response.ok)throw Error(data.error||'Could not load attendance people.');
 
@@ -149,41 +168,41 @@ export default function AttendanceModal({isOpen,onClose}){
     }
     setTotal(Number(data.organization_total)||0);
     setPresent(Number(data.present_count)||0);
-    await saveFieldPeople(live.session_id,next);
-    await saveFieldSession(s.user.id,{...live,user_id:s.user.id});
-    await refreshFieldPending(live.session_id);
+    void saveFieldPeople(live.session_id,next).catch(()=>{});
+    void saveFieldSession(s.user.id,{...live,user_id:s.user.id}).catch(()=>{});
+    void refreshFieldPending(live.session_id).catch(()=>{});
     setCursor(data.next_cursor||null);
     setHasMore(data.has_more===true);
     return data;
   },[]);
 
   const load=useCallback(async({showLoading=true}={})=>{
-    const seq=++searchSeq.current;
+    const seq=++loadSeq.current;
     let fieldCached=null,confirmedSessionId=null,sessionUserId=null;
+    if(showLoading&&mounted.current){setLoading(true);setError('');setNotice('');}
     try{
-      const s=await getClientSession();
+      const s=await withAttendanceDeadline(getClientSession(),ATTENDANCE_AUTH_TIMEOUT_MS,'Your sign-in session took too long to load. Check your connection and try again.');
       sessionUserId=String(s?.user?.id||'');
       if(!s)throw Error('You must be logged in.');
 
-      if(showLoading&&mounted.current)setLoading(true);
-      setError('');
-      setNotice('');
       const offline=typeof navigator!=='undefined'&&!navigator.onLine;
-      fieldCached=await hydrateFieldSession(s.user.id,{allowLocalSession:offline});
+      fieldCached=await withAttendanceFallback(hydrateFieldSession(s.user.id),offline?1200:ATTENDANCE_LOCAL_READ_TIMEOUT_MS,null);
       const timing=measurePerformance('attendance_open',{network:typeof navigator==='undefined'?'unknown':navigator.onLine?'online':'offline'});
 
       if(offline){
         if(fieldCached&&fieldCached.session?.status==='active'){
+          setSession({...fieldCached.session,user_id:s.user.id});
+          applyCachedRoster(fieldCached);
           setBackground(null);
           setError('');
           setNotice('Offline mode is active. Your local attendance session is ready and will sync automatically when the connection returns.');
-          if(seq===searchSeq.current&&mounted.current)setLoading(false);
+          if(seq===loadSeq.current&&mounted.current)setLoading(false);
           timing('offline-cached');
           return;
         }
-        if(fieldCached)await clearFieldSession(s.user.id,fieldCached.sessionId).catch(()=>{});
         setSession(null);setPeople([]);setFieldRoster([]);setFieldReady(false);setPendingCount(0);setCanDiscard(false);setCursor(null);setHasMore(false);
-        if(seq===searchSeq.current&&mounted.current)setLoading(false);
+        setError('No saved attendance session is available on this device. Reconnect before starting attendance.');
+        if(seq===loadSeq.current&&mounted.current)setLoading(false);
         timing('offline-no-session');
         return;
       }
@@ -191,12 +210,12 @@ export default function AttendanceModal({isOpen,onClose}){
       const response=await fetchAttendanceWithTimeout('/api/attendance/active-session',{
         headers:{Authorization:`Bearer ${s.access_token}`},
         cache:'no-store'
-      });
+      },ATTENDANCE_LOAD_TIMEOUT_MS);
       const data=await read(response);
       if(!response.ok)throw Error(data.error||'Could not load attendance.');
 
       const bg=data.background_processing||null;
-      if(seq!==searchSeq.current||!mounted.current)return;
+      if(seq!==loadSeq.current||!mounted.current)return;
       setBackground(bg);
 
       if(!data.active){
@@ -207,6 +226,7 @@ export default function AttendanceModal({isOpen,onClose}){
           const serverConfirmsClosed=String(data.session_id||'')===String(fieldCached.sessionId)&&data.status==='closed';
           if(pending>0||(refreshed?.closeRequested&&!serverConfirmsClosed)){
             setSession({...fieldCached.session,user_id:s.user.id});
+            applyCachedRoster(fieldCached);
             setNotice(pending>0?'Saved attendance still has marks waiting to sync. NYEOCARE is preserving them on this device.':'Attendance close is still being reconciled; the saved session remains on this device.');
             setLoading(false);return;
           }
@@ -226,13 +246,15 @@ export default function AttendanceModal({isOpen,onClose}){
       const live=normalizeSession(data);
       if(!live)throw Error('Attendance session response was incomplete.');
       confirmedSessionId=String(live.session_id);
+      lastSearchKey.current=attendanceSearchKey(live.session_id,query);
 
       if(fieldCached&&String(fieldCached.sessionId)!==String(live.session_id)){
         await syncFieldMode().catch(()=>false);
         const oldPending=await getFieldPendingCount(fieldCached.sessionId).catch(()=>1);
         if(oldPending>0){
           setSession({...fieldCached.session,user_id:s.user.id});
-          setCanDiscard(fieldCached.session?.can_discard===true);
+          applyCachedRoster(fieldCached);
+          lastSearchKey.current=attendanceSearchKey(fieldCached.sessionId,query);
           setNotice('Your previous attendance session still has unsynced marks. NYEOCARE is preserving them on this device while synchronization retries.');
           setError('');
           setLoading(false);
@@ -247,13 +269,17 @@ export default function AttendanceModal({isOpen,onClose}){
       setCanDiscard(live.can_discard===true);
 
       const cached=getCached('attendance:'+s.user.id);
-      if(cached?.session?.session_id===live.session_id&&Array.isArray(cached.people)){
+      if(fieldCached&&String(fieldCached.sessionId)===String(live.session_id)&&Array.isArray(fieldCached.people)){
+        applyCachedRoster(fieldCached);
+        if(fieldCached.people.length)setLoading(false);
+      }else if(cached?.session?.session_id===live.session_id&&Array.isArray(cached.people)){
         setPeople(cached.people);
+        if(cached.people.length)setLoading(false);
       }
 
       await fetchPage(live,query,'',false,s);
       saveFieldSession(s.user.id,{...live,user_id:s.user.id}).catch(()=>{});
-      if(seq===searchSeq.current&&mounted.current)setLoading(false);
+      if(seq===loadSeq.current&&mounted.current)setLoading(false);
       timing('ok',{cached:Boolean(cached),field_cached:Boolean(fieldCached)});
       if(fieldCached&&fieldWarmAt.current&&Date.now()-fieldWarmAt.current<300000)return;
       fetchAttendanceWithTimeout('/api/attendance/field-roster?session_id='+encodeURIComponent(live.session_id)+'&limit=5000',{headers:{Authorization:'Bearer '+s.access_token},cache:'no-store'})
@@ -273,15 +299,10 @@ export default function AttendanceModal({isOpen,onClose}){
         }).catch(()=>{});
     }catch(e){
       console.error('[ATTENDANCE] Load error:',e);
-      if(seq===searchSeq.current&&mounted.current){
+      if(seq===loadSeq.current&&mounted.current){
+        setLoading(false);
         if(fieldCached?.session?.status==='active'&&(!confirmedSessionId||confirmedSessionId===String(fieldCached.sessionId))){
-          const localPeopleRaw=await getFieldPeople(fieldCached.sessionId).catch(()=>[]);
-          const localPending=await getPendingFieldMutations(fieldCached.sessionId).catch(()=>[]);
-          const byPerson=new Map(localPending.map(item=>[String(item.personId),item]));
-          const recoveredPeople=localPeopleRaw.map(person=>{
-            const pending=byPerson.get(String(person.id));
-            return pending?{...person,marked:pending.present,marked_by_name:pending.present?'You':null}:person;
-          });
+          const recoveredPeople=Array.isArray(fieldCached.people)?fieldCached.people:[];
           if(!confirmedSessionId)setSession({...fieldCached.session,user_id:sessionUserId});
           setCanDiscard(fieldCached.session?.can_discard===true);
           setPeople(recoveredPeople.slice(0,80));
@@ -290,7 +311,7 @@ export default function AttendanceModal({isOpen,onClose}){
           setTotal(recoveredPeople.length);
           setPresent(recoveredPeople.filter(person=>person.marked===true).length);
           setCursor(null);setHasMore(false);
-          await refreshFieldPending(fieldCached.sessionId);
+          void refreshFieldPending(fieldCached.sessionId).catch(()=>{});
           if(recoveredPeople.length){
             setNotice('The server could not confirm this session. Showing saved attendance from this device; new marks remain queued until sync is confirmed.');
             setError('');
@@ -303,8 +324,10 @@ export default function AttendanceModal({isOpen,onClose}){
         }
         setLoading(false);
       }
+    }finally{
+      if(seq===loadSeq.current&&mounted.current)setLoading(false);
     }
-  },[fetchPage,query,hydrateFieldSession]);
+  },[fetchPage,query,hydrateFieldSession,applyCachedRoster]);
 
   useEffect(()=>{if(isOpen)load();},[isOpen,load]);
 
@@ -365,6 +388,8 @@ export default function AttendanceModal({isOpen,onClose}){
 
   useEffect(()=>{
     if(!isOpen||!session||session.status!=='active')return;
+    const key=attendanceSearchKey(session.session_id,query);
+    if(lastSearchKey.current===key)return;
     const seq=++searchSeq.current;
     const started=typeof performance!=='undefined'?performance.now():Date.now();
     const timer=window.setTimeout(async()=>{
@@ -375,7 +400,7 @@ export default function AttendanceModal({isOpen,onClose}){
         }else if(networkOnline){
           await fetchPage(session,query,'',false);
         }
-        if(seq===searchSeq.current&&mounted.current)measurePerformance('attendance_search',{mode:fieldReady?'local':'server'} )('ok',{duration_ms:Math.round((typeof performance!=='undefined'?performance.now():Date.now())-started)});
+        if(seq===searchSeq.current&&mounted.current){lastSearchKey.current=key;measurePerformance('attendance_search',{mode:fieldReady?'local':'server'} )('ok',{duration_ms:Math.round((typeof performance!=='undefined'?performance.now():Date.now())-started)})}
       }catch(e){if(seq===searchSeq.current&&mounted.current)setError(e.message||'Could not search people.')}
     },fieldReady?0:220);
     return()=>window.clearTimeout(timer);
@@ -437,6 +462,8 @@ export default function AttendanceModal({isOpen,onClose}){
       if(!live)throw Error('Attendance session response was incomplete.');
 
       const next={...live,user_id:s.user.id};
+      lastSearchKey.current=attendanceSearchKey(next.session_id,'');
+      setQuery('');
       setSession(next);
       setFieldRoster([]);setFieldReady(false);setPendingCount(0);fieldWarmAt.current=0;
       setBackground(null);

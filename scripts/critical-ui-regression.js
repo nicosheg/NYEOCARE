@@ -233,7 +233,7 @@ const checks=[
  ['Non-critical root runtimes are individually isolated',
   /surface="environment-runtime"/.test(appPage)&&/surface="auth-runtime"/.test(appPage)&&/surface="aria-sync-runtime"/.test(appPage)&&/surface="scan-recovery-runtime"/.test(appPage)&&/surface="field-mode-runtime"/.test(appPage)&&/dynamic\(\(\)=>import\('\.\.\/components\/ScanRecovery'\)/.test(appPage)],
  ['Attendance never treats online local cache as authoritative',
-  /hydrateFieldSession=useCallback\(async\(userId,\{allowLocalSession=false\}=\{\}\)/.test(attendanceModal)&&/allowLocalSession:offline/.test(attendanceModal)&&/if\(offline\)\{/.test(attendanceModal)&&/fieldCached&&fieldCached\.session\?\.status==='active'/.test(attendanceModal)],
+  /hydrateFieldSession=useCallback\(async\(userId\)/.test(attendanceModal)&&/withAttendanceFallback\(hydrateFieldSession\(s\.user\.id\),offline\?1200:ATTENDANCE_LOCAL_READ_TIMEOUT_MS,null\)/.test(attendanceModal)&&/if\(offline\)\{/.test(attendanceModal)&&/fieldCached&&fieldCached\.session\?\.status==='active'/.test(attendanceModal)&&/if\(fieldCached&&String\(fieldCached\.sessionId\)===String\(live\.session_id\)&&Array\.isArray\(fieldCached\.people\)\)/.test(attendanceModal)],
  ['Global app runtime revalidates auth/data invisibly',
   /getClientSession/.test(fieldRuntime)&&/nyeocare:app-refresh/.test(fieldRuntime)&&/pageshow/.test(fieldRuntime)&&/setInterval\(run,60000\)/.test(fieldRuntime)],
  ['Service worker cache rotates with the client recovery release',

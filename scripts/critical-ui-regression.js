@@ -289,7 +289,7 @@ const checks=[
  ['ARIA director remains available',
   /ARIA_DIRECTOR_VERSION/.test(director)&&/directAriaEvent/.test(director)],
  ['Event processor remains durable',
-  /createObservation\(/.test(eventProcessor)&&/sourceEventId:event\.id/.test(eventProcessor)]
+  /createObservation\(/.test(eventProcessor)&&/sourceEventId:event\.id/.test(eventProcessor)],
 
  ['Edit Person can change type when phone is blank',
   peopleApi.includes("const rawPhone=String(body.phone??'').trim()")&&/if\(rawPhone&&!phone\)/.test(peopleApi)&&/type!==current\.type/.test(peopleApi)],

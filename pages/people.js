@@ -37,9 +37,33 @@ const labelStyle={display:'block',fontSize:13,color:'rgba(255,255,255,.5)',margi
 const birthdayButtonStyle=value=>({width:'100%',padding:'12px 16px',borderRadius:10,border:'1px solid rgba(255,255,255,.06)',background:'rgba(20,25,40,.6)',color:value?'#f0f0f0':'rgba(255,255,255,.3)',fontSize:15,textAlign:'left',cursor:'pointer',outline:'none'});
 
 function parseBulkPeopleRows(text, defaultType='visitor'){
-  return String(text||'').split(/\r?\n/).flatMap((raw,index)=>{
-    const line=raw.trim();
-    if(!line||line.startsWith('#'))return [];
+  const lines=String(text||'').split(/\r?\n/);
+  const prepared=[];
+  for(let index=0;index<lines.length;index++){
+    const line=lines[index].trim();
+    if(!line||line.startsWith('#'))continue;
+    const phoneOnly=line.match(/^(?:\+?234\d{10}|0\d{10}|\d{10})$/);
+    if(phoneOnly){
+      const previous=prepared[prepared.length-1];
+      if(previous&&!previous.delimited&&!previous.phone&&!/(?:\+?234\d{10}|0\d{10}|\b\d{10}\b)\s*$/.test(previous.line)){
+        previous.phone=phoneOnly[0];
+        previous.source_line_numbers.push(index+1);
+      }else{
+        prepared.push({line:'',phone:phoneOnly[0],row_number:index+1,source_line_numbers:[index+1],delimited:false});
+      }
+      continue;
+    }
+    prepared.push({
+      line,
+      phone:'',
+      row_number:index+1,
+      source_line_numbers:[index+1],
+      delimited:line.includes('\t')||line.includes('|')||line.includes(',')
+    });
+  }
+  return prepared.flatMap(item=>{
+    const line=item.line.trim();
+    if(!line)return [];
     let columns;
     if(line.includes('\t'))columns=line.split('\t');
     else if(line.includes('|'))columns=line.split('|');
@@ -48,19 +72,21 @@ function parseBulkPeopleRows(text, defaultType='visitor'){
       let remainder=line,type=defaultType;
       const typeMatch=remainder.match(/\s+(member|visitor)\s*$/i);
       if(typeMatch){type=typeMatch[1].toLowerCase();remainder=remainder.slice(0,typeMatch.index).trim()}
-      let phone='';
-      const phoneMatch=remainder.match(/(?:\+?234\d{10}|0\d{10}|\b\d{10}\b)\s*$/);
-      if(phoneMatch){phone=phoneMatch[0].trim();remainder=remainder.slice(0,phoneMatch.index).replace(/[\s|,;:-]+$/,'').trim()}
+      let phone=item.phone||'';
+      if(!phone){
+        const phoneMatch=remainder.match(/(?:\+?234\d{10}|0\d{10}|\b\d{10}\b)\s*$/);
+        if(phoneMatch){phone=phoneMatch[0].trim();remainder=remainder.slice(0,phoneMatch.index).replace(/[\s|,;:-]+$/,'').trim()}
+      }
       const name=remainder;
-      if(index===0&&/^(full\s+name|name|person)$/i.test(name))return [];
-      return [{full_name:name,phone,type,email:'',row_number:index+1}];
+      if(/^(full\s+name|name|person)$/i.test(name))return [];
+      return [{full_name:name,phone,type,email:'',row_number:item.row_number,source_line_numbers:item.source_line_numbers}];
     }
     const name=String(columns[0]||'').trim();
     const phone=String(columns[1]||'').trim();
     const typeText=String(columns[2]||'').trim().toLowerCase();
     const email=String(columns[3]||'').trim();
     if(/^(full\s+name|name|person)$/i.test(name)&&/phone/i.test(phone))return [];
-    return [{full_name:name,phone,type:typeText||defaultType,email,row_number:index+1}];
+    return [{full_name:name,phone,type:typeText||defaultType,email,row_number:item.row_number,source_line_numbers:item.source_line_numbers}];
   });
 }
 
@@ -150,7 +176,7 @@ return <Layout><div style={{maxWidth:1100,margin:'0 auto',padding:20,paddingBott
 {showReviewPanel&&<ReviewCenterTab modal onClose={()=>{setShowReviewPanel(false);publishDataChange('review');getClientSession().then(s=>s&&fetchPeople({token:s.access_token,reset:true})).catch(()=>{})}}/>}<div style={{display:'flex',gap:12,marginBottom:24,flexWrap:'wrap',alignItems:'center'}}><input type="text" placeholder="Search by name, phone or email" value={search} onChange={e=>setSearch(e.target.value)} style={{flex:1,minWidth:200,padding:'10px 14px',borderRadius:12,border:'1px solid rgba(255,255,255,.06)',background:'rgba(20,25,40,.8)',color:'#fff',outline:'none'}}/><select value={roleFilter} onChange={e=>setRoleFilter(e.target.value)} style={{padding:'10px 14px',borderRadius:12,border:'1px solid rgba(255,255,255,.06)',background:'rgba(20,25,40,.8)',color:'#fff',outline:'none',width:120}}><option value="all">All</option><option value="visitor">Visitor</option><option value="member">Member</option></select><button className={`fiducia-button ${showLivingTruthOnly?'fiducia-button-primary':'fiducia-button-ghost'}`} style={{padding:'6px 12px',fontSize:12}} onClick={()=>setShowLivingTruthOnly(v=>!v)}>{showLivingTruthOnly?'All':'Living Truth'}</button><button onClick={()=>{setShowAdd(v=>!v);setShowBulkAdd(false)}} className="fiducia-button fiducia-button-primary">Add Person</button><button onClick={()=>{setShowBulkAdd(v=>!v);setShowAdd(false);setBulkResult(null)}} className="fiducia-button fiducia-button-ghost">Bulk add</button></div>
 {showAdd&&<form onSubmit={addPerson} className="fiducia-card add-form" style={{display:'grid',gap:10,marginBottom:20}}><input placeholder="Full Name" value={form.full_name} onChange={e=>setForm({...form,full_name:e.target.value})} required style={inputStyle}/><input placeholder="Phone" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} style={inputStyle}/><input type="email" placeholder="Email (optional)" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} style={inputStyle}/><div><label style={labelStyle}><span style={{color:'#D4AF37',marginRight:6}}>●</span>Birthday <span style={{fontSize:12,color:'rgba(255,255,255,.3)',marginLeft:6}}>When should ARIA celebrate?</span></label><button type="button" onClick={()=>{setPickerTarget('add');setShowPicker(true)}} style={birthdayButtonStyle(form.birthday)}>{form.birthday?new Date(`${form.birthday}T00:00:00`).toLocaleDateString():'Add birthday'}</button>{form.birthday&&<div style={{fontSize:12,color:'rgba(255,255,255,.3)',marginTop:4}}>Next birthday in {getNextBirthday(form.birthday)} days</div>}</div><select value={form.type} onChange={e=>setForm({...form,type:e.target.value})} style={inputStyle}><option value="visitor">Visitor</option><option value="member">Member</option></select><div style={{display:'flex',gap:8}}><button type="submit" className="fiducia-button fiducia-button-primary">Save</button><button type="button" onClick={()=>setShowAdd(false)} className="fiducia-button fiducia-button-ghost">Cancel</button></div></form>}
 {showBulkAdd&&<form onSubmit={e=>{e.preventDefault();bulkAddPeople()}} className="fiducia-card add-form" style={{display:'grid',gap:12,marginBottom:20}}>
- <div><strong style={{fontSize:17,color:'#f0f0f0'}}>Add many people at once</strong><p style={{fontSize:12,lineHeight:1.6,color:'rgba(255,255,255,.48)',margin:'5px 0 0'}}>Paste rows from Excel/Google Sheets or type one person per line. Phone and email are optional. You can add up to 200 rows at a time.</p></div>
+ <div><strong style={{fontSize:17,color:'#f0f0f0'}}>Add many people at once</strong><p style={{fontSize:12,lineHeight:1.6,color:'rgba(255,255,255,.48)',margin:'5px 0 0'}}>Paste rows from Excel/Google Sheets, one person per line, or alternating name-then-phone lines. Phone and email are optional. You can add up to 200 people at a time.</p></div>
  <div><label style={labelStyle}>Default type for rows without a type</label><select value={bulkDefaultType} onChange={e=>setBulkDefaultType(e.target.value)} style={inputStyle}><option value="visitor">Visitor</option><option value="member">Member</option></select></div>
  <label style={labelStyle}>People list <span style={{fontWeight:400,color:'rgba(255,255,255,.3)'}}>· Name, Phone, Type, Email (optional)</span></label>
  <textarea value={bulkText} onChange={e=>{setBulkText(e.target.value);setBulkResult(null)}} rows={8} placeholder={'Mummy Christiana, 08022597401, visitor\nSIS Sandra Isiocha, 08039579758, member\nBro John Doe, , member\nJane Example'} style={{...inputStyle,minHeight:170,resize:'vertical',fontFamily:'ui-monospace,SFMono-Regular,monospace',fontSize:13,lineHeight:1.6}}/>

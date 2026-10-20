@@ -41,6 +41,7 @@ const auth=read('lib/auth.js');
 const reviewApi=read('pages/api/review/index.js');
 const reviewResolveApi=read('pages/api/review/resolve.js');
 const scanModal=read('components/ScanModal.js');
+const scanProcessor=read('lib/visionProcessor.js');
 const scanStartApi=read('pages/api/scan/start.js');
 const scanStatusApi=read('pages/api/scan/status.js');
 const scanProcessing=read('components/AriaProcessingStatus.js');
@@ -270,7 +271,8 @@ const checks=[
  ['Scan extraction performs conservative independent cross-checking when configured',
   /GEMINI_API_KEY/.test(scanProvider)&&/geminiCrosscheck/.test(scanProvider)&&/flagDisagreements/.test(scanProvider)&&/row_ownership_uncertain/.test(scanProvider)],
  ['Scan extraction preserves literal honorifics and supports exact visible DOB evidence',/function cleanNameTitle\(v\)\{return clean\(v\)\}/.test(scanProvider)&&/full visible name in n exactly as written/.test(scanProvider)&&/dob:\{type:'string'\}/.test(scanProvider)&&/date_of_birth_raw/.test(scanValidation)&&/function parseBirthDate/.test(scanValidation)&&/birthday=COALESCE\(birthday,\$5::date\)/.test(read('lib/visionProcessor.js'))],
- ['Scan processing UI consumes real server stages and animates the yellow progress line',/progress_detail=\$3::jsonb/.test(read('lib/visionProcessor.js'))&&/progress_detail/.test(scanStatusApi)&&/stage_title:stageInfo\.title/.test(scanStatusApi)&&/SCAN_STAGE_MAP/.test(scanProcessing)&&/scanProgressSweep/.test(scanProcessing)&&/progressDetail=\{state\.progressDetail/.test(scanModal)&&!/SCAN_STEPS=/.test(scanProcessing)],
+ ['Scan worker parameterizes every dynamic UPDATE value and casts JSONB values',scanProcessor.includes("`${key}=${i+2}${key==='progress_detail'||key==='result'?'::jsonb':''}`")&&!scanProcessor.includes("`${key}=${i+2}`")&&/progress_detail=\$3::jsonb/.test(scanProcessor)],
+ ['Scan progress animation is tied to fresh backend activity; queued and stale scans are static',/progress_detail/.test(scanStatusApi)&&/stage_title:stageInfo\.title/.test(scanStatusApi)&&/queue_age_seconds/.test(scanStatusApi)&&/progress_age_seconds/.test(scanStatusApi)&&/const anchor=job\.started_at\|\|job\.created_at/.test(scanStatusApi)&&/SCAN_STAGE_MAP/.test(scanProcessing)&&/progressFresh=!isQueued&&activeState/.test(scanProcessing)&&/scanStageTrack i\.queued,.scanStageTrack i\.stale\{width:0/.test(scanProcessing)&&/progressAgeSeconds=\{state\.progressAgeSeconds\}/.test(scanModal)&&!/SCAN_STEPS=/.test(scanProcessing)],
  ['Scan Review shows exact DOB text or explicitly states it is not visible',/date_of_birth_raw:x\.evidence\?\.extracted\?\.date_of_birth_raw/.test(reviewApi)&&/Not visible on this row/.test(reviewCenter)&&/date_of_birth_evidence/.test(reviewResolveApi)],
  ['Scan rate limits fail over to an independent vision provider when available',
   /async function geminiReadRegion/.test(scanProvider)&&/primaryCode==='AI_RATE_LIMIT'/.test(scanProvider)&&/geminiReadRegion\(region\)/.test(scanProvider)&&/allGemini\?null:await geminiCrosscheck/.test(scanProvider)],

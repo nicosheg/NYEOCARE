@@ -25,7 +25,6 @@ const scanRecovery=read('components/ScanRecovery.js');
 const autoSync=read('components/AriaAutoSync.js');
 const fieldRuntime=read('components/FieldModeRuntime.js');
 const serviceWorker=read('public/sw.js');
-const scanProcessing=read('components/AriaProcessingStatus.js');
 const documentPage=read('pages/_document.js');
 const scanRecoverySurface=read('components/ScanRecovery.js');
 const ariaLauncher=read('components/AriaCommandCenter.js');

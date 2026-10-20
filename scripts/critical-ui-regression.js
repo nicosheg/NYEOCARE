@@ -42,6 +42,9 @@ const reviewApi=read('pages/api/review/index.js');
 const reviewResolveApi=read('pages/api/review/resolve.js');
 const scanModal=read('components/ScanModal.js');
 const scanStartApi=read('pages/api/scan/start.js');
+const scanStatusApi=read('pages/api/scan/status.js');
+const scanProcessing=read('components/AriaProcessingStatus.js');
+const scanValidation=read('lib/scanValidation.js');
 const scanProvider=read('lib/hybridScanProvider.js');
 const activeApi=read('pages/api/attendance/active-session.js');
 const attendanceCorrectionApi=read('pages/api/attendance/aria-correction.js');
@@ -262,9 +265,12 @@ const checks=[
  ['Camera and gallery scans preserve source detail while keeping uploads under the request limit',/async function prepare\(file\)/.test(scanModal)&&scanModal.includes('^image')&&scanModal.includes('(jpeg|jpg|png|webp)')&&/MAX=4000000,MAX_UPLOAD=2600000/.test(scanModal)&&/file\.size<=MAX_UPLOAD/.test(scanModal)&&/out\.size<=MAX_UPLOAD/.test(scanModal)&&/maxDimension=2600/.test(scanModal)&&/withTimeout/.test(scanModal)&&/SCAN_IMAGE_DECODE_TIMEOUT/.test(scanModal)&&/SCAN_IMAGE_ENCODE_TIMEOUT/.test(scanModal)&&!/timeoutError/.test(scanModal)],
  ['Camera and gallery both call the same scan starter after preparation',/onChange=\{pick\}/.test(scanModal)&&/const pick=e=>/.test(scanModal)&&/if\(f\)start\(f\)/.test(scanModal)&&/const image_base64=await prepare\(file\)/.test(scanModal)],
  ['Scan extraction uses the proven overlapping-region pipeline',
-  /v65-hybrid-multiregion-crosscheck-revived/.test(scanProvider)&&/regions=await makeRegions/.test(scanProvider)&&/Math\.round\(H\*\.62\)/.test(scanProvider)&&/normalize\(\)\.sharpen/.test(scanProvider)&&/reasoning_effort:'high'/.test(scanProvider)&&/cross_checking/.test(scanProvider)],
+  /v66-literal-fields-live-progress/.test(scanProvider)&&/regions=await makeRegions/.test(scanProvider)&&/Math\.round\(H\*\.62\)/.test(scanProvider)&&/normalize\(\)\.sharpen/.test(scanProvider)&&/reasoning_effort:'high'/.test(scanProvider)&&/cross_checking/.test(scanProvider)],
  ['Scan extraction performs conservative independent cross-checking when configured',
   /GEMINI_API_KEY/.test(scanProvider)&&/geminiCrosscheck/.test(scanProvider)&&/flagDisagreements/.test(scanProvider)&&/row_ownership_uncertain/.test(scanProvider)],
+ ['Scan extraction preserves literal honorifics and supports exact visible DOB evidence',/function cleanNameTitle\(v\)\{return clean\(v\)\}/.test(scanProvider)&&/full visible name in n exactly as written/.test(scanProvider)&&/dob:\{type:'string'\}/.test(scanProvider)&&/date_of_birth_raw/.test(scanValidation)&&/function parseBirthDate/.test(scanValidation)&&/birthday=COALESCE\(birthday,\$5::date\)/.test(read('lib/visionProcessor.js'))],
+ ['Scan processing UI consumes real server stages and animates the yellow progress line',/progress_detail=\$3::jsonb/.test(read('lib/visionProcessor.js'))&&/progress_detail/.test(scanStatusApi)&&/stage_title:stageInfo\.title/.test(scanStatusApi)&&/SCAN_STAGE_MAP/.test(scanProcessing)&&/scanProgressSweep/.test(scanProcessing)&&/progressDetail=\{state\.progressDetail/.test(scanModal)&&!/SCAN_STEPS=/.test(scanProcessing)],
+ ['Scan Review shows exact DOB text or explicitly states it is not visible',/date_of_birth_raw:x\.evidence\?\.extracted\?\.date_of_birth_raw/.test(reviewApi)&&/Not visible on this row/.test(reviewCenter)&&/date_of_birth_evidence/.test(reviewResolveApi)],
  ['Scan rate limits fail over to an independent vision provider when available',
   /async function geminiReadRegion/.test(scanProvider)&&/primaryCode==='AI_RATE_LIMIT'/.test(scanProvider)&&/geminiReadRegion\(region\)/.test(scanProvider)&&/allGemini\?null:await geminiCrosscheck/.test(scanProvider)],
  ['Scan admission shares provider cooldown across organizations when no alternate provider is configured',

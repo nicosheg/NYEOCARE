@@ -7,6 +7,7 @@ const reviewApi=read('pages/api/review/index.js');
 const resolveApi=read('pages/api/review/resolve.js');
 const people=read('pages/people.js');
 const vision=read('lib/visionProcessor.js');
+const scanValidation=read('lib/scanValidation.js');
 const person=read('pages/person/[id].js');
 const journeyApi=read('pages/api/person/journey.js');
 const navigationBack=read('components/NavigationBack.js');
@@ -36,4 +37,6 @@ assert(/d\.role=c\.role/.test(duplicateAction)&&!/d\.role=c\.role AND d\.status=
 assert(/return_to=/.test(people),'People cards must preserve the source location.');
 assert(navigationBack.includes('nyeocare:navigation-history:v1')&&navigationBack.includes('RESTORE_KEY')&&navigationBack.includes('scrollTo')&&!person.includes('onClick={goBack}'),'Person Journey must use shared history-aware back navigation with scroll restoration.');
 assert(/WITH RECURSIVE merged_lineage/.test(journeyApi)&&/person_id IN\(SELECT person_id FROM merged_lineage\)/.test(journeyApi),'Person Journey must include immutable ARIA history from archived identities merged into the canonical person.');
+assert(/date_of_birth_raw/.test(reviewApi)&&/birthday:/.test(reviewApi)&&/Not visible on this row/.test(review)&&/date_of_birth_evidence/.test(resolveApi),'Scan Review must retain the literal DOB and distinguish a blank source cell from an unverified date.');
+assert(/birthday=COALESCE\(birthday,\$5::date\)/.test(vision)&&/date_of_birth_raw/.test(vision)&&/function parseBirthDate/.test(scanValidation),'Verified scan DOBs may fill an empty birthday but must not overwrite an existing birthday.');
 console.log('[SCAN REVIEW] live refresh + navigation checks passed.');

@@ -36,23 +36,23 @@ test('scan progress percentage follows backend milestones and completed image se
  assert.equal(getScanProgressPercent('complete','complete',{}),100);
 });
 test('scan vision remains pinned to Groq Qwen 3.8 with no alternate vision provider or deprecated Qwen fallback',()=>{
- assert.match(hybridSource,/const PRIMARY_KEY='groq-qwen3\\.8-27b'/);
- assert.doesNotMatch(hybridSource,/GEMINI|gemini|FALLBACK|qwen3\\.6-27b/i);
- assert.match(hybridSource,/async function readRegion\\(region,opt\\)/);
- assert.match(hybridSource,/callOne\\(region,PRIMARY,opt,attempt\\)/);
- assert.match(hybridSource,/attempt>=2\\|\\|wait<1\\|\\|wait>30/);
+ assert.ok(hybridSource.includes("const PRIMARY_KEY='groq-qwen3.8-27b'"));
+ for(const forbidden of ['GEMINI','gemini','FALLBACK','qwen3.6-27b'])assert.equal(hybridSource.includes(forbidden),false,`Unexpected alternate scan vision path: ${forbidden}`);
+ assert.ok(hybridSource.includes('async function readRegion(region,opt)'));
+ assert.ok(hybridSource.includes('callOne(region,PRIMARY,opt,attempt)'));
+ assert.ok(hybridSource.includes('attempt>=2||wait<1||wait>30'));
 });
 test('scan image regions are processed sequentially and publish fresh backend heartbeats',()=>{
- assert.match(hybridSource,/for\\(let i=0;i<regions.length;i\\+\\+\\)/);
- assert.doesNotMatch(hybridSource,/Promise\\.all\\(regions\\.map/);
- assert.match(hybridSource,/setInterval\\(\\(\\)=>\\{if\\(activeRegion\\)report\\(stage/);
- assert.match(hybridSource,/retry_reason:r\\.response\\.ok\\?null:/);
+ assert.ok(hybridSource.includes('for(let i=0;i<regions.length;i++)'));
+ assert.equal(hybridSource.includes('Promise.all(regions.map'),false);
+ assert.ok(hybridSource.includes('setInterval(()=>{if(activeRegion)report(stage'));
+ assert.ok(hybridSource.includes('retry_reason:r.response.ok?null:'));
 });
 test('status API and scan processing UI share a backend-derived percentage contract',()=>{
- assert.match(statusSource,/progress_percent:getScanProgressPercent\\(job.status,stage,detail\\)/);
- assert.match(progressUiSource,/role="progressbar"/);
- assert.match(progressUiSource,/progressPercent=null/);
- assert.match(progressUiSource,/scanProgressSheen/);
- assert.match(scanModalSource,/progressPercent=\\{state.progressPercent\\}/);
- assert.match(scanModalSource,/progressPercent:d\\.progress_percent/);
+ assert.ok(statusSource.includes('progress_percent:getScanProgressPercent(job.status,stage,detail)'));
+ assert.ok(progressUiSource.includes('role="progressbar"'));
+ assert.ok(progressUiSource.includes('progressPercent=null'));
+ assert.ok(progressUiSource.includes('scanProgressSheen'));
+ assert.ok(scanModalSource.includes('progressPercent={state.progressPercent}'));
+ assert.ok(scanModalSource.includes('progressPercent:d.progress_percent'));
 });

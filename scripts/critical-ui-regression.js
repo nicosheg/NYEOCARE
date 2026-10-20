@@ -246,7 +246,7 @@ const checks=[
  ['Global app runtime revalidates auth/data invisibly',
   /getClientSession/.test(fieldRuntime)&&/nyeocare:app-refresh/.test(fieldRuntime)&&/pageshow/.test(fieldRuntime)&&/setInterval\(run,60000\)/.test(fieldRuntime)],
  ['Service worker cache rotates with the client recovery release',
-  /nyeocare-static-v4/.test(serviceWorker)&&/self\.skipWaiting\(\)/.test(serviceWorker)&&/self\.clients\.claim\(\)/.test(serviceWorker)],
+  /nyeocare-static-v5/.test(serviceWorker)&&/self\.skipWaiting\(\)/.test(serviceWorker)&&/self\.clients\.claim\(\)/.test(serviceWorker)],
 ['Environment weather state cannot crash the app',
   /const WEATHER_KEY='nyeocare:weather:v2'/.test(environment)&&/let weatherInFlight=false/.test(environment)&&/const run=\(\)=>\{try\{getWeather\(\)/.test(environment)],
  ['ARIA care draft initializes a safe WhatsApp phone before database metadata insert',

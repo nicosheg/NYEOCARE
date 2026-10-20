@@ -45,7 +45,7 @@ test('scan vision remains pinned to Groq Qwen 3.8 with no alternate vision provi
  for(const forbidden of ['GEMINI','gemini','FALLBACK','qwen3.6-27b'])assert.equal(hybridSource.includes(forbidden),false,`Unexpected alternate scan vision path: ${forbidden}`);
  assert.ok(hybridSource.includes('async function readRegion(region,opt)'));
  assert.ok(hybridSource.includes('callOne(region,PRIMARY,opt,attempt)'));
- assert.ok(hybridSource.includes('attempt>=2||wait<1||wait>30'));
+ assert.ok(hybridSource.includes('attempt>=3||!Number.isFinite(wait)||wait<0||wait>30'));
 });
 test('scan image regions are processed sequentially and publish fresh backend heartbeats',()=>{
  assert.ok(hybridSource.includes('for(let i=0;i<regions.length;i++)'));

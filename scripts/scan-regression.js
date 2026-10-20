@@ -76,7 +76,7 @@ test('Groq Retry-After is not inflated by an unrelated non-exhausted token reset
 });
 test('scan uses low reasoning and bounded same-model recovery for empty/invalid structured output',()=>{
  assert.ok(hybridSource.includes("reasoning_effort:'low'"));
- assert.ok(hybridSource.includes('Handwritten \\"SIS\\" is the three-letter honorific S-I-S'));
+ assert.ok(hybridSource.includes('Handwritten "SIS" is the three-letter honorific S-I-S'));
  assert.ok(hybridSource.includes('retryDelaySeconds=r.response.status===429?cooldownSeconds(rate,providerMessage):0'));
  assert.ok(hybridSource.includes('getRateLimitRetrySeconds({message:row.retry_reason'));
  assert.ok(hybridSource.includes('rateLimitRetries<2'));

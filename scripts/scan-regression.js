@@ -44,8 +44,9 @@ test('scan vision remains pinned to Groq Qwen 3.8 with no alternate vision provi
  assert.ok(hybridSource.includes("const PRIMARY_KEY='groq-qwen3.8-27b'"));
  for(const forbidden of ['GEMINI','gemini','FALLBACK','qwen3.6-27b'])assert.equal(hybridSource.includes(forbidden),false,`Unexpected alternate scan vision path: ${forbidden}`);
  assert.ok(hybridSource.includes('async function readRegion(region,opt)'));
- assert.ok(hybridSource.includes('callOne(region,PRIMARY,opt,attempt)'));
- assert.ok(hybridSource.includes('attempt>=3||!Number.isFinite(wait)||wait<0||wait>30'));
+ assert.ok(hybridSource.includes('callOne(region,PRIMARY,opt,attempt,jsonFallbackUsed)'));
+ assert.ok(hybridSource.includes('rateLimitRetries<2'));
+ assert.ok(hybridSource.includes('jsonFallbackUsed'));
 });
 test('scan image regions are processed sequentially and publish fresh backend heartbeats',()=>{
  assert.ok(hybridSource.includes('for(let i=0;i<regions.length;i++)'));
@@ -72,12 +73,22 @@ test('Groq Retry-After is not inflated by an unrelated non-exhausted token reset
  assert.equal(getRateLimitRetrySeconds({message:'quota limit reached',remainingTokens:'0',remainingRequests:'999',resetTokens:'2.5s',resetRequests:'1m26.4s'}),2.5);
  assert.equal(parseDurationSeconds('1m26.4s'),86.4);
 });
-test('scan retries the quota-directed wait on the same Qwen model and lowers hidden reasoning overhead',()=>{
- assert.ok(hybridSource.includes("reasoning_effort:'medium'"));
+test('scan retries quota failures, disables unnecessary reasoning and recovers strict-JSON failures safely',()=>{
+ assert.ok(hybridSource.includes("reasoning_effort:'none'"));
  assert.ok(hybridSource.includes('retryDelaySeconds=r.response.status===429?cooldownSeconds(rate,providerMessage):0'));
- assert.ok(hybridSource.includes('attempt>=3||!Number.isFinite(wait)||wait<0||wait>30'));
  assert.ok(hybridSource.includes('getRateLimitRetrySeconds({message:row.retry_reason'));
+ assert.ok(hybridSource.includes('rateLimitRetries<2'));
+ assert.ok(hybridSource.includes("!jsonFallbackUsed&&err?.status===400&&/failed to generate json/i.test(String(err?.message||''))"));
+ assert.ok(hybridSource.includes("response_format:jsonObjectFallback?{type:'json_object'}:SCHEMA"));
+ assert.ok(hybridSource.includes('SAFE_ROW_FLAGS'));
+ assert.ok(hybridSource.includes("typeof p.n!=='string'"));
  for(const forbidden of ['GEMINI','gemini','FALLBACK','qwen3.6-27b'])assert.equal(hybridSource.includes(forbidden),false);
+});
+test('Qwen JSON-object recovery locally validates every row field before acceptance',()=>{
+ assert.ok(hybridSource.includes('x.people.length>MAX'));
+ assert.ok(hybridSource.includes('p.p.length>2'));
+ assert.ok(hybridSource.includes("p.f.some(v=>!SAFE_ROW_FLAGS.has(v))"));
+ assert.ok(hybridSource.includes("typeof p.e!=='string'"));
 });
 test('scan admission preflight returns a countdown and the modal enforces it on initial scan and retry',()=>{
  assert.ok(admissionSource.includes('retry_after_seconds:retrySeconds'));

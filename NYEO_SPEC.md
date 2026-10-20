@@ -234,7 +234,7 @@ The vision pipeline has been hardened for difficult captures including:
 - blank continuation rows;
 - two phones attached to one person.
 
-The current strategy uses independent vision reading/audit passes rather than making one huge schema do everything. Disagreement must produce uncertainty rather than hallucinated certainty.
+Current runtime (pipeline v67, 20 October 2026): scan vision is pinned to Groq `qwen/qwen3.8-27b` only. Tall pages are divided into overlapping regions and submitted sequentially to avoid concurrent token reservations. One retry is permitted only for a Groq rate-limit response that supplies a short reset window, and that retry uses the same model. No Gemini or alternate-model vision fallback is allowed. The old cross-provider audit path is historical, not part of the active scan contract. Every extraction still passes deterministic validation, identity evidence, Review handling, and safe persistence; ambiguous pixels must not be guessed.
 
 ### Real-register scan benchmark — September 2026
 A real Carrillion handwritten register was used as a controlled benchmark because it contains difficult handwriting, Nigerian phone numbers, titles/prefixes, and a continuation phone number.
@@ -252,9 +252,9 @@ Two consecutive scans of real registers were also observed to complete successfu
 The scan architecture deliberately separates responsibilities:
 
 ```text
-FULL-PAGE Qwen OBSERVATION
+OVERLAPPING GROQ QWEN 3.8 REGION READS (SEQUENTIAL)
         ↓
-EXPLICIT NAME / PHONE SCHEMA
+LITERAL NAME / PHONE / DOB SCHEMA
         ↓
 PHYSICAL ROW RECONSTRUCTION
         ↓
@@ -2733,3 +2733,11 @@ A read request for data quality must not be blocked merely because cleanup could
 Each consequential agent path should retain machine-readable context sufficient to answer: what the operator requested; what ARIA interpreted; what capability(s) were selected; which permissions applied; whether confirmation was required; what the server actually changed; and whether the run succeeded, failed, recovered or stopped.
 
 Regression suites are part of the agent contract. New edge cases discovered in production should become deterministic tests or capability-level tests rather than living only in prompts.
+
+### Current scan runtime and progress contract — 20 October 2026
+
+This section supersedes older operational notes that describe active Gemini cross-checking or Qwen 3.6 fallback behavior. The active provider path is Groq Qwen 3.8 only; there is no alternate vision provider/model. The overlapping regions are read in sequence, with at most one bounded same-model retry for a short rate-limit reset. Provider status/error details are logged for diagnosis.
+
+The worker reports a heartbeat while a region is being processed. The status API exposes `progress_percent` as a deterministic backend pipeline milestone (queue/preparation, region completion, validation, identity resolution, saving, completion). It is not a claim to expose Qwen's internal token-by-token progress. The UI's numeric fill follows this backend value; the shimmer animates only while the last backend heartbeat is fresh. When progress goes stale, the bar holds the last confirmed percentage and the UI says that updates have paused; the status API still fails a truly stalled job safely.
+
+Processing progress writes are serialized and guarded so they cannot overwrite a cancelled or terminal job. Cancellation timeouts do not silently mark a scan as cancelled: the interface continues checking the canonical job state. Device-side image preparation remains distinct from server-side scan progress.

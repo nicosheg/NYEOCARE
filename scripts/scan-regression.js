@@ -33,6 +33,9 @@ test('scan progress percentage follows backend milestones and completed image se
  assert.equal(getScanProgressPercent('processing','validating_extraction',{}),75);
  assert.equal(getScanProgressPercent('processing','resolving_identity',{}),85);
  assert.equal(getScanProgressPercent('processing','saving_truth',{}),95);
+ assert.equal(getScanProgressPercent('failed','reading_overlapping_regions',{regions_total:2,regions_completed:1}),40);
+ assert.equal(getScanProgressPercent('cancelled','saving_truth',{}),95);
+ assert.equal(getScanProgressPercent('failed','failed',{}),0);
  assert.equal(getScanProgressPercent('complete','complete',{}),100);
 });
 test('scan vision remains pinned to Groq Qwen 3.8 with no alternate vision provider or deprecated Qwen fallback',()=>{

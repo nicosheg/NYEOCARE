@@ -47,6 +47,9 @@ const scanStatusApi=read('pages/api/scan/status.js');
 const scanProcessing=read('components/AriaProcessingStatus.js');
 const scanValidation=read('lib/scanValidation.js');
 const scanProvider=read('lib/hybridScanProvider.js');
+const scanModelRegistry=read('lib/modelRegistry.js');
+const aiProviderIndex=read('lib/aiProviders/index.js');
+const openRouterAdapter=read('lib/aiProviders/openrouter.js');
 const activeApi=read('pages/api/attendance/active-session.js');
 const attendanceCorrectionApi=read('pages/api/attendance/aria-correction.js');
 const attendancePeopleApi=read('pages/api/attendance/people.js');
@@ -243,7 +246,7 @@ const checks=[
  ['Global app runtime revalidates auth/data invisibly',
   /getClientSession/.test(fieldRuntime)&&/nyeocare:app-refresh/.test(fieldRuntime)&&/pageshow/.test(fieldRuntime)&&/setInterval\(run,60000\)/.test(fieldRuntime)],
  ['Service worker cache rotates with the client recovery release',
-  /nyeocare-static-v4/.test(serviceWorker)&&/self\.skipWaiting\(\)/.test(serviceWorker)&&/self\.clients\.claim\(\)/.test(serviceWorker)],
+  /nyeocare-static-v5/.test(serviceWorker)&&/self\.skipWaiting\(\)/.test(serviceWorker)&&/self\.clients\.claim\(\)/.test(serviceWorker)],
 ['Environment weather state cannot crash the app',
   /const WEATHER_KEY='nyeocare:weather:v2'/.test(environment)&&/let weatherInFlight=false/.test(environment)&&/const run=\(\)=>\{try\{getWeather\(\)/.test(environment)],
  ['ARIA care draft initializes a safe WhatsApp phone before database metadata insert',
@@ -267,15 +270,15 @@ const checks=[
  ['Scan image timeouts wrap the actual decode and encode operations',/withTimeout\(imageLoad,PREP,'SCAN_IMAGE_DECODE_TIMEOUT'\)/.test(scanModal)&&/withTimeout\(encoded,12000,'SCAN_IMAGE_ENCODE_TIMEOUT'\)/.test(scanModal)&&!/withTimeout\(PREP,'SCAN_IMAGE_DECODE_TIMEOUT'\)/.test(scanModal)&&!/withTimeout\(12000,'SCAN_IMAGE_ENCODE_TIMEOUT'\)/.test(scanModal)],
  ['Camera and gallery both call the same scan starter after preparation',/onChange=\{pick\}/.test(scanModal)&&/const pick=e=>/.test(scanModal)&&/if\(f\)start\(f\)/.test(scanModal)&&/const image_base64=await prepare\(file\)/.test(scanModal)],
  ['Scan extraction uses the proven overlapping-region pipeline',
-  /v66-literal-fields-live-progress/.test(scanProvider)&&/regions=await makeRegions/.test(scanProvider)&&/Math\.round\(H\*\.62\)/.test(scanProvider)&&/normalize\(\)\.sharpen/.test(scanProvider)&&/reasoning_effort:'high'/.test(scanProvider)&&/cross_checking/.test(scanProvider)],
+  /v67-truthful-progress-provider-failover/.test(scanProvider)&&/regions=await makeRegions/.test(scanProvider)&&/Math\.round\(H\*\.62\)/.test(scanProvider)&&/normalize\(\)\.sharpen/.test(scanProvider)&&/reasoning_effort:'high'/.test(scanProvider)&&/cross_checking/.test(scanProvider)],
  ['Scan extraction performs conservative independent cross-checking when configured',
   /GEMINI_API_KEY/.test(scanProvider)&&/geminiCrosscheck/.test(scanProvider)&&/flagDisagreements/.test(scanProvider)&&/row_ownership_uncertain/.test(scanProvider)],
  ['Scan extraction preserves literal honorifics and supports exact visible DOB evidence',/function cleanNameTitle\(v\)\{return clean\(v\)\}/.test(scanProvider)&&/full visible name in n exactly as written/.test(scanProvider)&&/dob:\{type:'string'\}/.test(scanProvider)&&/date_of_birth_raw/.test(scanValidation)&&/function parseBirthDate/.test(scanValidation)&&/birthday=COALESCE\(birthday,\$5::date\)/.test(read('lib/visionProcessor.js'))],
  ['Scan worker parameterizes every dynamic UPDATE value and casts JSONB values',scanProcessor.includes("`${key}=$${i+2}${key==='progress_detail'||key==='result'?'::jsonb':''}`")&&!scanProcessor.includes("`${key}=${i+2}`")&&/progress_detail=\$3::jsonb/.test(scanProcessor)],
- ['Scan progress animation is tied to fresh backend activity; queued and stale scans are static',/progress_detail/.test(scanStatusApi)&&/stage_title:stageInfo\.title/.test(scanStatusApi)&&/queue_age_seconds/.test(scanStatusApi)&&/progress_age_seconds/.test(scanStatusApi)&&/const anchor=job\.started_at\|\|job\.created_at/.test(scanStatusApi)&&/SCAN_STAGE_MAP/.test(scanProcessing)&&/progressFresh=!isQueued&&activeState/.test(scanProcessing)&&/scanStageTrack i\.queued,.scanStageTrack i\.stale\{width:0/.test(scanProcessing)&&/progressAgeSeconds=\{state\.progressAgeSeconds\}/.test(scanModal)&&!/SCAN_STEPS=/.test(scanProcessing)],
+ ['Scan processing reflects backend stages and only animates during fresh worker or provider activity',/heartbeat_age_seconds/.test(scanStatusApi)&&/const progressAnchor=job\.last_progress_at\|\|job\.started_at\|\|job\.created_at/.test(scanStatusApi)&&/const base=job\.heartbeat\|\|job\.last_progress_at/.test(scanStatusApi)&&/switching_vision_provider/.test(scanStatusApi)&&/regions_in_flight/.test(scanProvider)&&/onHeartbeat/.test(scanProcessor)&&/heartbeatAgeSeconds=/.test(scanModal)&&/heartbeatFresh/.test(scanProcessing)&&/providerBusy&&heartbeatFresh/.test(scanProcessing)&&/ariaProcessOrb\.isActive i\{animation:ariaProcessBreathe/.test(scanProcessing)&&/Waiting for the next backend stage/.test(scanProcessing)&&/scanStageTrack i\.queued,.scanStageTrack i\.stale\{width:0/.test(scanProcessing)&&!/SCAN_STEPS=/.test(scanProcessing)],
  ['Scan Review shows exact DOB text or explicitly states it is not visible',/date_of_birth_raw:x\.evidence\?\.extracted\?\.date_of_birth_raw/.test(reviewApi)&&/Not visible on this row/.test(reviewCenter)&&/date_of_birth_evidence/.test(reviewResolveApi)],
- ['Scan rate limits fail over to an independent vision provider when available',
-  /async function geminiReadRegion/.test(scanProvider)&&/primaryCode==='AI_RATE_LIMIT'/.test(scanProvider)&&/geminiReadRegion\(region\)/.test(scanProvider)&&/allGemini\?null:await geminiCrosscheck/.test(scanProvider)],
+ ['Scan rate limits fall back to configured Gemini/OpenRouter vision instead of a deprecated Groq model',
+  /async function geminiReadRegion/.test(scanProvider)&&/primaryCode==='AI_RATE_LIMIT'/.test(scanProvider)&&/geminiReadRegion\(region\)/.test(scanProvider)&&/openrouter-qwen3\.8-flash/.test(scanProvider)&&/qwen\/qwen3\.8-flash/.test(scanModelRegistry)&&/openrouter:Object\.freeze/.test(aiProviderIndex)&&/OPENROUTER_API_KEY/.test(openRouterAdapter)&&/Promise\.allSettled/.test(scanProvider)&&/allGemini\?null:await geminiCrosscheck/.test(scanProvider)],
  ['Scan admission shares provider cooldown across organizations when no alternate provider is configured',
   /export async function getScanAdmissionStatus/.test(scanProvider)&&/FROM ai_usage_events WHERE provider=\$1 AND http_status=429/.test(scanProvider)&&/retry_after_seconds:remaining/.test(scanProvider)],
  ['People roster silently refreshes expired auth sessions',
@@ -313,6 +316,7 @@ const checks=[
   /withOrg/.test(bulkPeopleApi)&&/\['owner',\s*'admin'\]/.test(bulkPeopleApi)&&/MAX_ROWS = 200/.test(bulkPeopleApi)&&/pg_advisory_xact_lock/.test(bulkPeopleApi)&&/phone_numbers/.test(bulkPeopleApi)&&/Phone number duplicates row/.test(bulkPeopleApi)],
  ['Bulk person creation schedules ARIA updates after the main insert',
   /waitUntil\(processCreatedPeople/.test(bulkPeopleApi)&&/type: 'PERSON_CREATED'/.test(bulkPeopleApi)&&/await client\.query\('COMMIT'\)/.test(bulkPeopleApi)],
+ ['Service worker prefers deployed static assets and purges the previous scan bundle cache',/nyeocare-static-v5/.test(serviceWorker)&&/fetch\(event\.request,\{cache:'no-cache'\}\)/.test(serviceWorker)&&/const cached=await cache\.match\(event\.request\);if\(cached\)return cached/.test(serviceWorker)],
  ['Scan start preserves structured capacity and retry-after details',
   /getScanAdmissionStatus/.test(scanStartApi)&&/retry_after_seconds:admission\.retry_after_seconds/.test(scanStartApi)&&/failure\.cooldownSeconds=Number\(d\.retry_after_seconds\)/.test(scanModal)],
 ];

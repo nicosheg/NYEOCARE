@@ -3,6 +3,8 @@ import test from'node:test';import assert from'node:assert/strict';import{readFi
 process.env.DATABASE_URL ||= 'postgres://test:test@127.0.0.1:5432/test';
 const{validateScanOutput,fuzzyMatch,normalizeName}=await import('../lib/scanValidation.js');const{resolveIdentities}=await import('../lib/identityResolver.js');const{nameSimilarity}=await import('../lib/duplicateDetector.js');
 const{getScanProgressPercent}=await import('../lib/scanProgress.js');
+const{parseRetryAfterSeconds,getRateLimitRetrySeconds}=await import('../lib/scanRateLimit.js');
+const admissionSource=readFileSync(new URL('../pages/api/scan/admission.js',import.meta.url),'utf8');
 const hybridSource=readFileSync(new URL('../lib/hybridScanProvider.js',import.meta.url),'utf8');
 const statusSource=readFileSync(new URL('../pages/api/scan/status.js',import.meta.url),'utf8');
 const progressUiSource=readFileSync(new URL('../components/AriaProcessingStatus.js',import.meta.url),'utf8');
@@ -58,4 +60,29 @@ test('status API and scan processing UI share a backend-derived percentage contr
  assert.ok(progressUiSource.includes('scanProgressSheen'));
  assert.ok(scanModalSource.includes('progressPercent={state.progressPercent}'));
  assert.ok(scanModalSource.includes('progressPercent:d.progress_percent'));
+});
+
+test('Groq OTPM message beats the generic TPM reset header',()=>{
+ const message='HTTP 429: Rate limit reached on output tokens per minute (OTPM). Please try again in 480ms. Need more tokens?';
+ assert.equal(parseRetryAfterSeconds(message),0.48);
+ assert.equal(getRateLimitRetrySeconds({message,retryAfter:1,remainingTokens:'3648',remainingRequests:'999',resetTokens:'32.64s',resetRequests:'1m26.4s'}),0.48);
+});
+test('Groq Retry-After is not inflated by an unrelated non-exhausted token reset',()=>{
+ assert.equal(getRateLimitRetrySeconds({message:'quota limit reached',retryAfter:'1',remainingTokens:'3648',remainingRequests:'999',resetTokens:'32.64s',resetRequests:'1m26.4s'}),1);
+ assert.equal(getRateLimitRetrySeconds({message:'quota limit reached',remainingTokens:'0',remainingRequests:'999',resetTokens:'2.5s',resetRequests:'1m26.4s'}),2.5);
+});
+test('scan retries the quota-directed wait on the same Qwen model and lowers hidden reasoning overhead',()=>{
+ assert.ok(hybridSource.includes("reasoning_effort:'medium'"));
+ assert.ok(hybridSource.includes('retryDelaySeconds=r.response.status===429?cooldownSeconds(rate,providerMessage):0'));
+ assert.ok(hybridSource.includes('attempt>=3||!Number.isFinite(wait)||wait<0||wait>30'));
+ assert.ok(hybridSource.includes('getRateLimitRetrySeconds({message:row.retry_reason'));
+ for(const forbidden of ['GEMINI','gemini','FALLBACK','qwen3.6-27b'])assert.equal(hybridSource.includes(forbidden),false);
+});
+test('scan admission preflight returns a countdown and the modal enforces it on initial scan and retry',()=>{
+ assert.ok(admissionSource.includes('retry_after_seconds:retrySeconds'));
+ assert.ok(admissionSource.includes('retry_at:retrySeconds>0'));
+ assert.ok(scanModalSource.includes('/api/scan/admission?_=')); 
+ assert.ok(scanModalSource.includes('setInterval(tick,200)'));
+ assert.ok(scanModalSource.includes('disabled={cooldownActive}'));
+ assert.ok(scanModalSource.includes('Try again in '));
 });

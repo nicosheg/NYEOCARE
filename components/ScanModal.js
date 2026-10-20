@@ -19,16 +19,16 @@ async function session(force=false){
 }
 async function request(url,options={},attempts=3){let last;for(let i=0;i<attempts;i++){const c=new AbortController(),t=setTimeout(()=>c.abort(),REQ);try{const r=await fetch(url,{...options,signal:c.signal});clearTimeout(t);return r}catch(e){clearTimeout(t);last=e;if(!netError(e)||i===attempts-1)throw e;await sleep(Math.min(6000,1000*2**i))}}throw last}
 function readFile(file){return new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>{const x=String(r.result||'').split(',')[1];x?ok(x):no(Error('Could not read this image.'))};r.onerror=()=>no(Error('Could not read this image.'));r.readAsDataURL(file)})}
+async function hasJpegSignature(file){try{if(!file||file.size<3||typeof file.slice!=='function')return false;const head=new Uint8Array(await file.slice(0,3).arrayBuffer());return head.length===3&&head[0]===255&&head[1]===216&&head[2]===255}catch{return false}}
 async function prepare(file){
  if(!file)throw Error('No image selected.');
- const type=String(file.type||'').toLowerCase();
- if(file.size&&file.size<=MAX_UPLOAD&&/^image\/(jpeg|jpg|png|webp)$/i.test(type))return readFile(file);
+ // Skip expensive browser decoding for genuine JPEGs that fit the server's existing 4 MB limit.
+ // This avoids unnecessary memory pressure on phones while retaining byte-level format validation.
+ if(file.size&&file.size<=MAX&&await hasJpegSignature(file))return readFile(file);
  const u=URL.createObjectURL(file);
  try{
-  const im=await Promise.race([
-   new Promise((ok,no)=>{const x=new Image();x.onload=()=>ok(x);x.onerror=()=>no(Object.assign(new Error('This image could not be decoded. Please retake it as JPG or PNG.'),{code:'SCAN_IMAGE_DECODE_FAILED'}));x.src=u}),
-   withTimeout(PREP,'SCAN_IMAGE_DECODE_TIMEOUT')
-  ]);
+  const imageLoad=new Promise((ok,no)=>{const x=new Image();x.onload=()=>ok(x);x.onerror=()=>no(Object.assign(new Error('This image could not be decoded. Please retake it as JPG or PNG.'),{code:'SCAN_IMAGE_DECODE_FAILED'}));x.src=u});
+  const im=await withTimeout(imageLoad,PREP,'SCAN_IMAGE_DECODE_TIMEOUT');
   const w=im.naturalWidth||im.width||0,h=im.naturalHeight||im.height||0;
   if(!w||!h)throw Object.assign(new Error('This image has no readable dimensions. Please retake it as JPG or PNG.'),{code:'SCAN_IMAGE_DIMENSIONS'});
   const maxDimension=2600,scale=Math.min(1,maxDimension/Math.max(w,h)),width=Math.max(1,Math.round(w*scale)),height=Math.max(1,Math.round(h*scale)),canvas=document.createElement('canvas');
@@ -38,7 +38,8 @@ async function prepare(file){
   ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.fillStyle='#fff';ctx.fillRect(0,0,width,height);ctx.drawImage(im,0,0,width,height);
   let out=null;
   for(const quality of [.9,.84,.78,.72,.66,.6]){
-   out=await Promise.race([new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',quality)),withTimeout(12000,'SCAN_IMAGE_ENCODE_TIMEOUT')]);
+   const encoded=new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',quality));
+   out=await withTimeout(encoded,12000,'SCAN_IMAGE_ENCODE_TIMEOUT');
    if(out&&out.size<=MAX_UPLOAD)break;
   }
   if(!out||out.size>MAX_UPLOAD)throw Object.assign(new Error('This photo is too large to upload safely. Please retake it a little closer to the register.'),{code:'SCAN_IMAGE_TOO_LARGE'});

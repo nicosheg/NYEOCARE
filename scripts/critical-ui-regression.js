@@ -47,6 +47,7 @@ const scanStatusApi=read('pages/api/scan/status.js');
 const scanProcessing=read('components/AriaProcessingStatus.js');
 const scanValidation=read('lib/scanValidation.js');
 const scanProvider=read('lib/hybridScanProvider.js');
+const scanRegionMerge=read('lib/scanRegionMerge.js');
 const activeApi=read('pages/api/attendance/active-session.js');
 const attendanceCorrectionApi=read('pages/api/attendance/aria-correction.js');
 const attendancePeopleApi=read('pages/api/attendance/people.js');
@@ -267,7 +268,8 @@ const checks=[
  ['Scan image timeouts wrap the actual decode and encode operations',/withTimeout\(imageLoad,PREP,'SCAN_IMAGE_DECODE_TIMEOUT'\)/.test(scanModal)&&/withTimeout\(encoded,12000,'SCAN_IMAGE_ENCODE_TIMEOUT'\)/.test(scanModal)&&!/withTimeout\(PREP,'SCAN_IMAGE_DECODE_TIMEOUT'\)/.test(scanModal)&&!/withTimeout\(12000,'SCAN_IMAGE_ENCODE_TIMEOUT'\)/.test(scanModal)],
  ['Camera and gallery both call the same scan starter after preparation',/onChange=\{pick\}/.test(scanModal)&&/const pick=e=>/.test(scanModal)&&/if\(f\)start\(f\)/.test(scanModal)&&/const image_base64=await prepare\(file\)/.test(scanModal)],
  ['Scan extraction uses sequential overlapping Groq Qwen 3.8 regions',
-  /v69-groq-qwen-low-reasoning-json-recovery/.test(scanProvider)&&/const PRIMARY_KEY='groq-qwen3\.8-27b'/.test(scanProvider)&&/regions=await makeRegions/.test(scanProvider)&&/Math\.round\(H\*\.62\)/.test(scanProvider)&&/normalize\(\)\.sharpen/.test(scanProvider)&&/reasoning_effort:'low'/.test(scanProvider)&&/for\(let i=0;i<regions\.length;i\+\+\)/.test(scanProvider)&&!/Promise\.all\(regions\.map/.test(scanProvider)],
+  /v70-overlap-row-alignment-honorific-calibration/.test(scanProvider)&&/const PRIMARY_KEY='groq-qwen3\.8-27b'/.test(scanProvider)&&/regions=await makeRegions/.test(scanProvider)&&/Math\.round\(H\*\.62\)/.test(scanProvider)&&/normalize\(\)\.sharpen/.test(scanProvider)&&/reasoning_effort:'low'/.test(scanProvider)&&/for\(let i=0;i<regions\.length;i\+\+\)/.test(scanProvider)&&!/Promise\.all\(regions\.map/.test(scanProvider)],
+ ['Overlapping scan regions align rows one-to-one and avoid same-region name collapse',/function alignOverlapRows/.test(scanRegionMerge)&&/observationSimilarity/.test(scanRegionMerge)&&/const sameRegion=group\.regions\.some/.test(scanRegionMerge)&&/mergeScanRegions\(parts,page\.height,MAX\)/.test(scanProvider)],
  ['Scan extraction has no alternate vision provider and retains conservative uncertainty flags',
   !/GEMINI_API_KEY|geminiCrosscheck|geminiReadRegion|qwen3\.6-27b/i.test(scanProvider)&&/row_ownership_uncertain/.test(scanProvider)&&/continuation_uncertain/.test(scanProvider)&&/name_uncertain/.test(scanProvider)],
  ['Scan extraction preserves literal honorifics and supports exact visible DOB evidence',/function cleanNameTitle\(v\)\{return clean\(v\)\}/.test(scanProvider)&&/full visible name in n exactly as written/.test(scanProvider)&&/dob:\{type:'string'\}/.test(scanProvider)&&/date_of_birth_raw/.test(scanValidation)&&/function parseBirthDate/.test(scanValidation)&&/birthday=COALESCE\(birthday,\$5::date\)/.test(read('lib/visionProcessor.js'))],

@@ -1,7 +1,12 @@
 // scripts/scan-regression.js
-import test from'node:test';import assert from'node:assert/strict';
+import test from'node:test';import assert from'node:assert/strict';import{readFileSync}from'node:fs';
 process.env.DATABASE_URL ||= 'postgres://test:test@127.0.0.1:5432/test';
 const{validateScanOutput,fuzzyMatch,normalizeName}=await import('../lib/scanValidation.js');const{resolveIdentities}=await import('../lib/identityResolver.js');const{nameSimilarity}=await import('../lib/duplicateDetector.js');
+const{getScanProgressPercent}=await import('../lib/scanProgress.js');
+const hybridSource=readFileSync(new URL('../lib/hybridScanProvider.js',import.meta.url),'utf8');
+const statusSource=readFileSync(new URL('../pages/api/scan/status.js',import.meta.url),'utf8');
+const progressUiSource=readFileSync(new URL('../components/AriaProcessingStatus.js',import.meta.url),'utf8');
+const scanModalSource=readFileSync(new URL('../components/ScanModal.js',import.meta.url),'utf8');
 const phone=n=>({normalized:n}),base={type:'person',status:'active',metadata:{identity_verified:true},living_truth:{status:'alive'},identity_verification_status:'verified'};
 function clientFor(people){return{async query(sql){if(/FROM people WHERE organization_id/.test(sql))return{rows:people};if(/FROM person_aliases/.test(sql))return{rows:[]};if(/FROM identity_shared_contacts/.test(sql))return{rows:[]};if(/FROM identity_pair_decisions/.test(sql))return{rows:[]};throw new Error(`Unexpected SQL in regression client: ${sql.slice(0,80)}`)}}}
 test('single-page validation preserves continuation ownership',()=>{const v=validateScanOutput(JSON.stringify({people:[{r:1,y:100,x:100,n:'Sandra Isichei',p:['08039579786'],nc:98,pc:96,rc:95,ns:'clear',ps:'clear',rs:'clear',f:[],na:[],e:'row 1'},{r:1,y:130,x:120,n:'',p:['08183488629'],nc:98,pc:90,rc:92,ns:'clear',ps:'clear',rs:'clear',f:[],na:[],e:'continuation'}]}));assert.equal(v.valid,true);assert.equal(v.people.length,1);assert.deepEqual(v.people[0].phones,['+2348039579786','+2348183488629'])});
@@ -17,3 +22,37 @@ test('missing DOB remains absent and does not get inferred',()=>{const v=validat
 test('ambiguous or incomplete DOB is kept as raw evidence, not saved as a guessed date',()=>{const v=validateScanOutput(JSON.stringify({people:[{r:1,y:100,x:100,n:'Rev John',p:['08012345678'],dob:'23/04',nc:99,pc:99,rc:99,ns:'clear',ps:'clear',rs:'clear',f:[],na:[],e:'partial date'}]}));assert.equal(v.valid,true);assert.equal(v.people[0].date_of_birth_raw,'23/04');assert.equal(v.people[0].birthday,null);assert.equal(v.people[0].date_of_birth_evidence,'ambiguous');assert(v.people[0].extraction_review_reasons.includes('date_of_birth_needs_verification'));assert(v.needsReview.some(x=>x.reasons.includes('date_of_birth_needs_verification')))});
 test('a row without a visible phone remains in Review even when its name is clear',()=>{const v=validateScanOutput(JSON.stringify({people:[{r:1,y:100,x:100,n:'Sister Joy Grace',p:[],dob:'',nc:99,ns:'clear',ps:'clear',rs:'clear',f:[],na:[],e:'name only'}]}));assert.equal(v.valid,true);assert.equal(v.people.length,1);assert.equal(v.people[0].name,'Sister Joy Grace');assert(v.people[0].extraction_review_reasons.includes('phone_missing'));assert(v.needsReview.some(x=>x.reasons.includes('phone_missing')))});
 console.log('NYEOCARE scan regression suite ready.');
+
+test('scan progress percentage follows backend milestones and completed image sections',()=>{
+ assert.equal(getScanProgressPercent('pending','queued',{}),0);
+ assert.equal(getScanProgressPercent('processing','preparing_image',{}),4);
+ assert.equal(getScanProgressPercent('processing','understanding_page',{}),10);
+ assert.equal(getScanProgressPercent('processing','reading_overlapping_regions',{regions_total:2,regions_completed:0}),15);
+ assert.equal(getScanProgressPercent('processing','reading_overlapping_regions',{regions_total:2,regions_completed:1}),40);
+ assert.equal(getScanProgressPercent('processing','reading_overlapping_regions',{regions_total:2,regions_completed:2}),65);
+ assert.equal(getScanProgressPercent('processing','validating_extraction',{}),75);
+ assert.equal(getScanProgressPercent('processing','resolving_identity',{}),85);
+ assert.equal(getScanProgressPercent('processing','saving_truth',{}),95);
+ assert.equal(getScanProgressPercent('complete','complete',{}),100);
+});
+test('scan vision remains pinned to Groq Qwen 3.8 with no alternate vision provider or deprecated Qwen fallback',()=>{
+ assert.ok(hybridSource.includes("const PRIMARY_KEY='groq-qwen3.8-27b'"));
+ for(const forbidden of ['GEMINI','gemini','FALLBACK','qwen3.6-27b'])assert.equal(hybridSource.includes(forbidden),false,`Unexpected alternate scan vision path: ${forbidden}`);
+ assert.ok(hybridSource.includes('async function readRegion(region,opt)'));
+ assert.ok(hybridSource.includes('callOne(region,PRIMARY,opt,attempt)'));
+ assert.ok(hybridSource.includes('attempt>=2||wait<1||wait>30'));
+});
+test('scan image regions are processed sequentially and publish fresh backend heartbeats',()=>{
+ assert.ok(hybridSource.includes('for(let i=0;i<regions.length;i++)'));
+ assert.equal(hybridSource.includes('Promise.all(regions.map'),false);
+ assert.ok(hybridSource.includes('setInterval(()=>{if(activeRegion)report(stage'));
+ assert.ok(hybridSource.includes('retry_reason:r.response.ok?null:'));
+});
+test('status API and scan processing UI share a backend-derived percentage contract',()=>{
+ assert.ok(statusSource.includes('progress_percent:getScanProgressPercent(job.status,stage,detail)'));
+ assert.ok(progressUiSource.includes('role="progressbar"'));
+ assert.ok(progressUiSource.includes('progressPercent=null'));
+ assert.ok(progressUiSource.includes('scanProgressSheen'));
+ assert.ok(scanModalSource.includes('progressPercent={state.progressPercent}'));
+ assert.ok(scanModalSource.includes('progressPercent:d.progress_percent'));
+});

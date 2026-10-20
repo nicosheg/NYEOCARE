@@ -25,6 +25,8 @@ const scanRecovery=read('components/ScanRecovery.js');
 const autoSync=read('components/AriaAutoSync.js');
 const fieldRuntime=read('components/FieldModeRuntime.js');
 const serviceWorker=read('public/sw.js');
+const scanModal=read('components/ScanModal.js');
+const scanProcessing=read('components/AriaProcessingStatus.js');
 const documentPage=read('pages/_document.js');
 const scanRecoverySurface=read('components/ScanRecovery.js');
 const ariaLauncher=read('components/AriaCommandCenter.js');
@@ -267,6 +269,8 @@ const checks=[
  ['Camera and gallery scans preserve source detail while keeping uploads under the request limit',/async function prepare\(file\)/.test(scanModal)&&/async function hasJpegSignature\(file\)/.test(scanModal)&&/MAX=4000000,MAX_UPLOAD=2600000/.test(scanModal)&&/file\.size<=MAX&&await hasJpegSignature\(file\)/.test(scanModal)&&/out\.size<=MAX_UPLOAD/.test(scanModal)&&/maxDimension=2600/.test(scanModal)&&/SCAN_IMAGE_DECODE_FAILED/.test(scanModal)&&!/timeoutError/.test(scanModal)],
  ['Scan image timeouts wrap the actual decode and encode operations',/withTimeout\(imageLoad,PREP,'SCAN_IMAGE_DECODE_TIMEOUT'\)/.test(scanModal)&&/withTimeout\(encoded,12000,'SCAN_IMAGE_ENCODE_TIMEOUT'\)/.test(scanModal)&&!/withTimeout\(PREP,'SCAN_IMAGE_DECODE_TIMEOUT'\)/.test(scanModal)&&!/withTimeout\(12000,'SCAN_IMAGE_ENCODE_TIMEOUT'\)/.test(scanModal)],
  ['Camera and gallery both call the same scan starter after preparation',/onChange=\{pick\}/.test(scanModal)&&/const pick=e=>/.test(scanModal)&&/if\(f\)start\(f\)/.test(scanModal)&&/Promise\.all\(\[prepare\(file\),session\(\)\]\)/.test(scanModal)],
+ ['Scan upload progress follows measured browser bytes with a mobile-safe timeout',
+  /xhr\.upload\.onprogress/.test(scanModal)&&/UPLOAD_REQ=45000/.test(scanModal)&&/uploadRequest\('\/api\/scan\/start'/.test(scanModal)&&/progress:'uploading_photo'/.test(scanModal)&&/key==='uploading_photo'/.test(scanProcessing)&&/Photo upload progress/.test(scanProcessing)&&/upload_percent/.test(scanProcessing)],
  ['Scan extraction uses sequential overlapping Groq Qwen 3.8 regions',
   /v71-conservative-rate-limit-cooldown-start-timing/.test(scanProvider)&&/const PRIMARY_KEY='groq-qwen3\.8-27b'/.test(scanProvider)&&/regions=await makeRegions/.test(scanProvider)&&/Math\.round\(H\*\.62\)/.test(scanProvider)&&/normalize\(\)\.sharpen/.test(scanProvider)&&/reasoning_effort:'low'/.test(scanProvider)&&/for\(let i=0;i<regions\.length;i\+\+\)/.test(scanProvider)&&!/Promise\.all\(regions\.map/.test(scanProvider)],
  ['Overlapping scan regions align rows one-to-one and avoid same-region name collapse',/function alignOverlapRows/.test(scanRegionMerge)&&/observationSimilarity/.test(scanRegionMerge)&&/const sameRegion = group\.regions\.some/.test(scanRegionMerge)&&/mergeScanRegions\(parts,page\.height,MAX\)/.test(scanProvider)],

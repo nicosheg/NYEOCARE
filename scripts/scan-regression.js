@@ -149,6 +149,17 @@ test('scan image preparation and secure session retrieval run concurrently',()=>
  assert.ok(scanModalSource.includes('Promise.all([prepare(file),session()])'));
  assert.ok(scanModalSource.includes('ARIA is preparing the photo and connecting securely'));
 });
+test('scan upload reports measured mobile-network progress before backend scan progress begins',()=>{
+ assert.ok(scanModalSource.includes('xhr.upload.onprogress'));
+ assert.ok(scanModalSource.includes('UPLOAD_REQ=45000'));
+ assert.ok(scanModalSource.includes("uploadRequest('/api/scan/start'"));
+ assert.ok(scanModalSource.includes("progress:'uploading_photo'"));
+ assert.ok(scanModalSource.includes('upload_percent'));
+ assert.ok(progressUiSource.includes("key==='uploading_photo'"));
+ assert.ok(progressUiSource.includes('Math.round(uploadPercent)}% uploaded'));
+ assert.ok(progressUiSource.includes('Photo upload progress'));
+});
+
 test('scan start API reports safe stage timings to diagnose cold-start latency',()=>{
  assert.ok(scanStartSource.includes('[SCAN_START_TIMING]'));
  for(const stage of ['admission_ms','image_hash_ms','db_connect_ms','advisory_lock_ms','stale_recovery_ms','insert_commit_ms','total_ms'])assert.ok(scanStartSource.includes(stage));

@@ -3,7 +3,7 @@ import test from'node:test';import assert from'node:assert/strict';import{readFi
 process.env.DATABASE_URL ||= 'postgres://test:test@127.0.0.1:5432/test';
 const{validateScanOutput,fuzzyMatch,normalizeName}=await import('../lib/scanValidation.js');const{resolveIdentities}=await import('../lib/identityResolver.js');const{nameSimilarity}=await import('../lib/duplicateDetector.js');
 const{getScanProgressPercent}=await import('../lib/scanProgress.js');
-const{parseRetryAfterSeconds,getRateLimitRetrySeconds}=await import('../lib/scanRateLimit.js');
+const{parseRetryAfterSeconds,parseDurationSeconds,getRateLimitRetrySeconds}=await import('../lib/scanRateLimit.js');
 const admissionSource=readFileSync(new URL('../pages/api/scan/admission.js',import.meta.url),'utf8');
 const hybridSource=readFileSync(new URL('../lib/hybridScanProvider.js',import.meta.url),'utf8');
 const statusSource=readFileSync(new URL('../pages/api/scan/status.js',import.meta.url),'utf8');
@@ -70,6 +70,7 @@ test('Groq OTPM message beats the generic TPM reset header',()=>{
 test('Groq Retry-After is not inflated by an unrelated non-exhausted token reset',()=>{
  assert.equal(getRateLimitRetrySeconds({message:'quota limit reached',retryAfter:'1',remainingTokens:'3648',remainingRequests:'999',resetTokens:'32.64s',resetRequests:'1m26.4s'}),1);
  assert.equal(getRateLimitRetrySeconds({message:'quota limit reached',remainingTokens:'0',remainingRequests:'999',resetTokens:'2.5s',resetRequests:'1m26.4s'}),2.5);
+ assert.equal(parseDurationSeconds('1m26.4s'),86.4);
 });
 test('scan retries the quota-directed wait on the same Qwen model and lowers hidden reasoning overhead',()=>{
  assert.ok(hybridSource.includes("reasoning_effort:'medium'"));

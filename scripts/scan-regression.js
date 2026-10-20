@@ -73,12 +73,15 @@ test('Groq Retry-After is not inflated by an unrelated non-exhausted token reset
  assert.equal(getRateLimitRetrySeconds({message:'quota limit reached',remainingTokens:'0',remainingRequests:'999',resetTokens:'2.5s',resetRequests:'1m26.4s'}),2.5);
  assert.equal(parseDurationSeconds('1m26.4s'),86.4);
 });
-test('scan retries quota failures, disables unnecessary reasoning and recovers strict-JSON failures safely',()=>{
- assert.ok(hybridSource.includes("reasoning_effort:'none'"));
+test('scan uses low reasoning and bounded same-model recovery for empty/invalid structured output',()=>{
+ assert.ok(hybridSource.includes("reasoning_effort:'low'"));
  assert.ok(hybridSource.includes('retryDelaySeconds=r.response.status===429?cooldownSeconds(rate,providerMessage):0'));
  assert.ok(hybridSource.includes('getRateLimitRetrySeconds({message:row.retry_reason'));
  assert.ok(hybridSource.includes('rateLimitRetries<2'));
- assert.ok(hybridSource.includes("!jsonFallbackUsed&&err?.status===400&&/failed to generate json/i.test(String(err?.message||''))"));
+ assert.ok(hybridSource.includes("const JSON_RECOVERY_ERROR="));
+ assert.ok(hybridSource.includes("JSON_RECOVERY_ERROR.test(String(err?.message||''))"));
+ assert.ok(hybridSource.includes("err?.code==='AI_INVALID_RESPONSE'"));
+ assert.ok(hybridSource.includes('part.people.length===0'));
  assert.ok(hybridSource.includes("response_format:jsonObjectFallback?{type:'json_object'}:SCHEMA"));
  assert.ok(hybridSource.includes('SAFE_ROW_FLAGS'));
  assert.ok(hybridSource.includes("typeof p.n!=='string'"));

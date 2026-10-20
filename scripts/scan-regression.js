@@ -10,6 +10,7 @@ const hybridSource=readFileSync(new URL('../lib/hybridScanProvider.js',import.me
 const statusSource=readFileSync(new URL('../pages/api/scan/status.js',import.meta.url),'utf8');
 const progressUiSource=readFileSync(new URL('../components/AriaProcessingStatus.js',import.meta.url),'utf8');
 const scanModalSource=readFileSync(new URL('../components/ScanModal.js',import.meta.url),'utf8');
+const scanStartSource=readFileSync(new URL('../pages/api/scan/start.js',import.meta.url),'utf8');
 const phone=n=>({normalized:n}),base={type:'person',status:'active',metadata:{identity_verified:true},living_truth:{status:'alive'},identity_verification_status:'verified'};
 function clientFor(people){return{async query(sql){if(/FROM people WHERE organization_id/.test(sql))return{rows:people};if(/FROM person_aliases/.test(sql))return{rows:[]};if(/FROM identity_shared_contacts/.test(sql))return{rows:[]};if(/FROM identity_pair_decisions/.test(sql))return{rows:[]};throw new Error(`Unexpected SQL in regression client: ${sql.slice(0,80)}`)}}}
 test('single-page validation preserves continuation ownership',()=>{const v=validateScanOutput(JSON.stringify({people:[{r:1,y:100,x:100,n:'Sandra Isichei',p:['08039579786'],nc:98,pc:96,rc:95,ns:'clear',ps:'clear',rs:'clear',f:[],na:[],e:'row 1'},{r:1,y:130,x:120,n:'',p:['08183488629'],nc:98,pc:90,rc:92,ns:'clear',ps:'clear',rs:'clear',f:[],na:[],e:'continuation'}]}));assert.equal(v.valid,true);assert.equal(v.people.length,1);assert.deepEqual(v.people[0].phones,['+2348039579786','+2348183488629'])});
@@ -137,3 +138,19 @@ test('same-region duplicate names remain separate observations without overlap e
  ],1000,50);
  assert.equal(rows.length,2);
 });
+
+test('rate-limited scans keep a conservative shared cooldown after bounded retries',()=>{
+ assert.ok(hybridSource.includes('MIN_RATE_LIMIT_COOLDOWN_SECONDS=8'));
+ assert.ok(hybridSource.includes('Math.max(1000,Math.ceil(wait*1000)+250)'));
+ assert.ok(hybridSource.includes('delay=Math.max(MIN_RATE_LIMIT_COOLDOWN_SECONDS,providerDelay)'));
+ assert.ok(hybridSource.includes('err.cooldownSeconds=safeCooldown'));
+});
+test('scan image preparation and secure session retrieval run concurrently',()=>{
+ assert.ok(scanModalSource.includes('Promise.all([prepare(file),session()])'));
+ assert.ok(scanModalSource.includes('ARIA is preparing the photo and connecting securely'));
+});
+test('scan start API reports safe stage timings to diagnose cold-start latency',()=>{
+ assert.ok(scanStartSource.includes('[SCAN_START_TIMING]'));
+ for(const stage of ['admission_ms','image_hash_ms','db_connect_ms','advisory_lock_ms','stale_recovery_ms','insert_commit_ms','total_ms'])assert.ok(scanStartSource.includes(stage));
+});
+

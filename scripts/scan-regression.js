@@ -4,6 +4,7 @@ process.env.DATABASE_URL ||= 'postgres://test:test@127.0.0.1:5432/test';
 const{validateScanOutput,fuzzyMatch,normalizeName}=await import('../lib/scanValidation.js');const{resolveIdentities}=await import('../lib/identityResolver.js');const{nameSimilarity}=await import('../lib/duplicateDetector.js');
 const{getScanProgressPercent}=await import('../lib/scanProgress.js');
 const{parseRetryAfterSeconds,parseDurationSeconds,getRateLimitRetrySeconds}=await import('../lib/scanRateLimit.js');
+const{mergeScanRegions}=await import('../lib/scanRegionMerge.js');
 const admissionSource=readFileSync(new URL('../pages/api/scan/admission.js',import.meta.url),'utf8');
 const hybridSource=readFileSync(new URL('../lib/hybridScanProvider.js',import.meta.url),'utf8');
 const statusSource=readFileSync(new URL('../pages/api/scan/status.js',import.meta.url),'utf8');
@@ -100,4 +101,38 @@ test('scan admission preflight returns a countdown and the modal enforces it on 
  assert.ok(scanModalSource.includes('setInterval(tick,200)'));
  assert.ok(scanModalSource.includes('disabled={cooldownActive}'));
  assert.ok(scanModalSource.includes('Try again in '));
+});
+
+
+test('overlapping region alignment removes duplicate reads and keeps the clearer SIS title',()=>{
+ const parts=[
+  {region:{id:1,y0:0,y1:744},people:[
+   {r:1,y:726,n:'SIS Greevay',p:[],dob:'',f:[],e:'top crop row'},
+   {r:2,y:820,n:'Bro Onyebachi',p:[],dob:'',f:[],e:'top crop row'},
+   {r:3,y:907,n:'Bro Isaac',p:[],dob:'',f:[],e:'top crop row'},
+   {r:4,y:988,n:'Sis Peace',p:[],dob:'',f:[],e:'top crop row'}
+  ]},
+  {region:{id:2,y0:456,y1:1200},people:[
+   {r:1,y:153,n:'SB Greevay',p:[],dob:'',f:[],e:'bottom crop row'},
+   {r:2,y:227,n:'Bro onyebuchi',p:[],dob:'',f:[],e:'bottom crop row'},
+   {r:3,y:315,n:'Bro Isaac',p:[],dob:'',f:[],e:'bottom crop row'},
+   {r:4,y:382,n:'Sis Peace',p:[],dob:'',f:[],e:'bottom crop row'}
+  ]}
+ ];
+ const rows=mergeScanRegions(parts,1200,50);
+ assert.equal(rows.length,4);
+ assert.equal(rows[0].n,'SIS Greevay');
+ assert.equal(rows[1].n,'Bro Onyebachi');
+ assert.equal(rows[2].n,'Bro Isaac');
+ assert.equal(rows[3].n,'Sis Peace');
+ assert(rows.every(row=>row.e.includes('top crop row')&&row.e.includes('bottom crop row')));
+});
+test('same-region duplicate names remain separate observations without overlap evidence',()=>{
+ const rows=mergeScanRegions([
+  {region:{id:1,y0:0,y1:1000},people:[
+   {r:1,y:400,n:'Bro Isaac',p:[],dob:'',f:[],e:'first person'},
+   {r:2,y:460,n:'Bro Isaac',p:[],dob:'',f:[],e:'second person'}
+  ]}
+ ],1000,50);
+ assert.equal(rows.length,2);
 });

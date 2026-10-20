@@ -154,6 +154,10 @@ test('scan upload reports measured mobile-network progress before backend scan p
  assert.ok(scanModalSource.includes('UPLOAD_REQ=45000'));
  assert.ok(scanModalSource.includes("uploadRequest('/api/scan/start'"));
  assert.ok(scanModalSource.includes("progress:'uploading_photo'"));
+ assert.ok(scanModalSource.includes("stage:'uploading',progress:'uploading_photo'"));
+ assert.ok(scanModalSource.includes("busy||['uploading','processing'].includes(state.stage)"));
+ assert.ok(scanModalSource.includes("function reportSlowScanUpload"));
+ assert.ok(scanModalSource.includes("/api/diagnostics/client-error"));
  assert.ok(scanModalSource.includes('upload_percent'));
  assert.ok(progressUiSource.includes("key==='uploading_photo'"));
  assert.ok(progressUiSource.includes('Math.round(uploadPercent)}% uploaded'));

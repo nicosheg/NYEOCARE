@@ -20,7 +20,7 @@ async function session(force=false){
  }
  throw Object.assign(new Error('SCAN_SESSION_RECONNECTING'),{code:'SCAN_SESSION_RECONNECTING',cause:last});
 }
-async function request(url,options={},attempts=3,timeoutMs=REQ,onRetry=null,retryServerErrors=false){let last;for(let i=0;i<attempts;i++){const c=new AbortController(),t=setTimeout(()=>c.abort(),timeoutMs);try{const r=await fetch(url,{...options,signal:c.signal});clearTimeout(t);if(retryServerErrors&&r.status>=500&&i<attempts-1){const waitMs=Math.min(6000,1000*2**i);try{onRetry?.(i+2,attempts,waitMs)}catch{}await sleep(waitMs);continue}return r}catch(e){clearTimeout(t);last=e;if(!netError(e)||i===attempts-1)throw e;const waitMs=Math.min(6000,1000*2**i);try{onRetry?.(i+2,attempts,waitMs)}catch{}await sleep(waitMs)}}throw last}
+async function request(url,options={},attempts=3,timeoutMs=REQ,onRetry=null,retryServerErrors=false){let last;for(let i=0;i<attempts;i++){const c=new AbortController(),t=setTimeout(()=>c.abort(),timeoutMs);try{const r=await fetch(url,{...options,signal:c.signal});clearTimeout(t);if(retryServerErrors&&r.status>=500&&r.status!==503&&i<attempts-1){const waitMs=Math.min(6000,1000*2**i);try{onRetry?.(i+2,attempts,waitMs)}catch{}await sleep(waitMs);continue}return r}catch(e){clearTimeout(t);last=e;if(!netError(e)||i===attempts-1)throw e;const waitMs=Math.min(6000,1000*2**i);try{onRetry?.(i+2,attempts,waitMs)}catch{}await sleep(waitMs)}}throw last}
 function readFile(file){return new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>{const x=String(r.result||'').split(',')[1];x?ok(x):no(Error('Could not read this image.'))};r.onerror=()=>no(Error('Could not read this image.'));r.readAsDataURL(file)})}
 async function hasJpegSignature(file){try{if(!file||file.size<3||typeof file.slice!=='function')return false;const head=new Uint8Array(await file.slice(0,3).arrayBuffer());return head.length===3&&head[0]===255&&head[1]===216&&head[2]===255}catch{return false}}
 async function prepare(file){
@@ -109,8 +109,8 @@ const start=async file=>{
   const d=await r.json();
   if(!r.ok){
    const failure=Error(d.error||`ARIA could not start the scan (${r.status}).`);
-   failure.code=d.code||'SCAN_START_FAILED';failure.cooldownSeconds=Number(d.retry_after_seconds)||0;
-   if(r.status>=500)failure.handoffUncertain=true;
+   failure.code=d.code||'SCAN_START_FAILED';failure.cooldownSeconds=Number(d.retry_after_seconds)||0;failure.status=r.status;
+   if(r.status>=500&&!(r.status===503&&['AI_RATE_LIMIT','AI_NOT_CONFIGURED'].includes(failure.code)))failure.handoffUncertain=true;
    throw failure;
   }
   pendingStart.current=null;
@@ -119,7 +119,7 @@ const start=async file=>{
   }
   setScanState({stage:'processing',jobId:d.job_id,progress:d.progress||'queued',progressPercent:d.progress_percent==null?0:Number(d.progress_percent),message:d.message||'ARIA has queued this scan. Connecting to live processing status…',jobStatus:d.status||'pending',createdAt:d.created_at||null,lastProgressAt:d.last_progress_at||null,progressAgeSeconds:d.progress_age_seconds==null?null:Number(d.progress_age_seconds),queueAgeSeconds:Number(d.queue_age_seconds)||0,startedAt:d.started_at||null,elapsedSeconds:Number(d.elapsed_seconds)||0,serverNow:d.server_now||null,progressDetail:d.progress_detail||{stage:d.progress||'queued'},progressHint:d.progress_hint||'',stageTitle:d.stage_title||''});setState(getScanState());
  }catch(e){
-  const code=String(e?.code||''),networkFailure=e?.message==='NETWORK_WEAK'||e?.message==='NETWORK_OFFLINE'||netError(e),uncertain=Boolean(requestId&&requestSent&&(networkFailure||e?.name==='SyntaxError'||e?.handoffUncertain));
+  const code=String(e?.code||''),networkFailure=e?.message==='NETWORK_WEAK'||e?.message==='NETWORK_OFFLINE'||netError(e),definitiveNoJob=['AI_RATE_LIMIT','AI_NOT_CONFIGURED','SCAN_REQUEST_ID_REUSED'].includes(code),uncertain=Boolean(requestId&&!definitiveNoJob&&((requestSent&&(networkFailure||e?.name==='SyntaxError'||e?.handoffUncertain))||hadUncertainRequest));
   if(code==='AI_RATE_LIMIT')setRateLimitFor(Number(e?.cooldownSeconds)||0);
   if(uncertain)pendingStart.current={signature,requestId,file,uncertain:true};else pendingStart.current=null;
   const shownCode=uncertain?'SCAN_START_UNCERTAIN':code;

@@ -114,9 +114,9 @@ test('Groq Retry-After is not inflated by an unrelated non-exhausted token reset
  assert.equal(getRateLimitRetrySeconds({message:'quota limit reached',remainingTokens:'0',remainingRequests:'999',resetTokens:'2.5s',resetRequests:'1m26.4s'}),2.5);
  assert.equal(parseDurationSeconds('1m26.4s'),86.4);
 });
-test('scan uses low-effort hidden reasoning, a bounded completion and same-model recovery',()=>{
+test('scan uses low-effort hidden reasoning, full model output capacity and same-model recovery',()=>{
  assert.ok(hybridSource.includes('reasoning_effort:reasoningEffort'));
- assert.ok(hybridSource.includes('max_completion_tokens:Math.min(900,model.max_completion_tokens)'));
+ assert.ok(hybridSource.includes('max_completion_tokens:model.max_completion_tokens'));
  assert.ok(hybridSource.includes('Handwritten SIS is S-I-S, not SB unless B is genuinely visible'));assert.ok(hybridSource.includes('Compare repeated title tokens down the left column'));
  assert.ok(hybridSource.includes('const inputBudgetError=isInputTokenBudgetError(r.response.status,providerMessage)'));assert.ok(hybridSource.includes("code:inputBudgetError?'AI_INPUT_TOKEN_BUDGET'"));assert.ok(hybridSource.includes("err?.code==='AI_INPUT_TOKEN_BUDGET'"));assert.ok(hybridSource.includes('makeFullPageBudgetFallback(requestRegion)'));
  assert.ok(hybridSource.includes('getRateLimitRetrySeconds({message:row.retry_reason'));
@@ -464,7 +464,7 @@ test('Qwen uses bounded low-effort visual verification and still emits schema-on
  assert.ok(scanProviderSource.includes('reasoning_effort:reasoningEffort'));
  assert.ok(scanProviderSource.includes("reasoning_format:'hidden'"));
  assert.ok(scanProviderSource.includes('SCAN_VISUAL_VERIFICATION_INSTRUCTION'));
- assert.ok(scanProviderSource.includes('max_completion_tokens:Math.min(900,model.max_completion_tokens)'));
+ assert.ok(scanProviderSource.includes('max_completion_tokens:model.max_completion_tokens'));
 });
 test('Qwen extraction telemetry stores phone coverage counts but no extracted personal values',()=>{
  const observerSource=readFileSync(new URL('../lib/aiObserver.js',import.meta.url),'utf8');

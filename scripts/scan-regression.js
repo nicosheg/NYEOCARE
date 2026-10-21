@@ -5,6 +5,7 @@ const{validateScanOutput,fuzzyMatch,normalizeName}=await import('../lib/scanVali
 const{getScanProgressPercent}=await import('../lib/scanProgress.js');
 const{parseRetryAfterSeconds,parseDurationSeconds,getRateLimitRetrySeconds}=await import('../lib/scanRateLimit.js');
 const{mergeScanRegions}=await import('../lib/scanRegionMerge.js');
+const{normalizeScanFailureStage,persistScanFailure,recordScanFailureAndAlert,sendScanFailureAlert}=await import('../lib/scanFailure.js');
 const admissionSource=readFileSync(new URL('../pages/api/scan/admission.js',import.meta.url),'utf8');
 const hybridSource=readFileSync(new URL('../lib/hybridScanProvider.js',import.meta.url),'utf8');
 const statusSource=readFileSync(new URL('../pages/api/scan/status.js',import.meta.url),'utf8');
@@ -54,7 +55,7 @@ test('scan image regions are processed sequentially and publish fresh backend he
  assert.ok(hybridSource.includes('for(let i=0;i<regions.length;i++)'));
  assert.equal(hybridSource.includes('Promise.all(regions.map'),false);
  assert.ok(hybridSource.includes('setInterval(()=>{if(activeRegion)report(stage'));
- assert.ok(hybridSource.includes('retry_reason:r.response.ok?null:'));
+ assert.ok(hybridSource.includes('http_ok:typeof r?.response?.ok'));
 });
 test('status API and scan processing UI share a backend-derived percentage contract',()=>{
  assert.ok(statusSource.includes('progress_percent:getScanProgressPercent(job.status,stage,detail)'));
@@ -78,7 +79,7 @@ test('Groq Retry-After is not inflated by an unrelated non-exhausted token reset
 test('scan uses low reasoning and bounded same-model recovery for empty/invalid structured output',()=>{
  assert.ok(hybridSource.includes("reasoning_effort:'low'"));
  assert.ok(hybridSource.includes('Handwritten "SIS" is the three-letter honorific S-I-S'));
- assert.ok(hybridSource.includes('retryDelaySeconds=r.response.status===429?cooldownSeconds(rate,providerMessage):0'));
+ assert.ok(hybridSource.includes('const retryDelaySeconds=r.response.status===429?cooldownSeconds(rate,providerMessage):0'));
  assert.ok(hybridSource.includes('getRateLimitRetrySeconds({message:row.retry_reason'));
  assert.ok(hybridSource.includes('rateLimitRetries<2'));
  assert.ok(hybridSource.includes("const JSON_RECOVERY_ERROR="));
@@ -154,3 +155,98 @@ test('scan start API reports safe stage timings to diagnose cold-start latency',
  for(const stage of ['admission_ms','image_hash_ms','db_connect_ms','advisory_lock_ms','stale_recovery_ms','insert_commit_ms','total_ms'])assert.ok(scanStartSource.includes(stage));
 });
 
+
+
+test('scan failure stages normalize to the approved diagnostic vocabulary',()=>{
+ assert.equal(normalizeScanFailureStage('ai_request'),'region_read');
+ assert.equal(normalizeScanFailureStage('parse_json'),'validate');
+ assert.equal(normalizeScanFailureStage('database_save'),'persist');
+ assert.equal(normalizeScanFailureStage('not-a-stage'),'unknown');
+});
+
+test('scan failure persistence falls back to a minimal status/error_code update after a detailed write fails',async()=>{
+ const calls=[];
+ const db={async query(sql,params=[]){
+  calls.push({sql,params});
+  if(sql.includes('SELECT id, organization_id, status, progress_detail')){
+   return{rows:[{id:'job-1',organization_id:'org-1',status:'processing',progress_detail:{stage:'reading_overlapping_regions',regions_total:2,regions_completed:1,active_region:2},created_at:new Date().toISOString(),started_at:new Date().toISOString()}]};
+  }
+  if(sql.includes('failed_stage = $2'))throw new Error('forced detailed terminal-write failure');
+  if(sql.includes("SET status = 'failed', error_code = $2")){
+   return{rowCount:1,rows:[{id:'job-1',organization_id:'org-1',status:'failed',created_at:new Date().toISOString(),started_at:new Date().toISOString()}]};
+  }
+  throw new Error('Unexpected test SQL: '+sql);
+ }};
+ const result=await persistScanFailure(db,{jobId:'job-1',stage:'region_read',code:'AI_PROVIDER_ERROR',detail:{message:'provider rejected request'},startTime:Date.now()});
+ assert.equal(result.transitioned,true);
+ assert.equal(result.usedFallback,true);
+ assert.equal(result.persistenceFailed,false);
+ const fallback=calls.find(x=>x.sql.includes("SET status = 'failed', error_code = $2"));
+ assert.ok(fallback);
+ assert.deepEqual(fallback.params,['job-1','AI_PROVIDER_ERROR']);
+ assert.equal(/progress_detail|error_detail|result\s*=/.test(fallback.sql),false);
+});
+
+test('minimal terminal-state fallback still attempts exactly one Telegram failure alert',async()=>{
+ const calls=[],sent=[];
+ const db={async query(sql,params=[]){
+  calls.push({sql,params});
+  if(sql.includes('SELECT id, organization_id, status, progress_detail')){
+   return{rows:[{id:'job-2',organization_id:'org-2',status:'processing',progress_detail:{stage:'reading_overlapping_regions',regions_total:2,regions_completed:1,active_region:2},created_at:new Date().toISOString(),started_at:new Date().toISOString()}]};
+  }
+  if(sql.includes('failed_stage = $2'))throw new Error('force safe fallback');
+  if(sql.includes("SET status = 'failed', error_code = $2")){
+   return{rowCount:1,rows:[{id:'job-2',organization_id:'org-2',status:'failed',created_at:new Date().toISOString(),started_at:new Date().toISOString()}]};
+  }
+  if(sql.includes('SELECT COUNT(*)::int AS count'))return{rows:[{count:1}]};
+  if(sql.includes('INSERT INTO public.scan_failure_alerts')){
+   return{rowCount:1,rows:[{id:'alert-2'}]};
+  }
+  if(sql.includes('UPDATE public.scan_failure_alerts SET delivery_status = \'sent\''))return{rowCount:1,rows:[]};
+  throw new Error('Unexpected test SQL: '+sql);
+ }};
+ const result=await recordScanFailureAndAlert(db,{
+  jobId:'job-2',organizationId:'org-2',stage:'region_read',code:'AI_PROVIDER_ERROR',
+  detail:{message:'provider request rejected'},startTime:Date.now(),
+  env:{TELEGRAM_BOT_TOKEN:'test-token',TELEGRAM_CHAT_ID:'test-chat'},
+  fetchImpl:async(url,options)=>{sent.push({url,body:JSON.parse(options.body)});return{ok:true,status:200}}
+ });
+ assert.equal(result.transitioned,true);
+ assert.equal(result.usedFallback,true);
+ assert.equal(sent.length,1);
+ assert.match(sent[0].url,/api\.telegram\.org\/bottest-token\/sendMessage/);
+ assert.match(sent[0].body.text,/job-2/);
+ assert.match(sent[0].body.text,/AI_PROVIDER_ERROR/);
+ assert.ok(calls.some(x=>x.sql.includes("SET status = 'failed', error_code = $2")));
+});
+
+test('scan-start stale recovery uses shared failure persistence and background alert delivery',()=>{
+ assert.ok(scanStartSource.includes('persistScanFailure(pool'));
+ assert.ok(scanStartSource.includes('scheduleStaleAlerts(staleFailures,orgId)'));
+ assert.ok(scanStartSource.includes('waitUntil(task)'));
+ assert.equal(scanStartSource.includes("UPDATE scan_jobs SET status='failed',progress='failed',error_code='SCAN_STALLED'"),false);
+});
+
+test('scan failure without Telegram credentials is recorded as disabled rather than silently skipped',async()=>{
+ const calls=[];
+ const db={async query(sql,params=[]){
+  calls.push({sql,params});
+  if(sql.includes('SELECT COUNT(*)::int AS count'))return{rows:[{count:1}]};
+  if(sql.includes('INSERT INTO public.scan_failure_alerts')){
+   return{rowCount:1,rows:[{id:'alert-disabled-1'}]};
+  }
+  if(sql.includes("SET delivery_status = 'disabled'"))return{rowCount:1,rows:[]};
+  throw new Error('Unexpected test SQL: '+sql);
+ }};
+ const result=await sendScanFailureAlert(db,{
+  jobId:'job-disabled',organizationId:'org-disabled',stage:'region_read',code:'AI_RATE_LIMIT',
+  regionStates:{regions_total:2,regions_completed:1},elapsedMs:9000,
+  env:{},fetchImpl:async()=>{throw new Error('Telegram must not be called without credentials')}
+ });
+ assert.equal(result.sent,false);
+ assert.equal(result.reason,'TELEGRAM_NOT_CONFIGURED');
+ assert.ok(calls.some(x=>x.sql.includes('INSERT INTO public.scan_failure_alerts')));
+ const disabled=calls.find(x=>x.sql.includes("SET delivery_status = 'disabled'"));
+ assert.ok(disabled);
+ assert.match(disabled.params[1],/TELEGRAM_NOT_CONFIGURED/);
+});

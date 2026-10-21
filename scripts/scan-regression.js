@@ -345,6 +345,11 @@ test('phase 2 empty-page handling stops before validation and identity writes',(
  assert.ok(scanProviderSource.includes('import {classifyScanRegions} from \'./scanCompleteness\';'));
  assert.ok(scanProviderSource.indexOf('if(completeness.requiresConfirmation)')<scanProviderSource.indexOf('const merged=mergeScanRegions(parts,page.height,MAX)'));
  assert.ok(scanProviderSource.includes("jsonFallbackUsed=true"));
+ assert.ok(scanProviderSource.includes("if(finishReason!=='stop')"));
+ assert.ok(scanProviderSource.includes("!p.n.trim()"));
+ assert.ok(scanProviderSource.includes('return an empty people array; do not invent entries'));
+ assert.ok(scanProcessorSource.includes("reason:'region_failed',regions:err.scan_region_states"));
+ assert.ok(scanProviderSource.includes('error.scan_region_states=classifyScanRegions([...parts,failed]).regions'));
  assert.ok(scanStateSource.includes("NEEDS_CONFIRMATION:'needs_confirmation'"));
  assert.ok(scanStatusSource.includes("job.status==='needs_confirmation'"));
  assert.ok(scanStatusSource.includes('requires_confirmation:job.status===\'needs_confirmation\''));

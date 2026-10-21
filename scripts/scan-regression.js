@@ -104,7 +104,7 @@ test('Groq Retry-After is not inflated by an unrelated non-exhausted token reset
  assert.equal(parseDurationSeconds('1m26.4s'),86.4);
 });
 test('scan disables reasoning and bounds output for OTPM while keeping same-model recovery',()=>{
- assert.ok(hybridSource.includes("reasoning_effort:'none'"));
+ assert.ok(hybridSource.includes('reasoning_effort:reasoningEffort'));
  assert.ok(hybridSource.includes('max_completion_tokens:Math.min(900,model.max_completion_tokens)'));
  assert.ok(hybridSource.includes('Handwritten SIS is S-I-S, not SB unless B is genuinely visible'));assert.ok(hybridSource.includes('Compare repeated title tokens down the left column'));
  assert.ok(hybridSource.includes('const retryDelaySeconds=r.response.status===429?cooldownSeconds(rate,providerMessage):0'));

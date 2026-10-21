@@ -4,7 +4,7 @@ process.env.DATABASE_URL ||= 'postgres://test:test@127.0.0.1:5432/test';
 const{validateScanOutput,fuzzyMatch,normalizeName}=await import('../lib/scanValidation.js');const{resolveIdentities}=await import('../lib/identityResolver.js');const{nameSimilarity}=await import('../lib/duplicateDetector.js');
 const{getScanProgressPercent}=await import('../lib/scanProgress.js');
 const{parseRetryAfterSeconds,parseDurationSeconds,getRateLimitRetrySeconds}=await import('../lib/scanRateLimit.js');
-const{mergeScanRegions}=await import('../lib/scanRegionMerge.js');const{formatScanLearningHints}=await import('../lib/scanLearningHints.js');
+const{mergeScanRegions}=await import('../lib/scanRegionMerge.js');const{formatScanLearningHints}=await import('../lib/scanLearningHints.js');const{resolveScanReasoningEffort,getScanPipelineVersion,SCAN_VISUAL_VERIFICATION_INSTRUCTION}=await import('../lib/scanReasoning.js');
 const{normalizeScanFailureStage,persistScanFailure,recordScanFailureAndAlert,sendScanFailureAlert}=await import('../lib/scanFailure.js');
 const admissionSource=readFileSync(new URL('../pages/api/scan/admission.js',import.meta.url),'utf8');
 const hybridSource=readFileSync(new URL('../lib/hybridScanProvider.js',import.meta.url),'utf8');
@@ -79,7 +79,7 @@ test('scan uses one multi-view provider region and publishes fresh backend heart
  assert.ok(hybridSource.includes('makeScanRegions(page)'));
  assert.ok(scanImageViewsSource.includes('images:[full,top,bottom]'));
  assert.ok(hybridSource.includes("...images.map(view=>({type:'image_url'"));
- assert.ok(hybridSource.includes('provider:PRIMARY.provider,regions:1,reasoning:\'none\''));
+ assert.ok(hybridSource.includes('provider:PRIMARY.provider,regions:1,reasoning:SCAN_REASONING_EFFORT'));assert.ok(hybridSource.includes('single_request_full_page_plus_detail_views_groq_qwen_only'));assert.ok(hybridSource.includes('image_views:parts.reduce'));
  assert.equal(hybridSource.includes('Promise.all(regions.map'),false);
  assert.ok(hybridSource.includes('setInterval(()=>{if(activeRegion)report(stage'));
  assert.ok(hybridSource.includes('http_ok:typeof r?.response?.ok'));
@@ -104,7 +104,7 @@ test('Groq Retry-After is not inflated by an unrelated non-exhausted token reset
  assert.equal(parseDurationSeconds('1m26.4s'),86.4);
 });
 test('scan disables reasoning and bounds output for OTPM while keeping same-model recovery',()=>{
- assert.ok(hybridSource.includes("reasoning_effort:'none'"));
+ assert.ok(hybridSource.includes('reasoning_effort:reasoningEffort'));
  assert.ok(hybridSource.includes('max_completion_tokens:Math.min(900,model.max_completion_tokens)'));
  assert.ok(hybridSource.includes('Handwritten SIS is S-I-S, not SB unless B is genuinely visible'));assert.ok(hybridSource.includes('Compare repeated title tokens down the left column'));
  assert.ok(hybridSource.includes('const retryDelaySeconds=r.response.status===429?cooldownSeconds(rate,providerMessage):0'));
@@ -436,11 +436,26 @@ test('Qwen scan uses full-page plus overlapping detail crops in one provider inp
  assert.deepEqual([lower.width,lower.height],[width,1116]);
  assert.ok(scanProviderSource.includes("...images.map(view=>({type:'image_url'"));
  assert.ok(scanProviderSource.includes('PHONE DIGITS ARE A REQUIRED EXTRACTION FIELD'));
- assert.ok(scanProviderSource.includes("SCAN_PIPELINE_VERSION='v74-scan-learning-and-row-qa'"));
+ assert.ok(scanProviderSource.includes('getScanPipelineVersion(SCAN_REASONING_EFFORT)'));
  assert.ok(scanProviderSource.includes('makeScanRegions(page)'));
  assert.ok(scanImageViewsSource.includes('images:[full,top,bottom]'));
 });
 
+test('Qwen uses bounded low-effort visual verification and still emits schema-only JSON',()=>{
+ assert.equal(resolveScanReasoningEffort('low'),'low');
+ assert.equal(resolveScanReasoningEffort('none'),'none');
+ assert.equal(resolveScanReasoningEffort(null),'low');
+ assert.equal(getScanPipelineVersion('low'),'v75-low-reasoning-multiview-json');
+ assert.equal(getScanPipelineVersion('none'),'v75-no-reasoning-multiview-json');
+ assert.match(SCAN_VISUAL_VERIFICATION_INSTRUCTION,/one brief verification pass/);
+ assert.match(SCAN_VISUAL_VERIFICATION_INSTRUCTION,/Count the written rows from top to bottom/);
+ assert.match(SCAN_VISUAL_VERIFICATION_INSTRUCTION,/Return only the compact JSON object/);
+ assert.match(SCAN_VISUAL_VERIFICATION_INSTRUCTION,/Do not output an explanation/);
+ assert.ok(scanProviderSource.includes('reasoning_effort:reasoningEffort'));
+ assert.ok(scanProviderSource.includes("reasoning_format:'hidden'"));
+ assert.ok(scanProviderSource.includes('SCAN_VISUAL_VERIFICATION_INSTRUCTION'));
+ assert.ok(scanProviderSource.includes('max_completion_tokens:Math.min(900,model.max_completion_tokens)'));
+});
 test('Qwen extraction telemetry stores phone coverage counts but no extracted personal values',()=>{
  const observerSource=readFileSync(new URL('../lib/aiObserver.js',import.meta.url),'utf8');
  assert.ok(observerSource.includes('additionalMetrics={}'));

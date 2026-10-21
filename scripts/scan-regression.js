@@ -114,7 +114,7 @@ test('Groq Retry-After is not inflated by an unrelated non-exhausted token reset
  assert.equal(getRateLimitRetrySeconds({message:'quota limit reached',remainingTokens:'0',remainingRequests:'999',resetTokens:'2.5s',resetRequests:'1m26.4s'}),2.5);
  assert.equal(parseDurationSeconds('1m26.4s'),86.4);
 });
-test('scan disables reasoning and bounds output for OTPM while keeping same-model recovery',()=>{
+test('scan uses low-effort hidden reasoning, a bounded completion and same-model recovery',()=>{
  assert.ok(hybridSource.includes('reasoning_effort:reasoningEffort'));
  assert.ok(hybridSource.includes('max_completion_tokens:Math.min(900,model.max_completion_tokens)'));
  assert.ok(hybridSource.includes('Handwritten SIS is S-I-S, not SB unless B is genuinely visible'));assert.ok(hybridSource.includes('Compare repeated title tokens down the left column'));
@@ -456,8 +456,8 @@ test('Qwen uses bounded low-effort visual verification and still emits schema-on
  assert.equal(resolveScanReasoningEffort('low'),'low');
  assert.equal(resolveScanReasoningEffort('none'),'none');
  assert.equal(resolveScanReasoningEffort(null),'low');
- assert.equal(getScanPipelineVersion('low'),'v75-low-reasoning-multiview-json');
- assert.equal(getScanPipelineVersion('none'),'v75-no-reasoning-multiview-json');
+ assert.equal(getScanPipelineVersion('low'),'v76-low-reasoning-budgeted-views-json');
+ assert.equal(getScanPipelineVersion('none'),'v76-no-reasoning-budgeted-views-json');
  assert.match(SCAN_VISUAL_VERIFICATION_INSTRUCTION,/one brief verification pass/);
  assert.match(SCAN_VISUAL_VERIFICATION_INSTRUCTION,/Count the written rows from top to bottom/);
  assert.match(SCAN_VISUAL_VERIFICATION_INSTRUCTION,/Return only the compact JSON object/);

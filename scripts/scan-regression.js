@@ -8,6 +8,7 @@ const{mergeScanRegions}=await import('../lib/scanRegionMerge.js');
 const{normalizeScanFailureStage,persistScanFailure,recordScanFailureAndAlert,sendScanFailureAlert}=await import('../lib/scanFailure.js');
 const admissionSource=readFileSync(new URL('../pages/api/scan/admission.js',import.meta.url),'utf8');
 const hybridSource=readFileSync(new URL('../lib/hybridScanProvider.js',import.meta.url),'utf8');
+const scanImageViewsSource=readFileSync(new URL('../lib/scanImageViews.js',import.meta.url),'utf8');
 const statusSource=readFileSync(new URL('../pages/api/scan/status.js',import.meta.url),'utf8');
 const progressUiSource=readFileSync(new URL('../components/AriaProcessingStatus.js',import.meta.url),'utf8');
 const scanModalSource=readFileSync(new URL('../components/ScanModal.js',import.meta.url),'utf8');
@@ -20,7 +21,7 @@ const scanStateSource=readFileSync(new URL('../lib/scanState.js',import.meta.url
 const scanBlankConfirmSource=readFileSync(new URL('../pages/api/scan/confirm-blank.js',import.meta.url),'utf8');
 const scanBlankCoreSource=readFileSync(new URL('../lib/scanBlankConfirmation.js',import.meta.url),'utf8');
 const{classifyScanRegions}=await import('../lib/scanCompleteness.js');
-const{makeRegions}=await import('../lib/hybridScanProvider.js');
+const{makeScanRegions}=await import('../lib/scanImageViews.js');
 const{createConfirmBlankHandler}=await import('../lib/scanBlankConfirmation.js');
 const phone=n=>({normalized:n}),base={type:'person',status:'active',metadata:{identity_verified:true},living_truth:{status:'alive'},identity_verification_status:'verified'};
 function clientFor(people){return{async query(sql){if(/FROM people WHERE organization_id/.test(sql))return{rows:people};if(/FROM person_aliases/.test(sql))return{rows:[]};if(/FROM identity_shared_contacts/.test(sql))return{rows:[]};if(/FROM identity_pair_decisions/.test(sql))return{rows:[]};throw new Error(`Unexpected SQL in regression client: ${sql.slice(0,80)}`)}}}
@@ -410,7 +411,7 @@ test('Qwen scan uses full-page plus overlapping detail crops in one provider inp
  const width=1000,height=1800;
  const buffer=await sharp({create:{width,height,channels:3,background:'#ffffff'}}).jpeg({quality:90}).toBuffer();
  const page={width,height,buffer,base64:buffer.toString('base64')};
- const regions=await makeRegions(page);
+ const regions=await makeScanRegions(page);
  assert.equal(regions.length,1,'multi-view must not create extra provider requests');
  const region=regions[0];
  assert.equal(region.y0,0);assert.equal(region.y1,height);
@@ -431,6 +432,8 @@ test('Qwen scan uses full-page plus overlapping detail crops in one provider inp
  assert.ok(scanProviderSource.includes("...images.map(view=>({type:'image_url'"));
  assert.ok(scanProviderSource.includes('PHONE DIGITS ARE A REQUIRED EXTRACTION FIELD'));
  assert.ok(scanProviderSource.includes("SCAN_PIPELINE_VERSION='v73-single-call-multiview-ocr'"));
+ assert.ok(scanProviderSource.includes('makeScanRegions(page)'));
+ assert.ok(scanImageViewsSource.includes('images:[full,top,bottom]'));
 });
 
 test('Qwen extraction telemetry stores phone coverage counts but no extracted personal values',()=>{

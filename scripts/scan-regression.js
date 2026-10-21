@@ -326,6 +326,11 @@ test('invalid region output cannot satisfy completeness',()=>{
  assert.equal(invalid.requiresConfirmation,false);
  assert.equal(invalid.complete,false);
  assert.equal(invalid.regions[0].status,'failed');
+ const partialFailure=classifyScanRegions([{region:{id:1,y0:0,y1:500},people:[{n:'Only test row'}],attempt_count:1},{region:{id:2,y0:500,y1:1000},people:null,completenessStatus:'failed',outcome_reason:'AI_RATE_LIMIT',error_code:'AI_RATE_LIMIT',attempt_count:3}]);
+ assert.equal(partialFailure.complete,false);
+ assert.deepEqual(partialFailure.regions.map(x=>x.status),['valid','failed']);
+ assert.equal(partialFailure.regions[1].reason,'AI_RATE_LIMIT');
+ assert.equal(partialFailure.regions[1].error_code,'AI_RATE_LIMIT');
 });
 
 test('phase 2 empty-page handling stops before validation and identity writes',()=>{
@@ -335,6 +340,8 @@ test('phase 2 empty-page handling stops before validation and identity writes',(
  assert.ok(scanProcessorSource.includes("process.env.SCAN_CONFIRM_EMPTY_REGION==='false'"));
  assert.ok(scanProcessorSource.includes("status='needs_confirmation'"));
  assert.ok(scanProcessorSource.includes("checkpoint=$2::jsonb"));
+ assert.ok(scanProcessorSource.includes("reason:'region_failed',regions:err.scan_region_states"));
+ assert.ok(scanProviderSource.includes('error.scan_region_states=classifyScanRegions([...parts,failed]).regions'));
  assert.ok(scanProviderSource.includes('import {classifyScanRegions} from \'./scanCompleteness\';'));
  assert.ok(scanProviderSource.indexOf('if(completeness.requiresConfirmation)')<scanProviderSource.indexOf('const merged=mergeScanRegions(parts,page.height,MAX)'));
  assert.ok(scanProviderSource.includes("jsonFallbackUsed=true"));

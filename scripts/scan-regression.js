@@ -12,6 +12,7 @@ const statusSource=readFileSync(new URL('../pages/api/scan/status.js',import.met
 const progressUiSource=readFileSync(new URL('../components/AriaProcessingStatus.js',import.meta.url),'utf8');
 const scanModalSource=readFileSync(new URL('../components/ScanModal.js',import.meta.url),'utf8');
 const scanStartSource=readFileSync(new URL('../pages/api/scan/start.js',import.meta.url),'utf8');
+const scanStartMigrationSource=readFileSync(new URL('../supabase/migrations/20261021153000_scan_start_request_idempotency.sql',import.meta.url),'utf8');
 const phone=n=>({normalized:n}),base={type:'person',status:'active',metadata:{identity_verified:true},living_truth:{status:'alive'},identity_verification_status:'verified'};
 function clientFor(people){return{async query(sql){if(/FROM people WHERE organization_id/.test(sql))return{rows:people};if(/FROM person_aliases/.test(sql))return{rows:[]};if(/FROM identity_shared_contacts/.test(sql))return{rows:[]};if(/FROM identity_pair_decisions/.test(sql))return{rows:[]};throw new Error(`Unexpected SQL in regression client: ${sql.slice(0,80)}`)}}}
 test('single-page validation preserves continuation ownership',()=>{const v=validateScanOutput(JSON.stringify({people:[{r:1,y:100,x:100,n:'Sandra Isichei',p:['08039579786'],nc:98,pc:96,rc:95,ns:'clear',ps:'clear',rs:'clear',f:[],na:[],e:'row 1'},{r:1,y:130,x:120,n:'',p:['08183488629'],nc:98,pc:90,rc:92,ns:'clear',ps:'clear',rs:'clear',f:[],na:[],e:'continuation'}]}));assert.equal(v.valid,true);assert.equal(v.people.length,1);assert.deepEqual(v.people[0].phones,['+2348039579786','+2348183488629'])});
@@ -252,4 +253,21 @@ test('scan failure without Telegram credentials is recorded as disabled rather t
  const disabled=calls.find(x=>x.sql.includes("SET delivery_status = 'disabled'"));
  assert.ok(disabled);
  assert.match(disabled.params[1],/TELEGRAM_NOT_CONFIGURED/);
+});
+
+
+test('weak-network scan-start retries reuse one durable request id',()=>{
+ assert.ok(scanStartSource.includes('client_request_id'));
+ assert.ok(scanStartSource.includes('public.scan_start_requests'));
+ assert.ok(scanStartSource.includes('requested_image_hash!==hash'));
+ assert.ok(scanStartSource.includes('ON CONFLICT (organization_id,client_request_id) DO NOTHING'));
+ assert.ok(scanStartSource.includes('Reconnected to its saved result.'));
+ assert.ok(scanModalSource.includes('client_request_id:requestId'));
+ assert.ok(scanModalSource.includes('SCAN_START_UNCERTAIN'));
+ assert.ok(scanModalSource.includes('pendingStart.current'));
+ assert.ok(scanModalSource.includes('Choose the same photo again'));
+ assert.ok(scanModalSource.includes('retryServerErrors=false'));
+ assert.ok(scanStartMigrationSource.includes('PRIMARY KEY (organization_id, client_request_id)'));
+ assert.ok(scanStartMigrationSource.includes('ENABLE ROW LEVEL SECURITY'));
+ assert.ok(scanStartMigrationSource.includes('REVOKE ALL ON TABLE public.scan_start_requests'));
 });

@@ -70,7 +70,7 @@ test('scan vision remains pinned to Groq Qwen 3.8 with no alternate vision provi
  assert.ok(hybridSource.includes("const PRIMARY_KEY='groq-qwen3.8-27b'"));
  for(const forbidden of ['GEMINI','gemini','FALLBACK','qwen3.6-27b'])assert.equal(hybridSource.includes(forbidden),false,`Unexpected alternate scan vision path: ${forbidden}`);
  assert.ok(hybridSource.includes('async function readRegion(region,opt)'));
- assert.ok(hybridSource.includes('callOne(region,PRIMARY,opt,attempt,jsonFallbackUsed)'));
+ assert.ok(hybridSource.includes('callOne(requestRegion,PRIMARY,opt,attempt,jsonFallbackUsed)'));
  assert.ok(hybridSource.includes('rateLimitRetries<2'));
  assert.ok(hybridSource.includes('jsonFallbackUsed'));
 });
@@ -423,26 +423,25 @@ test('blank-page NO queues the same saved photo for a fresh Qwen pipeline read',
 });
 
 
-test('Qwen scan uses full-page plus overlapping detail crops in one provider input',async()=>{
+test('Qwen scan uses two overlapping detail crops and preserves a one-image fallback',async()=>{
  const width=1000,height=1800;
  const buffer=await sharp({create:{width,height,channels:3,background:'#ffffff'}}).jpeg({quality:90}).toBuffer();
  const page={width,height,buffer,base64:buffer.toString('base64')};
  const regions=await makeScanRegions(page);
- assert.equal(regions.length,1,'multi-view must not create extra provider requests');
+ assert.equal(regions.length,1,'detail crops must not create extra provider requests');
  const region=regions[0];
  assert.equal(region.y0,0);assert.equal(region.y1,height);
- assert.equal(region.images.length,3);
- assert.equal(region.images[0].label,'full_page');
- assert.equal(region.images[0].data,page.base64);
- assert.equal(region.images[1].label,'upper_detail');
- assert.equal(region.images[1].y0,0);
- assert.equal(region.images[1].y1,1116);
- assert.equal(region.images[2].label,'lower_detail');
- assert.equal(region.images[2].y0,684);
- assert.equal(region.images[2].y1,height);
- assert.equal(region.images[1].y1-region.images[2].y0,432,'detail images must overlap');
- const upper=await sharp(Buffer.from(region.images[1].data,'base64')).metadata();
- const lower=await sharp(Buffer.from(region.images[2].data,'base64')).metadata();
+ assert.equal(region.images.length,2);
+ assert.equal(region.data,page.base64,'original full-page data must remain available for a budget fallback');
+ assert.equal(region.images[0].label,'upper_detail');
+ assert.equal(region.images[0].y0,0);
+ assert.equal(region.images[0].y1,1116);
+ assert.equal(region.images[1].label,'lower_detail');
+ assert.equal(region.images[1].y0,684);
+ assert.equal(region.images[1].y1,height);
+ assert.equal(region.images[0].y1-region.images[1].y0,432,'detail images must overlap');
+ const upper=await sharp(Buffer.from(region.images[0].data,'base64')).metadata();
+ const lower=await sharp(Buffer.from(region.images[1].data,'base64')).metadata();
  assert.deepEqual([upper.width,upper.height],[width,1116]);
  assert.deepEqual([lower.width,lower.height],[width,1116]);
  assert.ok(scanProviderSource.includes("...images.map(view=>({type:'image_url'"));

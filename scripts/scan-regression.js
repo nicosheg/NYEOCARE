@@ -71,9 +71,11 @@ test('scan vision remains pinned to Groq Qwen 3.8 with no alternate vision provi
  assert.ok(hybridSource.includes('rateLimitRetries<2'));
  assert.ok(hybridSource.includes('jsonFallbackUsed'));
 });
-test('scan uses one full-page region and publishes fresh backend heartbeats',()=>{
+test('scan uses one multi-view provider region and publishes fresh backend heartbeats',()=>{
  assert.ok(hybridSource.includes('for(let i=0;i<regions.length;i++)'));
- assert.ok(hybridSource.includes('return[{id:1,y0:0,y1:H,w:W,h:H,data:page.base64}]'));
+ assert.ok(hybridSource.includes('makeScanRegions(page)'));
+ assert.ok(scanImageViewsSource.includes('images:[full,top,bottom]'));
+ assert.ok(hybridSource.includes("...images.map(view=>({type:'image_url'"));
  assert.ok(hybridSource.includes('provider:PRIMARY.provider,regions:1,reasoning:\'none\''));
  assert.equal(hybridSource.includes('Promise.all(regions.map'),false);
  assert.ok(hybridSource.includes('setInterval(()=>{if(activeRegion)report(stage'));

@@ -264,6 +264,7 @@ test('weak-network scan-start retries reuse one durable request id',()=>{
  assert.ok(scanStartSource.includes('Reconnected to its saved result.'));
  assert.ok(scanModalSource.includes('client_request_id:requestId'));
  assert.ok(scanModalSource.includes('SCAN_START_UNCERTAIN'));
+ assert.ok(scanModalSource.includes("state.error?.code==='SCAN_START_UNCERTAIN'?'Connection not confirmed.':'Scan not completed.'"));
  assert.ok(scanModalSource.includes('pendingStart.current'));
  assert.ok(scanModalSource.includes('Choose the same photo again'));
  assert.ok(scanModalSource.includes("if(state.stage==='processing'||state.error?.code==='SCAN_START_UNCERTAIN'){onClose?.();return}"));

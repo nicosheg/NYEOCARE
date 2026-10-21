@@ -79,7 +79,7 @@ test('scan uses one multi-view provider region and publishes fresh backend heart
  assert.ok(hybridSource.includes('makeScanRegions(page)'));
  assert.ok(scanImageViewsSource.includes('images:[full,top,bottom]'));
  assert.ok(hybridSource.includes("...images.map(view=>({type:'image_url'"));
- assert.ok(hybridSource.includes('provider:PRIMARY.provider,regions:1,reasoning:\'none\''));
+ assert.ok(hybridSource.includes('provider:PRIMARY.provider,regions:1,reasoning:SCAN_REASONING_EFFORT'));assert.ok(hybridSource.includes('single_request_full_page_plus_detail_views_groq_qwen_only'));assert.ok(hybridSource.includes('image_views:parts.reduce'));
  assert.equal(hybridSource.includes('Promise.all(regions.map'),false);
  assert.ok(hybridSource.includes('setInterval(()=>{if(activeRegion)report(stage'));
  assert.ok(hybridSource.includes('http_ok:typeof r?.response?.ok'));

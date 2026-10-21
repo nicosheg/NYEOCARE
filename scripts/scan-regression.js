@@ -13,6 +13,12 @@ const progressUiSource=readFileSync(new URL('../components/AriaProcessingStatus.
 const scanModalSource=readFileSync(new URL('../components/ScanModal.js',import.meta.url),'utf8');
 const scanStartSource=readFileSync(new URL('../pages/api/scan/start.js',import.meta.url),'utf8');
 const scanStartMigrationSource=readFileSync(new URL('../supabase/migrations/20261021153000_scan_start_request_idempotency.sql',import.meta.url),'utf8');
+const scanProviderSource=readFileSync(new URL('../lib/hybridScanProvider.js',import.meta.url),'utf8');
+const scanProcessorSource=readFileSync(new URL('../lib/visionProcessor.js',import.meta.url),'utf8');
+const scanStatusSource=readFileSync(new URL('../pages/api/scan/status.js',import.meta.url),'utf8');
+const scanStateSource=readFileSync(new URL('../lib/scanState.js',import.meta.url),'utf8');
+const scanBlankConfirmSource=readFileSync(new URL('../pages/api/scan/confirm-blank.js',import.meta.url),'utf8');
+const{classifyScanRegions}=await import('../lib/scanCompleteness.js');
 const phone=n=>({normalized:n}),base={type:'person',status:'active',metadata:{identity_verified:true},living_truth:{status:'alive'},identity_verification_status:'verified'};
 function clientFor(people){return{async query(sql){if(/FROM people WHERE organization_id/.test(sql))return{rows:people};if(/FROM person_aliases/.test(sql))return{rows:[]};if(/FROM identity_shared_contacts/.test(sql))return{rows:[]};if(/FROM identity_pair_decisions/.test(sql))return{rows:[]};throw new Error(`Unexpected SQL in regression client: ${sql.slice(0,80)}`)}}}
 test('single-page validation preserves continuation ownership',()=>{const v=validateScanOutput(JSON.stringify({people:[{r:1,y:100,x:100,n:'Sandra Isichei',p:['08039579786'],nc:98,pc:96,rc:95,ns:'clear',ps:'clear',rs:'clear',f:[],na:[],e:'row 1'},{r:1,y:130,x:120,n:'',p:['08183488629'],nc:98,pc:90,rc:92,ns:'clear',ps:'clear',rs:'clear',f:[],na:[],e:'continuation'}]}));assert.equal(v.valid,true);assert.equal(v.people.length,1);assert.deepEqual(v.people[0].phones,['+2348039579786','+2348183488629'])});
@@ -277,4 +283,67 @@ test('weak-network scan-start retries reuse one durable request id',()=>{
  assert.ok(scanStartMigrationSource.includes('PRIMARY KEY (organization_id, client_request_id)'));
  assert.ok(scanStartMigrationSource.includes('ENABLE ROW LEVEL SECURITY'));
  assert.ok(scanStartMigrationSource.includes('REVOKE ALL ON TABLE public.scan_start_requests'));
+});
+
+
+test('an unconfirmed empty region blocks the entire scan even when another region has people',()=>{
+ const regions=classifyScanRegions([
+  {region:{id:1,y0:0,y1:500},people:[{n:'A'}],attempt_count:1,finishReason:'stop',requestId:'request-1'},
+  {region:{id:2,y0:450,y1:1000},people:[],attempt_count:2,finishReason:'stop',requestId:'request-2'}
+ ]);
+ assert.equal(regions.requiresConfirmation,true);
+ assert.equal(regions.complete,false);
+ assert.equal(regions.regions[0].status,'valid');
+ assert.equal(regions.regions[1].status,'empty_unconfirmed');
+ assert.equal(regions.regions[1].error_code,'AI_EMPTY_REGION');
+ assert.equal(regions.regions[1].attempt_count,2);
+ assert.equal(JSON.stringify(regions).includes('request-1'),true);
+ assert.equal(JSON.stringify(regions).includes('A'),true);
+});
+
+test('a blank region becomes complete only after explicit blank confirmation',()=>{
+ const unconfirmed=classifyScanRegions([{region:{id:1,y0:0,y1:1000},people:[],attempt_count:2,finishReason:'stop'}]);
+ assert.equal(unconfirmed.requiresConfirmation,true);
+ assert.equal(unconfirmed.complete,false);
+ const confirmed=classifyScanRegions([{region:{id:1,y0:0,y1:1000},people:[],completenessStatus:'confirmed_blank',attempt_count:2,finishReason:'stop'}]);
+ assert.equal(confirmed.requiresConfirmation,false);
+ assert.equal(confirmed.complete,true);
+ assert.equal(confirmed.regions[0].status,'confirmed_blank');
+});
+
+test('invalid region output cannot satisfy completeness',()=>{
+ const invalid=classifyScanRegions([{region:{id:1},people:null,attempt_count:2}]);
+ assert.equal(invalid.requiresConfirmation,false);
+ assert.equal(invalid.complete,false);
+ assert.equal(invalid.regions[0].status,'failed');
+});
+
+test('phase 2 empty-page handling stops before validation and identity writes',()=>{
+ const confirmationGate=scanProcessorSource.indexOf('if(vision?.requiresConfirmation)');
+ const validation=scanProcessorSource.indexOf('const rawContent=');
+ assert.ok(confirmationGate>=0&&validation>confirmationGate);
+ assert.ok(scanProcessorSource.includes("process.env.SCAN_CONFIRM_EMPTY_REGION==='false'"));
+ assert.ok(scanProcessorSource.includes("status='needs_confirmation'"));
+ assert.ok(scanProcessorSource.includes("checkpoint=$2::jsonb"));
+ assert.ok(scanProviderSource.includes('import {classifyScanRegions} from \'./scanCompleteness\';'));
+ assert.ok(scanProviderSource.indexOf('if(completeness.requiresConfirmation)')<scanProviderSource.indexOf('const merged=mergeScanRegions(parts,page.height,MAX)'));
+ assert.ok(scanProviderSource.includes("jsonFallbackUsed=true"));
+ assert.ok(scanStateSource.includes("NEEDS_CONFIRMATION:'needs_confirmation'"));
+ assert.ok(scanStatusSource.includes("job.status==='needs_confirmation'"));
+ assert.ok(scanStatusSource.includes('requires_confirmation:job.status===\'needs_confirmation\''));
+});
+
+test('blank confirmation is org-scoped, writes no People, and either completes blank or rereads saved evidence',()=>{
+ assert.ok(scanBlankConfirmSource.includes("export default withOrg(handler)"));
+ assert.ok(scanBlankConfirmSource.includes("row.status!=='needs_confirmation'"));
+ assert.ok(scanBlankConfirmSource.includes("status='complete'"));
+ assert.ok(scanBlankConfirmSource.includes("status='pending'"));
+ assert.ok(scanBlankConfirmSource.includes('scan_evidence'));
+ assert.ok(scanBlankConfirmSource.includes('processVisionJob(row.id,imageBase64'));
+ assert.ok(scanBlankConfirmSource.includes('confirmed_blank'));
+ assert.ok(!scanBlankConfirmSource.includes('INSERT INTO people'));
+ assert.ok(!scanBlankConfirmSource.includes('createScanReview'));
+ assert.ok(scanModalSource.includes("state.stage==='needs_confirmation'"));
+ assert.ok(scanModalSource.includes("onClick={()=>resolveBlank(true)}"));
+ assert.ok(scanModalSource.includes("onClick={()=>resolveBlank(false)}"));
 });

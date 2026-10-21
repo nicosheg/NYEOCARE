@@ -5,6 +5,7 @@ const{validateScanOutput,fuzzyMatch,normalizeName}=await import('../lib/scanVali
 const{getScanProgressPercent}=await import('../lib/scanProgress.js');
 const{parseRetryAfterSeconds,parseDurationSeconds,getRateLimitRetrySeconds}=await import('../lib/scanRateLimit.js');
 const{mergeScanRegions}=await import('../lib/scanRegionMerge.js');
+const{normalizeScanFailureStage,persistScanFailure,recordScanFailureAndAlert}=await import('../lib/scanFailure.js');
 const admissionSource=readFileSync(new URL('../pages/api/scan/admission.js',import.meta.url),'utf8');
 const hybridSource=readFileSync(new URL('../lib/hybridScanProvider.js',import.meta.url),'utf8');
 const statusSource=readFileSync(new URL('../pages/api/scan/status.js',import.meta.url),'utf8');
@@ -154,3 +155,67 @@ test('scan start API reports safe stage timings to diagnose cold-start latency',
  for(const stage of ['admission_ms','image_hash_ms','db_connect_ms','advisory_lock_ms','stale_recovery_ms','insert_commit_ms','total_ms'])assert.ok(scanStartSource.includes(stage));
 });
 
+
+
+test('scan failure stages normalize to the approved diagnostic vocabulary',()=>{
+ assert.equal(normalizeScanFailureStage('ai_request'),'region_read');
+ assert.equal(normalizeScanFailureStage('parse_json'),'validate');
+ assert.equal(normalizeScanFailureStage('database_save'),'persist');
+ assert.equal(normalizeScanFailureStage('not-a-stage'),'unknown');
+});
+
+test('scan failure persistence falls back to a minimal status/error_code update after a detailed write fails',async()=>{
+ const calls=[];
+ const db={async query(sql,params=[]){
+  calls.push({sql,params});
+  if(sql.includes('SELECT id, organization_id, status, progress_detail')){
+   return{rows:[{id:'job-1',organization_id:'org-1',status:'processing',progress_detail:{stage:'reading_overlapping_regions',regions_total:2,regions_completed:1,active_region:2},created_at:new Date().toISOString(),started_at:new Date().toISOString()}]};
+  }
+  if(sql.includes('failed_stage = $2'))throw new Error('forced detailed terminal-write failure');
+  if(sql.includes("SET status = 'failed', error_code = $2")){
+   return{rowCount:1,rows:[{id:'job-1',organization_id:'org-1',status:'failed',created_at:new Date().toISOString(),started_at:new Date().toISOString()}]};
+  }
+  throw new Error('Unexpected test SQL: '+sql);
+ }};
+ const result=await persistScanFailure(db,{jobId:'job-1',stage:'region_read',code:'AI_PROVIDER_ERROR',detail:{message:'provider rejected request'},startTime:Date.now()});
+ assert.equal(result.transitioned,true);
+ assert.equal(result.usedFallback,true);
+ assert.equal(result.persistenceFailed,false);
+ const fallback=calls.find(x=>x.sql.includes("SET status = 'failed', error_code = $2"));
+ assert.ok(fallback);
+ assert.deepEqual(fallback.params,['job-1','AI_PROVIDER_ERROR']);
+ assert.equal(/progress_detail|error_detail|result\s*=/.test(fallback.sql),false);
+});
+
+test('minimal terminal-state fallback still attempts exactly one Telegram failure alert',async()=>{
+ const calls=[],sent=[];
+ const db={async query(sql,params=[]){
+  calls.push({sql,params});
+  if(sql.includes('SELECT id, organization_id, status, progress_detail')){
+   return{rows:[{id:'job-2',organization_id:'org-2',status:'processing',progress_detail:{stage:'reading_overlapping_regions',regions_total:2,regions_completed:1,active_region:2},created_at:new Date().toISOString(),started_at:new Date().toISOString()}]};
+  }
+  if(sql.includes('failed_stage = $2'))throw new Error('force safe fallback');
+  if(sql.includes("SET status = 'failed', error_code = $2")){
+   return{rowCount:1,rows:[{id:'job-2',organization_id:'org-2',status:'failed',created_at:new Date().toISOString(),started_at:new Date().toISOString()}]};
+  }
+  if(sql.includes('SELECT COUNT(*)::int AS count'))return{rows:[{count:1}]};
+  if(sql.includes('INSERT INTO public.scan_failure_alerts')){
+   return{rowCount:1,rows:[{id:'alert-2'}]};
+  }
+  if(sql.includes('UPDATE public.scan_failure_alerts SET delivery_status = \'sent\''))return{rowCount:1,rows:[]};
+  throw new Error('Unexpected test SQL: '+sql);
+ }};
+ const result=await recordScanFailureAndAlert(db,{
+  jobId:'job-2',organizationId:'org-2',stage:'region_read',code:'AI_PROVIDER_ERROR',
+  detail:{message:'provider request rejected'},startTime:Date.now(),
+  env:{TELEGRAM_BOT_TOKEN:'test-token',TELEGRAM_CHAT_ID:'test-chat'},
+  fetchImpl:async(url,options)=>{sent.push({url,body:JSON.parse(options.body)});return{ok:true,status:200}}
+ });
+ assert.equal(result.transitioned,true);
+ assert.equal(result.usedFallback,true);
+ assert.equal(sent.length,1);
+ assert.match(sent[0].url,/api\.telegram\.org\/bottest-token\/sendMessage/);
+ assert.match(sent[0].body.text,/job-2/);
+ assert.match(sent[0].body.text,/AI_PROVIDER_ERROR/);
+ assert.ok(calls.some(x=>x.sql.includes("SET status = 'failed', error_code = $2")));
+});

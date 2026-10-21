@@ -226,3 +226,27 @@ test('scan-start stale recovery uses shared failure persistence and background a
  assert.ok(scanStartSource.includes('waitUntil(task)'));
  assert.equal(scanStartSource.includes("UPDATE scan_jobs SET status='failed',progress='failed',error_code='SCAN_STALLED'"),false);
 });
+
+test('scan failure without Telegram credentials is recorded as disabled rather than silently skipped',async()=>{
+ const calls=[];
+ const db={async query(sql,params=[]){
+  calls.push({sql,params});
+  if(sql.includes('SELECT COUNT(*)::int AS count'))return{rows:[{count:1}]};
+  if(sql.includes('INSERT INTO public.scan_failure_alerts')){
+   return{rowCount:1,rows:[{id:'alert-disabled-1'}]};
+  }
+  if(sql.includes("SET delivery_status = 'disabled'"))return{rowCount:1,rows:[]};
+  throw new Error('Unexpected test SQL: '+sql);
+ }};
+ const result=await sendScanFailureAlert(db,{
+  jobId:'job-disabled',organizationId:'org-disabled',stage:'region_read',code:'AI_RATE_LIMIT',
+  regionStates:{regions_total:2,regions_completed:1},elapsedMs:9000,
+  env:{},fetchImpl:async()=>{throw new Error('Telegram must not be called without credentials')}
+ });
+ assert.equal(result.sent,false);
+ assert.equal(result.reason,'TELEGRAM_NOT_CONFIGURED');
+ assert.ok(calls.some(x=>x.sql.includes('INSERT INTO public.scan_failure_alerts')));
+ const disabled=calls.find(x=>x.sql.includes("SET delivery_status = 'disabled'"));
+ assert.ok(disabled);
+ assert.match(disabled.params[1],/TELEGRAM_NOT_CONFIGURED/);
+});

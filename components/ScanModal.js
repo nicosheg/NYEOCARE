@@ -84,7 +84,7 @@ const cancel=async()=>{
   setScanState({message});setState(getScanState());
  }finally{setBusy(false)}
 };
-const close=()=>{if(state.stage==='preparing'){clearScanState(true);onClose?.();return}if(state.stage==='processing'){onClose?.();return}clearScanState(true);onClose?.()};
+const close=()=>{if(state.stage==='preparing'){clearScanState(true);onClose?.();return}if(state.stage==='processing'||state.error?.code==='SCAN_START_UNCERTAIN'){onClose?.();return}clearScanState(true);onClose?.()};
 const start=async file=>{
  if(!file||busy||Date.now()<rateLimitUntil||['preparing','processing'].includes(getScanState().stage))return;
  const signature=fileSignature(file),previousError=getScanState().error,priorPending=pendingStart.current;

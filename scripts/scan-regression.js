@@ -1,7 +1,7 @@
 // scripts/scan-regression.js
 import test from'node:test';import assert from'node:assert/strict';import{readFileSync}from'node:fs';import sharp from'sharp';
 process.env.DATABASE_URL ||= 'postgres://test:test@127.0.0.1:5432/test';
-const{validateScanOutput,fuzzyMatch,normalizeName}=await import('../lib/scanValidation.js');const{resolveIdentities}=await import('../lib/identityResolver.js');const{nameSimilarity}=await import('../lib/duplicateDetector.js');
+const{validateScanOutput,fuzzyMatch,normalizeName}=await import('../lib/scanValidation.js');const{resolveIdentities}=await import('../lib/identityResolver.js');const{nameSimilarity}=await import('../lib/duplicateDetector.js');const{getModelConfig}=await import('../lib/modelRegistry.js');
 const{getScanProgressPercent}=await import('../lib/scanProgress.js');
 const{parseRetryAfterSeconds,parseDurationSeconds,getRateLimitRetrySeconds}=await import('../lib/scanRateLimit.js');
 const{mergeScanRegions}=await import('../lib/scanRegionMerge.js');const{formatScanLearningHints}=await import('../lib/scanLearningHints.js');const{resolveScanReasoningEffort,getScanPipelineVersion,SCAN_VISUAL_VERIFICATION_INSTRUCTION}=await import('../lib/scanReasoning.js');
@@ -93,6 +93,7 @@ test('status API and scan processing UI share a backend-derived percentage contr
  assert.ok(scanModalSource.includes('progressPercent:d.progress_percent'));
 });
 
+test('Qwen 3.8 output allowance matches the documented maximum and is not capped by scan code',()=>{assert.equal(getModelConfig('groq-qwen3.8-27b').max_completion_tokens,16384);assert.ok(hybridSource.includes('max_completion_tokens:model.max_completion_tokens'));assert.equal(hybridSource.includes('Math.min(900,model.max_completion_tokens)'),false)});
 test('Groq HTTP 413 input-token-budget rejection triggers a smaller-view fallback, not a blind retry',()=>{
  assert.equal(isInputTokenBudgetError(413,'Request too large for model: input tokens per minute (ITPM): Limit 7000, Requested 7089'),true);
  assert.equal(isInputTokenBudgetError(413,'Request entity too large because image URL exceeds 20MB'),false);

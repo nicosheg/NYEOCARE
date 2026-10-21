@@ -354,6 +354,7 @@ test('phase 2 empty-page handling stops before validation and identity writes',(
  assert.ok(scanStateSource.includes("NEEDS_CONFIRMATION:'needs_confirmation'"));
  assert.ok(scanStatusSource.includes("job.status==='needs_confirmation'"));
  assert.ok(scanStatusSource.includes('requires_confirmation:job.status===\'needs_confirmation\''));
+ assert.ok(scanStartSource.includes("j.status==='needs_confirmation'"));
 });
 
 test('blank confirmation is org-scoped, writes no People, and either completes blank or rereads saved evidence',()=>{

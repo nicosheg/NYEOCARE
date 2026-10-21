@@ -219,3 +219,10 @@ test('minimal terminal-state fallback still attempts exactly one Telegram failur
  assert.match(sent[0].body.text,/AI_PROVIDER_ERROR/);
  assert.ok(calls.some(x=>x.sql.includes("SET status = 'failed', error_code = $2")));
 });
+
+test('scan-start stale recovery uses shared failure persistence and background alert delivery',()=>{
+ assert.ok(scanStartSource.includes('persistScanFailure(pool'));
+ assert.ok(scanStartSource.includes('scheduleStaleAlerts(staleFailures,orgId)'));
+ assert.ok(scanStartSource.includes('waitUntil(task)'));
+ assert.equal(scanStartSource.includes("UPDATE scan_jobs SET status='failed',progress='failed',error_code='SCAN_STALLED'"),false);
+});

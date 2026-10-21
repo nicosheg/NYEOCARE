@@ -259,6 +259,8 @@ test('scan failure without Telegram credentials is recorded as disabled rather t
 test('weak-network scan-start retries reuse one durable request id',()=>{
  assert.ok(scanStartSource.includes('client_request_id'));
  assert.ok(scanStartSource.includes('public.scan_start_requests'));
+ assert.ok(scanStartSource.includes('if(!admission.allowed){if(requestId){const hash=imageHash(image_base64);'));
+ assert.ok(scanStartSource.includes("j.provider_used||admission.provider||null"));
  assert.ok(scanStartSource.includes('requested_image_hash!==hash'));
  assert.ok(scanStartSource.includes('ON CONFLICT (organization_id,client_request_id) DO NOTHING'));
  assert.ok(scanStartSource.includes('Reconnected to its saved result.'));

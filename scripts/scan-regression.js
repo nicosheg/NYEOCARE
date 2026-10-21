@@ -51,8 +51,10 @@ test('scan vision remains pinned to Groq Qwen 3.8 with no alternate vision provi
  assert.ok(hybridSource.includes('rateLimitRetries<2'));
  assert.ok(hybridSource.includes('jsonFallbackUsed'));
 });
-test('scan image regions are processed sequentially and publish fresh backend heartbeats',()=>{
+test('scan uses one full-page region and publishes fresh backend heartbeats',()=>{
  assert.ok(hybridSource.includes('for(let i=0;i<regions.length;i++)'));
+ assert.ok(hybridSource.includes('return[{id:1,y0:0,y1:H,w:W,h:H,data:page.base64}]'));
+ assert.ok(hybridSource.includes('provider:PRIMARY.provider,regions:1,reasoning:\'none\''));
  assert.equal(hybridSource.includes('Promise.all(regions.map'),false);
  assert.ok(hybridSource.includes('setInterval(()=>{if(activeRegion)report(stage'));
  assert.ok(hybridSource.includes('http_ok:typeof r?.response?.ok'));
@@ -76,8 +78,9 @@ test('Groq Retry-After is not inflated by an unrelated non-exhausted token reset
  assert.equal(getRateLimitRetrySeconds({message:'quota limit reached',remainingTokens:'0',remainingRequests:'999',resetTokens:'2.5s',resetRequests:'1m26.4s'}),2.5);
  assert.equal(parseDurationSeconds('1m26.4s'),86.4);
 });
-test('scan uses low reasoning and bounded same-model recovery for empty/invalid structured output',()=>{
- assert.ok(hybridSource.includes("reasoning_effort:'low'"));
+test('scan disables reasoning and bounds output for OTPM while keeping same-model recovery',()=>{
+ assert.ok(hybridSource.includes("reasoning_effort:'none'"));
+ assert.ok(hybridSource.includes('max_completion_tokens:Math.min(900,model.max_completion_tokens)'));
  assert.ok(hybridSource.includes('Handwritten "SIS" is the three-letter honorific S-I-S'));
  assert.ok(hybridSource.includes('const retryDelaySeconds=r.response.status===429?cooldownSeconds(rate,providerMessage):0'));
  assert.ok(hybridSource.includes('getRateLimitRetrySeconds({message:row.retry_reason'));
@@ -95,7 +98,7 @@ test('Qwen JSON-object recovery locally validates every row field before accepta
  assert.ok(hybridSource.includes('x.people.length>MAX'));
  assert.ok(hybridSource.includes('p.p.length>2'));
  assert.ok(hybridSource.includes("p.f.some(v=>!SAFE_ROW_FLAGS.has(v))"));
- assert.ok(hybridSource.includes("typeof p.e!=='string'"));
+ assert.ok(hybridSource.includes("typeof p.d!=='string'"));
 });
 test('scan admission preflight returns a countdown and the modal enforces it on initial scan and retry',()=>{
  assert.ok(admissionSource.includes('retry_after_seconds:retrySeconds'));

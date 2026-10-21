@@ -18,8 +18,9 @@ const scanProcessorSource=readFileSync(new URL('../lib/visionProcessor.js',impor
 const scanStatusSource=readFileSync(new URL('../pages/api/scan/status.js',import.meta.url),'utf8');
 const scanStateSource=readFileSync(new URL('../lib/scanState.js',import.meta.url),'utf8');
 const scanBlankConfirmSource=readFileSync(new URL('../pages/api/scan/confirm-blank.js',import.meta.url),'utf8');
+const scanBlankCoreSource=readFileSync(new URL('../lib/scanBlankConfirmation.js',import.meta.url),'utf8');
 const{classifyScanRegions}=await import('../lib/scanCompleteness.js');
-const{createConfirmBlankHandler}=await import('../pages/api/scan/confirm-blank.js');
+const{createConfirmBlankHandler}=await import('../lib/scanBlankConfirmation.js');
 const phone=n=>({normalized:n}),base={type:'person',status:'active',metadata:{identity_verified:true},living_truth:{status:'alive'},identity_verification_status:'verified'};
 function clientFor(people){return{async query(sql){if(/FROM people WHERE organization_id/.test(sql))return{rows:people};if(/FROM person_aliases/.test(sql))return{rows:[]};if(/FROM identity_shared_contacts/.test(sql))return{rows:[]};if(/FROM identity_pair_decisions/.test(sql))return{rows:[]};throw new Error(`Unexpected SQL in regression client: ${sql.slice(0,80)}`)}}}
 function fakeBlankConfirmationRuntime(){
@@ -357,14 +358,15 @@ test('phase 2 empty-page handling stops before validation and identity writes',(
 
 test('blank confirmation is org-scoped, writes no People, and either completes blank or rereads saved evidence',()=>{
  assert.ok(scanBlankConfirmSource.includes("export default withOrg(handler)"));
- assert.ok(scanBlankConfirmSource.includes("row.status!=='needs_confirmation'"));
- assert.ok(scanBlankConfirmSource.includes("status='complete'"));
- assert.ok(scanBlankConfirmSource.includes("status='pending'"));
- assert.ok(scanBlankConfirmSource.includes('scan_evidence'));
- assert.ok(scanBlankConfirmSource.includes('processVisionJob(row.id,imageBase64'));
- assert.ok(scanBlankConfirmSource.includes('confirmed_blank'));
- assert.ok(!scanBlankConfirmSource.includes('INSERT INTO people'));
- assert.ok(!scanBlankConfirmSource.includes('createScanReview'));
+ assert.ok(scanBlankConfirmSource.includes("export default withOrg(handler)"));
+ assert.ok(scanBlankCoreSource.includes("row.status!=='needs_confirmation'"));
+ assert.ok(scanBlankCoreSource.includes("status='complete'"));
+ assert.ok(scanBlankCoreSource.includes("status='pending'"));
+ assert.ok(scanBlankCoreSource.includes('scan_evidence'));
+ assert.ok(scanBlankCoreSource.includes('runVision(row.id,imageBase64'));
+ assert.ok(scanBlankCoreSource.includes('confirmed_blank'));
+ assert.ok(!scanBlankCoreSource.includes('INSERT INTO people'));
+ assert.ok(!scanBlankCoreSource.includes('createScanReview'));
  assert.ok(scanModalSource.includes("state.stage==='needs_confirmation'"));
  assert.ok(scanModalSource.includes("onClick={()=>resolveBlank(true)}"));
  assert.ok(scanModalSource.includes("onClick={()=>resolveBlank(false)}"));

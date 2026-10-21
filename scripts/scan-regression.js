@@ -21,7 +21,7 @@ const scanStateSource=readFileSync(new URL('../lib/scanState.js',import.meta.url
 const scanBlankConfirmSource=readFileSync(new URL('../pages/api/scan/confirm-blank.js',import.meta.url),'utf8');
 const scanBlankCoreSource=readFileSync(new URL('../lib/scanBlankConfirmation.js',import.meta.url),'utf8');
 const{classifyScanRegions}=await import('../lib/scanCompleteness.js');
-const{makeScanRegions}=await import('../lib/scanImageViews.js');
+const{makeScanRegions}=await import('../lib/scanImageViews.js');const{isInputTokenBudgetError,makeFullPageBudgetFallback}=await import('../lib/scanRequestBudget.js');
 const{createConfirmBlankHandler}=await import('../lib/scanBlankConfirmation.js');
 const phone=n=>({normalized:n}),base={type:'person',status:'active',metadata:{identity_verified:true},living_truth:{status:'alive'},identity_verification_status:'verified'};
 function clientFor(people){return{async query(sql){if(/FROM people WHERE organization_id/.test(sql))return{rows:people};if(/FROM person_aliases/.test(sql))return{rows:[]};if(/FROM identity_shared_contacts/.test(sql))return{rows:[]};if(/FROM identity_pair_decisions/.test(sql))return{rows:[]};throw new Error(`Unexpected SQL in regression client: ${sql.slice(0,80)}`)}}}
@@ -74,12 +74,12 @@ test('scan vision remains pinned to Groq Qwen 3.8 with no alternate vision provi
  assert.ok(hybridSource.includes('rateLimitRetries<2'));
  assert.ok(hybridSource.includes('jsonFallbackUsed'));
 });
-test('scan uses one multi-view provider region and publishes fresh backend heartbeats',()=>{
+test('scan uses a budgeted overlapping-view provider request and publishes fresh backend heartbeats',()=>{
  assert.ok(hybridSource.includes('for(let i=0;i<regions.length;i++)'));
  assert.ok(hybridSource.includes('makeScanRegions(page)'));
- assert.ok(scanImageViewsSource.includes('images:[full,top,bottom]'));
+ assert.ok(scanImageViewsSource.includes('images:[top,bottom]'));
  assert.ok(hybridSource.includes("...images.map(view=>({type:'image_url'"));
- assert.ok(hybridSource.includes('provider:PRIMARY.provider,regions:1,reasoning:SCAN_REASONING_EFFORT'));assert.ok(hybridSource.includes('single_request_full_page_plus_detail_views_groq_qwen_only'));assert.ok(hybridSource.includes('image_views:parts.reduce'));
+ assert.ok(hybridSource.includes('provider:PRIMARY.provider,regions:1,reasoning:SCAN_REASONING_EFFORT'));assert.ok(hybridSource.includes('single_request_budgeted_vision_views_groq_qwen_only'));assert.ok(hybridSource.includes('image_views:parts.reduce'));
  assert.equal(hybridSource.includes('Promise.all(regions.map'),false);
  assert.ok(hybridSource.includes('setInterval(()=>{if(activeRegion)report(stage'));
  assert.ok(hybridSource.includes('http_ok:typeof r?.response?.ok'));
@@ -93,6 +93,17 @@ test('status API and scan processing UI share a backend-derived percentage contr
  assert.ok(scanModalSource.includes('progressPercent:d.progress_percent'));
 });
 
+test('Groq HTTP 413 input-token-budget rejection triggers a smaller-view fallback, not a blind retry',()=>{
+ assert.equal(isInputTokenBudgetError(413,'Request too large for model: input tokens per minute (ITPM): Limit 7000, Requested 7089'),true);
+ assert.equal(isInputTokenBudgetError(413,'Request entity too large because image URL exceeds 20MB'),false);
+ assert.equal(isInputTokenBudgetError(429,'input tokens per minute limit'),false);
+ const region={id:1,y0:0,y1:2000,h:2000,data:'FULL_PAGE_BASE64',images:[{label:'upper_detail',data:'TOP',y0:0,y1:1240},{label:'lower_detail',data:'BOTTOM',y0:760,y1:2000}]};
+ const fallback=makeFullPageBudgetFallback(region);
+ assert.equal(fallback.images.length,1);
+ assert.equal(fallback.images[0].label,'full_page_budget_fallback');
+ assert.equal(fallback.images[0].data,'FULL_PAGE_BASE64');
+ assert.equal(fallback.images[0].y1,2000);
+});
 test('Groq OTPM message beats the generic TPM reset header',()=>{
  const message='HTTP 429: Rate limit reached on output tokens per minute (OTPM). Please try again in 480ms. Need more tokens?';
  assert.equal(parseRetryAfterSeconds(message),0.48);
@@ -107,7 +118,7 @@ test('scan disables reasoning and bounds output for OTPM while keeping same-mode
  assert.ok(hybridSource.includes('reasoning_effort:reasoningEffort'));
  assert.ok(hybridSource.includes('max_completion_tokens:Math.min(900,model.max_completion_tokens)'));
  assert.ok(hybridSource.includes('Handwritten SIS is S-I-S, not SB unless B is genuinely visible'));assert.ok(hybridSource.includes('Compare repeated title tokens down the left column'));
- assert.ok(hybridSource.includes('const retryDelaySeconds=r.response.status===429?cooldownSeconds(rate,providerMessage):0'));
+ assert.ok(hybridSource.includes('const inputBudgetError=isInputTokenBudgetError(r.response.status,providerMessage)'));assert.ok(hybridSource.includes("code:inputBudgetError?'AI_INPUT_TOKEN_BUDGET'"));assert.ok(hybridSource.includes("err?.code==='AI_INPUT_TOKEN_BUDGET'"));assert.ok(hybridSource.includes('makeFullPageBudgetFallback(requestRegion)'));
  assert.ok(hybridSource.includes('getRateLimitRetrySeconds({message:row.retry_reason'));
  assert.ok(hybridSource.includes('rateLimitRetries<2'));
  assert.ok(hybridSource.includes("const JSON_RECOVERY_ERROR="));
@@ -438,7 +449,7 @@ test('Qwen scan uses full-page plus overlapping detail crops in one provider inp
  assert.ok(scanProviderSource.includes('PHONE DIGITS ARE A REQUIRED EXTRACTION FIELD'));
  assert.ok(scanProviderSource.includes('getScanPipelineVersion(SCAN_REASONING_EFFORT)'));
  assert.ok(scanProviderSource.includes('makeScanRegions(page)'));
- assert.ok(scanImageViewsSource.includes('images:[full,top,bottom]'));
+ assert.ok(scanImageViewsSource.includes('images:[top,bottom]'));
 });
 
 test('Qwen uses bounded low-effort visual verification and still emits schema-only JSON',()=>{

@@ -19,8 +19,18 @@ const scanStatusSource=readFileSync(new URL('../pages/api/scan/status.js',import
 const scanStateSource=readFileSync(new URL('../lib/scanState.js',import.meta.url),'utf8');
 const scanBlankConfirmSource=readFileSync(new URL('../pages/api/scan/confirm-blank.js',import.meta.url),'utf8');
 const{classifyScanRegions}=await import('../lib/scanCompleteness.js');
+const{createConfirmBlankHandler}=await import('../pages/api/scan/confirm-blank.js');
 const phone=n=>({normalized:n}),base={type:'person',status:'active',metadata:{identity_verified:true},living_truth:{status:'alive'},identity_verification_status:'verified'};
-function clientFor(people){return{async query(sql){if(/FROM people WHERE organization_id/.test(sql))return{rows:people};if(/FROM person_aliases/.test(sql))return{rows:[]};if(/FROM identity_shared_contacts/.test(sql))return{rows:[]};if(/FROM identity_pair_decisions/.test(sql))return{rows:[]};throw new Error(`Unexpected SQL in regression client: ${sql.slice(0,80)}`)}}}
+function clientFor(people){return{async query(sql){if(/FROM people WHERE organization_id/.test(sql))return{rows:people};if(/FROM person_aliases/.test(sql))return{rows:[]};if(/FROM identity_shared_contacts/.test(sql))return{rows:[]};if(/FROM identity_pair_decisions/.test(sql))return{rows:[]};throw new Error(`Unexpected SQL in regression client: ${sql.slice(0,80)}`)}}
+function fakeBlankConfirmationRuntime(){
+ const jobId='11111111-1111-4111-8111-111111111111',organizationId='org-test',imageData=Buffer.from('fake-register-image-bytes'),queries=[],workerCalls=[],scheduled=[];
+ const client={async query(sql,params=[]){queries.push({sql:String(sql),params});const q=String(sql).trim().toUpperCase();if(['BEGIN','COMMIT','ROLLBACK'].includes(q))return{rows:[],rowCount:0};if(q.startsWith('SELECT J.ID,J.STATUS,J.PROGRAM_NAME'))return{rows:[{id:jobId,status:'needs_confirmation',program_name:'GIBEON',actor_id:'actor-test',started_at:new Date().toISOString(),created_at:new Date().toISOString(),checkpoint:{version:1,regions:[]},image_data:imageData}]};if(q.includes("SET STATUS='COMPLETE'"))return{rows:[{id:jobId}],rowCount:1};if(q.includes("SET STATUS='PENDING'"))return{rows:[{id:jobId}],rowCount:1};throw Error('Unexpected SQL in fake confirmation database: '+String(sql).slice(0,100))},release(){}};
+ const db={async connect(){return client}};
+ const handler=createConfirmBlankHandler({db,runVision:(...args)=>{workerCalls.push(args);return Promise.resolve({ok:true})},schedule:task=>{scheduled.push(task)}});
+ const response={statusCode:200,headers:{},body:null,setHeader(name,value){this.headers[name]=value;return this},status(code){this.statusCode=code;return this},json(body){this.body=body;return this}};
+ return{jobId,organizationId,imageData,queries,workerCalls,scheduled,handler,response,request(confirmBlank){return{method:'POST',body:{job_id:jobId,confirm_blank:confirmBlank},org:{id:organizationId},user:{id:'actor-test'}}}};
+}
+
 test('single-page validation preserves continuation ownership',()=>{const v=validateScanOutput(JSON.stringify({people:[{r:1,y:100,x:100,n:'Sandra Isichei',p:['08039579786'],nc:98,pc:96,rc:95,ns:'clear',ps:'clear',rs:'clear',f:[],na:[],e:'row 1'},{r:1,y:130,x:120,n:'',p:['08183488629'],nc:98,pc:90,rc:92,ns:'clear',ps:'clear',rs:'clear',f:[],na:[],e:'continuation'}]}));assert.equal(v.valid,true);assert.equal(v.people.length,1);assert.deepEqual(v.people[0].phones,['+2348039579786','+2348183488629'])});
 test('Nigerian 020 number is flagged, never silently rewritten',()=>{const v=validateScanOutput(JSON.stringify({people:[{r:1,y:100,x:100,n:'Test Person',p:['02066139143'],nc:98,pc:98,rc:95,ns:'clear',ps:'clear',rs:'clear',f:[],na:[],e:'row'}]}));assert.equal(v.valid,true);assert(v.needsReview[0].reasons.includes('phone_number_not_safely_validated'));assert.equal(v.people[0].phones[0],'+2342066139143')});
 test('duplicate exact observation inside one scan is rejected',()=>{const row={r:1,y:100,x:100,n:'Grace Nwosu',p:['08012345678'],nc:99,pc:99,rc:99,ns:'clear',ps:'clear',rs:'clear',f:[],na:[],e:'row'};const second={...row,r:2,y:200};const v=validateScanOutput(JSON.stringify({people:[row,second]}));assert.equal(v.people.length,1);assert.equal(v.rejected[0].reason,'duplicate_identity_in_scan')});
@@ -346,4 +356,36 @@ test('blank confirmation is org-scoped, writes no People, and either completes b
  assert.ok(scanModalSource.includes("state.stage==='needs_confirmation'"));
  assert.ok(scanModalSource.includes("onClick={()=>resolveBlank(true)}"));
  assert.ok(scanModalSource.includes("onClick={()=>resolveBlank(false)}"));
+});
+
+
+test('blank-page YES completes the saved scan without People or Review writes',async()=>{
+ const x=fakeBlankConfirmationRuntime();
+ await x.handler(x.request(true),x.response);
+ assert.equal(x.response.statusCode,200);
+ assert.equal(x.response.body.status,'complete');
+ assert.equal(x.response.body.result.blank_confirmed,true);
+ assert.equal(x.response.body.result.new_members,0);
+ assert.match(x.response.body.result.summary,/No People or review records were changed/);
+ assert.equal(x.workerCalls.length,0);
+ assert.equal(x.queries.some(q=>/INSERT INTO people|createScanReview/i.test(q.sql)),false);
+ assert.ok(x.queries.some(q=>q.sql.includes("SET status='complete'")));
+ assert.ok(x.queries.some(q=>q.sql.trim()==='COMMIT'));
+});
+
+test('blank-page NO queues the same saved photo for a fresh Qwen pipeline read',async()=>{
+ const x=fakeBlankConfirmationRuntime();
+ await x.handler(x.request(false),x.response);
+ assert.equal(x.response.statusCode,200);
+ assert.equal(x.response.body.status,'pending');
+ assert.equal(x.response.body.job_id,x.jobId);
+ assert.equal(x.workerCalls.length,1);
+ assert.equal(x.workerCalls[0][0],x.jobId);
+ assert.equal(x.workerCalls[0][1],x.imageData.toString('base64'));
+ assert.equal(x.workerCalls[0][2],x.organizationId);
+ assert.equal(x.workerCalls[0][3],'GIBEON');
+ assert.deepEqual(x.workerCalls[0][4],{actorId:'actor-test'});
+ assert.equal(x.scheduled.length,1);
+ assert.ok(x.queries.some(q=>q.sql.includes("SET status='pending'")));
+ assert.equal(x.queries.some(q=>/INSERT INTO people|createScanReview/i.test(q.sql)),false);
 });

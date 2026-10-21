@@ -1,5 +1,5 @@
 // scripts/scan-regression.js
-import test from'node:test';import assert from'node:assert/strict';import{readFileSync}from'node:fs';
+import test from'node:test';import assert from'node:assert/strict';import{readFileSync}from'node:fs';import sharp from'sharp';
 process.env.DATABASE_URL ||= 'postgres://test:test@127.0.0.1:5432/test';
 const{validateScanOutput,fuzzyMatch,normalizeName}=await import('../lib/scanValidation.js');const{resolveIdentities}=await import('../lib/identityResolver.js');const{nameSimilarity}=await import('../lib/duplicateDetector.js');
 const{getScanProgressPercent}=await import('../lib/scanProgress.js');
@@ -8,6 +8,7 @@ const{mergeScanRegions}=await import('../lib/scanRegionMerge.js');
 const{normalizeScanFailureStage,persistScanFailure,recordScanFailureAndAlert,sendScanFailureAlert}=await import('../lib/scanFailure.js');
 const admissionSource=readFileSync(new URL('../pages/api/scan/admission.js',import.meta.url),'utf8');
 const hybridSource=readFileSync(new URL('../lib/hybridScanProvider.js',import.meta.url),'utf8');
+const scanImageViewsSource=readFileSync(new URL('../lib/scanImageViews.js',import.meta.url),'utf8');
 const statusSource=readFileSync(new URL('../pages/api/scan/status.js',import.meta.url),'utf8');
 const progressUiSource=readFileSync(new URL('../components/AriaProcessingStatus.js',import.meta.url),'utf8');
 const scanModalSource=readFileSync(new URL('../components/ScanModal.js',import.meta.url),'utf8');
@@ -20,6 +21,7 @@ const scanStateSource=readFileSync(new URL('../lib/scanState.js',import.meta.url
 const scanBlankConfirmSource=readFileSync(new URL('../pages/api/scan/confirm-blank.js',import.meta.url),'utf8');
 const scanBlankCoreSource=readFileSync(new URL('../lib/scanBlankConfirmation.js',import.meta.url),'utf8');
 const{classifyScanRegions}=await import('../lib/scanCompleteness.js');
+const{makeScanRegions}=await import('../lib/scanImageViews.js');
 const{createConfirmBlankHandler}=await import('../lib/scanBlankConfirmation.js');
 const phone=n=>({normalized:n}),base={type:'person',status:'active',metadata:{identity_verified:true},living_truth:{status:'alive'},identity_verification_status:'verified'};
 function clientFor(people){return{async query(sql){if(/FROM people WHERE organization_id/.test(sql))return{rows:people};if(/FROM person_aliases/.test(sql))return{rows:[]};if(/FROM identity_shared_contacts/.test(sql))return{rows:[]};if(/FROM identity_pair_decisions/.test(sql))return{rows:[]};throw new Error(`Unexpected SQL in regression client: ${sql.slice(0,80)}`)}}}
@@ -69,9 +71,11 @@ test('scan vision remains pinned to Groq Qwen 3.8 with no alternate vision provi
  assert.ok(hybridSource.includes('rateLimitRetries<2'));
  assert.ok(hybridSource.includes('jsonFallbackUsed'));
 });
-test('scan uses one full-page region and publishes fresh backend heartbeats',()=>{
+test('scan uses one multi-view provider region and publishes fresh backend heartbeats',()=>{
  assert.ok(hybridSource.includes('for(let i=0;i<regions.length;i++)'));
- assert.ok(hybridSource.includes('return[{id:1,y0:0,y1:H,w:W,h:H,data:page.base64}]'));
+ assert.ok(hybridSource.includes('makeScanRegions(page)'));
+ assert.ok(scanImageViewsSource.includes('images:[full,top,bottom]'));
+ assert.ok(hybridSource.includes("...images.map(view=>({type:'image_url'"));
  assert.ok(hybridSource.includes('provider:PRIMARY.provider,regions:1,reasoning:\'none\''));
  assert.equal(hybridSource.includes('Promise.all(regions.map'),false);
  assert.ok(hybridSource.includes('setInterval(()=>{if(activeRegion)report(stage'));
@@ -99,7 +103,7 @@ test('Groq Retry-After is not inflated by an unrelated non-exhausted token reset
 test('scan disables reasoning and bounds output for OTPM while keeping same-model recovery',()=>{
  assert.ok(hybridSource.includes("reasoning_effort:'none'"));
  assert.ok(hybridSource.includes('max_completion_tokens:Math.min(900,model.max_completion_tokens)'));
- assert.ok(hybridSource.includes('Handwritten SIS is the three-letter honorific S-I-S'));
+ assert.ok(hybridSource.includes('Handwritten SIS is S-I-S, not SB unless B is genuinely visible'));
  assert.ok(hybridSource.includes('const retryDelaySeconds=r.response.status===429?cooldownSeconds(rate,providerMessage):0'));
  assert.ok(hybridSource.includes('getRateLimitRetrySeconds({message:row.retry_reason'));
  assert.ok(hybridSource.includes('rateLimitRetries<2'));
@@ -402,4 +406,44 @@ test('blank-page NO queues the same saved photo for a fresh Qwen pipeline read',
  assert.equal(x.scheduled.length,1);
  assert.ok(x.queries.some(q=>q.sql.includes("SET status='pending'")));
  assert.equal(x.queries.some(q=>/INSERT INTO people|createScanReview/i.test(q.sql)),false);
+});
+
+
+test('Qwen scan uses full-page plus overlapping detail crops in one provider input',async()=>{
+ const width=1000,height=1800;
+ const buffer=await sharp({create:{width,height,channels:3,background:'#ffffff'}}).jpeg({quality:90}).toBuffer();
+ const page={width,height,buffer,base64:buffer.toString('base64')};
+ const regions=await makeScanRegions(page);
+ assert.equal(regions.length,1,'multi-view must not create extra provider requests');
+ const region=regions[0];
+ assert.equal(region.y0,0);assert.equal(region.y1,height);
+ assert.equal(region.images.length,3);
+ assert.equal(region.images[0].label,'full_page');
+ assert.equal(region.images[0].data,page.base64);
+ assert.equal(region.images[1].label,'upper_detail');
+ assert.equal(region.images[1].y0,0);
+ assert.equal(region.images[1].y1,1116);
+ assert.equal(region.images[2].label,'lower_detail');
+ assert.equal(region.images[2].y0,684);
+ assert.equal(region.images[2].y1,height);
+ assert.equal(region.images[1].y1-region.images[2].y0,432,'detail images must overlap');
+ const upper=await sharp(Buffer.from(region.images[1].data,'base64')).metadata();
+ const lower=await sharp(Buffer.from(region.images[2].data,'base64')).metadata();
+ assert.deepEqual([upper.width,upper.height],[width,1116]);
+ assert.deepEqual([lower.width,lower.height],[width,1116]);
+ assert.ok(scanProviderSource.includes("...images.map(view=>({type:'image_url'"));
+ assert.ok(scanProviderSource.includes('PHONE DIGITS ARE A REQUIRED EXTRACTION FIELD'));
+ assert.ok(scanProviderSource.includes("SCAN_PIPELINE_VERSION='v73-single-call-multiview-ocr'"));
+ assert.ok(scanProviderSource.includes('makeScanRegions(page)'));
+ assert.ok(scanImageViewsSource.includes('images:[full,top,bottom]'));
+});
+
+test('Qwen extraction telemetry stores phone coverage counts but no extracted personal values',()=>{
+ const observerSource=readFileSync(new URL('../lib/aiObserver.js',import.meta.url),'utf8');
+ assert.ok(observerSource.includes('additionalMetrics={}'));
+ assert.ok(observerSource.includes('extraction_metrics=$1::jsonb'));
+ assert.ok(scanProviderSource.includes('rows_with_phones:withPhones'));
+ assert.ok(scanProviderSource.includes('rows_without_phones:people.length-withPhones'));
+ assert.ok(scanProviderSource.includes('phone_coverage_rate'));
+ assert.ok(!scanProviderSource.includes('person.name,phone_digits_sample'));
 });

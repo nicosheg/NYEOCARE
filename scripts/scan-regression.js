@@ -358,7 +358,6 @@ test('phase 2 empty-page handling stops before validation and identity writes',(
 
 test('blank confirmation is org-scoped, writes no People, and either completes blank or rereads saved evidence',()=>{
  assert.ok(scanBlankConfirmSource.includes("export default withOrg(handler)"));
- assert.ok(scanBlankConfirmSource.includes("export default withOrg(handler)"));
  assert.ok(scanBlankCoreSource.includes("row.status!=='needs_confirmation'"));
  assert.ok(scanBlankCoreSource.includes("status='complete'"));
  assert.ok(scanBlankCoreSource.includes("status='pending'"));

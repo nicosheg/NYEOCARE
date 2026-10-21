@@ -6,7 +6,8 @@ import{waitUntil}from'@vercel/functions';
 
 export const config={api:{bodyParser:{sizeLimit:'1mb'}},maxDuration:300};
 
-async function handler(req,res){
+export function createConfirmBlankHandler({db=pool,runVision=processVisionJob,schedule=waitUntil}={}){
+ return async function handler(req,res){
  res.setHeader('Cache-Control','no-store,no-cache,must-revalidate,private');
  if(req.method!=='POST')return res.status(405).json({error:'Method not allowed'});
  const{job_id,confirm_blank}=req.body||{};
@@ -14,7 +15,7 @@ async function handler(req,res){
  if(typeof confirm_blank!=='boolean')return res.status(400).json({error:'Choose whether the page is blank.',code:'SCAN_CONFIRMATION_REQUIRED'});
  let client=null,inTransaction=false,row=null;
  try{
-  client=await pool.connect();
+  client=await db.connect();
   await client.query('BEGIN');inTransaction=true;
   const found=await client.query(`SELECT j.id,j.status,j.program_name,j.actor_id,j.started_at,j.created_at,j.checkpoint,e.image_data FROM scan_jobs j LEFT JOIN scan_evidence e ON e.scan_job_id=j.id AND e.organization_id=j.organization_id WHERE j.id=$1 AND j.organization_id=$2 FOR UPDATE OF j`,[job_id,req.org.id]);
   row=found.rows[0]||null;
@@ -34,8 +35,8 @@ async function handler(req,res){
   if(!queued.rowCount){await client.query('ROLLBACK');inTransaction=false;return res.status(409).json({error:'This scan has already changed state.',code:'SCAN_CONFIRMATION_NOT_PENDING'})}
   const imageBase64=Buffer.from(row.image_data).toString('base64'),organizationId=req.org.id,programName=row.program_name||'Default',actorId=row.actor_id||req.user?.id||null;
   await client.query('COMMIT');inTransaction=false;
-  const task=processVisionJob(row.id,imageBase64,organizationId,programName,{actorId}).catch(error=>console.error('[SCAN_CONFIRMATION] Reread worker failed:',{job_id:row.id,organization_id:organizationId,error:error?.message||error}));
-  try{waitUntil(task)}catch(error){console.error('[SCAN_CONFIRMATION] Could not register reread with waitUntil:',error?.message||error);void task}
+  const task=runVision(row.id,imageBase64,organizationId,programName,{actorId}).catch(error=>console.error('[SCAN_CONFIRMATION] Reread worker failed:',{job_id:row.id,organization_id:organizationId,error:error?.message||error}));
+  try{schedule(task)}catch(error){console.error('[SCAN_CONFIRMATION] Could not register reread with waitUntil:',error?.message||error);void task}
   return res.status(200).json({ok:true,status:'pending',job_id:row.id,message:'ARIA is rereading the same saved photo. No People were changed by the incomplete read.'});
  }catch(error){
   if(client&&inTransaction)try{await client.query('ROLLBACK')}catch{}
@@ -43,4 +44,7 @@ async function handler(req,res){
   return res.status(500).json({error:'ARIA could not safely record that choice. No People were changed.',code:'SCAN_CONFIRMATION_FAILED'});
  }finally{if(client)try{client.release()}catch{}}
 }
+ }
+}
+const handler=createConfirmBlankHandler();
 export default withOrg(handler);

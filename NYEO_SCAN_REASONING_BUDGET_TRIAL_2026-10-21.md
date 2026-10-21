@@ -29,10 +29,10 @@ Total across these three completed requests was 12,301 input tokens + 1,595 outp
 - v74 cost about 76% more than v72; multi-view is retained for the first reasoning canary because it preserves both global layout and close handwriting detail. Do not invest in a new crop architecture before measuring accuracy.
 
 ## Canary protocol
-1. Hold the model, input photo, three image views, JSON schema, learning cues and 900-token ceiling constant. Change only reasoning effort from `none` to `low`. This isolates the reasoning experiment.
+1. Keep the model, photo, three image views, JSON schema, learning cues and 900-token ceiling fixed. Compare the v74 baseline against the v75 trial bundle, which changes reasoning effort to `low` and adds one bounded visual-verification instruction. This is a controlled same-image comparison of the bundle; it does **not** isolate the contribution of reasoning effort from the prompt change.
 2. Run the same names-only register through the current app once. Compare it with the saved v74 result: row count, each literal name, honorific, spelling, final-row integrity, review flags, token usage and end-to-end latency.
 3. Do not call this a win if only the JSON parses. A human must verify each row against the image. Do not infer phones or dates that are not on this page.
-4. If low reasoning is at least as accurate, does not truncate or loop, and remains within a reasonable token/latency increase, keep it. If not, set `SCAN_REASONING_EFFORT=none` and stop; do not swap models.
+4. If the v75 bundle is at least as accurate, does not truncate or loop, and stays within a reasonable token/latency increase, keep the bundle. If it regresses, first set `SCAN_REASONING_EFFORT=none` as a fast safety rollback; if the prompt change itself is suspected, revert the v75 prompt bundle in code. Do not swap models. If results are mixed, run a second small test that separates the reasoning-setting change from the prompt-instruction change before spending more tokens.
 5. Only after this first canary, expand to a small set of real registers with manually verified transcripts. Keep real names, phone numbers, images and ground truth out of public source control and CI artifacts.
 
 ## Safety and scope

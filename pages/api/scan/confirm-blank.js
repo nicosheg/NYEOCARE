@@ -45,6 +45,5 @@ export function createConfirmBlankHandler({db=pool,runVision=processVisionJob,sc
  }finally{if(client)try{client.release()}catch{}}
 }
  }
-}
 const handler=createConfirmBlankHandler();
 export default withOrg(handler);

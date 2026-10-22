@@ -52,5 +52,6 @@ assert.ok(peopleApi.includes("regexp_replace(COALESCE(p.phone,''), '[^0-9]', '',
 assert.ok(peoplePage.includes('aria-label="Search people by name, phone, or email"')&&peoplePage.includes('aria-label="Clear search"'),'People search must remain accessible and provide a one-tap clear action.');
 assert.ok(peoplePage.includes('aria-controls="people-filter-panel"')&&peoplePage.includes('Reset filters')&&peoplePage.includes('aria-pressed={showLivingTruthOnly}'),'People filters must be consolidated into an accessible expandable panel with reset support.');
 assert.ok(peoplePage.includes('Add multiple people')&&peoplePage.includes('Bulk add from a list')&&!peoplePage.includes('Bulk add</button>'),'Single and bulk person creation must share one Add people action rather than competing toolbar buttons.');
+assert.ok(peoplePage.includes("search||activeFilterCount>0?'No people found':'No people yet'"),'An empty People result caused by any active filter must not be described as an empty organization.');
 console.log('[PEOPLE EDIT REGRESSION]');
 console.log('PASS: SQL-bound edits, email/type/status persistence, inactive directory filtering, and ARIA synchronization/suppression contracts.');

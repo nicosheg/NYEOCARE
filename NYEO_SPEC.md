@@ -2794,19 +2794,19 @@ Processing progress writes are serialized and guarded so they cannot overwrite a
 ## People editing, membership type, inactive status, and ARIA synchronization — 22 October 2026
 
 ### Canonical editing path
-The People directory and Person Journey profile editor must both use the shared \`updatePersonRecord\` mutation through \`pages/api/people.js\`. Do not maintain separate handwritten update SQL in UI routes. Names, phone, email, birthday, member/visitor type, and active/inactive status are validated and persisted in one transaction. UUID and organization identifiers must be bound SQL parameters; updates must never construct unbound identifiers into \`WHERE\` clauses.
+The People directory and Person Journey profile editor must both use the shared `updatePersonRecord` mutation through `pages/api/people.js`. Do not maintain separate handwritten update SQL in UI routes. Names, phone, email, birthday, member/visitor type, and active/inactive status are validated and persisted in one transaction. UUID and organization identifiers must be bound SQL parameters; updates must never construct unbound identifiers into `WHERE` clauses.
 
 Owner/admin operators may edit active and inactive People records, including records whose Living Truth needs review. Archived records remain protected from ordinary edits and must use the established restore flow. Duplicate phone conflicts and invalid dates must return actionable errors without partial changes.
 
 ### Membership and organization status are different
-- \`type\`: \`member\` or \`visitor\` — the person’s organization relationship classification.
-- \`status\`: \`active\`, \`inactive\`, or the existing archived state — whether the record is currently included in day-to-day People operations.
+- `type`: `member` or `visitor` — the person’s organization relationship classification.
+- `status`: `active`, `inactive`, or the existing archived state — whether the record is currently included in day-to-day People operations.
 - Inactive is not archive, deletion, absence, or an explanation for inactivity. Preserve the person’s history and identity.
 
 Both People and Person Journey edit surfaces expose type and active/inactive status. The People directory supports Active (default), Inactive, and All statuses filters. The Person Journey profile shows the current type and whether care follow-up is paused.
 
 ### ARIA change event and follow-up contract
-A successful edit writes one provenance-aware \`PERSON_UPDATED\` event in the same database transaction as the record change. After commit, NYEOCARE immediately passes that event to the ARIA Director/event processor; if immediate processing fails, the committed event remains queued for durable processing. The event records the changed field names and type/status transitions without duplicating private contact data in event metadata.
+A successful edit writes one provenance-aware `PERSON_UPDATED` event in the same database transaction as the record change. After commit, NYEOCARE immediately passes that event to the ARIA Director/event processor; if immediate processing fails, the committed event remains queued for durable processing. The event records the changed field names and type/status transitions without duplicating private contact data in event metadata.
 
 When a person is changed from active to inactive:
 1. cancel currently proposed or approved follow-up actions so they do not reappear as current work;
@@ -2815,7 +2815,7 @@ When a person is changed from active to inactive:
 4. allow the person to become active again via the edit screen, after which ARIA may assess current evidence again rather than inventing missing history.
 
 ### Bulk-action confirmation contract
-Routine confirmed bulk People type changes use one explicit confirmation step. The preview states the count and exact type mutation in one sentence; the ARIA chat surfaces a single \`Confirm\` action and a \`Cancel\` option at the same decision point. The server validates owner/admin role again at execution time. A confirmation must never be counted twice or silently applied before approval.
+Routine confirmed bulk People type changes use one explicit confirmation step. The preview states the count and exact type mutation in one sentence; the ARIA chat surfaces a single `Confirm` action and a `Cancel` option at the same decision point. The server validates owner/admin role again at execution time. A confirmation must never be counted twice or silently applied before approval.
 
 ### Regression contract
 The People edit regression must cover the prior PostgreSQL UUID-versus-integer failure class, bound SQL parameters, all editable fields, active/inactive filters, canonical ARIA event processing, inactivity suppression, and the single bulk confirmation contract. The production check is not complete until CI, build, health verification, and the deployed commit all succeed.

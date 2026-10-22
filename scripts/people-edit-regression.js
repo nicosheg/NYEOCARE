@@ -1,0 +1,45 @@
+import fs from'node:fs';
+import assert from'node:assert/strict';
+
+const read=p=>fs.readFileSync(p,'utf8');
+const peoplePage=read('pages/people.js');
+const personPage=read('pages/person/[id].js');
+const peopleApi=read('pages/api/people.js');
+const mutation=read('lib/aria/peopleMutationEngine.js');
+const recommendations=read('lib/aria/recommendationEngine.js');
+const eventProcessor=read('lib/aria/eventProcessor.js');
+const command=read('lib/aria/commandEngine.js');
+const conversation=read('lib/aria/conversationEngine.js');
+const ariaPage=read('pages/aria.js');
+
+assert.ok(peopleApi.includes("import{updatePersonRecord}from'../../lib/aria/peopleMutationEngine';"),'The People API must use the canonical edit mutation.');
+assert.ok(peopleApi.includes("requestedPersonStatus")&&peopleApi.includes("p.status=$"),'The inactive status filter must use a bound SQL parameter.');
+assert.ok(peopleApi.includes("r.type,r.status,r.birthday"),'People API responses must include organization status.');
+assert.ok(peopleApi.includes("p.status IN ('active','inactive')"),'The directory must be able to query active and inactive records.');
+assert.ok(!peopleApi.includes("WHERE id=n AND organization_id=n+1"),'The old UUID-versus-integer update predicate must not return.');
+
+assert.ok(mutation.includes("WHERE id=$\"+idIndex+\"::uuid AND organization_id=$\"+organizationIndex"),'Every person update must bind UUID and organization placeholders.');
+assert.ok(mutation.includes("fields.email!==undefined"),'Person email edits must persist.');
+assert.ok(mutation.includes("fields.type!==undefined"),'Person member/visitor classification edits must persist.');
+assert.ok(mutation.includes("fields.status!==undefined"),'Active/inactive status edits must persist.');
+assert.ok(mutation.includes("status IN('active','inactive')"),'Active and inactive records must remain editable unless archived.');
+assert.ok(mutation.includes("await directAriaEvent(event)"),'Person edits must be sent to ARIA immediately after the database commit.');
+assert.ok(mutation.includes("eventKey:'aria-person-edit:'"),'Person edits must have an auditable ARIA event identity.');
+
+assert.ok(peoplePage.includes("value={personStatusFilter}"),'The People page must expose active/inactive status filtering.');
+assert.ok(peoplePage.includes("value={editType}"),'The People edit card must retain member/visitor selection.');
+assert.ok(peoplePage.includes("value={editStatus}"),'The People edit card must allow active/inactive status changes.');
+assert.ok(peoplePage.includes("status:editStatus"),'The People edit request must send organization status.');
+assert.ok(personPage.includes("value={editType}"),'The person profile editor must offer member/visitor selection.');
+assert.ok(personPage.includes("value={editStatus}"),'The person profile editor must offer active/inactive status selection.');
+assert.ok(personPage.includes("body.status=nextStatus"),'The profile edit request must persist status changes.');
+
+assert.ok(recommendations.includes("AND(a.person_id IS NULL OR p.status='active')"),'Inactive people must not appear in the current pending-action list.');
+assert.ok(recommendations.includes("o.person_id IS NULL OR p.status='active'"),'Inactive people must not receive freshly generated observation follow-up actions.');
+assert.ok(eventProcessor.includes("personCanReceiveCurrentAction"),'Queued person-created events must not generate current follow-up actions for inactive people.');
+assert.ok(command.includes("Only their type will change."),'Bulk membership confirmation must be brief and scoped.');
+assert.ok(conversation.includes("?'Confirm change':'Confirm with ARIA'"),'Bulk updates must expose a single clear confirmation action.');
+assert.ok(ariaPage.includes("suggestion.label==='Confirm change'?'Confirm':'Prepare it'"),'The bulk action must have one direct Confirm button.');
+
+console.log('[PEOPLE EDIT REGRESSION]');
+console.log('PASS: SQL-bound edits, email/type/status persistence, inactive directory filtering, and ARIA synchronization/suppression contracts.');

@@ -37,6 +37,7 @@ assert.ok(personPage.includes("body.status=nextStatus"),'The profile edit reques
 assert.ok(recommendations.includes("AND(a.person_id IS NULL OR p.status='active')"),'Inactive people must not appear in the current pending-action list.');
 assert.ok(recommendations.includes("o.person_id IS NULL OR p.status='active'"),'Inactive people must not receive freshly generated observation follow-up actions.');
 assert.ok(eventProcessor.includes("personCanReceiveCurrentAction"),'Queued person-created events must not generate current follow-up actions for inactive people.');
+assert.ok(mutation.includes("Person marked inactive; current follow-up paused"),'Making a person inactive must cancel their pending follow-up actions.');
 assert.ok(command.includes("Only their type will change."),'Bulk membership confirmation must be brief and scoped.');
 assert.ok(conversation.includes("?'Confirm change':'Confirm with ARIA'"),'Bulk updates must expose a single clear confirmation action.');
 assert.ok(ariaPage.includes("suggestion.label==='Confirm change'?'Confirm':'Prepare it'"),'The bulk action must have one direct Confirm button.');

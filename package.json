@@ -12,7 +12,7 @@
     "create-owner": "node scripts/create-owner.js",
     "test:scan": "node --experimental-specifier-resolution=node --experimental-default-type=module scripts/scan-regression.js",
     "test:critical-ui": "node scripts/critical-ui-regression.js",
-    "test": "npm run test:daily-briefing && npm run test:aria-internal-messaging && npm run test:scan && npm run test:critical-ui && npm run test:aria-conversation && npm run test:aria-message-drafting && npm run test:aria-greeting-intent && npm run test:aria-bulk-people-type",
+    "test": "npm run test:daily-briefing && npm run test:aria-internal-messaging && npm run test:scan && npm run test:critical-ui && npm run test:aria-conversation && npm run test:aria-message-drafting && npm run test:aria-greeting-intent && npm run test:aria-bulk-people-type && npm run test:people-edit",
     "test:persistence": "node scripts/persistence-regression.js",
     "test:review-surface": "node scripts/review-surface-regression.js",
     "test:system-scale": "node scripts/system-scale-regression.js",
@@ -36,7 +36,8 @@
     "test:aria-message-drafting": "node --experimental-specifier-resolution=node --experimental-default-type=module scripts/aria-message-drafting-regression.js",
     "test:aria-agentic-surfaces": "node scripts/aria-agentic-surfaces-regression.js",
     "test:aria-greeting-intent": "node scripts/aria-greeting-intent-regression.js",
-    "test:aria-bulk-people-type": "node --experimental-specifier-resolution=node --experimental-default-type=module scripts/aria-bulk-people-type-regression.js"
+    "test:aria-bulk-people-type": "node --experimental-specifier-resolution=node --experimental-default-type=module scripts/aria-bulk-people-type-regression.js",
+    "test:people-edit": "node scripts/people-edit-regression.js"
   },
   "dependencies": {
     "next": "15.5.24",

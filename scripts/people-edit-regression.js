@@ -8,6 +8,7 @@ const peopleApi=read('pages/api/people.js');
 const mutation=read('lib/aria/peopleMutationEngine.js');
 const recommendations=read('lib/aria/recommendationEngine.js');
 const eventProcessor=read('lib/aria/eventProcessor.js');
+const intelligence=read('lib/aria/peopleIntelligence.js');
 const command=read('lib/aria/commandEngine.js');
 const conversation=read('lib/aria/conversationEngine.js');
 const ariaPage=read('pages/aria.js');
@@ -16,7 +17,7 @@ assert.ok(peopleApi.includes("import{updatePersonRecord}from'../../lib/aria/peop
 assert.ok(peopleApi.includes("requestedPersonStatus")&&peopleApi.includes("p.status=$"),'The inactive status filter must use a bound SQL parameter.');
 assert.ok(peopleApi.includes("r.type,r.status,r.birthday"),'People API responses must include organization status.');
 assert.ok(peopleApi.includes("p.status IN ('active','inactive')"),'The directory must be able to query active and inactive records.');
-assert.ok(!peopleApi.includes("WHERE id=n AND organization_id=n+1"),'The old UUID-versus-integer update predicate must not return.');
+assert.ok(!/WHERE id=\$\{n\} AND organization_id=\$\{n\+1\}/.test(peopleApi),'The old UUID-versus-integer update predicate must not return.');
 
 assert.ok(mutation.includes("WHERE id=$\"+idIndex+\"::uuid AND organization_id=$\"+organizationIndex"),'Every person update must bind UUID and organization placeholders.');
 assert.ok(mutation.includes("fields.email!==undefined"),'Person email edits must persist.');
@@ -38,6 +39,8 @@ assert.ok(recommendations.includes("AND(a.person_id IS NULL OR p.status='active'
 assert.ok(recommendations.includes("o.person_id IS NULL OR p.status='active'"),'Inactive people must not receive freshly generated observation follow-up actions.');
 assert.ok(eventProcessor.includes("personCanReceiveCurrentAction"),'Queued person-created events must not generate current follow-up actions for inactive people.');
 assert.ok(mutation.includes("Person marked inactive; current follow-up paused"),'Making a person inactive must cancel their pending follow-up actions.');
+assert.ok(intelligence.includes("status IN('active','inactive')"),'ARIA intelligence must process active and inactive person edits instead of retrying forever.');
+assert.ok(intelligence.includes("Current follow-up is paused while this person is inactive."),'Inactive People must have no current next-best-action recommendation.');
 assert.ok(command.includes("Only their type will change."),'Bulk membership confirmation must be brief and scoped.');
 assert.ok(conversation.includes("?'Confirm change':'Confirm with ARIA'"),'Bulk updates must expose a single clear confirmation action.');
 assert.ok(ariaPage.includes("suggestion.label==='Confirm change'?'Confirm':'Prepare it'"),'The bulk action must have one direct Confirm button.');

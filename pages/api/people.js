@@ -34,8 +34,19 @@ if(req.method==='GET'){
   if(living==='1')where.push(`COALESCE(p.living_truth->>'status','alive') IN ('needs_decision','conflict')`);
   if(search){
    const term=`%${search.replace(/[\\%_]/g,'\\$&')}%`;
-   where.push(`(COALESCE(p.display_name,'') ILIKE $${n} ESCAPE '\\\\' OR COALESCE(TRIM(CONCAT_WS(' ',p.first_name,p.last_name)),'') ILIKE $${n} ESCAPE '\\\\' OR COALESCE(p.phone,'') ILIKE $${n} ESCAPE '\\\\' OR COALESCE(p.email,'') ILIKE $${n} ESCAPE '\\\\')`);
-   values.push(term);n++;
+   const patternIndex=n++;
+   values.push(term);
+   const isPhoneSearch=/^[+\d\s().-]+$/.test(search);
+   const digits=search.replace(/\D/g,'');
+   let phoneDigitsClause='';
+   if(isPhoneSearch&&digits.length>=3){
+    const digitsIndex=n++;
+    values.push(`%${digits}%`);
+    const phoneDigitsExpr=`regexp_replace(COALESCE(p.phone,''), '[^0-9]', '', 'g')`;
+    const localPhoneExpr=`CASE WHEN ${phoneDigitsExpr} LIKE '234%' AND LENGTH(${phoneDigitsExpr})=13 THEN '0'||SUBSTRING(${phoneDigitsExpr} FROM 4) ELSE ${phoneDigitsExpr} END`;
+    phoneDigitsClause=` OR ${phoneDigitsExpr} LIKE $${digitsIndex} OR (${localPhoneExpr}) LIKE $${digitsIndex}`;
+   }
+   where.push(`(COALESCE(p.display_name,'') ILIKE $${patternIndex} ESCAPE E'\\\\' OR COALESCE(TRIM(CONCAT_WS(' ',p.first_name,p.last_name)),'') ILIKE $${patternIndex} ESCAPE E'\\\\' OR COALESCE(p.phone,'') ILIKE $${patternIndex} ESCAPE E'\\\\' OR COALESCE(p.email,'') ILIKE $${patternIndex} ESCAPE E'\\\\'${phoneDigitsClause})`);
   }
   const sortName=`LOWER(COALESCE(NULLIF(p.display_name,''),NULLIF(TRIM(CONCAT_WS(' ',p.first_name,p.last_name)),''),p.first_name,''))`;
   const cursorClause=cursor?`(r.new_rank,r.truth_rank,r.sort_name,r.id) > (${values.length+1}::int,${values.length+2}::int,${values.length+3}::text,${values.length+4}::uuid)`:'';

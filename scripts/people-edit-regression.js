@@ -41,6 +41,8 @@ assert.ok(eventProcessor.includes("personCanReceiveCurrentAction"),'Queued perso
 assert.ok(mutation.includes("Person marked inactive; current follow-up paused"),'Making a person inactive must cancel their pending follow-up actions.');
 assert.ok(intelligence.includes("status IN('active','inactive')"),'ARIA intelligence must process active and inactive person edits instead of retrying forever.');
 assert.ok(intelligence.includes("Current follow-up is paused while this person is inactive."),'Inactive People must have no current next-best-action recommendation.');
+assert.ok(intelligence.includes("SELECT id,status,type FROM people")&&intelligence.includes("personType:r.rows[0].type"),'ARIA intelligence must consume the canonical member/visitor field.');
+assert.ok(intelligence.includes("type==='visitor'&&count===0")&&intelligence.includes("type==='member'&&count<2"),'Visitor onboarding must not be recommended to members without confirming useful evidence.');
 assert.ok(command.includes("Only their type will change."),'Bulk membership confirmation must be brief and scoped.');
 assert.ok(conversation.includes("?'Confirm change':'Confirm with ARIA'"),'Bulk updates must expose a single clear confirmation action.');
 assert.ok(ariaPage.includes("suggestion.label==='Confirm change'?'Confirm':'Prepare it'"),'The bulk action must have one direct Confirm button.');

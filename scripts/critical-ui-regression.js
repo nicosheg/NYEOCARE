@@ -11,6 +11,7 @@ const home=read('pages/index.js');
 const peoplePage=read('pages/people.js');
 const personPage=read('pages/person/[id].js');
 const peopleApi=read('pages/api/people.js');
+const peopleMutation=read('lib/aria/peopleMutationEngine.js');
 const bulkPeopleApi=read('pages/api/people/bulk-create.js');
 const peopleSizing=read('styles/people-sizing.css');
 const reviewCenter=read('components/ReviewCenterTab.js');
@@ -286,7 +287,7 @@ const checks=[
  ['People roster silently refreshes expired auth sessions',
   /if\(res\.status===401\)/.test(peoplePage)&&/refreshClientSession\(\)/.test(peoplePage)&&/setAccessToken\(activeToken\)/.test(peoplePage)],
  ['Person editing preserves the displayed honorific/prefix',/setEditName\(p\.display_name\|\|/.test(personPage)],
- ['People API preserves an existing honorific when an edit omits it',/existing=normalizeDisplayName\(check\.rows\[0\]\.display_name/.test(peopleApi)&&/existing\.honorific&&!parsed\.honorific/.test(peopleApi)],
+ ['Canonical People mutation preserves an existing honorific when an edit omits it',/existingName=normalizeDisplayName\(current\.display_name/.test(peopleMutation)&&/existingName\.honorific&&!incomingName\.honorific/.test(peopleMutation)],
  ['People roster API projects canonical last_seen from engagement metrics',/em\.last_seen/.test(peopleApi)&&/AS last_seen/.test(peopleApi)&&/SELECT r\.id,/.test(peopleApi)&&/r\.last_seen/.test(peopleApi)],
  ['People cards render last_seen instead of silently falling back to last attended',/const formatLastSeen=/.test(peoplePage)&&/Last seen ·/.test(peoplePage)&&/formatLastSeen\(person\.last_seen\|\|person\.last_seen_at\)/.test(peoplePage)&&!/formatLastAttended\(/.test(peoplePage)],
  ['People roster Last seen is month/day only',/const formatLastSeen=/.test(peoplePage)&&/Intl\.DateTimeFormat\('en-NG',\{month:'short',day:'numeric',timeZone:'Africa\/Lagos'\}\)/.test(peoplePage)&&!/d\.getFullYear\(\)/.test(peoplePage)],
@@ -310,8 +311,10 @@ const checks=[
  ['Event processor remains durable',
   /createObservation\(/.test(eventProcessor)&&/sourceEventId:event\.id/.test(eventProcessor)],
 
- ['Edit Person can change type when phone is blank',
-  peopleApi.includes("const rawPhone=String(body.phone??'').trim()")&&/if\(rawPhone&&!phone\)/.test(peopleApi)&&/type!==current\.type/.test(peopleApi)],
+ ['Canonical People edit can clear phone and change member/visitor type',
+  peopleMutation.includes("const rawPhone=String(fields.phone??'').trim()")&&/if\(rawPhone&&!phone\)/.test(peopleMutation)&&/type!==String\(current\.type\|\|'visitor'\)\.toLowerCase\(\)/.test(peopleMutation)],
+ ['People edit exposes member and inactive status on both edit surfaces',
+  /value=\{editType\}/.test(peoplePage)&&/value=\{editStatus\}/.test(peoplePage)&&/status:editStatus/.test(peoplePage)&&/value=\{editType\}/.test(personPage)&&/value=\{editStatus\}/.test(personPage)&&/body\.status=nextStatus/.test(personPage)],
  ['People page exposes fast bulk add with a row preview and skipped-row feedback',
   /Bulk add/.test(peoplePage)&&/parseBulkPeopleRows/.test(peoplePage)&&/phoneOnly=line\.match/.test(peoplePage)&&/source_line_numbers/.test(peoplePage)&&/Add many people at once/.test(peoplePage)&&/bulkPreviewRows\.length>200/.test(peoplePage)&&/only skipped rows remain in the box/.test(peoplePage)],
  ['Bulk person creation is bounded, authorized, and duplicate-safe',

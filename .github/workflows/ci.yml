@@ -42,6 +42,7 @@ jobs:
       - run: npm run test:experience
       - run: npm run test:aria-agentic-surfaces
       - run: npm run test:aria-bulk-people-type
+      - run: npm run test:people-edit
       - run: npm run test:diagnostics
       - run: npm run test:aria-today
       - run: npm run test:aria-universal

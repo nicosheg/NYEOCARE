@@ -97,7 +97,7 @@ expect(peopleMutation.includes("from'./peopleRosterParser'"),'People mutation en
 expect(dailyQueue.includes("extracted_phones->>0 AS extracted_phone"),'Daily Queue must use the live scan-review schema for extracted phone data.');
 expect(diagnostics.includes('.toLowerCase().slice(0,500)'),'Diagnostic fingerprinting must use the valid String API.');
 expect(clientDiagnostics.includes('isExpectedAbort'),'Client telemetry must ignore expected browser aborts.');
-expect(peopleMutationEngine.includes("COALESCE(living_truth->>'status','alive')"),'Confirmed People updates must not reject records with a missing Living Truth status.');
+expect(peopleMutationEngine.includes("status IN('active','inactive')")&&!peopleMutationEngine.includes("COALESCE(living_truth->>'status','alive') NOT IN"),'People updates must allow missing/conflicting Living Truth while keeping archived records protected.');
 expect(peopleMutationEngine.includes("await client.query('BEGIN')")&&peopleMutationEngine.includes("},client)")&&peopleMutationEngine.includes("await client.query('COMMIT')"),'Confirmed People updates must atomically persist the record and provenance event.');
 
 console.log('[ARIA TODAY REGRESSION]');

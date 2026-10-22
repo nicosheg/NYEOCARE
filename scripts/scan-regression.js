@@ -35,6 +35,59 @@ function fakeBlankConfirmationRuntime(){
 }
 
 test('single-page validation preserves continuation ownership',()=>{const v=validateScanOutput(JSON.stringify({people:[{r:1,y:100,x:100,n:'Sandra Isichei',p:['08039579786'],nc:98,pc:96,rc:95,ns:'clear',ps:'clear',rs:'clear',f:[],na:[],e:'row 1'},{r:1,y:130,x:120,n:'',p:['08183488629'],nc:98,pc:90,rc:92,ns:'clear',ps:'clear',rs:'clear',f:[],na:[],e:'continuation'}]}));assert.equal(v.valid,true);assert.equal(v.people.length,1);assert.deepEqual(v.people[0].phones,['+2348039579786','+2348183488629'])});
+
+test('phone-only row is preserved independently and routed to Review when it is not a proven continuation',()=>{
+ const v=validateScanOutput(JSON.stringify({people:[
+  {r:1,y:100,n:'Sis Sandra Isichei',p:['08039579786'],dob:'',c:false,f:[],e:'named row'},
+  {r:2,y:130,n:'',p:['08183488629'],dob:'',c:false,f:[],e:'phone-only row nearby'}
+ ]}));
+ assert.equal(v.valid,true);
+ assert.equal(v.people.length,2);
+ assert.equal(v.people[1].name,'');
+ assert.equal(v.people[1].phones[0],'+2348183488629');
+ assert(v.people[1].extraction_review_reasons.includes('name_needs_verification'));
+ assert(v.needsReview.some(x=>x.row_number===2));
+});
+
+test('explicit, unambiguous continuation attaches; uncertain ownership never does',()=>{
+ const clear=validateScanOutput(JSON.stringify({people:[
+  {r:1,y:100,n:'Sis Sandra Isichei',p:['08039579786'],dob:'',c:false,f:[],e:'named row'},
+  {r:2,y:130,n:'',p:['08183488629'],dob:'',c:true,f:[],e:'clearly marked continuation'}
+ ]}));
+ assert.equal(clear.people.length,1);
+ assert.deepEqual(clear.people[0].phones,['+2348039579786','+2348183488629']);
+ const ambiguous=validateScanOutput(JSON.stringify({people:[
+  {r:1,y:100,n:'Sis Sandra Isichei',p:['08039579786'],dob:'',c:false,f:[],e:'named row'},
+  {r:2,y:130,n:'',p:['08183488629'],dob:'',c:true,f:['row_ownership_uncertain'],e:'uncertain continuation'}
+ ]}));
+ assert.equal(ambiguous.people.length,2);
+ assert(ambiguous.people[1].extraction_review_reasons.includes('row_evidence_needs_verification'));
+ assert(ambiguous.needsReview.some(x=>x.row_number===2));
+});
+
+test('DOB-only rows survive region merging and remain reviewable without invented identity fields',()=>{
+ const merged=mergeScanRegions([{region:{id:1,y0:0,y1:1000},people:[{y:500,n:'',p:[],dob:'23/04/1998',c:false,f:[],e:'DOB-only physical row'}]}],1000);
+ assert.equal(merged.length,1);
+ assert.equal(merged[0].n,'');
+ assert.equal(merged[0].dob,'23/04/1998');
+ const validation=validateScanOutput(JSON.stringify({people:merged}));
+ assert.equal(validation.valid,true);
+ assert.equal(validation.people.length,1);
+ assert.equal(validation.people[0].date_of_birth_raw,'23/04/1998');
+ assert(validation.people[0].extraction_review_reasons.includes('name_needs_verification'));
+ assert(validation.people[0].extraction_review_reasons.includes('phone_missing'));
+ assert.equal(validation.needsReview.length,1);
+});
+
+test('blank rows with no name, phone, or DOB are omitted rather than fabricated',()=>{
+ const v=validateScanOutput(JSON.stringify({people:[
+  {r:1,y:100,n:'',p:[],dob:'',c:false,f:[],e:'blank line'},
+  {r:2,y:200,n:'Bro John',p:['08012345678'],dob:'',c:false,f:[],e:'readable row'}
+ ]}));
+ assert.equal(v.valid,true);
+ assert.equal(v.people.length,1);
+ assert.equal(v.people[0].name,'Bro John');
+});
 test('Nigerian 020 number is flagged, never silently rewritten',()=>{const v=validateScanOutput(JSON.stringify({people:[{r:1,y:100,x:100,n:'Test Person',p:['02066139143'],nc:98,pc:98,rc:95,ns:'clear',ps:'clear',rs:'clear',f:[],na:[],e:'row'}]}));assert.equal(v.valid,true);assert(v.needsReview[0].reasons.includes('phone_number_not_safely_validated'));assert.equal(v.people[0].phones[0],'+2342066139143')});
 test('duplicate exact observation inside one scan is rejected',()=>{const row={r:1,y:100,x:100,n:'Grace Nwosu',p:['08012345678'],nc:99,pc:99,rc:99,ns:'clear',ps:'clear',rs:'clear',f:[],na:[],e:'row'};const second={...row,r:2,y:200};const v=validateScanOutput(JSON.stringify({people:[row,second]}));assert.equal(v.people.length,1);assert.equal(v.rejected[0].reason,'duplicate_identity_in_scan')});
 test('70–80% name similarity remains detectable',()=>{const a='Wheen Nwapa',b='Wuean Nwapa',f=fuzzyMatch(a,b),d=nameSimilarity(a,b);assert(f>=.7);assert(d.score>=70&&d.score<96)});
@@ -366,7 +419,7 @@ test('phase 2 empty-page handling stops before validation and identity writes',(
  assert.ok(scanProviderSource.indexOf('if(completeness.requiresConfirmation)')<scanProviderSource.indexOf('const merged=mergeScanRegions(parts,page.height,MAX)'));
  assert.ok(scanProviderSource.includes("jsonFallbackUsed=true"));
  assert.ok(scanProviderSource.includes("if(finishReason!=='stop')"));
- assert.ok(scanProviderSource.includes("!p.n.trim()"));
+ assert.ok(!scanProviderSource.includes("!p.n.trim()"));
  assert.ok(scanProviderSource.includes('return an empty people array; do not invent entries'));
  assert.ok(scanProcessorSource.includes("reason:'region_failed',regions:err.scan_region_states"));
  assert.ok(scanProviderSource.includes('error.scan_region_states=classifyScanRegions([...parts,failed]).regions'));
@@ -446,6 +499,7 @@ test('Qwen scan uses two overlapping detail crops and preserves a one-image fall
  assert.deepEqual([upper.width,upper.height],[width,1116]);
  assert.deepEqual([lower.width,lower.height],[width,1116]);
  assert.ok(scanProviderSource.includes("...images.map(view=>({type:'image_url'"));
+ assert.ok(scanProviderSource.includes('LANGUAGE AND NAMES:'));assert.ok(scanProviderSource.includes('Nigerian names'));assert.ok(scanProviderSource.includes('typeof p.c!==\'boolean\''));assert.ok(scanProviderSource.includes('if(!name&&!phones.length&&!dob)continue;'));assert.ok(scanProviderSource.includes('c:{type:\'boolean\'}'));assert.ok(!scanProviderSource.includes("!p.n.trim()"));
  assert.ok(scanProviderSource.includes('PHONE DIGITS ARE A REQUIRED EXTRACTION FIELD'));
  assert.ok(scanProviderSource.includes('getScanPipelineVersion(SCAN_REASONING_EFFORT)'));
  assert.ok(scanProviderSource.includes('makeScanRegions(page)'));
@@ -456,12 +510,12 @@ test('Qwen uses bounded low-effort visual verification and still emits schema-on
  assert.equal(resolveScanReasoningEffort('low'),'low');
  assert.equal(resolveScanReasoningEffort('none'),'none');
  assert.equal(resolveScanReasoningEffort(null),'low');
- assert.equal(getScanPipelineVersion('low'),'v76-low-reasoning-budgeted-views-json');
- assert.equal(getScanPipelineVersion('none'),'v76-no-reasoning-budgeted-views-json');
+ assert.equal(getScanPipelineVersion('low'),'v77-low-reasoning-literal-partial-fields-json');
+ assert.equal(getScanPipelineVersion('none'),'v77-no-reasoning-literal-partial-fields-json');
  assert.match(SCAN_VISUAL_VERIFICATION_INSTRUCTION,/one brief verification pass/);
- assert.match(SCAN_VISUAL_VERIFICATION_INSTRUCTION,/Count the written rows from top to bottom/);
+ assert.match(SCAN_VISUAL_VERIFICATION_INSTRUCTION,/Count distinct physical rows top to bottom/);
  assert.match(SCAN_VISUAL_VERIFICATION_INSTRUCTION,/Return only the compact JSON object/);
- assert.match(SCAN_VISUAL_VERIFICATION_INSTRUCTION,/Do not output an explanation/);
+ assert.match(SCAN_VISUAL_VERIFICATION_INSTRUCTION,/Do not output rationale, analysis, markdown/);
  assert.ok(scanProviderSource.includes('reasoning_effort:reasoningEffort'));
  assert.ok(scanProviderSource.includes("reasoning_format:'hidden'"));
  assert.ok(scanProviderSource.includes('SCAN_VISUAL_VERIFICATION_INSTRUCTION'));
@@ -473,6 +527,7 @@ test('Qwen extraction telemetry stores phone coverage counts but no extracted pe
  assert.ok(observerSource.includes('extraction_metrics=$1::jsonb'));
  assert.ok(scanProviderSource.includes('rows_with_phones:withPhones'));
  assert.ok(scanProviderSource.includes('rows_without_phones:people.length-withPhones'));
- assert.ok(scanProviderSource.includes('phone_coverage_rate'));
+ assert.ok(scanProviderSource.includes('phone_coverage_rate'));assert.ok(scanProviderSource.includes('name_coverage_rate'));assert.ok(scanProviderSource.includes('rows_partial_or_uncertain'));
+
  assert.ok(!scanProviderSource.includes('person.name,phone_digits_sample'));
 });

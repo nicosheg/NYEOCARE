@@ -513,9 +513,9 @@ test('Qwen uses bounded low-effort visual verification and still emits schema-on
  assert.equal(getScanPipelineVersion('low'),'v77-low-reasoning-literal-partial-fields-json');
  assert.equal(getScanPipelineVersion('none'),'v77-no-reasoning-literal-partial-fields-json');
  assert.match(SCAN_VISUAL_VERIFICATION_INSTRUCTION,/one brief verification pass/);
- assert.match(SCAN_VISUAL_VERIFICATION_INSTRUCTION,/Count the written rows from top to bottom/);
+ assert.match(SCAN_VISUAL_VERIFICATION_INSTRUCTION,/Count distinct physical rows top to bottom/);
  assert.match(SCAN_VISUAL_VERIFICATION_INSTRUCTION,/Return only the compact JSON object/);
- assert.match(SCAN_VISUAL_VERIFICATION_INSTRUCTION,/Do not output an explanation/);
+ assert.match(SCAN_VISUAL_VERIFICATION_INSTRUCTION,/Do not output rationale, analysis, markdown/);
  assert.ok(scanProviderSource.includes('reasoning_effort:reasoningEffort'));
  assert.ok(scanProviderSource.includes("reasoning_format:'hidden'"));
  assert.ok(scanProviderSource.includes('SCAN_VISUAL_VERIFICATION_INSTRUCTION'));

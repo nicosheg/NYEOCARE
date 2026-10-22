@@ -2808,6 +2808,8 @@ Both People and Person Journey edit surfaces expose type and active/inactive sta
 ### ARIA change event and follow-up contract
 A successful edit writes one provenance-aware `PERSON_UPDATED` event in the same database transaction as the record change. After commit, NYEOCARE immediately passes that event to the ARIA Director/event processor; if immediate processing fails, the committed event remains queued for durable processing. The event records the changed field names and type/status transitions without duplicating private contact data in event metadata.
 
+Visitor/member type must inform the recommendation engine, not merely be displayed: a visitor with no confirmed participation history can receive a gentle welcome suggestion; a member with fewer than two confirmed participations must not receive a visitor-style welcome based on missing data alone. Meaningful human feedback, relationship changes, or other direct care evidence can still justify an appropriate follow-up regardless of type.
+
 When a person is changed from active to inactive:
 1. cancel currently proposed or approved follow-up actions so they do not reappear as current work;
 2. keep past observations, attendance, communications, and history intact;

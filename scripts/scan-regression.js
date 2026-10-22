@@ -1,7 +1,7 @@
 // scripts/scan-regression.js
 import test from'node:test';import assert from'node:assert/strict';import{readFileSync}from'node:fs';import sharp from'sharp';
 process.env.DATABASE_URL ||= 'postgres://test:test@127.0.0.1:5432/test';
-const{validateScanOutput,fuzzyMatch,normalizeName}=await import('../lib/scanValidation.js');const{resolveIdentities}=await import('../lib/identityResolver.js');const{nameSimilarity}=await import('../lib/duplicateDetector.js');const{getModelConfig}=await import('../lib/modelRegistry.js');
+const{validateScanOutput,fuzzyMatch,normalizeName,normalizeDisplayName}=await import('../lib/scanValidation.js');const{resolveIdentities}=await import('../lib/identityResolver.js');const{nameSimilarity}=await import('../lib/duplicateDetector.js');const{getModelConfig}=await import('../lib/modelRegistry.js');
 const{getScanProgressPercent}=await import('../lib/scanProgress.js');
 const{parseRetryAfterSeconds,parseDurationSeconds,getRateLimitRetrySeconds}=await import('../lib/scanRateLimit.js');
 const{mergeScanRegions}=await import('../lib/scanRegionMerge.js');const{formatScanLearningHints}=await import('../lib/scanLearningHints.js');const{resolveScanReasoningEffort,getScanPipelineVersion,SCAN_VISUAL_VERIFICATION_INSTRUCTION}=await import('../lib/scanReasoning.js');
@@ -94,8 +94,44 @@ test('70–80% name similarity remains detectable',()=>{const a='Wheen Nwapa',b=
 test('exact existing identity remains recognized even when one extracted field needs review',async()=>{const existing={...base,id:'11111111-1111-1111-1111-111111111111',first_name:'Precious',last_name:'Okafor',display_name:'Sis Precious Okafor',phone:'+2348035230123',phone_numbers:[phone('+2348035230123')]};const input=[{row_number:9,name:'Sis Precious Okafor',first_name:'Precious',last_name:'Okafor',phones:['+2348035230123'],rawPhones:['08035230123'],extraction_review_reasons:['name_evidence_ambiguous']}];const out=await resolveIdentities(input,'org-test','job-test',clientFor([existing]));assert.equal(out[0].status,'alive');assert.equal(out[0].best_candidate_id,existing.id);assert(out[0].field_review_reasons.includes('name_evidence_ambiguous'))});
 test('two exact same-name owners do not auto-merge',async()=>{const a={...base,id:'11111111-1111-1111-1111-111111111111',display_name:'John Okafor',first_name:'John',last_name:'Okafor',phone_numbers:[phone('+2348011111111')]},b={...base,id:'22222222-2222-2222-2222-222222222222',display_name:'John Okafor',first_name:'John',last_name:'Okafor',phone_numbers:[phone('+2348022222222')]};const out=await resolveIdentities([{row_number:1,name:'John Okafor',phones:[],extraction_review_reasons:[]}],'org-test','job-test',clientFor([a,b]));assert.equal(out[0].status,'conflict');assert.equal(out[0].best_candidate_id,null)});
 
+test('display names normalize title casing and repair the known SB/SIS honorific while retaining raw evidence',()=>{
+ assert.equal(normalizeDisplayName('pastor Emma').display,'Pastor Emma');
+ assert.equal(normalizeDisplayName('Bro onjekachi').display,'Bro Onjekachi');
+ assert.equal(normalizeDisplayName('SB Deborah').display,'Sis Deborah');
+ const v=validateScanOutput(JSON.stringify({people:[
+  {r:1,y:100,n:'SB Deborah',p:[],d:'',f:[]},
+  {r:2,y:180,n:'pastor Emma',p:[],d:'',f:[]}
+ ]}));
+ assert.equal(v.valid,true);
+ assert.equal(v.people[0].name,'Sis Deborah');
+ assert.equal(v.people[0].display_name,'Sis Deborah');
+ assert.equal(v.people[0].raw_name,'SB Deborah');
+ assert(v.people[0].extraction_review_reasons.includes('suspected_honorific_confusion'));
+ assert.equal(v.people[1].name,'Pastor Emma');
+ assert.equal(v.people[1].raw_name,'pastor Emma');
+});
+
+test('top-to-bottom source order wins over contradictory model y coordinates',()=>{
+ const v=validateScanOutput(JSON.stringify({people:[
+  {r:2,y:100,n:'Pastor Second',p:[],d:'',f:[]},
+  {r:1,y:900,n:'Sis First',p:[],d:'',f:[]}
+ ]}));
+ assert.equal(v.valid,true);
+ assert.deepEqual(v.people.map(x=>x.name),['Sis First','Pastor Second']);
+ assert.deepEqual(v.people.map(x=>x.row_number),[1,2]);
+ assert.deepEqual(v.people.map(x=>x.model_row_number),[1,2]);
+});
+
+test('region merge preserves explicit top-to-bottom record ordinals when y estimates are wrong',()=>{
+ const rows=mergeScanRegions([{region:{id:1,y0:0,y1:1000},people:[
+  {r:2,y:100,n:'Pastor Second',p:[],dob:'',c:false,f:[],e:'second record in sequence'},
+  {r:1,y:900,n:'Sis First',p:[],dob:'',c:false,f:[],e:'first record in sequence'}
+ ]}],1000,50);
+ assert.deepEqual(rows.map(x=>x.n),['Sis First','Pastor Second']);
+ assert.deepEqual(rows.map(x=>x.r),[1,2]);
+});
 test('literal honorific and spelling are preserved for display while identity matching may normalize them',()=>{const v=validateScanOutput(JSON.stringify({people:[{r:1,y:100,x:100,n:'Sis. Joy Grace',p:['08012345678'],nc:99,pc:99,rc:99,ns:'clear',ps:'clear',rs:'clear',f:[],na:[],e:'row'}]}));assert.equal(v.valid,true);assert.equal(v.people[0].name,'Sis. Joy Grace');assert.equal(v.people[0].display_name,'Sis. Joy Grace');assert.equal(v.people[0].raw_name,'Sis. Joy Grace');assert.equal(v.people[0].honorific,'Sis.');assert.equal(normalizeName(v.people[0].name),'joy grace')});
-test('likely SIS-to-SB title OCR is flagged without changing the literal name',()=>{const v=validateScanOutput(JSON.stringify({people:[{r:1,y:120,n:'SB Greevay',p:[],d:'',f:[]}]}));assert.equal(v.valid,true);assert.equal(v.people[0].name,'SB Greevay');assert(v.people[0].extraction_review_reasons.includes('suspected_honorific_confusion'));assert(v.needsReview[0].reasons.includes('suspected_honorific_confusion'));assert.match(v.needsReview[0].reason,/SIS.*SB|SB.*SIS/)});
+test('likely SIS-to-SB title OCR is normalized for display while raw evidence is preserved',()=>{const v=validateScanOutput(JSON.stringify({people:[{r:1,y:120,n:'SB Greevay',p:[],d:'',f:[]}]}));assert.equal(v.valid,true);assert.equal(v.people[0].name,'Sis Greevay');assert.equal(v.people[0].display_name,'Sis Greevay');assert.equal(v.people[0].raw_name,'SB Greevay');assert(v.people[0].extraction_review_reasons.includes('suspected_honorific_confusion'));assert(v.needsReview[0].reasons.includes('suspected_honorific_confusion'));assert.match(v.needsReview[0].reason,/SIS.*SB|SB.*SIS/)});
 test('different names at the same vertical position are flagged as a possible split row',()=>{const v=validateScanOutput(JSON.stringify({people:[{r:1,y:920,n:'Bro Tonia',p:[],d:'',f:[]},{r:2,y:920,n:'Bose',p:[],d:'',f:[]}]}));assert.equal(v.valid,true);assert.equal(v.people.length,2);assert(v.people.every(x=>x.extraction_review_reasons.includes('split_row_suspected')));assert(v.needsReview.every(x=>x.reasons.includes('split_row_suspected')));assert(v.needsReview.some(x=>/same vertical position/.test(x.reason)))});
 test('only repeated, character-only human OCR cues are passed to Qwen as attention hints',()=>{const hints=formatScanLearningHints([{learning_type:'ocr_name_visual_confusion',learning_key:'name:substitute:y>u@6',value:{from:'y',to:'u',kind:'substitute',position:6},confidence:.75,example_count:3},{learning_type:'ocr_phone_digit_confusion',learning_key:'phone:substitute:8>3@4',value:{from:'8',to:'3',kind:'substitute',position:4},confidence:.8,example_count:2},{learning_type:'ocr_name_visual_confusion',learning_key:'name:substitute:bad',value:{from:'Asha',to:'Ella',kind:'substitute'},confidence:.99,example_count:100},{learning_type:'ocr_name_visual_confusion',learning_key:'name:substitute:c>l@2',value:{from:'c',to:'l',kind:'substitute'},confidence:.9,example_count:1}]);assert.match(hints,/name: OCR read 'y'; reviewers confirmed 'u'/);assert.match(hints,/phone: OCR read '8'; reviewers confirmed '3'/);assert.doesNotMatch(hints,/Asha|Ella/);assert.match(hints,/Never substitute a character automatically/);assert.equal(formatScanLearningHints([]),'');assert.ok(scanProviderSource.includes('formatScanLearningHints(opt?.scanLearning)'))});
 test('visible complete Nigerian-register DOB is extracted without inventing or reformating the raw evidence',()=>{const v=validateScanOutput(JSON.stringify({people:[{r:1,y:100,x:100,n:'Mummy Christiana',p:['08012345678'],dob:'23/04/1998',nc:99,pc:99,rc:99,ns:'clear',ps:'clear',rs:'clear',f:[],na:[],e:'name, phone, DOB on the same row'}]}));assert.equal(v.valid,true);assert.equal(v.people[0].name,'Mummy Christiana');assert.equal(v.people[0].date_of_birth_raw,'23/04/1998');assert.equal(v.people[0].birthday,'1998-04-23');assert.equal(v.people[0].date_of_birth_evidence,'clear');assert(!v.people[0].extraction_review_reasons.includes('date_of_birth_needs_verification'))});
@@ -171,7 +207,7 @@ test('Groq Retry-After is not inflated by an unrelated non-exhausted token reset
 test('scan uses low-effort hidden reasoning, full model output capacity and same-model recovery',()=>{
  assert.ok(hybridSource.includes('reasoning_effort:reasoningEffort'));
  assert.ok(hybridSource.includes('max_completion_tokens:model.max_completion_tokens'));
- assert.ok(hybridSource.includes('Handwritten SIS is S-I-S, not SB unless B is genuinely visible'));assert.ok(hybridSource.includes('Compare repeated title tokens down the left column'));
+ assert.ok(hybridSource.includes('The recurring register title is SIS (S-I-S), not SB unless the image genuinely shows B.'));assert.ok(hybridSource.includes('Compare the writer\'s repeated title shapes down the page'));
  assert.ok(hybridSource.includes('const inputBudgetError=isInputTokenBudgetError(r.response.status,providerMessage)'));assert.ok(hybridSource.includes("code:inputBudgetError?'AI_INPUT_TOKEN_BUDGET'"));assert.ok(hybridSource.includes("err?.code==='AI_INPUT_TOKEN_BUDGET'"));assert.ok(hybridSource.includes('makeFullPageBudgetFallback(requestRegion)'));
  assert.ok(hybridSource.includes('getRateLimitRetrySeconds({message:row.retry_reason'));
  assert.ok(hybridSource.includes('rateLimitRetries<2'));
@@ -420,7 +456,7 @@ test('phase 2 empty-page handling stops before validation and identity writes',(
  assert.ok(scanProviderSource.includes("jsonFallbackUsed=true"));
  assert.ok(scanProviderSource.includes("if(finishReason!=='stop')"));
  assert.ok(!scanProviderSource.includes("!p.n.trim()"));
- assert.ok(scanProviderSource.includes('return an empty people array; do not invent entries'));
+ assert.ok(scanProviderSource.includes('return an empty people array rather than inventing entries'));
  assert.ok(scanProcessorSource.includes("reason:'region_failed',regions:err.scan_region_states"));
  assert.ok(scanProviderSource.includes('error.scan_region_states=classifyScanRegions([...parts,failed]).regions'));
  assert.ok(scanStateSource.includes("NEEDS_CONFIRMATION:'needs_confirmation'"));
@@ -499,7 +535,7 @@ test('Qwen scan uses two overlapping detail crops and preserves a one-image fall
  assert.deepEqual([upper.width,upper.height],[width,1116]);
  assert.deepEqual([lower.width,lower.height],[width,1116]);
  assert.ok(scanProviderSource.includes("...images.map(view=>({type:'image_url'"));
- assert.ok(scanProviderSource.includes('LANGUAGE AND NAMES:'));assert.ok(scanProviderSource.includes('Nigerian names'));assert.ok(scanProviderSource.includes('typeof p.c!==\'boolean\''));assert.ok(scanProviderSource.includes('if(!name&&!phones.length&&!dob)continue;'));assert.ok(scanProviderSource.includes('c:{type:\'boolean\'}'));assert.ok(!scanProviderSource.includes("!p.n.trim()"));
+ assert.ok(scanProviderSource.includes('MANDATORY TWO-PASS READING — TOP TO BOTTOM:'));assert.ok(scanProviderSource.includes('r must be 1,2,3... in physical top-to-bottom record order'));assert.ok(scanProviderSource.includes('r:{type:\'integer\',minimum:1,maximum:MAX}'));assert.ok(scanProviderSource.includes('rows.sort((a,b)=>a.r-b.r)'));assert.ok(scanProviderSource.includes('PASS 1 (structure)'));assert.ok(scanProviderSource.includes('NAMES AND HONORIFICS:'));assert.ok(scanProviderSource.includes('Nigerian names'));assert.ok(scanProviderSource.includes('typeof p.c!==\'boolean\''));assert.ok(scanProviderSource.includes('if(!name&&!phones.length&&!dob)continue;'));assert.ok(scanProviderSource.includes('c:{type:\'boolean\'}'));assert.ok(!scanProviderSource.includes("!p.n.trim()"));
  assert.ok(scanProviderSource.includes('PHONE DIGITS ARE A REQUIRED EXTRACTION FIELD'));
  assert.ok(scanProviderSource.includes('getScanPipelineVersion(SCAN_REASONING_EFFORT)'));
  assert.ok(scanProviderSource.includes('makeScanRegions(page)'));
@@ -510,10 +546,10 @@ test('Qwen uses bounded low-effort visual verification and still emits schema-on
  assert.equal(resolveScanReasoningEffort('low'),'low');
  assert.equal(resolveScanReasoningEffort('none'),'none');
  assert.equal(resolveScanReasoningEffort(null),'low');
- assert.equal(getScanPipelineVersion('low'),'v77-low-reasoning-literal-partial-fields-json');
- assert.equal(getScanPipelineVersion('none'),'v77-no-reasoning-literal-partial-fields-json');
+ assert.equal(getScanPipelineVersion('low'),'v78-low-reasoning-two-pass-topdown-display-normalized-json');
+ assert.equal(getScanPipelineVersion('none'),'v78-no-reasoning-two-pass-topdown-display-normalized-json');
  assert.match(SCAN_VISUAL_VERIFICATION_INSTRUCTION,/one brief verification pass/);
- assert.match(SCAN_VISUAL_VERIFICATION_INSTRUCTION,/Count distinct physical rows top to bottom/);
+ assert.match(SCAN_VISUAL_VERIFICATION_INSTRUCTION,/enumerate every person-bearing record top to bottom/);
  assert.match(SCAN_VISUAL_VERIFICATION_INSTRUCTION,/Return only the compact JSON object/);
  assert.match(SCAN_VISUAL_VERIFICATION_INSTRUCTION,/Do not output rationale, analysis, markdown/);
  assert.ok(scanProviderSource.includes('reasoning_effort:reasoningEffort'));

@@ -2,7 +2,7 @@
 
 **Purpose:** the authoritative scan-only engineering contract for turning photographed handwritten registers into trustworthy, reviewable person observations.
 **Last updated:** 22 October 2026
-**Implementation line:** v77 literal, partial-field extraction; default reasoning effort is `low` and reasoning output is hidden.
+**Implementation line:** v78 two-pass top-to-bottom ordering, standardized display names, and v77 partial-field extraction; default reasoning effort is `low` and reasoning output is hidden.
 **Release rule:** a branch or passing test is not production proof. Production is confirmed only when the Vercel production deployment SHA matches the merged commit and a real scan completes safely.
 
 ## 1. Product contract
@@ -58,7 +58,7 @@ Every response is a strict object containing `people`. Each physical row object 
 
 | Field | Contract |
 |---|---|
-| `y` | Integer from 0–1000: approximate vertical centre relative to the original full page, including when the text is read from a crop. |
+| `r` | Required 1-based record ordinal assigned by a full-page top-to-bottom first pass. Sequential for person-bearing records only, with no gaps or duplicates. It is the authoritative review-order key; it is not an original printed number. |\n| `y` | Integer from 0–1000: approximate vertical centre relative to the original full page, including when the text is read from a crop. | The `y` coordinate is approximate and must not override a verified `r` order.
 | `n` | Literal full name. May be empty only when another field on that physical record is visible. Never shorten, translate, infer, or title-case the transcription. |
 | `p` | Array of zero to two literal phone strings actually visible and assigned to that row. Preserve visible prefix/digits and punctuation; downstream code removes formatting for validation. |
 | `d` | Raw DOB text exactly as seen, or empty string when no DOB is written. Never infer a missing part or reuse a registration date. |
@@ -76,9 +76,24 @@ The provider prompt explicitly calls this transcription rather than summarizatio
 - Treat Nigerian formats such as local numbers beginning with 0 and international `+234` / `234` as validation clues, **not digit-correction rules**. Never swap 1/7, O/0, or any other characters to make a number look valid.
 - Read DOB only when physically written for that person and preserve its original form.
 - Reconstruct physical rows across overlapping crops; do not duplicate a row appearing in both views.
+- Do two passes: enumerate every person-bearing record from top to bottom, then transcribe and verify all fields in that fixed sequence. Recheck first, middle and final rows; output explicit sequential `r` ordinals and return records in `r` order. Use `y` as layout evidence, not as the final sort key when `r` exists.
+- Standardize the display form of recognized honorifics and names (for example, `pastor Emma` → `Pastor Emma`). Keep the exact OCR reading in `raw_name` for auditability. A first-token `SB` in an honorific position is displayed as `Sis` as a narrowly scoped known-confusion repair, remains flagged for verification, and does not overwrite raw evidence.
+- Include the current human-reviewed ARIA character-level scan hints in the prompt as attention cues only. Never auto-substitute arbitrary name or phone characters from learning; the current image remains authoritative.
 - Mark unclear evidence and let Review resolve it.
 
 The model's repeated visual pass is bounded and hidden. The current image remains more authoritative than any learned cue. The system must not pass whole historical member names or phone samples as prompt examples. Only repeated, human-reviewed, character-only cues may be used, and those cues must say “look again”, never “substitute automatically”.
+
+## v78 display-name casing and deterministic top-to-bottom ordering
+
+The v77 production scan was operationally successful, but inspection of its Review rows showed repeated leading `SB` readings where the register's honorific is expected to be `Sis`, lowercased titles such as `pastor Emma`, and a lack of a trustworthy source-order ordinal in the persisted review evidence. This is an extraction/readability issue, not a frontend styling issue.
+
+v78 retains the existing provider and review contracts but adds:
+1. **Two-pass order contract.** Qwen first enumerates person-bearing records from top to bottom and assigns required integer `r=1..N`; its second pass transcribes and checks fields against that sequence. The local parser rejects duplicate, missing, non-contiguous or out-of-range ordinals and sorts the response by `r` before region merging. The merger preserves that source order even if approximate `y` values contradict it. The scan validator then assigns Review's `row_number` in that stable sequence. `r` counts person-bearing records, not blank lines, headings or preprinted page numbers.
+2. **Display-name normalization with provenance.** `normalizeDisplayName` formats recognized name tokens and honorifics consistently, so `pastor Emma` displays as `Pastor Emma` and `Bro onjekachi` as `Bro Onjekachi`. The original model text stays in `raw_name`; display normalization must never overwrite that audit evidence.
+3. **Narrow SIS/SB repair.** When `SB` is the leading token immediately before a name, display uses `Sis` because this is an already-documented repeated honorific confusion in NYEOCARE's scan history. The raw transcription remains `SB ...` and `suspected_honorific_confusion` remains a Review reason. This is not a global character-substitution rule and does not authorize changing `SB` inside a name.
+4. **Use ARIA learning correctly.** Existing repeated human-reviewed character-only scan cues continue to be supplied by `formatScanLearningHints`. They tell Qwen what to inspect, not what to replace. Do not feed member names/phone samples into the prompt and do not auto-correct other characters from learned statistics.
+
+Release gates for v78: full scan regression, critical UI regression, application build/CI, deployed SHA check, and one fresh controlled register scan. Compare rows top-to-bottom against the original image; verify title casing and inspect `raw_name` alongside display form to confirm traceability. A passing build does not prove a transcription-accuracy percentage.
 
 ## 6. Validation and safe correction
 
@@ -159,13 +174,13 @@ Before changing scan code, verify:
 - [ ] A clear explicit continuation links correctly; an uncertain continuation remains separate.
 - [ ] Invalid phone digits are flagged, not guessed or silently rewritten.
 - [ ] Full and partial DOBs preserve raw text; only complete safe dates normalize.
-- [ ] Overlap duplicates are merged only with physical evidence; different nearby rows are preserved.
+- [ ] Output `r` values are sequential and review rows remain top-to-bottom even if `y` estimates are wrong.\n- [ ] `SB` honorific repair affects display only; raw text remains traceable and the ambiguity is flagged.\n- [ ] Titles and names use stable display casing without destroying initials or raw evidence.\n- [ ] Overlap duplicates are merged only with physical evidence; different nearby rows are preserved.
 - [ ] Strict JSON, truncation rejection, 413 recovery, bounded 429 behavior, and organization scoping remain intact.
 - [ ] Scan never writes attendance/participation, and ambiguous fields use Review.
 - [ ] `npm run test:scan`, `npm run test:critical-ui`, build/CI, deployed SHA, and an actual controlled scan all pass before declaring completion.
 
 ## 11. Rollback
 
-Rollback only to a known code commit and keep its pipeline version visible in job metadata. If low-effort reasoning materially worsens extraction, `SCAN_REASONING_EFFORT=none` is the existing emergency control; default remains `low`. If v77 partial-field or continuation handling regresses, revert the code changes as a set rather than reverting only the prompt and leaving the schema/parser/validator out of sync. Do not roll back by enabling another vision provider or an unvalidated OCR fallback.
+Rollback only to a known code commit and keep its pipeline version visible in job metadata. If low-effort reasoning materially worsens extraction, `SCAN_REASONING_EFFORT=none` is the existing emergency control; default remains `low`. If v78 top-to-bottom/casing or v77 partial-field/continuation handling regresses, revert the code changes as a set rather than reverting only the prompt and leaving the schema/parser/validator out of sync. Do not roll back by enabling another vision provider or an unvalidated OCR fallback.
 
 **Non-negotiable:** improve accuracy with visual evidence and labeled tests; improve safety with deterministic validation and Review. Do not confuse automatic correction with accurate transcription.

@@ -527,6 +527,7 @@ test('Qwen extraction telemetry stores phone coverage counts but no extracted pe
  assert.ok(observerSource.includes('extraction_metrics=$1::jsonb'));
  assert.ok(scanProviderSource.includes('rows_with_phones:withPhones'));
  assert.ok(scanProviderSource.includes('rows_without_phones:people.length-withPhones'));
- assert.ok(scanProviderSource.includes('phone_coverage_rate'));
+ assert.ok(scanProviderSource.includes('phone_coverage_rate'));assert.ok(scanProviderSource.includes('name_coverage_rate'));assert.ok(scanProviderSource.includes('rows_partial_or_uncertain'));
+
  assert.ok(!scanProviderSource.includes('person.name,phone_digits_sample'));
 });

@@ -50,7 +50,7 @@ Pinned vision provider/model: Groq `qwen/qwen3.8-27b` only. Do not add Gemini, Q
 7. **Completeness and row reconstruction:** a blank output is not assumed to mean a blank register. The current blank confirmation contract remains. Preserve partial observations and avoid overlap duplication.
 8. **Deterministic field validation:** normalize phone *format* and parse only complete, valid DOBs. Never edit a digit/name to make it pass validation. Record raw text and review reasons.
 9. **Identity and persistence:** compare against organization-scoped records. Only confidently resolved, field-safe observations may flow to ordinary People creation/update. Partial, conflicting, malformed, or uncertain rows go to Review. Writes remain transactional; failures roll back.
-10. **Honest result:** record row count, phone/DOB coverage, pipeline/model, finish reason, usage, latency, and failure class without logging raw names, phone numbers, image bytes, or the full extracted payload into provider telemetry.
+10. **Honest result:** record row count, name/phone/DOB coverage, partial/uncertain-row counts, pipeline/model, finish reason, usage, latency, and failure class without logging raw names, phone numbers, image bytes, or the full extracted payload into provider telemetry.
 
 ## 4. Extraction schema
 

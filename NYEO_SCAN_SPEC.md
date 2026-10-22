@@ -58,7 +58,8 @@ Every response is a strict object containing `people`. Each physical row object 
 
 | Field | Contract |
 |---|---|
-| `r` | Required 1-based record ordinal assigned by a full-page top-to-bottom first pass. Sequential for person-bearing records only, with no gaps or duplicates. It is the authoritative review-order key; it is not an original printed number. |\n| `y` | Integer from 0–1000: approximate vertical centre relative to the original full page, including when the text is read from a crop. | The `y` coordinate is approximate and must not override a verified `r` order.
+| `r` | Required 1-based record ordinal assigned by a full-page top-to-bottom first pass. Sequential for person-bearing records only, with no gaps or duplicates. It is the authoritative review-order key; it is not an original printed number. |
+| `y` | Integer from 0–1000: approximate vertical centre relative to the original full page, including when the text is read from a crop. | The `y` coordinate is approximate and must not override a verified `r` order.
 | `n` | Literal full name. May be empty only when another field on that physical record is visible. Never shorten, translate, infer, or title-case the transcription. |
 | `p` | Array of zero to two literal phone strings actually visible and assigned to that row. Preserve visible prefix/digits and punctuation; downstream code removes formatting for validation. |
 | `d` | Raw DOB text exactly as seen, or empty string when no DOB is written. Never infer a missing part or reuse a registration date. |

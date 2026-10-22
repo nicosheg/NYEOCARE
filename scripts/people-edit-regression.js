@@ -47,5 +47,10 @@ assert.ok(command.includes("Only their type will change."),'Bulk membership conf
 assert.ok(conversation.includes("?'Confirm change':'Confirm with ARIA'"),'Bulk updates must expose a single clear confirmation action.');
 assert.ok(ariaPage.includes("suggestion.label==='Confirm change'?'Confirm':'Prepare it'"),'The bulk action must have one direct Confirm button.');
 
+assert.ok(peopleApi.includes("ESCAPE E'"+String.fromCharCode(92,92,92,92)+"'"),'People search must use a valid single-character PostgreSQL LIKE escape.');
+assert.ok(peopleApi.includes("regexp_replace(COALESCE(p.phone,''), '[^0-9]', '', 'g')")&&peopleApi.includes("SUBSTRING(${phoneDigitsExpr} FROM 4)")&&peopleApi.includes('isPhoneSearch&&digits.length>=3'),'People search must match digit-only and Nigerian local-format versions of phone numbers without treating mixed name searches as phone searches.');
+assert.ok(peoplePage.includes('aria-label="Search people by name, phone, or email"')&&peoplePage.includes('aria-label="Clear search"'),'People search must remain accessible and provide a one-tap clear action.');
+assert.ok(peoplePage.includes('aria-controls="people-filter-panel"')&&peoplePage.includes('Reset filters')&&peoplePage.includes('aria-pressed={showLivingTruthOnly}'),'People filters must be consolidated into an accessible expandable panel with reset support.');
+assert.ok(peoplePage.includes('Add multiple people')&&peoplePage.includes('Bulk add from a list')&&!peoplePage.includes('Bulk add</button>'),'Single and bulk person creation must share one Add people action rather than competing toolbar buttons.');
 console.log('[PEOPLE EDIT REGRESSION]');
 console.log('PASS: SQL-bound edits, email/type/status persistence, inactive directory filtering, and ARIA synchronization/suppression contracts.');

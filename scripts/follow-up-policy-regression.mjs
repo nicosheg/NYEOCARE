@@ -18,6 +18,7 @@ const briefing = read('pages/api/daily-briefing/latest.js');
 const onboarding = read('pages/api/onboarding.js');
 const profile = read('components/ChurchProfileTab.js');
 const home = read('pages/index.js');
+const homeBootstrap = read('pages/api/home/bootstrap.js');
 const completion = read('pages/api/daily-queue/complete-follow-up.js');
 const personState = read('lib/aria/stateManager.js');
 const directorState = read('lib/aria/director.js');
@@ -146,9 +147,10 @@ assert.ok(home.includes('/api/daily-queue/complete-follow-up') &&
   home.includes('routineFollowUps.map') && home.includes('First-visit care comes first') &&
   home.includes('FOLLOW-UP OUTCOME') && home.includes("completeFirstVisit('message_sent')"),
   'the worker UI must require a true disposition and remove the easy Later escape for required first-visit work');
-assert.ok(home.includes('requiredFollowUpItems') &&
+assert.ok(homeBootstrap.includes('requiredFollowUpItems') &&
+  homeBootstrap.includes('requiredFollowUpCount') &&
   home.includes('capacityExceeded') &&
   home.includes('required first-visit outcomes must be reviewed individually'),
-  'ARiA Today must surface required first-visit outcomes ahead of the ordinary item cap and explain unusual workload');
+  'ARIA Today must surface required first-visit outcomes ahead of the ordinary item cap and explain unusual workload');
 
 console.log('[FOLLOW-UP POLICY] policy, psychology guardrails, first-visit workflow and learning contracts passed.');

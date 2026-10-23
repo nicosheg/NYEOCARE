@@ -5,6 +5,19 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { DEFAULT_FOLLOW_UP_POLICY } from '../lib/aria/followUpPolicy';
+
+const policySelect = {
+  width: '100%',
+  minHeight: 42,
+  padding: '9px 11px',
+  borderRadius: 9,
+  border: '1px solid rgba(255,255,255,.11)',
+  background: '#101b2b',
+  color: '#f0f0f0',
+  outline: 'none',
+  fontSize: 13,
+};
 
 export default function ChurchProfileTab() {
   const [services, setServices] = useState([
@@ -14,6 +27,10 @@ export default function ChurchProfileTab() {
   const [ariaInstructions, setAriaInstructions] = useState('');
   const [saved, setSaved] = useState(false);
   const [ariaSaved, setAriaSaved] = useState(false);
+  const [followUpPolicy, setFollowUpPolicy] = useState({ ...DEFAULT_FOLLOW_UP_POLICY });
+  const [followUpPolicySaving, setFollowUpPolicySaving] = useState(false);
+  const [followUpPolicySaved, setFollowUpPolicySaved] = useState(false);
+  const [followUpPolicyError, setFollowUpPolicyError] = useState('');
 
   useEffect(() => {
     async function fetchProfile() {
@@ -43,6 +60,7 @@ export default function ChurchProfileTab() {
         if (onboardingRes.ok) {
           const data = await onboardingRes.json();
           setAriaInstructions(data.ariaInstructions || '');
+          setFollowUpPolicy({ ...DEFAULT_FOLLOW_UP_POLICY, ...(data.followUpPolicy || {}) });
         }
       } catch (error) {
         console.error('[PROFILE] Load error:', error);
@@ -117,6 +135,37 @@ export default function ChurchProfileTab() {
       }, 2000);
     } catch (error) {
       console.error('[ARIA] Instruction save error:', error);
+    }
+  };
+
+
+  const saveFollowUpPolicy = async () => {
+    setFollowUpPolicySaving(true);
+    setFollowUpPolicyError('');
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      setFollowUpPolicySaving(false);
+      setFollowUpPolicyError('Please sign in again to save this policy.');
+      return;
+    }
+    try {
+      const response = await fetch('/api/onboarding', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + session.access_token,
+        },
+        body: JSON.stringify({ action: 'save_follow_up_policy', followUpPolicy }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Unable to save follow-up policy.');
+      setFollowUpPolicy({ ...DEFAULT_FOLLOW_UP_POLICY, ...(data.followUpPolicy || {}) });
+      setFollowUpPolicySaved(true);
+      setTimeout(() => setFollowUpPolicySaved(false), 2200);
+    } catch (error) {
+      setFollowUpPolicyError(error.message || 'Unable to save follow-up policy.');
+    } finally {
+      setFollowUpPolicySaving(false);
     }
   };
 
@@ -217,6 +266,76 @@ export default function ChurchProfileTab() {
             className="fiducia-button fiducia-button-primary"
           >
             {ariaSaved ? 'Saved ✓' : 'Save for ARIA'}
+          </button>
+        </div>
+      </div>
+
+
+      {/* Follow-up policy: compulsory human accountability, paced contact. */}
+      <div
+        className="fiducia-card"
+        style={{ padding: 24, marginBottom: 24 }}
+      >
+        <div style={{ color: '#D4AF37', fontSize: 11, fontWeight: 650, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 8 }}>
+          CARE RHYTHM
+        </div>
+        <h3 style={{ color: '#f0f0f0', margin: '0 0 8px', fontSize: 20, fontWeight: 500 }}>
+          Follow-up policy
+        </h3>
+        <p style={{ color: 'rgba(255,255,255,.56)', lineHeight: 1.6, margin: '0 0 18px', fontSize: 13 }}>
+          Make a real first-visit care outcome accountable, then let ARIA pace routine outreach using recent contact and response history. These settings never send messages automatically.
+        </p>
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 11, color: '#f0f0f0', lineHeight: 1.5, fontSize: 14, marginBottom: 18 }}>
+          <input
+            type="checkbox"
+            checked={followUpPolicy.firstVisitFollowUpRequired}
+            onChange={e => setFollowUpPolicy(v => ({ ...v, firstVisitFollowUpRequired: e.target.checked }))}
+            style={{ marginTop: 4, accentColor: '#D4AF37' }}
+          />
+          <span>
+            <strong>Require first-visit follow-up</strong>
+            <span style={{ display: 'block', color: 'rgba(255,255,255,.46)', fontSize: 12, marginTop: 3 }}>
+              A visitor attendance cannot silently disappear. A worker must confirm the person’s situation and record a real outcome; “required” does not mean forcing a message.
+            </span>
+          </span>
+        </label>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(185px,1fr))', gap: 12 }}>
+          <label style={{ display: 'grid', gap: 7, color: 'rgba(255,255,255,.72)', fontSize: 12 }}>
+            First-touch deadline
+            <select value={followUpPolicy.firstVisitDueHours} onChange={e => setFollowUpPolicy(v => ({ ...v, firstVisitDueHours: Number(e.target.value) }))} style={policySelect}>
+              <option value={6}>6 hours</option><option value={12}>12 hours</option><option value={24}>24 hours</option><option value={36}>36 hours</option><option value={48}>48 hours</option><option value={72}>72 hours</option>
+            </select>
+          </label>
+          <label style={{ display: 'grid', gap: 7, color: 'rgba(255,255,255,.72)', fontSize: 12 }}>
+            Routine contact gap
+            <select value={followUpPolicy.routineCooldownDays} onChange={e => setFollowUpPolicy(v => ({ ...v, routineCooldownDays: Number(e.target.value) }))} style={policySelect}>
+              <option value={3}>3 days</option><option value={7}>7 days</option><option value={14}>14 days</option><option value={21}>21 days</option><option value={30}>30 days</option>
+            </select>
+          </label>
+          <label style={{ display: 'grid', gap: 7, color: 'rgba(255,255,255,.72)', fontSize: 12 }}>
+            Quiet period after no reply
+            <select value={followUpPolicy.noResponseCooldownDays} onChange={e => setFollowUpPolicy(v => ({ ...v, noResponseCooldownDays: Number(e.target.value) }))} style={policySelect}>
+              <option value={7}>7 days</option><option value={14}>14 days</option><option value={21}>21 days</option><option value={30}>30 days</option><option value={45}>45 days</option><option value={60}>60 days</option>
+            </select>
+          </label>
+          <label style={{ display: 'grid', gap: 7, color: 'rgba(255,255,255,.72)', fontSize: 12 }}>
+            Maximum routine contacts per person / 30 days
+            <select value={followUpPolicy.maxRoutineContactsPer30Days} onChange={e => setFollowUpPolicy(v => ({ ...v, maxRoutineContactsPer30Days: Number(e.target.value) }))} style={policySelect}>
+              <option value={1}>1 contact</option><option value={2}>2 contacts</option><option value={3}>3 contacts</option><option value={4}>4 contacts</option><option value={6}>6 contacts</option><option value={8}>8 contacts</option>
+            </select>
+          </label>
+          <label style={{ display: 'grid', gap: 7, color: 'rgba(255,255,255,.72)', fontSize: 12 }}>
+            Daily task capacity per worker
+            <select value={followUpPolicy.workerDailyCapacity} onChange={e => setFollowUpPolicy(v => ({ ...v, workerDailyCapacity: Number(e.target.value) }))} style={policySelect}>
+              <option value={1}>1 task</option><option value={3}>3 tasks</option><option value={5}>5 tasks</option><option value={8}>8 tasks</option><option value={10}>10 tasks</option><option value={15}>15 tasks</option>
+            </select>
+          </label>
+        </div>
+        {followUpPolicyError && <p style={{ color: '#fca5a5', fontSize: 12, lineHeight: 1.5, margin: '14px 0 0' }}>{followUpPolicyError}</p>}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 18 }}>
+          <span style={{ color: 'rgba(255,255,255,.36)', fontSize: 11 }}>Routine outreach needs human approval. No reply means pause, not repeat immediately.</span>
+          <button onClick={saveFollowUpPolicy} disabled={followUpPolicySaving} className="fiducia-button fiducia-button-primary">
+            {followUpPolicySaving ? 'Saving…' : followUpPolicySaved ? 'Saved ✓' : 'Save care policy'}
           </button>
         </div>
       </div>

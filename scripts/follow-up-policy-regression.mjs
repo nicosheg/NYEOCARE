@@ -81,6 +81,7 @@ assert.ok(attendance.includes("'first_visit_due_at',t.started_at+($3::int*INTERV
 
 const eventPolicy = eventProcessor.slice(eventProcessor.indexOf(' const policy={'), eventProcessor.indexOf('}[event.type];', eventProcessor.indexOf(' const policy={')));
 assert.ok(!eventPolicy.includes('PERSON_CREATED:'), 'creating or importing a person must not itself count as a visit or trigger a welcome follow-up');
+assert.ok(!careEngine.includes("welcome_and_onboard:{type:'SEND_MESSAGE'"), 'generic care-cycle recommendations must not recreate a first-time welcome merely because a person record exists');
 
 assert.ok(careEngine.includes("MAX(observed_at) last_no_response_at") && careEngine.includes('lastNoResponseAt:state.last_no_response_at'),
   'the routine contact limiter must preserve a no-response quiet period independently of the latest unrelated feedback');

@@ -41,7 +41,7 @@ const checks=[
  ['Deterministic event processing does not depend on the LLM gateway',!files.eventProcessor.includes("from'../aiGateway'")&&!files.eventProcessor.includes("from './aiGateway'")],
  ['Attendance save path is not LLM-gated',!files.attendanceSave.includes('generateText')&&!files.attendanceSave.includes('callVisionWithRetry')],
  ['Attendance close publishes durable background processing',files.attendanceClose.includes('enqueueAttendanceProcessing')&&files.attendanceClose.includes('COMMIT')],
- ['New attendance defaults follow explicit organization policy',files.createSession.includes("configuredAttendanceFollowUp=orgSettings?.aria?.attendance_pattern_followup_enabled===true")&&files.createSession.includes('event_semantics')],
+ ['New attendance defaults use an organization-controlled, rate-limited follow-up policy',files.createSession.includes('normalizeFollowUpPolicy')&&files.createSession.includes('followUpPolicy.attendancePatternFollowUpEnabled')&&files.createSession.includes('event_semantics')&&files.createSession.includes("typeof absence_meaningful==='boolean'")],
  ['Provider-specific duplicate implementation is not part of the active scan path',files.hybrid.includes('callOne')&&/compatibility facade/i.test(files.legacyProvider)],
  ['Final architecture is documented in the repository',files.spec.includes('## 58. SEPTEMBER 26, 2026')&&/provider agnosticism/i.test(files.spec)&&/failure handling/i.test(files.spec)],
  ['CI still targets the production Vercel project explicitly',files.workflow.includes('VERCEL_PROJECT_ID: prj_flnxmzr4QNgJK3SthDetLN0OLFKK')],

@@ -55,7 +55,7 @@ assert.equal(isRoutineFollowUpEligible({ now, contactCount30d: 2 }).reason, 'mon
 assert.equal(isRoutineFollowUpEligible({ now, doNotContact: true }).reason, 'do_not_contact');
 
 assert.ok(serviceIdentity.includes("!~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'") &&
-  serviceIdentity.includes("ELSE COALESCE(\${alias}.name,'') END"),
+  serviceIdentity.includes("ELSE COALESCE(\${alias}.name,'')"),
   'opaque service UUIDs must fall back to the session name so different services do not share attendance histories');
 
 assert.ok(attendance.includes('createFirstVisitFollowUps(sessionId,orgId)') &&

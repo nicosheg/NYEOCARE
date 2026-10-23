@@ -61,6 +61,13 @@ assert.ok(createSession.includes("typeof absence_meaningful==='boolean'"),
 assert.ok(attendanceUi.includes('ARIA compares service patterns by date and service name'),
   'attendance UI should teach consistent naming for recurring services');
 
+assert.ok(processor.includes("pc.direction='inbound' AND pc.status IN('received','completed','sent','delivered')") &&
+  processor.includes("te.source IN('human','conversation_import')") &&
+  processor.includes("followUpPolicy.routineCooldownDays") &&
+  processor.includes("followUpPolicy.noResponseCooldownDays") &&
+  !processor.slice(processor.indexOf('async function createAbsenceSignals'),processor.indexOf('async function createReturnSignals')).includes("context->>'source'='required_first_visit_follow_up'"),
+  'routine and return-follow-up suggestions must pause after recent human/inbound contact, honour quiet periods, and avoid counting one recorded contact twice');
+
 assert.ok(intelligence.includes("COALESCE(started_at,NOW()) AS session_at"),
   'attendance metrics must be evaluated against the actual processed session date');
 assert.ok(intelligence.includes("pr.occurred_at<=(SELECT session_at FROM session_context)"),

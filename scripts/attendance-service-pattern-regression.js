@@ -17,8 +17,10 @@ const packageJson = JSON.parse(read('package.json'));
 const ci = read('.github/workflows/ci.yml');
 const attendanceUi = read('components/AttendanceModal.js');
 
-assert.match(serviceIdentity, /COALESCE\(NULLIF\(\$\{alias\}\.service_type,''\), \$\{alias\}\.name, ''\)/,
-  'service identity should prefer an explicit service type, then the entered session name');
+assert.ok(serviceIdentity.includes("THEN ${alias}.service_type") && serviceIdentity.includes("ELSE COALESCE(${alias}.name,'') END") &&
+  serviceIdentity.includes("!~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"),
+  'opaque UUID service IDs should fall back to the entered session name instead of merging distinct services');
+
 assert.match(serviceIdentity, /REGEXP_REPLACE/,
   'dated session names should be normalized rather than treated as different services');
 assert.match(serviceIdentity, /weekday:/,

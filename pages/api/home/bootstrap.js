@@ -108,11 +108,16 @@ export default withOrg(async function handler(req,res){
     assigned_user_id:row.assigned_user_id||null
   })).filter(item=>item.title||item.message);
   const visibleQueueItems=consolidateDuplicateWelcomeItems(queueItems,dailyQueue.candidateItems||queueItems);
-  const top=visibleQueueItems.slice(0,5);
+  // Required first-visit outcomes must never be hidden behind the ordinary five-item cap.
+  const requiredFollowUpItems=visibleQueueItems.filter(item=>item.task_kind==='follow_up'&&item.metadata?.first_visit_required===true);
+  const nonRequiredQueueItems=visibleQueueItems.filter(item=>!(item.task_kind==='follow_up'&&item.metadata?.first_visit_required===true));
+  const top=[...requiredFollowUpItems,...nonRequiredQueueItems.slice(0,Math.max(0,5-requiredFollowUpItems.length))];
+  const requiredFollowUpCount=Number(dailyQueue.requiredFollowUpCount)||requiredFollowUpItems.length;
+  const capacityExceeded=Number(dailyQueue.capacityExceeded)||0;
 
   const org=base.rows[0]||{},settings=org.settings||{},
     vocabulary=settings?.aria?.vocabulary||{person:'people',members:'members',leaders:'leaders',care:'care',prayer:'prayer'},
-    now=new Date(),date=now.toISOString().slice(0,10),count=top.length,s=org.latest_session||null,c=org.latest_completed_session||null;
+    now=new Date(),date=now.toISOString().slice(0,10),count=visibleQueueItems.length,s=org.latest_session||null,c=org.latest_completed_session||null;
 
   const director={...directorData,legacy_version:ARIA_DIRECTOR_VERSION,pending_scan_reviews:Number(org.review_count)||0,latest_session:s?{id:s.id,name:s.name,status:s.status,aria_processing_status:s.aria_processing_status,aria_processing_error:s.aria_processing_error}:null,latest_completed_session:c?{id:c.id,name:c.name,closed_at:c.closed_at}:null};
 
@@ -143,14 +148,14 @@ export default withOrg(async function handler(req,res){
     }:null,
     notification:{hasSomething:directorData?.primary_focus?.priority!=='low'||count>0,text:directorData?.primary_focus?.title||'ARIA is keeping watch today.',count},
     director_status:directorData?'live':'degraded',
-    briefing:{headline:[directorData?.primary_focus?.title,directorData?.primary_focus?.summary].filter(Boolean).join(' — ')||'ARIA is keeping watch today.',items:top,director:directorData},
+    briefing:{headline:[directorData?.primary_focus?.title,directorData?.primary_focus?.summary].filter(Boolean).join(' — ')||'ARIA is keeping watch today.',items:top,director:directorData,requiredFollowUpCount,capacityExceeded,capacityPerOperator:dailyQueue.capacityPerOperator||5},
     categories:{
       scan:top.filter(x=>x.task_kind==='scan_review'),
       follow_up:top.filter(x=>x.task_kind==='follow_up'),
       care:top.filter(x=>x.task_kind==='action')
     },
     peopleCount:Number(org.people_count)||0,reviewCount:Number(org.review_count)||0,
-    queue:{todayCount:count,laterCount:Number(dailyQueue.later_count)||0,items:top},
+    queue:{todayCount:count,laterCount:Number(dailyQueue.later_count)||0,items:top,requiredFollowUpCount,capacityExceeded,capacityPerOperator:dailyQueue.capacityPerOperator||5},
     nextRefresh:date+'T23:59:59.999'
   });
  }catch(err){

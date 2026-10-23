@@ -17,8 +17,13 @@ const packageJson = JSON.parse(read('package.json'));
 const ci = read('.github/workflows/ci.yml');
 const attendanceUi = read('components/AttendanceModal.js');
 
-assert.match(serviceIdentity, /COALESCE\(NULLIF\(\$\{alias\}\.service_type,''\), \$\{alias\}\.name, ''\)/,
-  'service identity should prefer an explicit service type, then the entered session name');
+assert.ok(serviceIdentity.includes("THEN ${alias}.service_type") && serviceIdentity.includes("ELSE COALESCE(${alias}.name,'')") &&
+  serviceIdentity.includes("!~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"),
+  'opaque UUID service IDs should fall back to the entered session name instead of merging distinct services');
+
+assert.ok(createSession.includes("[orgId,name.trim(),service_type||null,userId,event_kind||'service'"),
+  'attendance session creation must persist service_type and started_by in their correct positions instead of grouping services by creator UUID');
+
 assert.match(serviceIdentity, /REGEXP_REPLACE/,
   'dated session names should be normalized rather than treated as different services');
 assert.match(serviceIdentity, /weekday:/,
@@ -32,8 +37,13 @@ assert.ok(processor.includes("s.event_scope,s.group_id,s.attendance_interpretati
   'the service query must include group scope used by its candidate filter');
 assert.ok(processor.includes("${serviceKeySql('hs')}=s.service_key"),
   'absence comparison must match the same service, not every service on the same weekday');
-assert.ok(processor.includes("h.prior_84>=2 AND h.prior_28>=1"),
-  'absence signals must require repeated, recent evidence from that service');
+assert.ok(processor.includes("h.prior_84>=2") &&
+  processor.includes("service_frequency AS") &&
+  processor.includes("h.prior_84::numeric/GREATEST(f.expected_84,1)>=0.5") &&
+  processor.includes("CEIL(f.expected_28::numeric*0.4)") &&
+  processor.includes("COALESCE(hs.group_id::text,'')=COALESCE(s.group_id::text,'')") &&
+  processor.includes("'attendance_rate_84d',c.prior_attendance_rate"),
+  'absence signals must adapt to the observed service frequency, attendance rate and event/group identity');
 assert.ok(processor.includes("o.evidence->>'service_key'=(SELECT ${serviceKeySql('cs')}"),
   'return signals must be scoped to the same service');
 assert.ok(processor.includes("a.action_metadata->>'service_key'=(SELECT ${serviceKeySql('cs')}"),
@@ -41,12 +51,22 @@ assert.ok(processor.includes("a.action_metadata->>'service_key'=(SELECT ${servic
 assert.ok(processor.includes("AND ac.session_id IN (SELECT ps.id FROM sessions ps"),
   'attendance contexts should only resolve after a return to the matching service');
 
-assert.ok(createSession.includes("configuredAttendanceFollowUp=orgSettings?.aria?.attendance_pattern_followup_enabled===true"),
-  'absence follow-up should be enabled only by an explicit organization policy when the request omits the flag');
+assert.ok(createSession.includes('normalizeFollowUpPolicy') &&
+  createSession.includes('attendancePatternFollowUpEnabled') &&
+  createSession.includes("typeof absence_meaningful==='boolean'") &&
+  createSession.includes("followUpPolicy.attendancePatternFollowUpEnabled && event_kind==='service' && optional!==true"),
+  'attendance follow-up should use a safe organization default while allowing explicit per-session and organization opt-outs');
 assert.ok(createSession.includes("typeof absence_meaningful==='boolean'"),
   'an explicit true or false from an operator must override the organization default');
 assert.ok(attendanceUi.includes('ARIA compares service patterns by date and service name'),
   'attendance UI should teach consistent naming for recurring services');
+
+assert.ok(processor.includes("pc.direction='inbound' AND pc.status IN('received','completed','sent','delivered')") &&
+  processor.includes("te.source IN('human','conversation_import')") &&
+  processor.includes("followUpPolicy.routineCooldownDays") &&
+  processor.includes("followUpPolicy.noResponseCooldownDays") &&
+  !processor.slice(processor.indexOf('async function createAbsenceSignals'),processor.indexOf('async function createReturnSignals')).includes("context->>'source'='required_first_visit_follow_up'"),
+  'routine and return-follow-up suggestions must pause after recent human/inbound contact, honour quiet periods, and avoid counting one recorded contact twice');
 
 assert.ok(intelligence.includes("COALESCE(started_at,NOW()) AS session_at"),
   'attendance metrics must be evaluated against the actual processed session date');

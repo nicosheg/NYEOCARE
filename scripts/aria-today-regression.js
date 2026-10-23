@@ -45,11 +45,11 @@ expect(!index.includes("const handleBriefAction=item=>{setBriefOpen(false)"),'Op
 expect(app.includes('<NavigationBack/>')&&!layout.includes('NavigationBack'),'Shared navigation must mount once at app level across every screen.');
 expect(navigationBack.includes('nyeocare:navigation-history:v1')&&navigationBack.includes('scrollTo'),'Shared back control must retain internal route history and scroll position.');
 expect(navigationBack.includes('!isAuthPath(current)')&&navigationBack.includes('!isAuthPath(candidate.url)'),'Back navigation must not send signed-in users back to login/signup routes.');
-expect(home.includes("queue:{todayCount:count,laterCount:Number(dailyQueue.later_count)||0,items:top}"),'Home must expose canonical queue state.');
+expect(home.includes("queue:{todayCount:count,laterCount:Number(dailyQueue.later_count)||0,items:top,requiredFollowUpCount,capacityExceeded,capacityPerOperator:dailyQueue.capacityPerOperator||5}"),'Home must expose canonical queue state plus required first-visit and capacity signals.');
 expect(index.includes("item?.task_kind==='follow_up'"),'Briefing UI must group from canonical task_kind.');
 expect(index.includes("item?.metadata?.kind==='new_person_welcome')return'welcome'"),'New-person welcome items must have a dedicated briefing group.');
 expect(index.includes("title:'People to welcome'"),'New-person welcome group must use human-readable copy.');
-expect(index.includes("item.draft_action_type||item.action_type||'thoughtful_check_in'"),'New-person welcome drafts must use a welcome-specific message purpose.');
+expect(index.includes("item.draft_action_type||(item.task_kind==='follow_up'?'thoughtful_check_in':item.action_type||'thoughtful_check_in')"),'First-visit tasks must use their explicit welcome template while routine follow-ups use a relationship-first check-in template.');
 expect(index.includes("item.metadata?.kind==='new_person_welcome'?'Draft welcome message':'Draft a message'"),'The detail action must name the welcome task accurately.');
 expect(index.includes("observation_id:item.observation_id||null"),'Attendance correction must preserve the linked observation.');
 expect(index.includes("disabled={busy||!note.trim()} onClick={saveContext}"),'Attendance Tell ARIA must have an explicit submit action.');

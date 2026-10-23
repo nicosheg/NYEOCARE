@@ -254,8 +254,8 @@ const checks=[
  ['ARIA launcher is isolated from page-wide client failures',
   /ClientErrorBoundary surface="aria-launcher"/.test(layout)&&/fallback=\{null\}/.test(layout)],
 
- ['Daily briefing is a per-operator compressed queue',/getDailyQueue/.test(briefing)&&/capacityPerOperator:5/.test(briefing)&&/laterCount/.test(briefing)&&/aria_daily_queue_items/.test(dailyQueue)],
- ['Daily queue distributes work across active owner/admin operators',/role IN\('owner','admin'\)/.test(dailyQueue)&&/DAY_CAPACITY=5/.test(dailyQueue)&&/HORIZON_DAYS=31/.test(dailyQueue)],
+ ['Daily briefing is a per-operator compressed queue',/getDailyQueue/.test(briefing)&&/capacityPerOperator:queue\.capacityPerOperator\|\|5/.test(briefing)&&/laterCount/.test(briefing)&&/aria_daily_queue_items/.test(dailyQueue)],
+ ['Daily queue distributes work across active operators with configurable capacity',/role IN\('owner','admin','leader','worker'(?:,'user')?\)/.test(dailyQueue)&&/DAY_CAPACITY=5/.test(dailyQueue)&&/HORIZON_DAYS=31/.test(dailyQueue)&&/followUpPolicy\.workerDailyCapacity/.test(dailyQueue)],
  ['Daily queue defers work without rejecting the underlying ARIA action',/deferDailyQueueItem/.test(dailyQueueDefer)&&/queue_date/.test(dailyQueueDefer)&&/\/api\/daily-queue\/defer/.test(scanModal)===false&&/\/api\/daily-queue\/defer/.test(read('pages/index.js'))],
  ['Daily queue has durable one-source scheduling',/UNIQUE \(organization_id, task_kind, source_id\)/.test(dailyQueueMigration)],
  ['Review Center excludes attendance follow-ups',/pending_count:scanItems\.length\+groups\.length/.test(reviewApi)&&!/attendanceItems/.test(reviewApi)],

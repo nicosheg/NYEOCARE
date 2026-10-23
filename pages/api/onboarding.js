@@ -1,6 +1,7 @@
 // pages/api/onboarding.js
 import pool from'../../lib/db';
 import{withOrg}from'../../lib/apiHelpers';
+import{normalizeFollowUpPolicy}from'../../lib/aria/followUpPolicy';
 
 const REQUIRED_EXPERIENCES=['home','scan','people','review','profile'];
 const ALLOWED_EXPERIENCES=[...REQUIRED_EXPERIENCES,'person-journey','briefing'];
@@ -38,6 +39,7 @@ const completed=REQUIRED_EXPERIENCES.every(key=>experienced[key]);
 return res.status(200).json({
 onboarding:{enabled:organization.enabled,experienced,completed},
 ariaInstructions:row.aria_instructions||'',
+followUpPolicy:normalizeFollowUpPolicy({...row.settings?.aria?.follow_up_policy,attendancePatternFollowUpEnabled:typeof row.settings?.aria?.follow_up_policy?.attendancePatternFollowUpEnabled==='boolean'?row.settings.aria.follow_up_policy.attendancePatternFollowUpEnabled:row.settings?.aria?.attendance_pattern_followup_enabled}),
 onboardingCompletedAt:row.onboarding_completed_at
 });
 }catch(error){
@@ -47,7 +49,7 @@ return res.status(500).json({error:'Unable to load onboarding state'});
 }
 
 if(req.method==='POST'){
-const{action,experience,ariaInstructions}=req.body||{};
+const{action,experience,ariaInstructions,followUpPolicy}=req.body||{};
 try{
 const result=await pool.query(
 `SELECT settings,aria_instructions,onboarding_completed_at
@@ -58,6 +60,23 @@ const result=await pool.query(
 );
 if(!result.rows.length)return res.status(404).json({error:'Organization not found'});
 const organization=organizationOnboarding(result.rows[0].settings);
+
+if(action==='save_follow_up_policy'){
+if(!['owner','admin'].includes(req.user.role))return res.status(403).json({error:'Only owners and admins can update follow-up policy.'});
+if(!followUpPolicy||typeof followUpPolicy!=='object'||Array.isArray(followUpPolicy))return res.status(400).json({error:'A follow-up policy object is required.'});
+const normalized=normalizeFollowUpPolicy(followUpPolicy);
+const existingPolicy=result.rows[0].settings?.aria?.follow_up_policy||{};
+const savedPolicy={...normalized,enabled_at:existingPolicy.enabled_at||new Date().toISOString()};
+await pool.query(
+`UPDATE public.organizations
+ SET settings=COALESCE(settings,'{}'::jsonb)||jsonb_build_object(
+   'aria',COALESCE(settings->'aria','{}'::jsonb)||jsonb_build_object('follow_up_policy',$1::jsonb,'attendance_pattern_followup_enabled',$3::boolean)
+ ),updated_at=NOW()
+ WHERE id=$2`,
+[JSON.stringify(savedPolicy),orgId,normalized.attendancePatternFollowUpEnabled]
+);
+return res.status(200).json({success:true,followUpPolicy:normalized});
+}
 
 if(action==='experience_completed'){
 if(!organization.enabled)return res.status(200).json({success:true,onboarding:{enabled:false,completed:true}});

@@ -106,7 +106,7 @@ assert.ok(queue.includes("isRequiredFirstVisit(item)") &&
 assert.ok(queue.includes("requiredFollowUpCount") && queue.includes("capacityExceeded"),
   'the queue must expose mandatory follow-up count and capacity overflow to the operator UI');
 assert.ok(queue.includes('meta.followUpPolicy.workerDailyCapacity') &&
-  queue.includes("role IN('owner','admin','leader','worker')") &&
+  queue.includes("role IN('owner','admin','leader','worker','user')") &&
   queue.includes("m?.first_visit_required===true?100"),
   'the queue must distribute work across operators, honour capacity, and prioritize required first-visit outcomes');
 assert.ok(briefing.includes('capacityPerOperator:queue.capacityPerOperator||5'),

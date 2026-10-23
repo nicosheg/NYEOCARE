@@ -107,7 +107,8 @@ assert.ok(completion.includes("row.action_metadata?.first_visit_required !== tru
   'required first-visit completion must validate the assigned task, record an outcome, and feed ARIA learning');
 assert.ok(home.includes('/api/daily-queue/complete-follow-up') &&
   home.includes('REQUIRED FIRST-VISIT OUTCOME') &&
-  home.includes('!firstVisitRequired&&<>') && home.includes('OUTCOME DUE'),
+  home.includes('!firstVisitRequired&&<>') && home.includes('OUTCOME DUE') &&
+  home.includes('routineFollowUps.map') && home.includes('First-visit care comes first'),
   'the worker UI must require a true disposition and remove the easy Later escape for required first-visit work');
 
 console.log('[FOLLOW-UP POLICY] policy, psychology guardrails, first-visit workflow and learning contracts passed.');

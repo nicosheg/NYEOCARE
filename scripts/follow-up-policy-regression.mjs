@@ -19,6 +19,7 @@ const onboarding = read('pages/api/onboarding.js');
 const profile = read('components/ChurchProfileTab.js');
 const home = read('pages/index.js');
 const completion = read('pages/api/daily-queue/complete-follow-up.js');
+const defer = read('pages/api/daily-queue/defer.js');
 
 const now = new Date('2026-10-23T10:00:00.000Z');
 const daysAgo = days => new Date(now.getTime() - days * 86400000);
@@ -92,6 +93,13 @@ assert.ok(queue.includes('meta.followUpPolicy.workerDailyCapacity') &&
 assert.ok(briefing.includes('capacityPerOperator:queue.capacityPerOperator||5'),
   'ARIA Today must show the configured worker capacity');
 
+assert.ok(queue.includes("REQUIRED_FOLLOW_UP_CANNOT_DEFER") &&
+  queue.includes("q.rows[0].action_metadata?.first_visit_required===true") &&
+  defer.includes("REQUIRED_FOLLOW_UP_CANNOT_DEFER") && defer.includes("409"),
+  'required first-visit work must be non-deferrable on the server, not merely hidden behind the UI');
+assert.ok(completion.includes("do_not_contact: { label: 'Person asked not to be contacted', feedbackType: 'new_information', sentiment: 'neutral' }"),
+  'a no-contact preference must be learned as neutral preference context, not mislabelled as a negative relationship');
+
 assert.ok(completion.includes("row.action_metadata?.first_visit_required !== true") &&
   completion.includes("status='completed'") &&
   completion.includes("'do_not_contact'") &&
@@ -99,7 +107,7 @@ assert.ok(completion.includes("row.action_metadata?.first_visit_required !== tru
   'required first-visit completion must validate the assigned task, record an outcome, and feed ARIA learning');
 assert.ok(home.includes('/api/daily-queue/complete-follow-up') &&
   home.includes('REQUIRED FIRST-VISIT OUTCOME') &&
-  home.includes('!firstVisitRequired&&<>'),
+  home.includes('!firstVisitRequired&&<>') && home.includes('OUTCOME DUE'),
   'the worker UI must require a true disposition and remove the easy Later escape for required first-visit work');
 
 console.log('[FOLLOW-UP POLICY] policy, psychology guardrails, first-visit workflow and learning contracts passed.');

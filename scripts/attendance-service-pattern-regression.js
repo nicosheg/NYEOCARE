@@ -37,8 +37,13 @@ assert.ok(processor.includes("s.event_scope,s.group_id,s.attendance_interpretati
   'the service query must include group scope used by its candidate filter');
 assert.ok(processor.includes("${serviceKeySql('hs')}=s.service_key"),
   'absence comparison must match the same service, not every service on the same weekday');
-assert.ok(processor.includes("h.prior_84>=2 AND h.prior_28>=1"),
-  'absence signals must require repeated, recent evidence from that service');
+assert.ok(processor.includes("h.prior_84>=2") &&
+  processor.includes("service_frequency AS") &&
+  processor.includes("h.prior_84::numeric/GREATEST(f.expected_84,1)>=0.5") &&
+  processor.includes("CEIL(f.expected_28::numeric*0.4)") &&
+  processor.includes("COALESCE(hs.group_id::text,'')=COALESCE(s.group_id::text,'')") &&
+  processor.includes("'attendance_rate_84d',c.prior_attendance_rate"),
+  'absence signals must adapt to the observed service frequency, attendance rate and event/group identity');
 assert.ok(processor.includes("o.evidence->>'service_key'=(SELECT ${serviceKeySql('cs')}"),
   'return signals must be scoped to the same service');
 assert.ok(processor.includes("a.action_metadata->>'service_key'=(SELECT ${serviceKeySql('cs')}"),

@@ -18,6 +18,10 @@ const briefing = read('pages/api/daily-briefing/latest.js');
 const onboarding = read('pages/api/onboarding.js');
 const profile = read('components/ChurchProfileTab.js');
 const home = read('pages/index.js');
+const attendanceModal = read('components/AttendanceModal.js');
+const inAttendanceWelcome = read('pages/api/attendance/first-visit-welcome.js');
+const attendancePeople = read('pages/api/attendance/people.js');
+const attendanceFieldRoster = read('pages/api/attendance/field-roster.js');
 const homeBootstrap = read('pages/api/home/bootstrap.js');
 const completion = read('pages/api/daily-queue/complete-follow-up.js');
 const personState = read('lib/aria/stateManager.js');
@@ -69,6 +73,28 @@ assert.equal(isRoutineFollowUpEligible({ now, doNotContact: true }).reason, 'do_
 assert.ok(serviceIdentity.includes("!~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'") &&
   serviceIdentity.includes("ELSE COALESCE(\${alias}.name,'')"),
   'opaque service UUIDs must fall back to the session name so different services do not share attendance histories');
+
+assert.ok(attendanceModal.includes('p.marked&&p.first_visit_candidate===true') &&
+  attendanceModal.includes("'/api/attendance/first-visit-welcome'") &&
+  attendanceModal.includes('p.first_visit_welcome_recorded===true') &&
+  attendanceModal.includes('!networkOnline||pendingCount>0'),
+  'live attendance should surface a gentle in-person welcome for a first-recorded visitor without pretending an offline write succeeded');
+assert.ok(attendancePeople.includes('AS first_visit_candidate') &&
+  attendancePeople.includes("first_visit_welcome_during_attendance") &&
+  attendanceFieldRoster.includes('AS first_visit_candidate') &&
+  attendanceFieldRoster.includes('first_visit_welcome_during_attendance'),
+  'online and offline rosters must share the same first-visit cues and prior welcome state');
+assert.ok(inAttendanceWelcome.includes("s.status='active'") &&
+  inAttendanceWelcome.includes("su.user_id=$4") &&
+  inAttendanceWelcome.includes("current.marked_present!==true") &&
+  inAttendanceWelcome.includes("INSERT INTO care_feedback") &&
+  inAttendanceWelcome.includes("INSERT INTO intelligence_outcomes") &&
+  inAttendanceWelcome.includes("INSERT INTO timeline_events") &&
+  inAttendanceWelcome.includes("first-visit-welcome-during-attendance:"),
+  'in-person first-visit disposition must be scoped to a live attended visitor, auditable, idempotent and learned by ARIA');
+assert.ok(attendance.includes("welcomed.context->>'source'='first_visit_welcome_during_attendance'") &&
+  attendance.includes("welcomed.context->>'session_id'=t.id::text"),
+  'a welcome already completed during attendance must prevent duplicate first-visit follow-up generation');
 
 assert.ok(attendance.includes('createFirstVisitFollowUps(sessionId,orgId)') &&
   attendance.includes("'first_visit_required',true") &&

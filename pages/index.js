@@ -109,7 +109,7 @@ if(context)return <ModalPortal><div style={modalOverlay}><div style={actionModal
 return <ModalPortal><div style={modalOverlay}><div style={actionModal}><header style={modalHeader}><div><div style={eyebrow}>{first?'FOLLOW-UP':'ARIA ACTION'}</div><h2>{name}</h2></div><button style={close} onClick={onClose}>×</button></header><section style={actionBody}>
 {firstVisitRequired&&<div style={{...factBlock,borderColor:'var(--ny-gold-border)'}}>
  <div style={label}>REQUIRED FIRST-VISIT OUTCOME</div>
- <div style={fact}>Make sure this person receives thoughtful care—not an unwanted message.</div>{item.metadata?.first_visit_due_at&&<div style={{...mutedText,fontSize:12,marginTop:8}}>OUTCOME DUE · {new Date(item.metadata.first_visit_due_at).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'})}</div>}
+ <div style={fact}>Make sure this person receives thoughtful care—not an unwanted message.</div>{item.metadata?.first_visit_due_at&&<div style={{...mutedText,fontSize:12,marginTop:8}}>{new Date(item.metadata.first_visit_due_at).getTime()<=Date.now()?'OVERDUE · ':'OUTCOME DUE · '}{new Date(item.metadata.first_visit_due_at).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'})}</div>}
  <div style={{...mutedText,marginTop:9}}>This is their first attendance currently recorded in NYEOCARE, not proof they have never visited before. Confirm whether they are new, whether someone already connected with them, and whether contact is welcome. Choose the outcome that actually happened. You can record an in-person welcome; sending a message is not compulsory.</div>
  <label style={{...label,display:'block',marginTop:15}}>What happened?</label>
  <div style={chipGrid}>

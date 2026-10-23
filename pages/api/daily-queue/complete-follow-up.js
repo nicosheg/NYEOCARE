@@ -34,7 +34,7 @@ export default withOrg(async function handler(req, res) {
     ['met_in_person', 'already_connected'].includes(outcome) ? 'in_person' : 'phone';
   const option = OUTCOMES[outcome];
   if (!queueItemId || !option) {
-    return res.status(400).json({ error: 'A queue item and valid first-visit outcome are required.' });
+    return res.status(400).json({ error: 'A queue item and valid follow-up outcome are required.' });
   }
 
   const client = await pool.connect();
@@ -115,7 +115,7 @@ export default withOrg(async function handler(req, res) {
       `INSERT INTO intelligence_outcomes(
         organization_id,person_id,action_id,action_type,outcome,outcome_score,evidence,actor_id,
         feedback_id,observed_at,evidence_kind,verification_status,confidence,created_at
-      ) VALUES($1,$2,$3,'first_visit_follow_up',$4,NULL,$5::jsonb,$6,$7,NOW(),'human_report','reported',1,NOW())`,
+      ) VALUES($1,$2,$3,'follow_up',$4,NULL,$5::jsonb,$6,$7,NOW(),'human_report','reported',1,NOW())`,
       [req.org.id, row.person_id, row.action_id, outcome, JSON.stringify(context), req.user.id, feedback.id]
     );
 
@@ -174,10 +174,24 @@ export default withOrg(async function handler(req, res) {
       )).rows[0];
     }
 
+    if (communication?.id) {
+      context.communication_id = communication.id;
+      await client.query(
+        `UPDATE care_feedback SET context=$1::jsonb,updated_at=NOW()
+         WHERE id=$2 AND organization_id=$3`,
+        [JSON.stringify(context), feedback.id, req.org.id]
+      );
+      await client.query(
+        `UPDATE intelligence_outcomes SET evidence=$1::jsonb
+         WHERE feedback_id=$2 AND organization_id=$3`,
+        [JSON.stringify(context), feedback.id, req.org.id]
+      );
+    }
+
     await client.query(
       `INSERT INTO timeline_events(people_id,event_type,title,description,metadata,source,occurred_at,created_at)
-       VALUES($1,'first_visit_follow_up','First-visit follow-up disposition',$2,$3::jsonb,'human',NOW(),NOW())`,
-      [row.person_id, option.label + (note ? ': ' + note : ''), JSON.stringify(context)]
+       VALUES($1,$2,$3,$4::jsonb,'human',NOW(),NOW())`,
+      [row.person_id, firstVisitRequired ? 'First-visit follow-up' : 'Follow-up outcome', option.label + (note ? ': ' + note : ''), JSON.stringify(context)]
     );
 
     if (outcome === 'do_not_contact') {
@@ -195,7 +209,8 @@ export default withOrg(async function handler(req, res) {
     }
 
     const storedOutcome = {
-      required_first_visit_follow_up: true,
+      required_first_visit_follow_up: firstVisitRequired,
+      follow_up_completed: true,
       result: outcome,
       label: option.label,
       note,
@@ -254,7 +269,7 @@ export default withOrg(async function handler(req, res) {
     // A failed background learning refresh must not undo the operator's recorded outcome.
     if (event) {
       try { await processAriaEvent(event); } catch (error) {
-        console.error('[ARIA] First-visit follow-up event processing failed:', error?.message || error);
+        console.error('[ARIA] Follow-up event processing failed:', error?.message || error);
       }
     }
     try {
@@ -269,7 +284,7 @@ export default withOrg(async function handler(req, res) {
         actorId: req.user.id
       });
     } catch (error) {
-      console.error('[ARIA] First-visit follow-up learning failed:', error?.message || error);
+      console.error('[ARIA] Follow-up learning failed': error?.message || error);
     }
 
     return res.status(200).json({ success: true, completed: true, outcome, first_visit_required: firstVisitRequired, feedback_id: feedback.id, communication_id: communication?.id || communicationId || null });

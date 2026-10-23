@@ -13,7 +13,7 @@ const required=[
  ['lib/aria/cohortIntent.js','(?:for|to)','past_absentees'],
  ['lib/aria/conversationEngine.js','resolveConversationalFollowUp','get_observation_context','capability_blocked'],
  ['pages/aria.js','MESSAGE DRAFTS','Open WhatsApp'],
- ['pages/index.js','Draft these follow-ups','/api/aria/draft-batch']
+ ['pages/index.js','Draft routine check-ins','routineFollowUps.map','/api/aria/draft-batch']
 ];
 for(const [file,...needles] of required){
  const content=read(file);

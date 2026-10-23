@@ -635,6 +635,9 @@ export default function AttendanceModal({isOpen,onClose}){
           maxLength={120}
           autoFocus
         />
+        <span style={{...sub,fontSize:12,textAlign:"center"}}>
+          Reuse the same specific name for a recurring service each time, for example Main Sunday Service or Wednesday Bible Study. ARIA compares service patterns by date and service name, not only by weekday.
+        </span>
         <button
           style={{...primary,opacity:saving||!sessionName.trim()?0.55:1}}
           disabled={saving||!sessionName.trim()}

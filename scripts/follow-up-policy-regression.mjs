@@ -150,7 +150,7 @@ assert.ok(home.includes('/api/daily-queue/complete-follow-up') &&
 assert.ok(homeBootstrap.includes('requiredFollowUpItems') &&
   homeBootstrap.includes('requiredFollowUpCount') &&
   home.includes('capacityExceeded') &&
-  home.includes('required first-visit outcomes must be reviewed individually'),
+  home.includes('Required first-visit outcomes must be reviewed individually'),
   'ARIA Today must surface required first-visit outcomes ahead of the ordinary item cap and explain unusual workload');
 
 console.log('[FOLLOW-UP POLICY] policy, psychology guardrails, first-visit workflow and learning contracts passed.');

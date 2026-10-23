@@ -101,6 +101,8 @@ assert.ok(queue.includes("m?.kind==='care_first_check_in'") && queue.includes("R
 assert.ok(queue.includes("isRequiredFirstVisit(item)") &&
   queue.includes("mustBeVisibleToday") &&
   queue.includes("pickTodayOperator") &&
+  queue.includes("escalationDue") &&
+  queue.includes("first_visit_escalated_at") &&
   queue.includes("role IN('owner','admin','leader','worker','user')"),
   'required first-visit outcomes must be scheduled for today, capacity overflow must remain visible, and all valid active operator roles must be assignable');
 assert.ok(queue.includes("requiredFollowUpCount") && queue.includes("capacityExceeded"),
@@ -150,6 +152,7 @@ assert.ok(home.includes('/api/daily-queue/complete-follow-up') &&
 assert.ok(homeBootstrap.includes('requiredFollowUpItems') &&
   homeBootstrap.includes('requiredFollowUpCount') &&
   home.includes('capacityExceeded') &&
+  home.includes('OVERDUE · ') &&
   home.includes('Required first-visit outcomes remain visible today'),
   'ARIA Today must surface required first-visit outcomes ahead of the ordinary item cap and explain unusual workload');
 

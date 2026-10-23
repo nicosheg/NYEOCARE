@@ -5,6 +5,7 @@
 import pool from '../../../lib/db';
 import { withAdmin } from '../../../lib/apiHelpers';
 import { emitAriaEvent } from '../../../lib/aria/eventEmitter';
+import { normalizeFollowUpPolicy } from '../../../lib/aria/followUpPolicy';
 
 export default withAdmin(async function handler(req,res){
   if(req.method!=='POST'){
@@ -35,12 +36,19 @@ export default withAdmin(async function handler(req,res){
       [orgId]
     );
     const orgSettings=orgConfigResult.rows[0]?.settings||{};
-    const configuredAttendanceFollowUp=orgSettings?.aria?.attendance_pattern_followup_enabled===true;
-    // Do not globally assume a missed event should trigger follow-up. Use an explicit
-    // request value when supplied; otherwise apply the organization's saved policy.
+    const savedFollowUpPolicy=orgSettings?.aria?.follow_up_policy||{};
+    const legacyAttendanceFollowUp=orgSettings?.aria?.attendance_pattern_followup_enabled;
+    const followUpPolicy=normalizeFollowUpPolicy({
+      ...savedFollowUpPolicy,
+      attendancePatternFollowUpEnabled:typeof savedFollowUpPolicy.attendancePatternFollowUpEnabled==='boolean'
+        ? savedFollowUpPolicy.attendancePatternFollowUpEnabled
+        : legacyAttendanceFollowUp
+    });
+    // A missed gathering is eligible for a pattern-based care signal by default.
+    // Operators can opt out per session; owners/admins can configure organization policy.
     const absenceMeaningful=typeof absence_meaningful==='boolean'
       ? absence_meaningful
-      : configuredAttendanceFollowUp && event_kind==='service' && optional!==true;
+      : followUpPolicy.attendancePatternFollowUpEnabled && event_kind==='service' && optional!==true;
 
     const active=await client.query(
       `SELECT id,name,status,started_by,started_at

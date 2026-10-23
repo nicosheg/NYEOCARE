@@ -26,6 +26,8 @@ assert.ok(processor.includes("COALESCE(s.started_at,ar.attendance_date::timestam
   'participation time must be anchored to the session/attendance date, not the delayed mark time');
 assert.ok(processor.includes("JOIN sessions hs ON hs.id=pr.session_id AND hs.organization_id=pr.organization_id"),
   'historical attendance must join its source session so service identity is available');
+assert.ok(processor.includes("s.event_scope,s.group_id,s.attendance_interpretation"),
+  'the service query must include group scope used by its candidate filter');
 assert.ok(processor.includes("${serviceKeySql('hs')}=s.service_key"),
   'absence comparison must match the same service, not every service on the same weekday');
 assert.ok(processor.includes("h.prior_84>=2 AND h.prior_28>=1"),

@@ -190,8 +190,8 @@ export default withOrg(async function handler(req, res) {
 
     await client.query(
       `INSERT INTO timeline_events(people_id,event_type,title,description,metadata,source,occurred_at,created_at)
-       VALUES($1,$2,$3,$4::jsonb,'human',NOW(),NOW())`,
-      [row.person_id, firstVisitRequired ? 'First-visit follow-up' : 'Follow-up outcome', option.label + (note ? ': ' + note : ''), JSON.stringify(context)]
+       VALUES($1,$2,$3,$4,$5::jsonb,'human',NOW(),NOW())`,
+      [row.person_id, firstVisitRequired ? 'first_visit_follow_up' : 'follow_up_outcome', firstVisitRequired ? 'First-visit follow-up' : 'Follow-up outcome', option.label + (note ? ': ' + note : ''), JSON.stringify(context)]
     );
 
     if (outcome === 'do_not_contact') {
@@ -227,7 +227,7 @@ export default withOrg(async function handler(req, res) {
       `UPDATE aria_daily_queue_items SET status='completed',completed_at=NOW(),
          payload=COALESCE(payload,'{}'::jsonb)||$1::jsonb,updated_at=NOW()
        WHERE id=$2 AND organization_id=$3 AND assigned_user_id=$4`,
-      [JSON.stringify({ first_visit_outcome: storedOutcome }), queueItemId, req.org.id, req.user.id]
+      [JSON.stringify({ follow_up_outcome: storedOutcome }), queueItemId, req.org.id, req.user.id]
     );
 
     if (outcome === 'do_not_contact') {
@@ -284,7 +284,7 @@ export default withOrg(async function handler(req, res) {
         actorId: req.user.id
       });
     } catch (error) {
-      console.error('[ARIA] Follow-up learning failed': error?.message || error);
+      console.error('[ARIA] Follow-up learning failed:', error?.message || error);
     }
 
     return res.status(200).json({ success: true, completed: true, outcome, first_visit_required: firstVisitRequired, feedback_id: feedback.id, communication_id: communication?.id || communicationId || null });

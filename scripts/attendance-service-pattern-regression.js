@@ -21,6 +21,9 @@ assert.ok(serviceIdentity.includes("THEN ${alias}.service_type") && serviceIdent
   serviceIdentity.includes("!~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"),
   'opaque UUID service IDs should fall back to the entered session name instead of merging distinct services');
 
+assert.ok(createSession.includes("[orgId,name.trim(),service_type||null,userId,event_kind||'service'"),
+  'attendance session creation must persist service_type and started_by in their correct positions instead of grouping services by creator UUID');
+
 assert.match(serviceIdentity, /REGEXP_REPLACE/,
   'dated session names should be normalized rather than treated as different services');
 assert.match(serviceIdentity, /weekday:/,

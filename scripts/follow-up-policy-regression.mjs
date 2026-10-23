@@ -94,6 +94,8 @@ assert.ok(profile.includes('Follow-up policy') &&
   profile.includes('workerDailyCapacity'),
   'organization admins need accessible policy controls');
 
+assert.ok(queue.includes("m?.kind==='care_first_check_in'") && queue.includes("REQUIRED_FOLLOW_UP_CANNOT_DEFER"),
+  'attendance absence actions must enter the follow-up lane and only required first-visit tasks must resist deferral');
 assert.ok(queue.includes('meta.followUpPolicy.workerDailyCapacity') &&
   queue.includes("role IN('owner','admin','leader','worker')") &&
   queue.includes("m?.first_visit_required===true?100"),
@@ -115,15 +117,18 @@ assert.ok(personState.includes("COALESCE(action_metadata->>'kind','')<>'new_pers
   recommendationEngine.includes("COALESCE(a.action_metadata->>'kind','')<>'new_person_welcome'"),
   'legacy welcome-on-record-entry proposals must not inflate live action counts, person state or pending work');
 
-assert.ok(completion.includes("row.action_metadata?.first_visit_required !== true") &&
+assert.ok(completion.includes("firstVisitRequired && row.action_metadata?.kind !== 'first_session_check_in'") &&
+  completion.includes("routineKinds.has") &&
   completion.includes("status='completed'") &&
   completion.includes("'do_not_contact'") &&
+  completion.includes("SET status='sent',occurred_at=NOW()") &&
   completion.includes('learnFromFeedback'),
-  'required first-visit completion must validate the assigned task, record an outcome, and feed ARIA learning');
+  'follow-up completion must validate first-visit or routine task, record contact attempts/outcomes, suppress opt-outs and feed ARIA learning');
 assert.ok(home.includes('/api/daily-queue/complete-follow-up') &&
   home.includes('REQUIRED FIRST-VISIT OUTCOME') &&
   home.includes('!firstVisitRequired&&<>') && home.includes('OUTCOME DUE') &&
-  home.includes('routineFollowUps.map') && home.includes('First-visit care comes first'),
+  home.includes('routineFollowUps.map') && home.includes('First-visit care comes first') &&
+  home.includes('FOLLOW-UP OUTCOME') && home.includes("completeFirstVisit('message_sent')"),
   'the worker UI must require a true disposition and remove the easy Later escape for required first-visit work');
 
 console.log('[FOLLOW-UP POLICY] policy, psychology guardrails, first-visit workflow and learning contracts passed.');

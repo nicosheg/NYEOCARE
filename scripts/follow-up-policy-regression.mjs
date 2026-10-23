@@ -61,6 +61,7 @@ assert.equal(normalizeFollowUpPolicy({ attendancePatternFollowUpEnabled: false }
 assert.equal(isRoutineFollowUpEligible({ now }).allowed, true, 'no prior outreach should be eligible');
 assert.equal(isRoutineFollowUpEligible({ now, lastOutboundAt: daysAgo(3) }).reason, 'routine_cooldown');
 assert.equal(isRoutineFollowUpEligible({ now, lastFeedbackType: 'no_response', lastFeedbackAt: daysAgo(10) }).reason, 'no_response_cooldown');
+assert.equal(isRoutineFollowUpEligible({ now, lastFeedbackType: 'positive', lastFeedbackAt: daysAgo(2), lastNoResponseAt: daysAgo(10) }).reason, 'no_response_cooldown', 'a newer unrelated feedback item must not erase the no-response quiet period');
 assert.equal(isRoutineFollowUpEligible({ now, lastFeedbackType: 'no_response', lastFeedbackAt: daysAgo(15) }).allowed, true, 'a quiet period should expire instead of suppressing contact forever');
 assert.equal(isRoutineFollowUpEligible({ now, contactCount30d: 2 }).reason, 'monthly_contact_limit');
 assert.equal(isRoutineFollowUpEligible({ now, doNotContact: true }).reason, 'do_not_contact');
@@ -80,6 +81,9 @@ assert.ok(attendance.includes("'first_visit_due_at',t.started_at+($3::int*INTERV
 
 const eventPolicy = eventProcessor.slice(eventProcessor.indexOf(' const policy={'), eventProcessor.indexOf('}[event.type];', eventProcessor.indexOf(' const policy={')));
 assert.ok(!eventPolicy.includes('PERSON_CREATED:'), 'creating or importing a person must not itself count as a visit or trigger a welcome follow-up');
+
+assert.ok(careEngine.includes("MAX(observed_at) last_no_response_at") && careEngine.includes('lastNoResponseAt:state.last_no_response_at'),
+  'the routine contact limiter must preserve a no-response quiet period independently of the latest unrelated feedback');
 
 assert.ok(careEngine.includes('isRoutineFollowUpEligible') &&
   careEngine.includes("kind='other' AND metadata->>'do_not_contact'='true'") &&

@@ -46,8 +46,11 @@ assert.ok(processor.includes("a.action_metadata->>'service_key'=(SELECT ${servic
 assert.ok(processor.includes("AND ac.session_id IN (SELECT ps.id FROM sessions ps"),
   'attendance contexts should only resolve after a return to the matching service');
 
-assert.ok(createSession.includes("configuredAttendanceFollowUp=orgSettings?.aria?.attendance_pattern_followup_enabled===true"),
-  'absence follow-up should be enabled only by an explicit organization policy when the request omits the flag');
+assert.ok(createSession.includes('normalizeFollowUpPolicy') &&
+  createSession.includes('attendancePatternFollowUpEnabled') &&
+  createSession.includes("typeof absence_meaningful==='boolean'") &&
+  createSession.includes("followUpPolicy.attendancePatternFollowUpEnabled && event_kind==='service' && optional!==true"),
+  'attendance follow-up should use a safe organization default while allowing explicit per-session and organization opt-outs');
 assert.ok(createSession.includes("typeof absence_meaningful==='boolean'"),
   'an explicit true or false from an operator must override the organization default');
 assert.ok(attendanceUi.includes('ARIA compares service patterns by date and service name'),

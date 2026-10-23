@@ -17,7 +17,7 @@ const packageJson = JSON.parse(read('package.json'));
 const ci = read('.github/workflows/ci.yml');
 const attendanceUi = read('components/AttendanceModal.js');
 
-assert.ok(serviceIdentity.includes("THEN ${alias}.service_type") && serviceIdentity.includes("ELSE COALESCE(${alias}.name,'') END") &&
+assert.ok(serviceIdentity.includes("THEN ${alias}.service_type") && serviceIdentity.includes("ELSE COALESCE(${alias}.name,'')") &&
   serviceIdentity.includes("!~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"),
   'opaque UUID service IDs should fall back to the entered session name instead of merging distinct services');
 

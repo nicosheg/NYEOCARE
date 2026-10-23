@@ -7,6 +7,7 @@ import { learnFromFeedback } from '../../../lib/aria/learningEngine';
 
 const OUTCOMES = {
   met_in_person: { label: 'Welcomed in person', feedbackType: 'other', sentiment: 'positive' },
+  message_sent: { label: 'Follow-up message sent', feedbackType: 'other', sentiment: 'neutral' },
   reached: { label: 'Reached and checked in', feedbackType: 'other', sentiment: 'neutral' },
   no_response: { label: 'Attempted contact; no response', feedbackType: 'no_response', sentiment: 'neutral' },
   no_contact_details: { label: 'No usable contact details', feedbackType: 'new_information', sentiment: 'neutral' },
@@ -24,6 +25,13 @@ export default withOrg(async function handler(req, res) {
   const queueItemId = String(req.body?.queue_item_id || '').trim();
   const outcome = String(req.body?.outcome || '').trim();
   const note = String(req.body?.note || '').trim().slice(0, 1000);
+  const communicationId = String(req.body?.communication_id || '').trim() || null;
+  const messageContent = String(req.body?.message_content || '').trim().slice(0, 2000);
+  const requestedChannel = String(req.body?.contact_channel || '').trim().toLowerCase();
+  const allowedChannels = new Set(['whatsapp', 'phone', 'in_person', 'app']);
+  const contactChannel = allowedChannels.has(requestedChannel) ? requestedChannel :
+    outcome === 'message_sent' ? 'whatsapp' :
+    ['met_in_person', 'already_connected'].includes(outcome) ? 'in_person' : 'phone';
   const option = OUTCOMES[outcome];
   if (!queueItemId || !option) {
     return res.status(400).json({ error: 'A queue item and valid first-visit outcome are required.' });
@@ -53,15 +61,38 @@ export default withOrg(async function handler(req, res) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'This follow-up is no longer assigned to you.' });
     }
-    if (row.action_metadata?.first_visit_required !== true ||
-        row.action_metadata?.kind !== 'first_session_check_in' ||
-        !['proposed', 'approved'].includes(row.action_status)) {
+    const firstVisitRequired = row.action_metadata?.first_visit_required === true;
+    const routineKinds = new Set([
+      'care_first_check_in',
+      'attendance_absence_check_in',
+      'returned_after_absence',
+      'first_session_check_in'
+    ]);
+    const firstVisitOutcomes = new Set([
+      'met_in_person', 'message_sent', 'reached', 'no_response',
+      'no_contact_details', 'already_connected', 'not_first_visit', 'do_not_contact'
+    ]);
+    const routineOutcomes = new Set([
+      'met_in_person', 'message_sent', 'reached', 'no_response',
+      'no_contact_details', 'already_connected', 'do_not_contact'
+    ]);
+    if (!['proposed', 'approved'].includes(row.action_status) ||
+        (firstVisitRequired && row.action_metadata?.kind !== 'first_session_check_in') ||
+        (!firstVisitRequired && !routineKinds.has(String(row.action_metadata?.kind || ''))) ||
+        (firstVisitRequired ? !firstVisitOutcomes.has(outcome) : !routineOutcomes.has(outcome))) {
       await client.query('ROLLBACK');
-      return res.status(409).json({ error: 'Only an open required first-visit task can be completed here.' });
+      return res.status(409).json({ error: 'This is not an open follow-up task that can be completed with that outcome.' });
+    }
+    if (outcome === 'message_sent' && !communicationId && !messageContent) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Confirm a saved draft or provide the message content to record that it was sent.' });
     }
     personId = row.person_id;
     const context = {
-      source: 'required_first_visit_follow_up',
+      source: firstVisitRequired ? 'required_first_visit_follow_up' : 'routine_follow_up_outcome',
+      first_visit_required: firstVisitRequired,
+      contact_channel: contactChannel,
+      communication_id: communicationId,
       outcome,
       outcome_label: option.label,
       queue_item_id: queueItemId,
@@ -88,6 +119,61 @@ export default withOrg(async function handler(req, res) {
       [req.org.id, row.person_id, row.action_id, outcome, JSON.stringify(context), req.user.id, feedback.id]
     );
 
+    let communication = null;
+    if (outcome === 'message_sent') {
+      if (communicationId) {
+        const updated = await client.query(
+          `UPDATE person_communications
+           SET status='sent',occurred_at=NOW(),
+               metadata=COALESCE(metadata,'{}'::jsonb)||$1::jsonb,updated_at=NOW()
+           WHERE id=$2 AND organization_id=$3 AND person_id=$4
+             AND direction='outbound' AND status='draft'
+             AND metadata->>'action_id'=$5
+           RETURNING id,channel,status,occurred_at`,
+          [JSON.stringify({
+            follow_up_action_id: row.action_id,
+            follow_up_outcome: outcome,
+            confirmed_sent_by: req.user.id,
+            source: context.source
+          }), communicationId, req.org.id, row.person_id, row.action_id]
+        );
+        communication = updated.rows[0] || null;
+        if (!communication) {
+          throw Object.assign(new Error('The draft is no longer available to mark as sent. Refresh the follow-up before recording this outcome.'), { status: 409 });
+        }
+      } else {
+        communication = (await client.query(
+          `INSERT INTO person_communications(
+            organization_id,person_id,channel,direction,status,subject,content,metadata,created_by,
+            occurred_at,created_at,updated_at
+          ) VALUES($1,$2,'whatsapp','outbound','sent','Follow-up message',$3,$4::jsonb,$5,NOW(),NOW(),NOW())
+          RETURNING id,channel,status,occurred_at`,
+          [req.org.id, row.person_id, messageContent, JSON.stringify({
+            action_id: row.action_id,
+            follow_up_action_id: row.action_id,
+            follow_up_outcome: outcome,
+            confirmed_sent_by: req.user.id,
+            source: context.source
+          }), req.user.id]
+        )).rows[0];
+      }
+    } else if (['met_in_person', 'reached', 'no_response', 'already_connected'].includes(outcome)) {
+      communication = (await client.query(
+        `INSERT INTO person_communications(
+          organization_id,person_id,channel,direction,status,subject,content,metadata,created_by,
+          occurred_at,created_at,updated_at
+        ) VALUES($1,$2,$3,'outbound',$4,'Care follow-up',NULL,$5::jsonb,$6,NOW(),NOW(),NOW())
+        RETURNING id,channel,status,occurred_at`,
+        [req.org.id, row.person_id, contactChannel, outcome === 'no_response' ? 'sent' : 'completed',
+          JSON.stringify({
+            follow_up_action_id: row.action_id,
+            follow_up_outcome: outcome,
+            contact_attempt_recorded_by: req.user.id,
+            source: context.source
+          }), req.user.id]
+      )).rows[0];
+    }
+
     await client.query(
       `INSERT INTO timeline_events(people_id,event_type,title,description,metadata,source,occurred_at,created_at)
        VALUES($1,'first_visit_follow_up','First-visit follow-up disposition',$2,$3::jsonb,'human',NOW(),NOW())`,
@@ -101,7 +187,7 @@ export default withOrg(async function handler(req, res) {
         ) VALUES($1,$2,'other',CURRENT_DATE,NULL,NULL,$3,$4::jsonb,$5)`,
         [req.org.id, row.person_id, 'Person asked the organization not to initiate further contact.', JSON.stringify({
           do_not_contact: true,
-          source: 'required_first_visit_follow_up',
+          source: context.source,
           source_action_id: row.action_id,
           human_reported: true
         }), req.user.id]
@@ -129,6 +215,19 @@ export default withOrg(async function handler(req, res) {
       [JSON.stringify({ first_visit_outcome: storedOutcome }), queueItemId, req.org.id, req.user.id]
     );
 
+    if (outcome === 'do_not_contact') {
+      // An explicit no-contact preference must also close other pending proactive messages.
+      await client.query(
+        `UPDATE aria_actions
+         SET status='cancelled',
+             failure_reason='Person asked not to be contacted; proactive message cancelled.',
+             updated_at=NOW()
+         WHERE organization_id=$1 AND person_id=$2 AND id<>$3
+           AND type='SEND_MESSAGE' AND status IN('proposed','approved')`,
+        [req.org.id, row.person_id, row.action_id]
+      );
+    }
+
     event = await emitAriaEvent({
       organizationId: req.org.id,
       personId: row.person_id,
@@ -147,7 +246,7 @@ export default withOrg(async function handler(req, res) {
         outcome: { outcome, action_id: row.action_id, feedback_id: feedback.id },
         follow_up_context: context
       },
-      eventKey: 'first-visit-follow-up:' + row.action_id
+      eventKey: (firstVisitRequired ? 'first-visit-follow-up:' : 'follow-up-outcome:') + row.action_id
     }, client);
 
     await client.query('COMMIT');
@@ -173,11 +272,12 @@ export default withOrg(async function handler(req, res) {
       console.error('[ARIA] First-visit follow-up learning failed:', error?.message || error);
     }
 
-    return res.status(200).json({ success: true, completed: true, outcome, feedback_id: feedback.id });
+    return res.status(200).json({ success: true, completed: true, outcome, first_visit_required: firstVisitRequired, feedback_id: feedback.id, communication_id: communication?.id || communicationId || null });
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
     console.error('[ARIA] Follow-up completion error:', error?.message || error);
-    return res.status(500).json({ error: 'ARIA could not save this outcome safely. The follow-up remains open.' });
+    const status = Number(error?.status) || 500;
+    return res.status(status).json({ error: status < 500 ? String(error.message || 'Invalid follow-up outcome.') : 'ARIA could not save this outcome safely. The follow-up remains open.' });
   } finally {
     client.release();
   }

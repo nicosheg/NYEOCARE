@@ -1,0 +1,16 @@
+import fs from'node:fs';
+import assert from'node:assert/strict';
+const read=p=>fs.readFileSync(p,'utf8');
+const attendance=read('lib/aria/attendanceProcessor.js');
+const serviceIdentity=read('lib/aria/serviceIdentity.js');
+const temporal=read('lib/aria/temporalEngine.js');
+const organizationContext=read('lib/aria/organizationContext.js');
+const director=read('lib/aria/directorEngine.js');
+assert.ok(attendance.includes('COALESCE(s.started_at,ar.attendance_date::timestamptz,ar.marked_at)'),'Attendance timestamps should follow the session date.');
+assert.ok(attendance.includes('JOIN sessions hs ON hs.id=pr.session_id')&&attendance.includes('=s.service_key'),'History must compare the same service over date-based windows.');
+assert.ok(serviceIdentity.includes('weekday:')&&serviceIdentity.includes('REGEXP_REPLACE'),'Service keys must normalize event names and only use weekday as a fallback.');
+assert.ok(attendance.includes("o.evidence->>'service_key'")&&attendance.includes("a.action_metadata->>'service_key'"),'Return detection and cancellation must match the service key.');
+assert.ok(attendance.includes('ac.session_id IN (SELECT ps.id FROM sessions ps'),'Unrelated service contexts must remain open.');
+for(const [name,text] of [['Temporal',temporal],['Organization context',organizationContext],['ARIA Director',director])assert.ok(text.includes('ATTENDANCE_HISTORY_RESET')&&text.includes("e.type NOT IN ('SERVICE_CREATED')"),name+' must hide pre-reset attendance facts but retain service setup memory.');
+console.log('[ATTENDANCE SERVICE-PATTERN REGRESSION]');
+console.log('PASS: date anchoring, same-service pattern matching, and reset-boundary filtering.');

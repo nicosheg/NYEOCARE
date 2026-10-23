@@ -188,6 +188,24 @@ export default withOrg(async function handler(req, res) {
       );
     }
 
+    if (outcome !== 'message_sent' && communicationId) {
+      // If a different outcome resolved the task, preserve the unused draft as cancelled history.
+      await client.query(
+        `UPDATE person_communications
+         SET status='cancelled',
+             metadata=COALESCE(metadata,'{}'::jsonb)||$1::jsonb,
+             updated_at=NOW()
+         WHERE id=$2 AND organization_id=$3 AND person_id=$4
+           AND direction='outbound' AND status='draft'
+           AND metadata->>'action_id'=$5`,
+        [JSON.stringify({
+          follow_up_draft_cancelled: true,
+          cancellation_reason: outcome,
+          cancelled_by: req.user.id
+        }), communicationId, req.org.id, row.person_id, row.action_id]
+      );
+    }
+
     await client.query(
       `INSERT INTO timeline_events(people_id,event_type,title,description,metadata,source,occurred_at,created_at)
        VALUES($1,$2,$3,$4,$5::jsonb,'human',NOW(),NOW())`,

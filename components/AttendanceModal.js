@@ -56,6 +56,7 @@ export default function AttendanceModal({isOpen,onClose}){
   const[total,setTotal]=useState(0);
   const[present,setPresent]=useState(0);
   const[loadingMore,setLoadingMore]=useState(false);
+  const[welcomeSavingIds,setWelcomeSavingIds]=useState([]);
   const mounted=useRef(false);
   const[networkOnline,setNetworkOnline]=useState(true);
   const[fieldRoster,setFieldRoster]=useState([]);
@@ -542,6 +543,39 @@ export default function AttendanceModal({isOpen,onClose}){
     finally{if(mounted.current)setLoadingMore(false)}
   };
 
+  const recordFirstVisitWelcome=async(person)=>{
+    if(!session||session.status!=='active'||closing||!person?.first_visit_candidate||!person?.marked||person?.first_visit_welcome_recorded)return;
+    if(!networkOnline||pendingCount>0){
+      setNotice('Welcome them warmly in person now. Once attendance finishes syncing, record the welcome here; nothing has been recorded yet.');
+      return;
+    }
+    const personId=String(person.id);
+    if(welcomeSavingIds.includes(personId))return;
+    setWelcomeSavingIds(current=>[...current,personId]);
+    setError('');
+    try{
+      const auth=await getClientSession();
+      if(!auth)throw Error('Your sign-in session expired. Reopen attendance before recording this welcome.');
+      const response=await fetchAttendanceWithTimeout('/api/attendance/first-visit-welcome',{
+        method:'POST',
+        headers:{'Content-Type':'application/json',Authorization:'Bearer '+auth.access_token},
+        body:JSON.stringify({session_id:session.session_id,people_id:personId})
+      },ATTENDANCE_REQUEST_TIMEOUT_MS);
+      const data=await read(response);
+      if(!response.ok||!data.success)throw Error(data.error||'The welcome could not be recorded.');
+      const updated={...person,first_visit_welcome_recorded:true};
+      setPeople(current=>current.map(p=>String(p.id)===personId?{...p,first_visit_welcome_recorded:true}:p));
+      setFieldRoster(current=>current.map(p=>String(p.id)===personId?{...p,first_visit_welcome_recorded:true}:p));
+      await saveFieldPeople(session.session_id,[updated]).catch(()=>{});
+      setNotice(data.already_recorded?'This welcome was already saved.':'Welcome recorded. ARIA will keep this as the first-visit outcome for this session, so it will not create a duplicate follow-up.');
+      publishDataChange('attendance');
+    }catch(e){
+      if(mounted.current)setError(e.message||'The welcome could not be recorded safely.');
+    }finally{
+      if(mounted.current)setWelcomeSavingIds(current=>current.filter(id=>id!==personId));
+    }
+  };
+
   const keep=async()=>{
     if(!session||session.status!=='active'||closing)return;
     const perf=measurePerformance('attendance_save',{network:networkOnline?'online':'offline'});setClosing(true);setError('');
@@ -673,9 +707,28 @@ export default function AttendanceModal({isOpen,onClose}){
                 <div style={{...avatar,...(p.marked?presentAvatar:{})}}>
                   {(p.first_name||'?').charAt(0).toUpperCase()}
                 </div>
-                <div>
+                <div style={{minWidth:0}}>
                   <strong>{p.first_name} {p.last_name||''}</strong>
-                  {p.marked&&<small>{'Present'+(p.marked_by_name?' · '+p.marked_by_name:'')}</small>}
+                  {p.marked&&<small style={{display:'block'}}>{'Present'+(p.marked_by_name?' · '+p.marked_by_name:'')}</small>}
+                  {p.marked&&p.first_visit_candidate===true&&(
+                    <div style={firstVisitWelcomeRow}>
+                      {p.first_visit_welcome_recorded===true
+                        ? <small style={firstVisitWelcomeDone}>✓ Welcomed in person</small>
+                        : <>
+                            <small style={firstVisitWelcomeHint}>First recorded attendance · welcome warmly if appropriate</small>
+                            <button
+                              type="button"
+                              style={{...firstVisitWelcomeButton,...((!networkOnline||pendingCount>0||closing||welcomeSavingIds.includes(String(p.id)))?firstVisitWelcomeButtonDisabled:{})}}
+                              disabled={!networkOnline||pendingCount>0||closing||welcomeSavingIds.includes(String(p.id))}
+                              onClick={()=>recordFirstVisitWelcome(p)}
+                              aria-label={`Record in-person welcome for ${p.first_name||'this visitor'}`}
+                            >
+                              {welcomeSavingIds.includes(String(p.id))?'Saving…':!networkOnline||pendingCount>0?'Sync to record':'Welcomed in person'}
+                            </button>
+                          </>
+                      }
+                    </div>
+                  )}
                 </div>
               </div>
               <button
@@ -758,6 +811,11 @@ const peopleBox={flex:1,overflow:'auto',padding:'0 18px'};
 const empty={minHeight:160,display:'grid',placeItems:'center',alignContent:'center',gap:6,color:'rgba(255,255,255,.5)',textAlign:'center'};
 const personRow={display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,padding:'8px 0',borderBottom:'1px solid rgba(255,255,255,.05)'};
 const personInfo={display:'flex',alignItems:'center',gap:10,minWidth:0};
+const firstVisitWelcomeRow={display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',marginTop:5,maxWidth:340};
+const firstVisitWelcomeHint={fontSize:10,color:'rgba(214,184,106,.82)',lineHeight:1.35};
+const firstVisitWelcomeDone={fontSize:10,color:'rgba(74,222,128,.9)',lineHeight:1.35};
+const firstVisitWelcomeButton={padding:'4px 8px',borderRadius:999,border:'1px solid rgba(214,184,106,.32)',background:'rgba(214,184,106,.09)',color:'rgba(255,242,208,.96)',cursor:'pointer',fontSize:10,fontWeight:600,whiteSpace:'nowrap'};
+const firstVisitWelcomeButtonDisabled={opacity:.45,cursor:'not-allowed'};
 const avatar={width:36,height:36,borderRadius:'50%',background:'rgba(255,255,255,.08)',display:'grid',placeItems:'center',flexShrink:0,fontWeight:700,fontSize:14};
 const presentAvatar={background:'rgba(74,222,128,.12)'};
 const markButton={padding:'7px 11px',borderRadius:999,border:'1px solid rgba(255,255,255,.11)',background:'rgba(255,255,255,.045)',color:'#fff',cursor:'pointer',whiteSpace:'nowrap',fontSize:13};

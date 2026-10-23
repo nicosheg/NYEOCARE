@@ -1,6 +1,6 @@
 import fs from'node:fs';
 import assert from'node:assert/strict';
-import{inferBulkPeopleTypeIntent}from'../lib/aria/peopleBulkIntent.js';
+import{inferBulkPeopleTypeIntent,inferPeopleTypeListIntent}from'../lib/aria/peopleBulkIntent.js';
 
 const markAll=inferBulkPeopleTypeIntent('Mark all the people as members');
 assert.deepEqual(markAll,{target_type:'member',source_type:null,scope:'all_active_people',explicit:true});
@@ -12,6 +12,16 @@ const colloquialVisitors=inferBulkPeopleTypeIntent("Mark everyone who's visitor 
 assert.deepEqual(colloquialVisitors,{target_type:'member',source_type:'visitor',scope:'all_active_people',explicit:true});
 const records=inferBulkPeopleTypeIntent('Convert all active visitor records to member');
 assert.deepEqual(records,{target_type:'member',source_type:'visitor',scope:'all_active_people',explicit:true});
+const subjectFirst=inferBulkPeopleTypeIntent("Everyone who's visitor now make them members");
+assert.deepEqual(subjectFirst,{target_type:'member',source_type:'visitor',scope:'all_active_people',explicit:true});
+const clarificationStyle=inferBulkPeopleTypeIntent('I mean the people who are marked as visitors should be members');
+assert.deepEqual(clarificationStyle,{target_type:'member',source_type:'visitor',scope:'all_active_people',explicit:true});
+const listVisitors=inferPeopleTypeListIntent("I want you to list everyone who's a visitor");
+assert.deepEqual(listVisitors,{cohort:'visitors',type:'visitor',explicit:false});
+const listMembers=inferPeopleTypeListIntent('Show everyone marked as members');
+assert.deepEqual(listMembers,{cohort:'members',type:'member',explicit:false});
+assert.equal(inferPeopleTypeListIntent('Make every visitor a member'),null);
+assert.equal(inferPeopleTypeListIntent('I want ARIA to support “list everyone who is a visitor”'),null);
 const people=inferBulkPeopleTypeIntent('Mark all the people as members');
 assert.deepEqual(people,{target_type:'member',source_type:null,scope:'all_active_people',explicit:true});
 const plain=inferBulkPeopleTypeIntent('Make everyone a member');
@@ -34,6 +44,14 @@ assert.match(mutationEngine,/export async function bulkUpdatePeopleType/);
 assert.match(mutationEngine,/BEGIN/);
 assert.match(mutationEngine,/PEOPLE_TYPE_BULK_UPDATED/);
 assert.match(commandEngine,/inferBulkPeopleTypeIntent/);
+const cohortEngine=read('lib/aria/cohortEngine.js');
+assert.match(cohortEngine,/lower\(COALESCE\(type,''\)\)='visitor'/);
+assert.match(cohortEngine,/lower\(COALESCE\(type,''\)\)='member'/);
+assert.match(commandEngine,/inferPeopleTypeListIntent/);
+assert.match(commandEngine,/goal:'list_people_by_type'/);
+assert.match(commandEngine,/conversationState/);
+assert.match(conversation,/result\.plan\?\.goal==='list_people_by_type'/);
+assert.match(conversation,/people\.map\(x=>String\(x\.name\|\|'Unnamed person'\)\)\.join\(', '\)/);
 assert.match(commandEngine,/requires_confirmation/);
 assert.match(commandEngine,/expected_count:count,expected_signature:String\(result\.cohort_signature\|\|''\)/);
 assert.match(commandEngine,/not operator account roles or permissions/);
@@ -52,4 +70,4 @@ assert.match(conversation,/bulk_update_people_type/);
 assert.match(conversation,/not anyone’s operator role or permissions/);
 
 console.log('[ARIA BULK PEOPLE TYPE REGRESSION]');
-console.log('PASS: explicit bulk member/visitor commands are parsed; read-only mentions are not treated as actions; capability is role-gated and confirmation-gated.');
+console.log('PASS: visitor/member listing is read-only and complete; natural-language bulk changes route to the owner/admin-gated, exact-preview confirmation flow.');

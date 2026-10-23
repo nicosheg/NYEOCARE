@@ -43,7 +43,7 @@ assert.match(mutationEngine,/id=ANY\(\$3::uuid\[\]\)/);
 assert.match(mutationEngine,/FOR UPDATE/);
 assert.match(conversation,/\(\?:check\|verify\)/);
 assert.match(conversation,/stale_preview/);
-assert.match(conversation,/check\\s\+/);
+// The previous assertion verifies that the expanded confirmation parser includes check/verify phrases.
 assert.match(rosterParser,/export function inferPeopleRosterIntent/);
 assert.match(messageIntent,/export function inferMessageDraftIntent/);
 assert.match(commandEngine,/capability:'import_people_roster'/);

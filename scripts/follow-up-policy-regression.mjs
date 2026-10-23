@@ -97,6 +97,13 @@ assert.ok(profile.includes('Follow-up policy') &&
 
 assert.ok(queue.includes("m?.kind==='care_first_check_in'") && queue.includes("REQUIRED_FOLLOW_UP_CANNOT_DEFER"),
   'attendance absence actions must enter the follow-up lane and only required first-visit tasks must resist deferral');
+assert.ok(queue.includes("isRequiredFirstVisit(item)") &&
+  queue.includes("mustBeVisibleToday") &&
+  queue.includes("pickTodayOperator") &&
+  queue.includes("role IN('owner','admin','leader','worker','user')"),
+  'required first-visit outcomes must be scheduled for today, capacity overflow must remain visible, and all valid active operator roles must be assignable');
+assert.ok(queue.includes("requiredFollowUpCount") && queue.includes("capacityExceeded"),
+  'the queue must expose mandatory follow-up count and capacity overflow to the operator UI');
 assert.ok(queue.includes('meta.followUpPolicy.workerDailyCapacity') &&
   queue.includes("role IN('owner','admin','leader','worker')") &&
   queue.includes("m?.first_visit_required===true?100"),
@@ -115,6 +122,8 @@ assert.ok(queue.includes("REQUIRED_FOLLOW_UP_CANNOT_DEFER") &&
   'required first-visit work must be non-deferrable on the server, not merely hidden behind the UI');
 assert.ok(completion.includes("do_not_contact: { label: 'Person asked not to be contacted', feedbackType: 'new_information', sentiment: 'neutral' }"),
   'a no-contact preference must be learned as neutral preference context, not mislabelled as a negative relationship');
+assert.ok(completion.includes("VALUES($1,$2,$3,'outbound','sent','Follow-up message',$4,$5::jsonb,$6,NOW(),NOW(),NOW())"),
+  'follow-up communication history must preserve the actual contact channel rather than forcing every send into WhatsApp');
 
 assert.ok(personState.includes("COALESCE(action_metadata->>'kind','')<>'new_person_welcome'") &&
   directorState.includes("COALESCE(action_metadata->>'kind','')<>'new_person_welcome'") &&
@@ -137,5 +146,9 @@ assert.ok(home.includes('/api/daily-queue/complete-follow-up') &&
   home.includes('routineFollowUps.map') && home.includes('First-visit care comes first') &&
   home.includes('FOLLOW-UP OUTCOME') && home.includes("completeFirstVisit('message_sent')"),
   'the worker UI must require a true disposition and remove the easy Later escape for required first-visit work');
+assert.ok(home.includes('requiredFollowUpItems') &&
+  home.includes('capacityExceeded') &&
+  home.includes('required first-visit outcomes must be reviewed individually'),
+  'ARiA Today must surface required first-visit outcomes ahead of the ordinary item cap and explain unusual workload');
 
 console.log('[FOLLOW-UP POLICY] policy, psychology guardrails, first-visit workflow and learning contracts passed.');

@@ -11,6 +11,6 @@ assert.ok(attendance.includes('JOIN sessions hs ON hs.id=pr.session_id')&&attend
 assert.ok(serviceIdentity.includes('weekday:')&&serviceIdentity.includes('REGEXP_REPLACE'),'Service keys must normalize event names and only use weekday as a fallback.');
 assert.ok(attendance.includes("o.evidence->>'service_key'")&&attendance.includes("a.action_metadata->>'service_key'"),'Return detection and cancellation must match the service key.');
 assert.ok(attendance.includes('ac.session_id IN (SELECT ps.id FROM sessions ps'),'Unrelated service contexts must remain open.');
-for(const [name,text] of [['Temporal',temporal],['Organization context',organizationContext],['ARIA Director',director])assert.ok(text.includes('ATTENDANCE_HISTORY_RESET')&&text.includes("e.type NOT IN ('SERVICE_CREATED')"),name+' must hide pre-reset attendance facts but retain service setup memory.');
+for(const [name,text] of [['Temporal',temporal],['Organization context',organizationContext],['ARIA Director',director]) assert.ok(text.includes('ATTENDANCE_HISTORY_RESET') && text.includes("e.source='attendance'"),name+' must have a reset-boundary filter for attendance events.');
 console.log('[ATTENDANCE SERVICE-PATTERN REGRESSION]');
 console.log('PASS: date anchoring, same-service pattern matching, and reset-boundary filtering.');

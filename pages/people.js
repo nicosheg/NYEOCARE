@@ -180,7 +180,7 @@ return <Layout><div style={{maxWidth:1100,margin:'0 auto',padding:20,paddingBott
  <div className="people-toolbar-primary">
   <div className="people-search-wrap">
    <span className="people-search-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></span>
-   <input type="search" aria-label="Search people by name, phone, or email" className="people-search-input" placeholder="Search names, phone or email" value={search} onChange={e=>setSearch(e.target.value)} enterKeyHint="search" autoComplete="off" style={{...inputStyle,padding:'10px 38px',minWidth:0,height:42,boxSizing:'border-box'}}/>
+   <input type="search" aria-label="Search people by name, phone, or email" className="people-search-input" placeholder="Search names, phone or email" value={search} onChange={e=>setSearch(e.target.value)} enterKeyHint="search" autoComplete="off" style={{...inputStyle,padding:'8px 34px',minWidth:0,height:38,boxSizing:'border-box'}}/>
    {search&&<button type="button" aria-label="Clear search" className="people-search-clear" onClick={()=>setSearch('')}>×</button>}
   </div>
   <button type="button" className={showFilters||activeFilterCount?'fiducia-button fiducia-button-primary people-control-button':'fiducia-button fiducia-button-ghost people-control-button'} onClick={()=>setShowFilters(v=>!v)} aria-expanded={showFilters} aria-controls="people-filter-panel">
@@ -204,35 +204,38 @@ return <Layout><div style={{maxWidth:1100,margin:'0 auto',padding:20,paddingBott
  </div>
 </div>
 <style jsx global>{`
-.people-toolbar{display:flex;flex-direction:column;gap:9px;margin-bottom:20px;width:100%}
-.people-toolbar-primary{display:grid;grid-template-columns:minmax(180px,1fr) auto auto;align-items:center;gap:8px;width:100%}
+.people-toolbar{display:flex;flex-direction:column;gap:7px;margin-bottom:15px;width:100%}
+.people-toolbar-primary{display:grid;grid-template-columns:minmax(160px,1fr) auto auto;align-items:center;gap:7px;width:100%}
 .people-search-wrap{position:relative;min-width:0}
-.people-search-input{width:100%;min-width:0}
+.people-search-input{width:100%;min-width:0;font-size:13px!important}
 .people-search-input::-webkit-search-cancel-button{-webkit-appearance:none}
-.people-search-icon{position:absolute;left:13px;top:50%;transform:translateY(-50%);display:flex;align-items:center;color:rgba(245,247,250,.42);pointer-events:none}
-.people-search-clear{position:absolute;right:7px;top:50%;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;width:28px;height:28px;border:0;border-radius:8px;background:rgba(255,255,255,.055);color:rgba(245,247,250,.72);font-size:20px;line-height:1;cursor:pointer}
-.people-control-button{min-height:42px;padding:0 12px!important;display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap;border-radius:12px!important}
-.people-filter-count{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:rgba(255,255,255,.14);font-size:10px;font-weight:700}
+.people-search-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);display:flex;align-items:center;color:rgba(245,247,250,.42);pointer-events:none}
+.people-search-icon svg{width:14px;height:14px}
+.people-search-clear{position:absolute;right:6px;top:50%;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;width:24px;height:24px;border:0;border-radius:7px;background:rgba(255,255,255,.055);color:rgba(245,247,250,.72);font-size:18px;line-height:1;cursor:pointer}
+.people-control-button{min-height:36px;padding:0 10px!important;display:inline-flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap;border-radius:10px!important;font-size:12px!important;line-height:1.1}
+.people-control-button svg{width:13px;height:13px;flex:0 0 auto}
+.people-filter-count{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:rgba(255,255,255,.14);font-size:9px;font-weight:700}
 .people-add-menu-wrap{position:relative;min-width:0}
-.people-add-button{gap:7px}
-.people-add-menu{position:absolute;z-index:1100;right:0;top:calc(100% + 7px);width:min(270px,calc(100vw - 40px));padding:6px;border:1px solid rgba(255,255,255,.11);border-radius:14px;background:rgba(10,16,30,.98);box-shadow:0 18px 44px rgba(0,0,0,.38);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+.people-add-button{gap:5px}
+.people-add-menu{position:absolute;z-index:1100;right:0;top:calc(100% + 7px);width:min(270px,calc(100vw - 40px));padding:6px;border:1px solid rgba(255,255,255,.11);border-radius:12px;background:rgba(10,16,30,.98);box-shadow:0 18px 44px rgba(0,0,0,.38);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
 .people-add-menu[hidden],.people-filter-panel[hidden]{display:none}
-.people-add-menu button{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:4px;width:100%;min-height:56px;padding:10px 12px;border:0;border-radius:9px;background:transparent;color:#f5f7fa;text-align:left;cursor:pointer}
+.people-add-menu button{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:3px;width:100%;min-height:48px;padding:8px 10px;border:0;border-radius:8px;background:transparent;color:#f5f7fa;text-align:left;cursor:pointer}
 .people-add-menu button:hover,.people-add-menu button:focus-visible{background:rgba(255,255,255,.06);outline:none}
 .people-add-menu button+button{margin-top:3px;border-top:1px solid rgba(255,255,255,.055)}
-.people-add-menu strong{font-size:13px;font-weight:600}
-.people-add-menu span{font-size:11px;color:rgba(245,247,250,.54)}
-.people-filter-panel{display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) auto auto;align-items:end;gap:10px;padding:12px;border:1px solid rgba(255,255,255,.07);border-radius:14px;background:rgba(255,255,255,.025)}
-.people-filter-field{display:flex;flex-direction:column;gap:5px;min-width:0;color:rgba(245,247,250,.56);font-size:11px}
-.people-filter-select{width:100%;min-width:0;box-sizing:border-box;padding:9px 10px;border:1px solid rgba(255,255,255,.09);border-radius:10px;background:#101a31;color:#f5f7fa;outline:none;font-size:13px}
+.people-add-menu strong{font-size:12px;font-weight:600}
+.people-add-menu span{font-size:10px;color:rgba(245,247,250,.54)}
+.people-filter-panel{display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) auto auto;align-items:end;gap:8px;padding:9px;border:1px solid rgba(255,255,255,.07);border-radius:12px;background:rgba(255,255,255,.025)}
+.people-filter-field{display:flex;flex-direction:column;gap:4px;min-width:0;color:rgba(245,247,250,.56);font-size:10px}
+.people-filter-select{width:100%;min-width:0;box-sizing:border-box;padding:7px 8px;min-height:34px;border:1px solid rgba(255,255,255,.09);border-radius:9px;background:#101a31;color:#f5f7fa;outline:none;font-size:12px}
 .people-filter-select:focus-visible,.people-search-input:focus-visible{border-color:rgba(214,184,106,.65);box-shadow:0 0 0 2px rgba(214,184,106,.12)}
-.people-filter-toggle{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 10px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:rgba(255,255,255,.025);color:rgba(245,247,250,.72);font-size:12px;white-space:nowrap;cursor:pointer}
+.people-filter-toggle{display:inline-flex;align-items:center;gap:7px;min-height:34px;padding:0 8px;border:1px solid rgba(255,255,255,.08);border-radius:9px;background:rgba(255,255,255,.025);color:rgba(245,247,250,.72);font-size:11px;white-space:nowrap;cursor:pointer}
 .people-filter-toggle[aria-pressed="true"]{border-color:rgba(214,184,106,.38);background:rgba(214,184,106,.09);color:#e8d49a}
-.people-filter-check{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border:1px solid currentColor;border-radius:5px;font-size:11px;line-height:1}
-.people-filter-reset{min-height:40px;padding:0 7px;border:0;background:transparent;color:rgba(245,247,250,.55);font-size:11px;white-space:nowrap;cursor:pointer}
+.people-filter-check{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border:1px solid currentColor;border-radius:4px;font-size:10px;line-height:1}
+.people-filter-reset{min-height:34px;padding:0 6px;border:0;background:transparent;color:rgba(245,247,250,.55);font-size:10px;white-space:nowrap;cursor:pointer}
 .people-filter-reset:hover{text-decoration:underline;color:#f5f7fa}
 .people-control-button:focus-visible,.people-filter-toggle:focus-visible,.people-filter-reset:focus-visible,.people-search-clear:focus-visible,.people-add-menu button:focus-visible{outline:2px solid rgba(232,212,154,.75);outline-offset:2px}
-@media(max-width:640px){.people-toolbar-primary{grid-template-columns:minmax(0,1fr) auto}.people-search-wrap{grid-column:1 / -1}.people-filter-panel{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.people-filter-toggle,.people-filter-reset{grid-column:1 / -1;justify-self:start}.people-add-menu{right:0}}
+@media(max-width:640px){.people-toolbar-primary{grid-template-columns:minmax(0,1fr) auto;gap:7px}.people-search-wrap{grid-column:1 / -1}.people-filter-panel{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.people-filter-toggle,.people-filter-reset{grid-column:1 / -1;justify-self:start}.people-add-menu{right:0}}
+@media(max-width:360px){.people-control-button{padding:0 8px!important;gap:4px;font-size:11px!important}.people-filter-panel{padding:8px}.people-add-button{gap:4px}}
 @media(prefers-reduced-transparency:reduce){.people-add-menu{backdrop-filter:none;-webkit-backdrop-filter:none}}
 `}</style>
 {showAdd&&<form onSubmit={addPerson} className="fiducia-card add-form" style={{display:'grid',gap:10,marginBottom:20}}><input placeholder="Full Name" value={form.full_name} onChange={e=>setForm({...form,full_name:e.target.value})} required style={inputStyle}/><input placeholder="Phone" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} style={inputStyle}/><input type="email" placeholder="Email (optional)" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} style={inputStyle}/><div><label style={labelStyle}><span style={{color:'#D4AF37',marginRight:6}}>●</span>Birthday <span style={{fontSize:12,color:'rgba(255,255,255,.3)',marginLeft:6}}>When should ARIA celebrate?</span></label><button type="button" onClick={()=>{setPickerTarget('add');setShowPicker(true)}} style={birthdayButtonStyle(form.birthday)}>{form.birthday?new Date(`${form.birthday}T00:00:00`).toLocaleDateString():'Add birthday'}</button>{form.birthday&&<div style={{fontSize:12,color:'rgba(255,255,255,.3)',marginTop:4}}>Next birthday in {getNextBirthday(form.birthday)} days</div>}</div><select value={form.type} onChange={e=>setForm({...form,type:e.target.value})} style={inputStyle}><option value="visitor">Visitor</option><option value="member">Member</option></select><div style={{display:'flex',gap:8}}><button type="submit" className="fiducia-button fiducia-button-primary">Save</button><button type="button" onClick={()=>setShowAdd(false)} className="fiducia-button fiducia-button-ghost">Cancel</button></div></form>}

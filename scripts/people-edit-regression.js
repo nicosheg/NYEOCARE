@@ -47,7 +47,11 @@ assert.ok(command.includes("Only their type will change."),'Bulk membership conf
 assert.ok(conversation.includes("?'Confirm change':'Confirm with ARIA'"),'Bulk updates must expose a single clear confirmation action.');
 assert.ok(ariaPage.includes("suggestion.label==='Confirm change'?'Confirm':'Prepare it'"),'The bulk action must have one direct Confirm button.');
 
-assert.ok(peopleApi.includes("ESCAPE E'"+String.fromCharCode(92,92,92,92)+"'"),'People search must use a valid single-character PostgreSQL LIKE escape.');
+assert.ok(!peopleApi.includes("ESCAPE E'"),'People search must not generate a malformed PostgreSQL escape clause.');
+assert.ok(peopleApi.includes("p.type=$${n++}::text"),'Visitor/member filtering must bind a text placeholder instead of comparing the text type to a numeric index.');
+assert.ok(peopleApi.includes("p.status=$${n++}::text"),'Dynamic status filtering must bind an explicit text placeholder.');
+assert.ok(peopleApi.includes("ILIKE $${patternIndex}::text")&&!peopleApi.includes("ESCAPE E'"),'Search placeholders must be typed and use PostgreSQL default LIKE escaping.');
+assert.ok(peoplePage.includes("height:38")&&peoplePage.includes(".people-control-button{min-height:36px")&&peoplePage.includes(".people-filter-select{width:100%"),'People search and filter controls must stay compact and accessible.');
 assert.ok(peopleApi.includes("regexp_replace(COALESCE(p.phone,''), '[^0-9]', '', 'g')")&&peopleApi.includes("SUBSTRING(${phoneDigitsExpr} FROM 4)")&&peopleApi.includes('isPhoneSearch&&digits.length>=3'),'People search must match digit-only and Nigerian local-format versions of phone numbers without treating mixed name searches as phone searches.');
 assert.ok(peoplePage.includes('aria-label="Search people by name, phone, or email"')&&peoplePage.includes('aria-label="Clear search"'),'People search must remain accessible and provide a one-tap clear action.');
 assert.ok(peoplePage.includes('aria-controls="people-filter-panel"')&&peoplePage.includes('Reset filters')&&peoplePage.includes('aria-pressed={showLivingTruthOnly}'),'People filters must be consolidated into an accessible expandable panel with reset support.');

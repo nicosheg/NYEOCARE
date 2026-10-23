@@ -26,11 +26,11 @@ if(req.method==='GET'){
   }
   const includeInactive=String(req.query?.include_inactive||'')==='1';
   const requestedPersonStatus=String(req.query?.person_status||'').trim().toLowerCase();
-  const where=["p.organization_id=$1",includeInactive?"p.status IN ('active','inactive')":"p.status='active'"];
+  const where=["p.organization_id=$1::text",includeInactive?"p.status IN ('active','inactive')":"p.status='active'"];
   const values=[orgId];
   let n=2;
-  if(includeInactive&&['active','inactive'].includes(requestedPersonStatus)){where.push(`p.status=$${n++}`);values.push(requestedPersonStatus)}
-  if(type&&['member','visitor'].includes(type)){where.push(`p.type=${n++}`);values.push(type)}
+  if(includeInactive&&['active','inactive'].includes(requestedPersonStatus)){where.push(`p.status=$${n++}::text`);values.push(requestedPersonStatus)}
+  if(type&&['member','visitor'].includes(type)){where.push(`p.type=$${n++}::text`);values.push(type)}
   if(living==='1')where.push(`COALESCE(p.living_truth->>'status','alive') IN ('needs_decision','conflict')`);
   if(search){
    const term=`%${search.replace(/[\\%_]/g,'\\$&')}%`;
@@ -44,9 +44,9 @@ if(req.method==='GET'){
     values.push(`%${digits}%`);
     const phoneDigitsExpr=`regexp_replace(COALESCE(p.phone,''), '[^0-9]', '', 'g')`;
     const localPhoneExpr=`CASE WHEN ${phoneDigitsExpr} LIKE '234%' AND LENGTH(${phoneDigitsExpr})=13 THEN '0'||SUBSTRING(${phoneDigitsExpr} FROM 4) ELSE ${phoneDigitsExpr} END`;
-    phoneDigitsClause=` OR ${phoneDigitsExpr} LIKE $${digitsIndex} OR (${localPhoneExpr}) LIKE $${digitsIndex}`;
+    phoneDigitsClause=` OR ${phoneDigitsExpr} LIKE $${digitsIndex}::text OR (${localPhoneExpr}) LIKE $${digitsIndex}::text`;
    }
-   where.push(`(COALESCE(p.display_name,'') ILIKE $${patternIndex} ESCAPE E'\\\\' OR COALESCE(TRIM(CONCAT_WS(' ',p.first_name,p.last_name)),'') ILIKE $${patternIndex} ESCAPE E'\\\\' OR COALESCE(p.phone,'') ILIKE $${patternIndex} ESCAPE E'\\\\' OR COALESCE(p.email,'') ILIKE $${patternIndex} ESCAPE E'\\\\'${phoneDigitsClause})`);
+   where.push(`(COALESCE(p.display_name,'') ILIKE $${patternIndex}::text  OR COALESCE(TRIM(CONCAT_WS(' ',p.first_name,p.last_name)),'') ILIKE $${patternIndex}::text  OR COALESCE(p.phone,'') ILIKE $${patternIndex}::text  OR COALESCE(p.email,'') ILIKE $${patternIndex}::text ${phoneDigitsClause})`);
   }
   const sortName=`LOWER(COALESCE(NULLIF(p.display_name,''),NULLIF(TRIM(CONCAT_WS(' ',p.first_name,p.last_name)),''),p.first_name,''))`;
   const cursorClause=cursor?`(r.new_rank,r.truth_rank,r.sort_name,r.id) > (${values.length+1}::int,${values.length+2}::int,${values.length+3}::text,${values.length+4}::uuid)`:'';
@@ -54,7 +54,7 @@ if(req.method==='GET'){
    WITH latest_scan AS(
      SELECT started_at,completed_at
      FROM scan_jobs
-     WHERE organization_id=$1 AND status='complete'
+     WHERE organization_id=$1::text AND status='complete'
      ORDER BY completed_at DESC NULLS LAST,created_at DESC
      LIMIT 1
    ),

@@ -128,6 +128,7 @@ assert.ok(completion.includes("firstVisitRequired && row.action_metadata?.kind !
   completion.includes("status='completed'") &&
   completion.includes("'do_not_contact'") &&
   completion.includes("SET status='sent',occurred_at=NOW()") &&
+  completion.includes("status='cancelled'") && completion.includes("cancellation_reason: outcome") &&
   completion.includes('learnFromFeedback'),
   'follow-up completion must validate first-visit or routine task, record contact attempts/outcomes, suppress opt-outs and feed ARIA learning');
 assert.ok(home.includes('/api/daily-queue/complete-follow-up') &&

@@ -10,6 +10,7 @@ const createSession = read('pages/api/attendance/create-session.js');
 const temporal = read('lib/aria/temporalEngine.js');
 const organizationContext = read('lib/aria/organizationContext.js');
 const director = read('lib/aria/directorEngine.js');
+const directorState = read('lib/aria/director.js');
 const memory = read('lib/aria/organizationMemory.js');
 const recommendations = read('lib/aria/recommendationEngine.js');
 const packageJson = JSON.parse(read('package.json'));
@@ -64,6 +65,18 @@ assert.ok(memory.includes("memory_key LIKE 'session:%'") && memory.includes('NOT
   'current organization memory should ignore session-context records whose test session was removed');
 assert.ok(director.includes("om.memory_key LIKE 'session:%'"),
   'director reasoning should not reuse orphaned session semantics');
+for (const [label, source] of [
+  ['temporal highlights', temporal],
+  ['operator activity', organizationContext],
+  ['director signals', director],
+  ['director state', directorState]
+]) {
+  assert.ok(source.includes("e.type<>'ATTENDANCE_HISTORY_RESET'"),
+    label + ' should hide the reset boundary itself from current activity');
+}
+assert.ok(directorState.includes("e.type<>'ATTENDANCE_HISTORY_RESET'") &&
+  directorState.includes("reset_event.occurred_at>e.occurred_at"),
+  'director state should not treat the reset marker or old attendance events as the latest meaningful event');
 assert.ok(recommendations.includes("COALESCE(action_metadata->>'attendance_history_reset','false')<>'true'"),
   'person action history should hide attendance actions invalidated by the reset');
 assert.ok(!/DELETE\s+FROM\s+aria_events/i.test(processor + temporal + organizationContext + director),

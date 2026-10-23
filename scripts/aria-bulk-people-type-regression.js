@@ -49,6 +49,7 @@ assert.match(messageIntent,/export function inferMessageDraftIntent/);
 assert.match(commandEngine,/capability:'import_people_roster'/);
 assert.match(commandEngine,/capability:'draft_message_cohort'/);
 assert.match(conversation,/bulk_update_people_type/);
+assert.match(conversation,/not anyone’s operator role or permissions/);
 
 console.log('[ARIA BULK PEOPLE TYPE REGRESSION]');
 console.log('PASS: explicit bulk member/visitor commands are parsed; read-only mentions are not treated as actions; capability is role-gated and confirmation-gated.');

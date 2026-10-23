@@ -60,8 +60,8 @@ assert.ok(serviceIdentity.includes("!~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0
 
 assert.ok(attendance.includes('createFirstVisitFollowUps(sessionId,orgId)') &&
   attendance.includes("'first_visit_required',true") &&
-  attendance.includes("'first_visit_due_at'") === false,
-  'first-visit tasks must be generated from attendance and marked required; due time is stored as first_visit_due_at');
+  attendance.includes("'first_visit_due_at',t.started_at+($3::int*INTERVAL '1 hour')"),
+  'first-visit tasks must be generated from attendance, marked required and given a policy-based deadline');
 assert.ok(attendance.includes("'first_visit_due_at',t.started_at+($3::int*INTERVAL '1 hour')") &&
   attendance.includes("'verify_first_visit_or_existing_connection'") &&
   attendance.includes("'do_not_contact'"),

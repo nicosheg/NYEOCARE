@@ -39,7 +39,7 @@ const completed=REQUIRED_EXPERIENCES.every(key=>experienced[key]);
 return res.status(200).json({
 onboarding:{enabled:organization.enabled,experienced,completed},
 ariaInstructions:row.aria_instructions||'',
-followUpPolicy:normalizeFollowUpPolicy(row.settings?.aria?.follow_up_policy),
+followUpPolicy:normalizeFollowUpPolicy({...row.settings?.aria?.follow_up_policy,attendancePatternFollowUpEnabled:typeof row.settings?.aria?.follow_up_policy?.attendancePatternFollowUpEnabled==='boolean'?row.settings.aria.follow_up_policy.attendancePatternFollowUpEnabled:row.settings?.aria?.attendance_pattern_followup_enabled}),
 onboardingCompletedAt:row.onboarding_completed_at
 });
 }catch(error){
@@ -70,10 +70,10 @@ const savedPolicy={...normalized,enabled_at:existingPolicy.enabled_at||new Date(
 await pool.query(
 `UPDATE public.organizations
  SET settings=COALESCE(settings,'{}'::jsonb)||jsonb_build_object(
-   'aria',COALESCE(settings->'aria','{}'::jsonb)||jsonb_build_object('follow_up_policy',$1::jsonb)
+   'aria',COALESCE(settings->'aria','{}'::jsonb)||jsonb_build_object('follow_up_policy',$1::jsonb,'attendance_pattern_followup_enabled',$3::boolean)
  ),updated_at=NOW()
  WHERE id=$2`,
-[JSON.stringify(savedPolicy),orgId]
+[JSON.stringify(savedPolicy),orgId,normalized.attendancePatternFollowUpEnabled]
 );
 return res.status(200).json({success:true,followUpPolicy:normalized});
 }

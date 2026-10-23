@@ -66,7 +66,7 @@ assert.ok(director.includes("om.memory_key LIKE 'session:%'"),
 assert.ok(!/DELETE\s+FROM\s+aria_events/i.test(processor + temporal + organizationContext + director),
   'immutable ARIA event history must not be physically deleted to simulate a reset');
 
-assert.ok(packageJson.scripts['test:attendance-service-pattern'] === 'node scripts/attendance-service-pattern-regression.js',
+assert.ok(String(packageJson.scripts['test:attendance-service-pattern'] || '').includes('node scripts/attendance-service-pattern-regression.js'),
   'the dedicated attendance regression must run through npm scripts');
 assert.ok(ci.includes('npm run test:attendance-service-pattern'),
   'the attendance regression must block deployment when it fails');

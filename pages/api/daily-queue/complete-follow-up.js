@@ -146,9 +146,9 @@ export default withOrg(async function handler(req, res) {
           `INSERT INTO person_communications(
             organization_id,person_id,channel,direction,status,subject,content,metadata,created_by,
             occurred_at,created_at,updated_at
-          ) VALUES($1,$2,'whatsapp','outbound','sent','Follow-up message',$3,$4::jsonb,$5,NOW(),NOW(),NOW())
+          ) VALUES($1,$2,$3,'outbound','sent','Follow-up message',$4,$5::jsonb,$6,NOW(),NOW(),NOW())
           RETURNING id,channel,status,occurred_at`,
-          [req.org.id, row.person_id, messageContent, JSON.stringify({
+          [req.org.id, row.person_id, contactChannel, messageContent, JSON.stringify({
             action_id: row.action_id,
             follow_up_action_id: row.action_id,
             follow_up_outcome: outcome,

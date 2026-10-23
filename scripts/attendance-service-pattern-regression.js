@@ -11,6 +11,7 @@ const temporal = read('lib/aria/temporalEngine.js');
 const organizationContext = read('lib/aria/organizationContext.js');
 const director = read('lib/aria/directorEngine.js');
 const memory = read('lib/aria/organizationMemory.js');
+const recommendations = read('lib/aria/recommendationEngine.js');
 const packageJson = JSON.parse(read('package.json'));
 const ci = read('.github/workflows/ci.yml');
 const attendanceUi = read('components/AttendanceModal.js');
@@ -63,6 +64,8 @@ assert.ok(memory.includes("memory_key LIKE 'session:%'") && memory.includes('NOT
   'current organization memory should ignore session-context records whose test session was removed');
 assert.ok(director.includes("om.memory_key LIKE 'session:%'"),
   'director reasoning should not reuse orphaned session semantics');
+assert.ok(recommendations.includes("COALESCE(action_metadata->>'attendance_history_reset','false')<>'true'"),
+  'person action history should hide attendance actions invalidated by the reset');
 assert.ok(!/DELETE\s+FROM\s+aria_events/i.test(processor + temporal + organizationContext + director),
   'immutable ARIA event history must not be physically deleted to simulate a reset');
 

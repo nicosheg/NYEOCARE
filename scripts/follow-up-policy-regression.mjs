@@ -24,6 +24,7 @@ const directorState = read('lib/aria/director.js');
 const directorEngine = read('lib/aria/directorEngine.js');
 const temporal = read('lib/aria/temporalEngine.js');
 const recommendationEngine = read('lib/aria/recommendationEngine.js');
+const canonicalCare = read('lib/aria/canonicalCare.js');
 const defer = read('pages/api/daily-queue/defer.js');
 
 const now = new Date('2026-10-23T10:00:00.000Z');
@@ -102,6 +103,11 @@ assert.ok(queue.includes('meta.followUpPolicy.workerDailyCapacity') &&
   'the queue must distribute work across operators, honour capacity, and prioritize required first-visit outcomes');
 assert.ok(briefing.includes('capacityPerOperator:queue.capacityPerOperator||5'),
   'ARIA Today must show the configured worker capacity');
+
+assert.ok(recommendationEngine.includes("COALESCE(action_metadata->>'first_visit_required','false')<>'true'") &&
+  canonicalCare.includes("current.rows[0]?.action_metadata?.first_visit_required===true") &&
+  attendance.includes("COALESCE(a.action_metadata->>'first_visit_required','false')<>'true'"),
+  'required first-visit work must not be cancelled by generic reject/context-resolution routes or silently superseded when the person returns');
 
 assert.ok(queue.includes("REQUIRED_FOLLOW_UP_CANNOT_DEFER") &&
   queue.includes("q.rows[0].action_metadata?.first_visit_required===true") &&

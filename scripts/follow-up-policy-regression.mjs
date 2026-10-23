@@ -26,6 +26,7 @@ const daysAgo = days => new Date(now.getTime() - days * 86400000);
 
 assert.deepEqual(DEFAULT_FOLLOW_UP_POLICY, {
   firstVisitFollowUpRequired: true,
+  attendancePatternFollowUpEnabled: true,
   firstVisitDueHours: 24,
   routineCooldownDays: 7,
   noResponseCooldownDays: 14,
@@ -41,6 +42,7 @@ assert.deepEqual(normalizeFollowUpPolicy({
   workerDailyCapacity: -4
 }), {
   firstVisitFollowUpRequired: true,
+  attendancePatternFollowUpEnabled: true,
   firstVisitDueHours: 72,
   routineCooldownDays: 3,
   noResponseCooldownDays: 7,
@@ -48,6 +50,7 @@ assert.deepEqual(normalizeFollowUpPolicy({
   workerDailyCapacity: 1
 }, 'policy values must be bounded before storage or scheduling');
 
+assert.equal(normalizeFollowUpPolicy({ attendancePatternFollowUpEnabled: false }).attendancePatternFollowUpEnabled, false, 'an organization must be able to opt out of attendance-pattern follow-up');
 assert.equal(isRoutineFollowUpEligible({ now }).allowed, true, 'no prior outreach should be eligible');
 assert.equal(isRoutineFollowUpEligible({ now, lastOutboundAt: daysAgo(3) }).reason, 'routine_cooldown');
 assert.equal(isRoutineFollowUpEligible({ now, lastFeedbackType: 'no_response', lastFeedbackAt: daysAgo(10) }).reason, 'no_response_cooldown');
@@ -82,7 +85,7 @@ assert.ok(onboarding.includes("action==='save_follow_up_policy'") &&
   'organization follow-up policy must be persisted under owner/admin control');
 assert.ok(profile.includes('Follow-up policy') &&
   profile.includes('firstVisitDueHours') &&
-  profile.includes('routineCooldownDays') &&
+  profile.includes('attendancePatternFollowUpEnabled') && profile.includes('routineCooldownDays') &&
   profile.includes('workerDailyCapacity'),
   'organization admins need accessible policy controls');
 

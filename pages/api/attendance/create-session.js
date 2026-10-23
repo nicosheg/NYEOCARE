@@ -12,7 +12,7 @@ export default withAdmin(async function handler(req,res){
     return res.status(405).json({error:'Method not allowed'});
   }
 
-  const{name,sections,service_type=null,event_kind='service',event_scope='organization',group_id=null,event_semantics={},expected_population_rule={},attendance_interpretation='neutral',participation_expected=true,optional=false,absence_meaningful=(event_kind==='service'&&optional!==true)}=req.body||{};
+  const{name,sections,service_type=null,event_kind='service',event_scope='organization',group_id=null,event_semantics={},expected_population_rule={},attendance_interpretation='neutral',participation_expected=true,optional=false,absence_meaningful}=req.body||{};
   if(typeof name!=='string'||!name.trim()){
     return res.status(400).json({error:'Event name is required.'});
   }
@@ -29,6 +29,18 @@ export default withAdmin(async function handler(req,res){
   try{
     await client.query('BEGIN');
     await client.query("SELECT pg_advisory_xact_lock(hashtext($1::text))",[orgId]);
+
+    const orgConfigResult=await client.query(
+      `SELECT settings FROM organizations WHERE id=$1 LIMIT 1`,
+      [orgId]
+    );
+    const orgSettings=orgConfigResult.rows[0]?.settings||{};
+    const configuredAttendanceFollowUp=orgSettings?.aria?.attendance_pattern_followup_enabled===true;
+    // Do not globally assume a missed event should trigger follow-up. Use an explicit
+    // request value when supplied; otherwise apply the organization's saved policy.
+    const absenceMeaningful=typeof absence_meaningful==='boolean'
+      ? absence_meaningful
+      : configuredAttendanceFollowUp && event_kind==='service' && optional!==true;
 
     const active=await client.query(
       `SELECT id,name,status,started_by,started_at
@@ -62,7 +74,7 @@ export default withAdmin(async function handler(req,res){
        RETURNING id,name,status,service_type,started_by,started_at,event_kind,event_scope,group_id,event_semantics,expected_population_rule,attendance_interpretation,participation_expected,optional,absence_meaningful,
                  aria_processing_status,aria_processing_stage,aria_processing_progress,
                  aria_processing_processed,aria_processing_total`,
-      [orgId,name.trim(),userId,service_type||null,event_kind||'service',event_scope||'organization',group_id||null,JSON.stringify(event_semantics||{}),JSON.stringify(expected_population_rule||{}),attendance_interpretation||'neutral',participation_expected!==false,optional===true,absence_meaningful===true]
+      [orgId,name.trim(),userId,service_type||null,event_kind||'service',event_scope||'organization',group_id||null,JSON.stringify(event_semantics||{}),JSON.stringify(expected_population_rule||{}),attendance_interpretation||'neutral',participation_expected!==false,optional===true,absenceMeaningful===true]
     );
 
     const session=created.rows[0];

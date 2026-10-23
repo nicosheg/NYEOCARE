@@ -66,7 +66,31 @@ export default withOrg(async function handler(req,res){
            (SELECT COUNT(*)::int FROM attendance_records ap
             WHERE ap.organization_id=$1 AND ap.session_id=$2 AND ap.present=true) AS present_count
        )
-       SELECT p.id,p.first_name,p.last_name,p.display_name,p.phone,
+       SELECT p.id,p.first_name,p.last_name,p.display_name,p.phone,p.type,
+         CASE WHEN lower(BTRIM(COALESCE(p.type,'')))='visitor'
+           AND NOT EXISTS(
+             SELECT 1 FROM participation_records previous
+             WHERE previous.organization_id=p.organization_id
+               AND previous.person_id=p.id
+               AND previous.participation_type='attendance'
+               AND previous.session_id<>s.id
+               AND previous.occurred_at<s.started_at
+           )
+           AND NOT EXISTS(
+             SELECT 1 FROM aria_care_contexts cc
+             WHERE cc.organization_id=p.organization_id AND cc.person_id=p.id
+               AND cc.kind='other' AND cc.metadata->>'do_not_contact'='true'
+               AND cc.starts_on<=s.started_at::date
+               AND (cc.ends_on IS NULL OR cc.ends_on>=s.started_at::date)
+           ) THEN true ELSE false END AS first_visit_candidate,
+         EXISTS(
+           SELECT 1 FROM care_feedback wf
+           WHERE wf.organization_id=p.organization_id AND wf.person_id=p.id
+             AND wf.context->>'source'='first_visit_welcome_during_attendance'
+             AND wf.context->>'session_id'=s.id::text
+             AND wf.context->>'outcome'='met_in_person'
+             AND wf.verification_status='reported'
+         ) AS first_visit_welcome_recorded,
          COALESCE(ar.present,false) marked,
          COALESCE(
            NULLIF(u.name,''),

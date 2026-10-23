@@ -299,6 +299,20 @@ export default function ChurchProfileTab() {
             </span>
           </span>
         </label>
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 11, color: '#f0f0f0', lineHeight: 1.5, fontSize: 14, marginBottom: 18 }}>
+          <input
+            type="checkbox"
+            checked={followUpPolicy.attendancePatternFollowUpEnabled}
+            onChange={e => setFollowUpPolicy(v => ({ ...v, attendancePatternFollowUpEnabled: e.target.checked }))}
+            style={{ marginTop: 4, accentColor: '#D4AF37' }}
+          />
+          <span>
+            <strong>Notice meaningful changes in attendance patterns</strong>
+            <span style={{ display: 'block', color: 'rgba(255,255,255,.46)', fontSize: 12, marginTop: 3 }}>
+              ARIA checks the same recurring service over time—not just the weekday. It only suggests a human check-in after repeated, recent participation, and respects contact cooldowns, no-response pauses and do-not-contact requests. Optional gatherings are not treated as expected attendance.
+            </span>
+          </span>
+        </label>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(185px,1fr))', gap: 12 }}>
           <label style={{ display: 'grid', gap: 7, color: 'rgba(255,255,255,.72)', fontSize: 12 }}>
             First-touch deadline

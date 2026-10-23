@@ -12,7 +12,7 @@ const OUTCOMES = {
   no_contact_details: { label: 'No usable contact details', feedbackType: 'new_information', sentiment: 'neutral' },
   already_connected: { label: 'Already connected by a person', feedbackType: 'other', sentiment: 'positive' },
   not_first_visit: { label: 'Confirmed this was not a first-time visit', feedbackType: 'other', sentiment: 'neutral' },
-  do_not_contact: { label: 'Person asked not to be contacted', feedbackType: 'negative', sentiment: 'negative' }
+  do_not_contact: { label: 'Person asked not to be contacted', feedbackType: 'new_information', sentiment: 'neutral' }
 };
 
 export default withOrg(async function handler(req, res) {

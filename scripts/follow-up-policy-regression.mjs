@@ -19,6 +19,11 @@ const onboarding = read('pages/api/onboarding.js');
 const profile = read('components/ChurchProfileTab.js');
 const home = read('pages/index.js');
 const completion = read('pages/api/daily-queue/complete-follow-up.js');
+const personState = read('lib/aria/stateManager.js');
+const directorState = read('lib/aria/director.js');
+const directorEngine = read('lib/aria/directorEngine.js');
+const temporal = read('lib/aria/temporalEngine.js');
+const recommendationEngine = read('lib/aria/recommendationEngine.js');
 const defer = read('pages/api/daily-queue/defer.js');
 
 const now = new Date('2026-10-23T10:00:00.000Z');
@@ -102,6 +107,13 @@ assert.ok(queue.includes("REQUIRED_FOLLOW_UP_CANNOT_DEFER") &&
   'required first-visit work must be non-deferrable on the server, not merely hidden behind the UI');
 assert.ok(completion.includes("do_not_contact: { label: 'Person asked not to be contacted', feedbackType: 'new_information', sentiment: 'neutral' }"),
   'a no-contact preference must be learned as neutral preference context, not mislabelled as a negative relationship');
+
+assert.ok(personState.includes("COALESCE(action_metadata->>'kind','')<>'new_person_welcome'") &&
+  directorState.includes("COALESCE(action_metadata->>'kind','')<>'new_person_welcome'") &&
+  directorEngine.includes("COALESCE(action_metadata->>'kind','')<>'new_person_welcome'") &&
+  temporal.includes("COALESCE(a.action_metadata->>'kind','')<>'new_person_welcome'") &&
+  recommendationEngine.includes("COALESCE(a.action_metadata->>'kind','')<>'new_person_welcome'"),
+  'legacy welcome-on-record-entry proposals must not inflate live action counts, person state or pending work');
 
 assert.ok(completion.includes("row.action_metadata?.first_visit_required !== true") &&
   completion.includes("status='completed'") &&

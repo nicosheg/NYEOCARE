@@ -67,6 +67,8 @@ assert.match(messageIntent,/export function inferMessageDraftIntent/);
 assert.match(commandEngine,/capability:'import_people_roster'/);
 assert.match(commandEngine,/capability:'draft_message_cohort'/);
 assert.match(conversation,/bulk_update_people_type/);
+assert.match(conversation,/a\.action_metadata->>'conversation_id'=c\.id::text/);
+assert.doesNotMatch(conversation,/a\.action_metadata->>'conversation_id'=\$2/);
 assert.match(conversation,/not anyone’s operator role or permissions/);
 
 console.log('[ARIA BULK PEOPLE TYPE REGRESSION]');

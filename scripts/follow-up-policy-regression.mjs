@@ -84,8 +84,8 @@ assert.ok(attendancePeople.includes('AS first_visit_candidate') &&
   attendanceFieldRoster.includes('AS first_visit_candidate') &&
   attendanceFieldRoster.includes('first_visit_welcome_during_attendance'),
   'online and offline rosters must share the same first-visit cues and prior welcome state');
-assert.ok(inAttendanceWelcome.includes("s.status='active'") &&
-  inAttendanceWelcome.includes("su.user_id=$4") &&
+assert.ok(inAttendanceWelcome.includes("current.session_status!=='active'") &&
+  inAttendanceWelcome.includes("JOIN session_users su ON su.session_id=s.id AND su.user_id=$4") &&
   inAttendanceWelcome.includes("current.marked_present!==true") &&
   inAttendanceWelcome.includes("INSERT INTO care_feedback") &&
   inAttendanceWelcome.includes("INSERT INTO intelligence_outcomes") &&

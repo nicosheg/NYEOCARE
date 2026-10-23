@@ -20,7 +20,7 @@ const files={
 };
 const organizationExpression='\$'+'{organizationId}';
 const checks=[
- ['New attendance events require explicit intent or an organization follow-up policy',files.createSession.includes("configuredAttendanceFollowUp=orgSettings?.aria?.attendance_pattern_followup_enabled===true")&&files.createSession.includes("typeof absence_meaningful==='boolean'")&&files.createSession.includes("absenceMeaningful===true")],
+ ['New attendance events use an organization-controlled attendance-follow-up policy with per-session opt-outs',files.createSession.includes('normalizeFollowUpPolicy')&&files.createSession.includes('followUpPolicy.attendancePatternFollowUpEnabled')&&files.createSession.includes("typeof absence_meaningful==='boolean'")&&files.createSession.includes("absenceMeaningful===true")],
  ['Attendance absence logic respects event semantics',files.attendanceProcessor.includes('latest.absence_meaningful=true')&&files.attendanceProcessor.includes('latest.participation_expected=true')&&files.attendanceProcessor.includes('latest.optional=false')],
  ['Group-scoped events restrict absence candidates to active group members',files.attendanceProcessor.includes("latest.event_scope='group'")&&files.attendanceProcessor.includes('person_memberships')],
  ['Temporal memory stores importance and validity',files.memory.includes("importance='temporary'")&&files.memory.includes('validUntil')&&files.memory.includes('valid_until')],

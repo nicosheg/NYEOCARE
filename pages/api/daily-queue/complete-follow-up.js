@@ -28,10 +28,10 @@ export default withOrg(async function handler(req, res) {
   const communicationId = String(req.body?.communication_id || '').trim() || null;
   const messageContent = String(req.body?.message_content || '').trim().slice(0, 2000);
   const requestedChannel = String(req.body?.contact_channel || '').trim().toLowerCase();
-  const allowedChannels = new Set(['whatsapp', 'phone', 'in_person', 'app']);
+  const allowedChannels = new Set(['whatsapp', 'phone', 'in_person', 'app', 'unknown']);
   const contactChannel = allowedChannels.has(requestedChannel) ? requestedChannel :
     outcome === 'message_sent' ? 'whatsapp' :
-    ['met_in_person', 'already_connected'].includes(outcome) ? 'in_person' : 'phone';
+    outcome === 'met_in_person' ? 'in_person' : 'unknown';
   const option = OUTCOMES[outcome];
   if (!queueItemId || !option) {
     return res.status(400).json({ error: 'A queue item and valid follow-up outcome are required.' });

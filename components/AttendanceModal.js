@@ -205,6 +205,10 @@ export default function AttendanceModal({isOpen,onClose}){
     fieldRosterWarmInProgress.current=true;
     const snapshotEpoch=++fieldRosterEpoch.current;
     const rosterRequestSeq=++fieldRosterLoadSeq.current;
+    // Require a new complete snapshot before accepting another incremental
+    // delta sequence; a failed refresh must not leave a fresh cursor paired
+    // with an older roster snapshot.
+    fieldSnapshotSessionId.current='';
     try{
       const params=new URLSearchParams({session_id:sessionId,limit:'5000'});
       const response=await fetchAttendanceWithTimeout('/api/attendance/field-roster?'+params.toString(),{
@@ -229,6 +233,9 @@ export default function AttendanceModal({isOpen,onClose}){
         data.has_more=page.has_more===true;
         pages++;
       }
+      // A capped or interrupted page walk is not a complete roster. Retry it;
+      // never mark a partial snapshot as authoritative for cross-device deltas.
+      if(data.has_more===true)return false;
       const pending=await getPendingFieldMutations(sessionId,auth.user?.id).catch(()=>[]);
       if(rosterRequestSeq!==fieldRosterLoadSeq.current||snapshotEpoch!==fieldRosterEpoch.current||fieldCursor.current.sessionId!==sessionId)return false;
       const pendingByPerson=new Map(pending.map(item=>[String(item.personId),item]));

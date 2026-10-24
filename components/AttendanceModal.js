@@ -76,6 +76,7 @@ export default function AttendanceModal({isOpen,onClose}){
   const fieldWarmAt=useRef(0);
   const fieldCursor=useRef({sessionId:'',cursor:''});
   const fieldRosterRef=useRef([]);
+  const fieldRosterLoadSeq=useRef(0);
   const queryRef=useRef(query);
   const fieldPolling=useRef(false);
   const onCloseRef=useRef(onClose);

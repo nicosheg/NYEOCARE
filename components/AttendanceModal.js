@@ -709,10 +709,8 @@ export default function AttendanceModal({isOpen,onClose}){
         return next.slice(0,80);
       });
       setFieldRoster(current=>{
-        if(!current.length)return current;
         const next=[...current.filter(p=>String(p.id)!==String(person.id)),person];
         next.sort((a,b)=>String(a.display_name||((a.first_name||'')+' '+(a.last_name||''))).localeCompare(String(b.display_name||((b.first_name||'')+' '+(b.last_name||'')))));
-        void saveFieldPeople(session.session_id,[person]).catch(()=>{});
         return next;
       });
       setTotal(value=>value+1);

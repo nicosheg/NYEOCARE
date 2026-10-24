@@ -233,9 +233,11 @@ export default function AttendanceModal({isOpen,onClose}){
         data.has_more=page.has_more===true;
         pages++;
       }
-      // A capped or interrupted page walk is not a complete roster. Retry it;
-      // never mark a partial snapshot as authoritative for cross-device deltas.
-      if(data.has_more===true)return false;
+      // A capped or interrupted page walk, or a count changing during pagination,
+      // is not a complete roster. Retry instead of treating a partial snapshot as
+      // authoritative for cross-device deltas.
+      const declaredTotal=Number(data.total);
+      if(data.has_more===true||!Number.isInteger(declaredTotal)||declaredTotal<0||declaredTotal!==all.length)return false;
       const pending=await getPendingFieldMutations(sessionId,auth.user?.id).catch(()=>[]);
       if(rosterRequestSeq!==fieldRosterLoadSeq.current||snapshotEpoch!==fieldRosterEpoch.current||fieldCursor.current.sessionId!==sessionId)return false;
       const pendingByPerson=new Map(pending.map(item=>[String(item.personId),item]));

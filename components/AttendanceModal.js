@@ -776,6 +776,7 @@ export default function AttendanceModal({isOpen,onClose}){
         setNotice('This visitor request was already processed, but the record is now inactive or archived. No duplicate was created. Ask an owner or admin to review the directory.');
         return;
       }
+      const wasAlreadyInRoster=people.some(p=>String(p.id)===String(data.person.id))||fieldRoster.some(p=>String(p.id)===String(data.person.id))||fieldRosterRef.current.some(p=>String(p.id)===String(data.person.id));
       const person={...data.person,marked:false,marked_by_name:null,first_visit_candidate:true,first_visit_welcome_recorded:false};
       setPeople(current=>{
         if(query.trim()&&!localRosterSearch([person],query,1).length)return current;
@@ -795,7 +796,7 @@ export default function AttendanceModal({isOpen,onClose}){
         // partial roster as canonical. The full snapshot will include this new row.
         void warmFieldRoster({session_id:session.session_id},auth).catch(()=>{});
       }
-      setTotal(value=>value+1);
+      setTotal(value=>value+(wasAlreadyInRoster?0:1));
       visitorRequestId.current='';setVisitorName('');setVisitorPhone('');setVisitorContactConsent(false);setShowAddVisitor(false);
       setNotice('Visitor added to this organization. No message was sent.');
       publishDataChange('attendance');

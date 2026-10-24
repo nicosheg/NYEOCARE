@@ -182,7 +182,8 @@ export default withOrg(async function handler(req,res){
        LIMIT 1`,
       [person.id,effectiveSessionId,orgId]
     )).rows[0];
-    person={...person,
+    const {metadata:internalMetadata,...publicPerson}=person;
+    person={...publicPerson,
       first_visit_candidate:context?.first_visit_candidate===true,
       first_visit_welcome_recorded:context?.first_visit_welcome_recorded===true
     };

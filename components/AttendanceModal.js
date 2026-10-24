@@ -271,6 +271,9 @@ export default function AttendanceModal({isOpen,onClose}){
       const data=await response.json().catch(()=>({}));
       if(!response.ok||data.success!==true||!data.cursor)return;
       if(fieldCursor.current.sessionId!==sessionId||pollEpoch!==fieldRosterEpoch.current||fieldRosterWarmInProgress.current)return;
+      // Until a full snapshot is available, don't replace the first server page
+      // with an incomplete local roster if the snapshot request has failed.
+      if(!fieldReady&&total>0&&fieldRosterRef.current.length===0)return;
       fieldCursor.current={sessionId,cursor:String(data.cursor)};
 
       const pending=await getPendingFieldMutations(sessionId,auth.user?.id).catch(()=>[]);
@@ -329,7 +332,7 @@ export default function AttendanceModal({isOpen,onClose}){
     }finally{
       fieldPolling.current=false;
     }
-  },[isOpen,session?.session_id,session?.status,networkOnline,primeFieldCursor,warmFieldRoster,refreshFieldPending]);
+  },[isOpen,session?.session_id,session?.status,networkOnline,fieldReady,total,primeFieldCursor,warmFieldRoster,refreshFieldPending]);
 
   const fetchPage=useCallback(async(live,q='',nextCursor=null,append=false,sessionOverride=null)=>{
     const s=sessionOverride||await getClientSession();

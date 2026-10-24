@@ -4,7 +4,7 @@ import{createPortal}from'react-dom';
 import{getClientSession}from'../lib/clientSession';
 import{getCached,setCached,clearCached,publishDataChange}from'../lib/appData';
 import{supabase}from'../lib/supabaseClient';import AriaProcessingStatus from'./AriaProcessingStatus';
-import{getFieldSession,getFieldPeople,saveFieldSession,saveFieldPeople,enqueueFieldMutation,removeFieldMutation,getFieldPendingCount,getPendingFieldMutations,localRosterSearch,clearFieldSession,syncFieldMode}from'../lib/attendanceFieldMode';
+import{getFieldSession,getFieldPeople,saveFieldSession,saveFieldPeople,enqueueFieldMutation,removeFieldMutation,getFieldPendingCount,getPendingFieldMutations,getUnattributedPendingFieldMutationCount,localRosterSearch,clearFieldSession,syncFieldMode}from'../lib/attendanceFieldMode';
 import{measurePerformance}from'../lib/performanceTelemetry';
 
 const ATTENDANCE_REQUEST_TIMEOUT_MS=12000;
@@ -62,6 +62,7 @@ export default function AttendanceModal({isOpen,onClose}){
   const[fieldRoster,setFieldRoster]=useState([]);
   const[fieldReady,setFieldReady]=useState(false);
   const[pendingCount,setPendingCount]=useState(0);
+  const[legacyPendingCount,setLegacyPendingCount]=useState(0);
   const loadSeq=useRef(0);
   const searchSeq=useRef(0);
   const lastSearchKey=useRef('');
@@ -71,7 +72,11 @@ export default function AttendanceModal({isOpen,onClose}){
   useEffect(()=>{onCloseRef.current=onClose},[onClose]);
 
   const refreshFieldPending=useCallback(async(sessionId)=>{
-    try{setPendingCount(await getFieldPendingCount(sessionId))}catch{setPendingCount(0)}
+    try{
+      const auth=await getClientSession().catch(()=>null),userId=String(auth?.user?.id||'');
+      setPendingCount(await getFieldPendingCount(sessionId,userId));
+      setLegacyPendingCount(await getUnattributedPendingFieldMutationCount(sessionId));
+    }catch{setPendingCount(0);setLegacyPendingCount(0)}
   },[]);
 
   const hydrateFieldSession=useCallback(async(userId)=>{

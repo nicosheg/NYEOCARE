@@ -772,6 +772,27 @@ export default function AttendanceModal({isOpen,onClose}){
           />
           {query&&<button style={clear} onClick={()=>setQuery('')} aria-label="Clear search">×</button>}
         </div>
+        <div style={{padding:'0 18px 8px',display:'flex',justifyContent:'flex-end'}}>
+          <button type="button" style={{...markButton,opacity:!networkOnline||addingVisitor?0.5:1}} disabled={!networkOnline||addingVisitor||session.status!=='active'} onClick={()=>setShowAddVisitor(value=>!value)}>
+            {showAddVisitor?'Cancel adding visitor':'+ Add visitor'}
+          </button>
+        </div>
+        {!networkOnline&&<div style={noticeBox}>Offline mode can queue attendance marks for people already in the directory, but it cannot create a new person record safely. Use the church’s approved paper attendance sheet for new visitors and add them when the connection returns.</div>}
+        {showAddVisitor&&<div style={{margin:'0 18px 10px',padding:12,borderRadius:14,border:'1px solid rgba(255,255,255,.13)',background:'rgba(0,0,0,.14)',display:'grid',gap:8}}>
+          <strong style={{fontSize:14}}>Add a first-time visitor</strong>
+          <input style={{...input,width:'100%'}} value={visitorName} onChange={e=>setVisitorName(e.target.value)} placeholder="Full name (required)" maxLength={180} autoComplete="name" />
+          <input style={{...input,width:'100%'}} value={visitorPhone} onChange={e=>setVisitorPhone(e.target.value)} placeholder="Phone number (optional)" type="tel" inputMode="tel" autoComplete="tel" />
+          <label style={{display:'flex',alignItems:'flex-start',gap:8,fontSize:12,lineHeight:1.4,color:'rgba(255,255,255,.8)'}}>
+            <input type="checkbox" checked={visitorContactConsent} onChange={e=>setVisitorContactConsent(e.target.checked)} style={{marginTop:2}} />
+            They explicitly agreed that the church may keep this phone number for follow-up. Leave the phone blank if they did not agree.
+          </label>
+          <span style={{...sub,fontSize:11}}>This adds the person as a Visitor only. It does not make them a member or worker, and no message is sent.</span>
+          <div style={{display:'flex',justifyContent:'flex-end',gap:8,flexWrap:'wrap'}}>
+            <button type="button" style={discardButton} disabled={addingVisitor} onClick={()=>{setShowAddVisitor(false);setVisitorName('');setVisitorPhone('');setVisitorContactConsent(false)}}>Cancel</button>
+            <button type="button" style={{...primary,opacity:addingVisitor||!visitorName.trim()||!networkOnline||Boolean(visitorPhone.trim()&&!visitorContactConsent)?0.55:1}} disabled={addingVisitor||!visitorName.trim()||!networkOnline||Boolean(visitorPhone.trim()&&!visitorContactConsent)} onClick={addVisitor}>{addingVisitor?'Adding…':'Save visitor'}</button>
+          </div>
+        </div>}
+        {legacyPendingCount>0&&<div style={errorBox} role="alert">There are {legacyPendingCount} older offline attendance change{legacyPendingCount===1?'':'s'} without a recorded account owner. They are preserved but will not sync automatically. Reconcile them with the approved paper sheet before relying on the session total.</div>}
 
         <div style={peopleBox}>
           {people.map(p=>

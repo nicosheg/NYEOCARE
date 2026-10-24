@@ -4,7 +4,7 @@ import{createPortal}from'react-dom';
 import{getClientSession}from'../lib/clientSession';
 import{getCached,setCached,clearCached,publishDataChange}from'../lib/appData';
 import{supabase}from'../lib/supabaseClient';import AriaProcessingStatus from'./AriaProcessingStatus';
-import{getFieldSession,getFieldPeople,saveFieldSession,saveFieldPeople,enqueueFieldMutation,removeFieldMutation,getFieldPendingCount,getPendingFieldMutations,localRosterSearch,clearFieldSession,syncFieldMode}from'../lib/attendanceFieldMode';
+import{getFieldSession,getFieldPeople,isFieldRosterSnapshotComplete,saveFieldSession,saveFieldPeople,enqueueFieldMutation,removeFieldMutation,getFieldPendingCount,getPendingFieldMutations,getUnattributedPendingFieldMutationCount,removeFieldPerson,localRosterSearch,clearFieldSession,syncFieldMode}from'../lib/attendanceFieldMode';
 import{measurePerformance}from'../lib/performanceTelemetry';
 
 const ATTENDANCE_REQUEST_TIMEOUT_MS=12000;
@@ -38,11 +38,19 @@ function withAttendanceFallback(promise,ms,fallback){
   return Promise.race([Promise.resolve(promise),new Promise(resolve=>{timer=setTimeout(()=>resolve(fallback),ms)})]).finally(()=>clearTimeout(timer));
 }
 const attendanceSearchKey=(sessionId,q)=>String(sessionId)+':'+String(q||'').trim();
+function createVisitorRequestId(){
+  try{
+    if(typeof crypto!=='undefined'&&typeof crypto.randomUUID==='function')return crypto.randomUUID();
+  }catch{}
+  const part=()=>Math.random().toString(36).slice(2,12);
+  return 'visitor_'+Date.now().toString(36)+'_'+part()+'_'+part();
+}
 
 export default function AttendanceModal({isOpen,onClose}){
   const[session,setSession]=useState(null);
   const[background,setBackground]=useState(null);
   const[canDiscard,setCanDiscard]=useState(false);
+  const[canStartSession,setCanStartSession]=useState(false);
   const[people,setPeople]=useState([]);
   const[loading,setLoading]=useState(true);
   const[saving,setSaving]=useState(false);
@@ -51,6 +59,11 @@ export default function AttendanceModal({isOpen,onClose}){
   const[notice,setNotice]=useState('');
   const[query,setQuery]=useState('');
   const[sessionName,setSessionName]=useState('');
+  const[showAddVisitor,setShowAddVisitor]=useState(false);
+  const[visitorName,setVisitorName]=useState('');
+  const[visitorPhone,setVisitorPhone]=useState('');
+  const[visitorContactConsent,setVisitorContactConsent]=useState(false);
+  const[addingVisitor,setAddingVisitor]=useState(false);
   const[cursor,setCursor]=useState(null);
   const[hasMore,setHasMore]=useState(false);
   const[total,setTotal]=useState(0);
@@ -61,41 +74,79 @@ export default function AttendanceModal({isOpen,onClose}){
   const[networkOnline,setNetworkOnline]=useState(true);
   const[fieldRoster,setFieldRoster]=useState([]);
   const[fieldReady,setFieldReady]=useState(false);
+  const[rosterSnapshotComplete,setRosterSnapshotComplete]=useState(false);
   const[pendingCount,setPendingCount]=useState(0);
+  const[legacyPendingCount,setLegacyPendingCount]=useState(0);
   const loadSeq=useRef(0);
   const searchSeq=useRef(0);
   const lastSearchKey=useRef('');
   const markingIds=useRef(new Set());
+  const visitorRequestId=useRef('');
   const fieldWarmAt=useRef(0);
+  const fieldCursor=useRef({sessionId:'',cursor:''});
+  const fieldSnapshotSessionId=useRef('');
+  const fieldRosterRef=useRef([]);
+  const fieldRosterLoadSeq=useRef(0);
+  const fieldRosterEpoch=useRef(0);
+  const fieldRosterWarmInProgress=useRef(false);
+  const queryRef=useRef(query);
+  const fieldPolling=useRef(false);
   const onCloseRef=useRef(onClose);
   useEffect(()=>{onCloseRef.current=onClose},[onClose]);
+  useEffect(()=>{fieldRosterRef.current=fieldRoster},[fieldRoster]);
+  useEffect(()=>{queryRef.current=query},[query]);
+  useEffect(()=>{
+    const sessionId=String(session?.session_id||'');
+    if(fieldCursor.current.sessionId!==sessionId){
+      fieldCursor.current={sessionId,cursor:''};
+      fieldRosterLoadSeq.current++;
+      fieldRosterEpoch.current++;
+      fieldSnapshotSessionId.current='';
+      fieldWarmAt.current=0;
+    }
+    if(!sessionId){fieldRosterRef.current=[];setRosterSnapshotComplete(false);}
+  },[session?.session_id]);
 
   const refreshFieldPending=useCallback(async(sessionId)=>{
-    try{setPendingCount(await getFieldPendingCount(sessionId))}catch{setPendingCount(0)}
+    try{
+      const auth=await getClientSession().catch(()=>null),userId=String(auth?.user?.id||'');
+      setPendingCount(await getFieldPendingCount(sessionId,userId));
+      setLegacyPendingCount(await getUnattributedPendingFieldMutationCount());
+    }catch{setPendingCount(0);setLegacyPendingCount(0)}
   },[]);
 
   const hydrateFieldSession=useCallback(async(userId)=>{
     try{
       const cached=await getFieldSession(userId);
       if(!cached)return null;
-      const cachedPeopleRaw=await getFieldPeople(cached.sessionId);
-      const pendingMutations=await getPendingFieldMutations(cached.sessionId).catch(()=>[]);
+      let cachedPeopleRaw=await getFieldPeople(cached.sessionId,userId);
+      const rosterComplete=await isFieldRosterSnapshotComplete(cached.sessionId,userId).catch(()=>false);
+      // The account-keyed app cache is retained for legacy/offline continuity,
+      // but it is not proof that all roster pages were stored.
+      if(!cachedPeopleRaw.length&&!rosterComplete){
+        const accountCache=getCached('attendance:'+String(userId));
+        if(String(accountCache?.session?.session_id||'')===String(cached.sessionId)&&Array.isArray(accountCache.people)){
+          cachedPeopleRaw=accountCache.people;
+        }
+      }
+      const pendingMutations=await getPendingFieldMutations(cached.sessionId,userId).catch(()=>[]);
       const pendingByPerson=new Map(pendingMutations.map(item=>[String(item.personId),item]));
       const cachedPeople=cachedPeopleRaw.map(person=>{
         const pending=pendingByPerson.get(String(person.id));
         return pending?{...person,marked:pending.present,marked_by_name:pending.present?'You':null}:person;
       });
-      return {...cached,people:cachedPeople};
+      return {...cached,people:cachedPeople,rosterComplete};
     }catch{return null}
   },[]);
 
-  const applyCachedRoster=useCallback((cached)=>{
+  const applyCachedRoster=useCallback((cached,{offlineFallback=false}={})=>{
     const roster=Array.isArray(cached?.people)?cached.people:[];
     setPeople(roster.slice(0,80));
     setTotal(roster.length);
     setPresent(roster.filter(person=>person.marked===true).length);
     setFieldRoster(roster);
     setFieldReady(roster.length>0);
+    setRosterSnapshotComplete(offlineFallback&&cached?.rosterComplete===true);
     setCanDiscard(cached?.session?.can_discard===true);
     setCursor(null);setHasMore(false);
     void refreshFieldPending(cached?.sessionId).catch(()=>{});
@@ -110,6 +161,15 @@ export default function AttendanceModal({isOpen,onClose}){
   },[]);
 
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false}},[]);
+
+  useEffect(()=>{
+    if(!isOpen)return;
+    let cancelled=false;
+    getUnattributedPendingFieldMutationCount()
+      .then(count=>{if(!cancelled)setLegacyPendingCount(count)})
+      .catch(()=>{if(!cancelled)setLegacyPendingCount(0)});
+    return()=>{cancelled=true};
+  },[isOpen]);
 
   const read=async(response)=>{
     const raw=await response.text();
@@ -133,6 +193,199 @@ export default function AttendanceModal({isOpen,onClose}){
       can_discard:d.can_discard===true
     };
   };
+
+  const primeFieldCursor=useCallback(async(live,auth)=>{
+    const sessionId=String(live?.session_id||'');
+    if(fieldCursor.current.sessionId!==sessionId)fieldRosterLoadSeq.current++;
+    // Re-priming gives the next delta sequence a new server cursor. Invalidate
+    // the previous full snapshot first so stale cached rows cannot receive deltas
+    // from a cursor that was established after changes to those rows.
+    fieldRosterEpoch.current++;
+    fieldSnapshotSessionId.current='';
+    setFieldReady(false);
+    fieldCursor.current={sessionId,cursor:''};
+    if(!sessionId||!auth?.access_token)return;
+    try{
+      const response=await fetchAttendanceWithTimeout('/api/attendance/field-changes?session_id='+encodeURIComponent(sessionId),{
+        headers:{Authorization:'Bearer '+auth.access_token},cache:'no-store'
+      },ATTENDANCE_LOAD_TIMEOUT_MS);
+      const data=await response.json().catch(()=>({}));
+      if(response.ok&&data.success===true&&data.cursor){
+        fieldCursor.current={sessionId,cursor:String(data.cursor)};
+      }
+    }catch{}
+  },[]);
+
+  const warmFieldRoster=useCallback(async(live,auth)=>{
+    const sessionId=String(live?.session_id||'');
+    if(!sessionId||!auth?.access_token||fieldRosterWarmInProgress.current)return false;
+    fieldRosterWarmInProgress.current=true;
+    setRosterSnapshotComplete(false);
+    const snapshotEpoch=++fieldRosterEpoch.current;
+    const rosterRequestSeq=++fieldRosterLoadSeq.current;
+    // Require a new complete snapshot before accepting another incremental
+    // delta sequence; a failed refresh must not leave a fresh cursor paired
+    // with an older roster snapshot.
+    fieldSnapshotSessionId.current='';
+    try{
+      const params=new URLSearchParams({session_id:sessionId,limit:'5000'});
+      const response=await fetchAttendanceWithTimeout('/api/attendance/field-roster?'+params.toString(),{
+        headers:{Authorization:'Bearer '+auth.access_token},cache:'no-store'
+      },ATTENDANCE_REQUEST_TIMEOUT_MS);
+      if(!response.ok)return false;
+      let data=await response.json();
+      if(!data?.success||!Array.isArray(data.people))return false;
+      let all=data.people.slice();
+      let cursorValue=data.next_cursor||null;
+      let pages=1;
+      while(data.has_more&&cursorValue&&pages<8){
+        const pageParams=new URLSearchParams({session_id:sessionId,limit:'5000',cursor:String(cursorValue)});
+        const pageResponse=await fetchAttendanceWithTimeout('/api/attendance/field-roster?'+pageParams.toString(),{
+          headers:{Authorization:'Bearer '+auth.access_token},cache:'no-store'
+        },ATTENDANCE_REQUEST_TIMEOUT_MS);
+        if(!pageResponse.ok)break;
+        const page=await pageResponse.json().catch(()=>null);
+        if(!Array.isArray(page?.people))break;
+        all=all.concat(page.people);
+        cursorValue=page.next_cursor||null;
+        data.has_more=page.has_more===true;
+        pages++;
+      }
+      // A capped or interrupted page walk, or a count changing during pagination,
+      // is not a complete roster. Retry instead of treating a partial snapshot as
+      // authoritative for cross-device deltas.
+      const declaredTotal=Number(data.total);
+      if(data.has_more===true||!Number.isInteger(declaredTotal)||declaredTotal<0||declaredTotal!==all.length)return false;
+      const pending=await getPendingFieldMutations(sessionId,auth.user?.id).catch(()=>[]);
+      if(rosterRequestSeq!==fieldRosterLoadSeq.current||snapshotEpoch!==fieldRosterEpoch.current||fieldCursor.current.sessionId!==sessionId)return false;
+      const pendingByPerson=new Map(pending.map(item=>[String(item.personId),item]));
+      all=all.map(person=>{
+        const mutation=pendingByPerson.get(String(person.id));
+        return mutation?{...person,marked:mutation.present,marked_by_name:mutation.present?'You':null}:person;
+      });
+      await saveFieldPeople(sessionId,auth.user?.id,all,{replace:true}).catch(()=>{});
+      if(!mounted.current||rosterRequestSeq!==fieldRosterLoadSeq.current||snapshotEpoch!==fieldRosterEpoch.current||fieldCursor.current.sessionId!==sessionId)return false;
+      fieldRosterRef.current=all;
+      fieldSnapshotSessionId.current=sessionId;
+      setFieldRoster(all);
+      setRosterSnapshotComplete(true);
+      setFieldReady(all.length>0);
+      setTotal(Number(data.total)||all.length);
+      setPresent(all.filter(person=>person.marked===true).length);
+      const visible=localRosterSearch(all,queryRef.current,80);
+      setPeople(visible);
+      setCursor(null);setHasMore(false);
+      fieldWarmAt.current=Date.now();
+      void refreshFieldPending(sessionId);
+      return true;
+    }catch(error){
+      console.warn('[ATTENDANCE] Canonical roster refresh deferred:',error?.message||error);
+      return false;
+    }finally{
+      fieldRosterWarmInProgress.current=false;
+    }
+  },[refreshFieldPending]);
+
+  const pollFieldChanges=useCallback(async()=>{
+    const sessionId=String(session?.session_id||'');
+    if(!isOpen||session?.status!=='active'||!sessionId||!networkOnline||fieldPolling.current||fieldRosterWarmInProgress.current)return;
+    fieldPolling.current=true;
+    const pollEpoch=fieldRosterEpoch.current;
+    try{
+      const auth=await getClientSession().catch(()=>null);
+      if(!auth?.access_token)return;
+      // Incremental changes must never be applied to an incomplete roster. A
+      // successful empty snapshot is valid too, which matters for new churches.
+      if(fieldSnapshotSessionId.current!==sessionId){
+        const currentCursor=fieldCursor.current;
+        if(currentCursor.sessionId!==sessionId||!currentCursor.cursor){
+          await primeFieldCursor({session_id:sessionId},auth);
+        }
+        await warmFieldRoster({session_id:sessionId},auth);
+        return;
+      }
+      const currentCursor=fieldCursor.current;
+      if(currentCursor.sessionId!==sessionId||!currentCursor.cursor){
+        await primeFieldCursor({session_id:sessionId},auth);
+        await warmFieldRoster({session_id:sessionId},auth);
+        return;
+      }
+      const params=new URLSearchParams({session_id:sessionId,since:currentCursor.cursor});
+      const response=await fetchAttendanceWithTimeout('/api/attendance/field-changes?'+params.toString(),{
+        headers:{Authorization:'Bearer '+auth.access_token},cache:'no-store'
+      },ATTENDANCE_LOAD_TIMEOUT_MS);
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok||data.success!==true||!data.cursor)return;
+      if(fieldCursor.current.sessionId!==sessionId||pollEpoch!==fieldRosterEpoch.current||fieldRosterWarmInProgress.current)return;
+      if(fieldSnapshotSessionId.current!==sessionId)return;
+
+      const pending=await getPendingFieldMutations(sessionId,auth.user?.id).catch(()=>[]);
+      // A canonical roster snapshot may have started while this poll was reading
+      // local outbox state. Never advance/apply an older poll after that snapshot.
+      if(fieldCursor.current.sessionId!==sessionId||pollEpoch!==fieldRosterEpoch.current||fieldRosterWarmInProgress.current)return;
+      fieldCursor.current={sessionId,cursor:String(data.cursor)};
+      const pendingByPerson=new Map(pending.map(item=>[String(item.personId),item]));
+      const map=new Map((fieldRosterRef.current||[]).map(person=>[String(person.id),person]));
+      const persist=new Map();
+
+      for(const incoming of Array.isArray(data.people)?data.people:[]){
+        const id=String(incoming?.id||'');
+        if(!id)continue;
+        const prior=map.get(id);
+        const next=prior
+          ? {...prior,...incoming,marked:prior.marked===true,marked_by_name:prior.marked_by_name||null}
+          : {...incoming,marked:false,marked_by_name:null};
+        map.set(id,next);
+        // Persist edits as well as new rows. Otherwise another phone can show
+        // the new name online but resurrect an old name after an offline reopen.
+        persist.set(id,next);
+      }
+
+      for(const record of Array.isArray(data.attendance)?data.attendance:[]){
+        const id=String(record?.people_id||''),prior=map.get(id);
+        if(!id||!prior||markingIds.current.has(id))continue;
+        const mutation=pendingByPerson.get(id);
+        const marked=mutation?mutation.present:record.present===true;
+        const next={...prior,marked,marked_by_name:mutation?(mutation.present?'You':null):(record.present===true?(record.marked_by_name||null):null)};
+        map.set(id,next);
+        persist.set(id,next);
+      }
+
+      const removedIds=new Set((Array.isArray(data.removed_people)?data.removed_people:[]).map(person=>String(person?.id||'')).filter(Boolean));
+      for(const id of removedIds){
+        map.delete(id);
+        persist.delete(id);
+        void removeFieldPerson(sessionId,auth.user?.id,id).catch(()=>{});
+      }
+
+      for(const mutation of pending){
+        const id=String(mutation.personId),prior=map.get(id);
+        if(!prior)continue;
+        const next={...prior,marked:mutation.present,marked_by_name:mutation.present?'You':null};
+        map.set(id,next);
+        persist.set(id,next);
+      }
+
+      const nextRoster=[...map.values()].sort((a,b)=>
+        String(a.display_name||((a.first_name||'')+' '+(a.last_name||''))).localeCompare(
+          String(b.display_name||((b.first_name||'')+' '+(b.last_name||'')))
+        )
+      );
+      fieldRosterRef.current=nextRoster;
+      setFieldRoster(nextRoster);
+      setPeople(localRosterSearch(nextRoster,queryRef.current,80));
+      setTotal(Number(data.total)||nextRoster.length);
+      setPresent(nextRoster.filter(person=>person.marked===true).length);
+      if(nextRoster.length)setFieldReady(true);
+      if(persist.size)void saveFieldPeople(sessionId,auth.user?.id,[...persist.values()]).catch(()=>{});
+      void refreshFieldPending(sessionId);
+    }catch(error){
+      // A failed poll is non-destructive. Realtime and the next poll can recover it.
+      console.warn('[ATTENDANCE] Shared attendance refresh deferred:',error?.message||error);
+    }finally{
+      fieldPolling.current=false;
+    }
+  },[isOpen,session?.session_id,session?.status,networkOnline,primeFieldCursor,warmFieldRoster,refreshFieldPending]);
 
   const fetchPage=useCallback(async(live,q='',nextCursor=null,append=false,sessionOverride=null)=>{
     const s=sessionOverride||await getClientSession();
@@ -169,7 +422,7 @@ export default function AttendanceModal({isOpen,onClose}){
     }
     setTotal(Number(data.organization_total)||0);
     setPresent(Number(data.present_count)||0);
-    void saveFieldPeople(live.session_id,next).catch(()=>{});
+    void saveFieldPeople(live.session_id,s.user.id,next).catch(()=>{});
     void saveFieldSession(s.user.id,{...live,user_id:s.user.id}).catch(()=>{});
     void refreshFieldPending(live.session_id).catch(()=>{});
     setCursor(data.next_cursor||null);
@@ -177,8 +430,9 @@ export default function AttendanceModal({isOpen,onClose}){
     return data;
   },[]);
 
-  const load=useCallback(async({showLoading=true}={})=>{
+  const load=useCallback(async({showLoading=true,forceSnapshot=false}={})=>{
     const seq=++loadSeq.current;
+    const currentQuery=queryRef.current;
     let fieldCached=null,confirmedSessionId=null,sessionUserId=null;
     if(showLoading&&mounted.current){setLoading(true);setError('');setNotice('');}
     try{
@@ -193,7 +447,7 @@ export default function AttendanceModal({isOpen,onClose}){
       if(offline){
         if(fieldCached&&fieldCached.session?.status==='active'){
           setSession({...fieldCached.session,user_id:s.user.id});
-          applyCachedRoster(fieldCached);
+          applyCachedRoster(fieldCached,{offlineFallback:true});
           setBackground(null);
           setError('');
           setNotice('Offline mode is active. Your local attendance session is ready and will sync automatically when the connection returns.');
@@ -220,9 +474,10 @@ export default function AttendanceModal({isOpen,onClose}){
       setBackground(bg);
 
       if(!data.active){
+        setCanStartSession(data.can_start_new_session===true);
         if(fieldCached&&typeof navigator!=='undefined'&&navigator.onLine){
           await syncFieldMode().catch(()=>false);
-          const pending=await getFieldPendingCount(fieldCached.sessionId).catch(()=>1);
+          const pending=await getFieldPendingCount(fieldCached.sessionId,s.user.id).catch(()=>1);
           const refreshed=await getFieldSession(s.user.id).catch(()=>null);
           const serverConfirmsClosed=String(data.session_id||'')===String(fieldCached.sessionId)&&data.status==='closed';
           if(pending>0||(refreshed?.closeRequested&&!serverConfirmsClosed)){
@@ -244,18 +499,25 @@ export default function AttendanceModal({isOpen,onClose}){
         return;
       }
 
+      setCanStartSession(false);
       const live=normalizeSession(data);
       if(!live)throw Error('Attendance session response was incomplete.');
+      if(data.joined!==true){
+        const joinResponse=await fetchAttendanceWithTimeout('/api/attendance/join-session',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.access_token},body:JSON.stringify({session_id:live.session_id})});
+        const joined=await read(joinResponse);
+        if(!joinResponse.ok||joined.success!==true)throw Error(joined.error||'Could not join this attendance session. Ask an owner or admin to add you.');
+      }
+      await primeFieldCursor(live,s);
       confirmedSessionId=String(live.session_id);
-      lastSearchKey.current=attendanceSearchKey(live.session_id,query);
+      lastSearchKey.current=attendanceSearchKey(live.session_id,currentQuery);
 
       if(fieldCached&&String(fieldCached.sessionId)!==String(live.session_id)){
         await syncFieldMode().catch(()=>false);
-        const oldPending=await getFieldPendingCount(fieldCached.sessionId).catch(()=>1);
+        const oldPending=await getFieldPendingCount(fieldCached.sessionId,s.user.id).catch(()=>1);
         if(oldPending>0){
           setSession({...fieldCached.session,user_id:s.user.id});
           applyCachedRoster(fieldCached);
-          lastSearchKey.current=attendanceSearchKey(fieldCached.sessionId,query);
+          lastSearchKey.current=attendanceSearchKey(fieldCached.sessionId,currentQuery);
           setNotice('Your previous attendance session still has unsynced marks. NYEOCARE is preserving them on this device while synchronization retries.');
           setError('');
           setLoading(false);
@@ -278,26 +540,15 @@ export default function AttendanceModal({isOpen,onClose}){
         if(cached.people.length)setLoading(false);
       }
 
-      await fetchPage(live,query,'',false,s);
+      await fetchPage(live,currentQuery,'',false,s);
       saveFieldSession(s.user.id,{...live,user_id:s.user.id}).catch(()=>{});
       if(seq===loadSeq.current&&mounted.current)setLoading(false);
       timing('ok',{cached:Boolean(cached),field_cached:Boolean(fieldCached)});
-      if(fieldCached&&fieldWarmAt.current&&Date.now()-fieldWarmAt.current<300000)return;
-      fetchAttendanceWithTimeout('/api/attendance/field-roster?session_id='+encodeURIComponent(live.session_id)+'&limit=5000',{headers:{Authorization:'Bearer '+s.access_token},cache:'no-store'})
-        .then(async r=>{if(!r.ok)return null;return r.json()}).then(async data=>{
-          if(!data?.success||!Array.isArray(data.people))return;
-          let all=data.people.slice();let cursorValue=data.next_cursor||null;let pages=1;
-          while(data.has_more&&cursorValue&&pages<8){
-            const params=new URLSearchParams({session_id:String(live.session_id),limit:'5000',cursor:String(cursorValue)});
-            const r=await fetchAttendanceWithTimeout('/api/attendance/field-roster?'+params.toString(),{headers:{Authorization:'Bearer '+s.access_token},cache:'no-store'});
-            if(!r.ok)break;const more=await r.json();if(!Array.isArray(more.people))break;
-            all=all.concat(more.people);cursorValue=more.next_cursor||null;data.has_more=more.has_more===true;pages++;
-          }
-          if(!mounted.current)return;
-          await saveFieldPeople(live.session_id,all,{replace:true});
-          setFieldRoster(all);setFieldReady(all.length>0);setTotal(Number(data.total)||all.length);setPresent(Number(data.present_count)||all.filter(p=>p.marked===true).length);fieldWarmAt.current=Date.now();
-          const visible=localRosterSearch(all,query,80);setPeople(visible);setCursor(null);setHasMore(false);await refreshFieldPending(live.session_id);
-        }).catch(()=>{});
+      // Reopen forces a canonical refresh because updates may have happened while
+      // this modal was closed. Internal background refreshes can reuse a fresh
+      // snapshot instead of repeatedly loading thousands of rows.
+      if(fieldCached&&fieldWarmAt.current&&Date.now()-fieldWarmAt.current<300000&&!forceSnapshot)return;
+      void warmFieldRoster(live,s).catch(()=>{});
     }catch(e){
       console.error('[ATTENDANCE] Load error:',e);
       if(seq===loadSeq.current&&mounted.current){
@@ -328,9 +579,19 @@ export default function AttendanceModal({isOpen,onClose}){
     }finally{
       if(seq===loadSeq.current&&mounted.current)setLoading(false);
     }
-  },[fetchPage,query,hydrateFieldSession,applyCachedRoster]);
+  },[fetchPage,hydrateFieldSession,applyCachedRoster,primeFieldCursor,warmFieldRoster]);
 
-  useEffect(()=>{if(isOpen)load();},[isOpen,load]);
+  useEffect(()=>{if(isOpen)load({forceSnapshot:true});},[isOpen,load]);
+
+  useEffect(()=>{
+    if(!isOpen||session?.session_id)return;
+    let cancelled=false;
+    const poll=()=>{if(!cancelled&&document.visibilityState==='visible')void load({showLoading:false})};
+    const timer=window.setInterval(poll,12000);
+    return()=>{cancelled=true;window.clearInterval(timer)};
+  },[isOpen,session?.session_id,load]);
+
+
 
   const refreshSessionState=useCallback(async()=>{
     if(!isOpen||!session?.session_id)return;
@@ -340,7 +601,7 @@ export default function AttendanceModal({isOpen,onClose}){
       const data=await read(response);if(!response.ok)return;
       if(!data.active||String(data.session_id)!==String(session.session_id)){
         await syncFieldMode().catch(()=>false);
-        const pending=await getFieldPendingCount(session.session_id).catch(()=>1);
+        const pending=await getFieldPendingCount(session.session_id,s.user.id).catch(()=>1);
         if(pending>0){
           setPendingCount(pending);
           setNotice('This session is no longer active on the server, but unsynced attendance is still saved on this device. NYEOCARE is preserving it while synchronization retries.');
@@ -371,7 +632,12 @@ export default function AttendanceModal({isOpen,onClose}){
     const onSync=e=>{
       if(!session?.session_id)return;
       refreshFieldPending(session.session_id).catch(()=>{});
-      const kind=e?.detail?.kind;
+      const kind=e?.detail?.kind,detail=e?.detail||{};
+      if(kind==='conflict'&&String(detail.sessionId||'')===String(session.session_id)){
+        setNotice('Some offline attendance marks conflict with a confirmed record or a person no longer in the active directory. Those changes remain saved on this device and were not discarded. Please reconcile them against the paper sheet with an owner or admin.');
+      }else if(kind==='sync'&&String(detail.sessionId||'')===String(session.session_id)&&Number(detail.needsAdminConfirmationCount)>0){
+        setNotice('Some attendance marks arrived after this session closed. They are saved but need an owner or admin to confirm them before ARIA can rely on them.');
+      }
       if(kind==='sync'||kind==='clear')refreshSessionState().catch(()=>{});
     };
     window.addEventListener('nyeocare:field-sync',onSync);
@@ -395,7 +661,7 @@ export default function AttendanceModal({isOpen,onClose}){
     const started=typeof performance!=='undefined'?performance.now():Date.now();
     const timer=window.setTimeout(async()=>{
       try{
-        if(fieldReady&&fieldRoster.length){
+        if(fieldReady&&fieldRoster.length&&(!networkOnline||rosterSnapshotComplete)){
           const matches=localRosterSearch(fieldRoster,query,80);
           setPeople(matches);setCursor(null);setHasMore(false);setTotal(fieldRoster.length);setPresent(fieldRoster.filter(p=>p.marked===true).length);setError('');
         }else if(networkOnline){
@@ -405,32 +671,61 @@ export default function AttendanceModal({isOpen,onClose}){
       }catch(e){if(seq===searchSeq.current&&mounted.current)setError(e.message||'Could not search people.')}
     },fieldReady?0:220);
     return()=>window.clearTimeout(timer);
-  },[isOpen,session?.session_id,session?.status,query,fetchPage,fieldReady,fieldRoster,networkOnline]);
+  },[isOpen,session?.session_id,session?.status,query,fetchPage,fieldReady,fieldRoster,networkOnline,rosterSnapshotComplete]);
+
+  useEffect(()=>{
+    if(!isOpen||session?.status!=='active'||!session?.session_id)return;
+    let stopped=false;
+    const run=()=>{
+      if(!stopped&&document.visibilityState==='visible')void pollFieldChanges();
+    };
+    const onVisible=()=>{if(document.visibilityState==='visible')run()};
+    const timer=window.setInterval(run,12000);
+    window.addEventListener('online',run);
+    document.addEventListener('visibilitychange',onVisible);
+    run();
+    return()=>{
+      stopped=true;
+      window.clearInterval(timer);
+      window.removeEventListener('online',run);
+      document.removeEventListener('visibilitychange',onVisible);
+    };
+  },[isOpen,session?.session_id,session?.status,pollFieldChanges]);
 
   useEffect(()=>{
     if(!isOpen||!session?.session_id)return;
     let channel=null,stopped=false;
-    const applyAttendanceRow=row=>{
+    const applyAttendanceRow=(row,deleted=false)=>{
       if(!row||String(row.session_id)!==String(session.session_id)||!row.people_id)return;
-      const personId=String(row.people_id),nextMarked=row.present===true;
-      setFieldRoster(current=>{
-        const prev=current.find(p=>String(p.id)===personId);
-        if(!prev||Boolean(prev.marked)===nextMarked)return current;
-        const next=current.map(p=>String(p.id)===personId?{...p,marked:nextMarked}:p);
-        setPresent(v=>Math.max(0,v+(nextMarked?1:-1)));
-        saveFieldPeople(session.session_id,[next.find(p=>String(p.id)===personId)]).catch(()=>{});
-        return next;
-      });
-      setPeople(current=>current.map(p=>String(p.id)===personId?{...p,marked:nextMarked,marked_by_name:nextMarked?(p.marked_by_name||'') : null}:p));
+      const personId=String(row.people_id);
+      void getPendingFieldMutations(session.session_id,session.user_id).then(pendingRows=>{
+        const mutation=(pendingRows||[]).find(item=>String(item.personId)===personId);
+        const nextMarked=mutation?mutation.present:(!deleted&&row.present===true);
+        setFieldRoster(current=>{
+          const prev=current.find(p=>String(p.id)===personId);
+          if(!prev||Boolean(prev.marked)===nextMarked)return current;
+          const markedByName=mutation?(mutation.present?'You':null):(nextMarked?(prev.marked_by_name||null):null);
+          const nextPerson={...prev,marked:nextMarked,marked_by_name:markedByName};
+          const next=current.map(p=>String(p.id)===personId?nextPerson:p);
+          setPresent(v=>Math.max(0,v+(nextMarked?1:-1)));
+          void saveFieldPeople(session.session_id,session.user_id,[nextPerson]).catch(()=>{});
+          return next;
+        });
+        setPeople(current=>current.map(p=>{
+          if(String(p.id)!==personId)return p;
+          const markedByName=mutation?(mutation.present?'You':null):(nextMarked?(p.marked_by_name||''):null);
+          return {...p,marked:nextMarked,marked_by_name:markedByName};
+        }));
+      }).catch(()=>{});
     };
     getClientSession().then(s=>{
       if(!s||stopped)return;
       const sessionId=String(session.session_id);
       channel=supabase.channel('attendance-live-'+sessionId+'-'+String(s.user.id))
         .on('postgres_changes',{event:'*',schema:'public',table:'sessions',filter:'id=eq.'+sessionId},()=>refreshSessionState())
-        .on('postgres_changes',{event:'INSERT',schema:'public',table:'attendance_records',filter:'session_id=eq.'+sessionId},payload=>applyAttendanceRow(payload.new))
-        .on('postgres_changes',{event:'UPDATE',schema:'public',table:'attendance_records',filter:'session_id=eq.'+sessionId},payload=>applyAttendanceRow(payload.new))
-        .on('postgres_changes',{event:'DELETE',schema:'public',table:'attendance_records',filter:'session_id=eq.'+sessionId},payload=>applyAttendanceRow(payload.old))
+        .on('postgres_changes',{event:'INSERT',schema:'public',table:'attendance_records',filter:'session_id=eq.'+sessionId},payload=>applyAttendanceRow(payload.new,false))
+        .on('postgres_changes',{event:'UPDATE',schema:'public',table:'attendance_records',filter:'session_id=eq.'+sessionId},payload=>applyAttendanceRow(payload.new,false))
+        .on('postgres_changes',{event:'DELETE',schema:'public',table:'attendance_records',filter:'session_id=eq.'+sessionId},payload=>applyAttendanceRow(payload.old,true))
         .subscribe();
     }).catch(()=>{});
     return()=>{stopped=true;if(channel)supabase.removeChannel(channel)};
@@ -472,7 +767,9 @@ export default function AttendanceModal({isOpen,onClose}){
       setCursor(null);
       setHasMore(false);
       setLoading(true);
+      await primeFieldCursor(next,s);
       await fetchPage(next,'','',false,s);
+      void warmFieldRoster(next,s).catch(()=>{});
       setLoading(false);
       publishDataChange('attendance');
     }catch(e){
@@ -480,6 +777,67 @@ export default function AttendanceModal({isOpen,onClose}){
       if(mounted.current)setError(e.message||'Could not start attendance.');
     }finally{
       if(mounted.current)setSaving(false);
+    }
+  };
+
+  const addVisitor=async()=>{
+    if(!session||session.status!=='active'||!networkOnline||addingVisitor)return;
+    const fullName=visitorName.trim(),rawPhone=visitorPhone.trim();
+    if(!fullName){setError('Enter the visitor’s name first.');return}
+    if(rawPhone&&!visitorContactConsent){setError('Ask permission before saving a phone number for church follow-up.');return}
+    const requestId=visitorRequestId.current||createVisitorRequestId();
+    visitorRequestId.current=requestId;
+    setAddingVisitor(true);setError('');setNotice('');
+    try{
+      let auth=await getClientSession();if(!auth)throw Error('You must be logged in.');
+      let response=await fetchAttendanceWithTimeout('/api/attendance/add-visitor',{
+        method:'POST',
+        headers:{'Content-Type':'application/json',Authorization:'Bearer '+auth.access_token},
+        body:JSON.stringify({session_id:session.session_id,request_id:requestId,full_name:fullName,phone:rawPhone||null,contact_consent:visitorContactConsent})
+      });
+      if(response.status===401){
+        auth=await getClientSession({forceRefresh:true}).catch(()=>null);
+        if(auth)response=await fetchAttendanceWithTimeout('/api/attendance/add-visitor',{
+          method:'POST',
+          headers:{'Content-Type':'application/json',Authorization:'Bearer '+auth.access_token},
+          body:JSON.stringify({session_id:session.session_id,request_id:requestId,full_name:fullName,phone:rawPhone||null,contact_consent:visitorContactConsent})
+        });
+      }
+      const data=await read(response);
+      if(!response.ok||data.success!==true||!data.person)throw Error(data.error||'Could not add this visitor.');
+      if(data.person.status!=='active'){
+        visitorRequestId.current='';setVisitorName('');setVisitorPhone('');setVisitorContactConsent(false);setShowAddVisitor(false);
+        setNotice('This visitor request was already processed, but the record is now inactive or archived. No duplicate was created. Ask an owner or admin to review the directory.');
+        return;
+      }
+      const wasAlreadyInRoster=people.some(p=>String(p.id)===String(data.person.id))||fieldRoster.some(p=>String(p.id)===String(data.person.id))||fieldRosterRef.current.some(p=>String(p.id)===String(data.person.id));
+      const person={...data.person,marked:false,marked_by_name:null,first_visit_candidate:data.person.first_visit_candidate===true,first_visit_welcome_recorded:data.person.first_visit_welcome_recorded===true};
+      setPeople(current=>{
+        if(query.trim()&&!localRosterSearch([person],query,1).length)return current;
+        const next=[...current.filter(p=>String(p.id)!==String(person.id)),person];
+        next.sort((a,b)=>String(a.display_name||((a.first_name||'')+' '+(a.last_name||''))).localeCompare(String(b.display_name||((b.first_name||'')+' '+(b.last_name||'')))));
+        return next.slice(0,80);
+      });
+      if(fieldSnapshotSessionId.current===String(session.session_id)){
+        const next=[...fieldRosterRef.current.filter(p=>String(p.id)!==String(person.id)),person];
+        next.sort((a,b)=>String(a.display_name||((a.first_name||'')+' '+(a.last_name||''))).localeCompare(String(b.display_name||((b.first_name||'')+' '+(b.last_name||'')))));
+        fieldRosterRef.current=next;
+        setFieldRoster(next);
+        setFieldReady(true);
+        void saveFieldPeople(session.session_id,session.user_id,[person]).catch(()=>{});
+      }else{
+        // Keep the visible first page responsive, but do not treat a one-person
+        // partial roster as canonical. The full snapshot will include this new row.
+        void warmFieldRoster({session_id:session.session_id},auth).catch(()=>{});
+      }
+      setTotal(value=>value+(wasAlreadyInRoster?0:1));
+      visitorRequestId.current='';setVisitorName('');setVisitorPhone('');setVisitorContactConsent(false);setShowAddVisitor(false);
+      setNotice('Visitor added to this organization. No message was sent.');
+      publishDataChange('attendance');
+    }catch(e){
+      if(mounted.current)setError(e.message||'Could not add this visitor.');
+    }finally{
+      if(mounted.current)setAddingVisitor(false);
     }
   };
 
@@ -493,10 +851,10 @@ export default function AttendanceModal({isOpen,onClose}){
     setFieldRoster(current=>current.map(p=>String(p.id)===String(id)?{...p,marked:nextValue,marked_by_name:nextValue?'You':null}:p));
     setPresent(value=>Math.max(0,value+(nextValue?1:-1)));setError('');
     const cachedPerson=fieldRoster.find(p=>String(p.id)===String(id));
-    if(cachedPerson)saveFieldPeople(session.session_id,[{...cachedPerson,marked:nextValue,marked_by_name:nextValue?'You':null}]).catch(()=>{});
+    if(cachedPerson)saveFieldPeople(session.session_id,session.user_id,[{...cachedPerson,marked:nextValue,marked_by_name:nextValue?'You':null}]).catch(()=>{});
     if(!networkOnline){
       try{
-        await enqueueFieldMutation({sessionId:session.session_id,personId:id,present:nextValue});
+        await enqueueFieldMutation({sessionId:session.session_id,userId:session.user_id,personId:id,present:nextValue});
         await refreshFieldPending(session.session_id);
         setNotice('Saved on this device. It will sync automatically when the connection returns.');perf('queued');
       }catch(queueError){
@@ -514,12 +872,12 @@ export default function AttendanceModal({isOpen,onClose}){
       const data=await read(response);if(!response.ok||!data.success)throw Object.assign(Error(data.error||'Could not update attendance.'),{transient:response.status>=500||response.status===0});
       const actual=data.present===true;
       if(actual!==nextValue){setPresent(value=>Math.max(0,value+(actual?1:-1)));setFieldRoster(current=>current.map(p=>String(p.id)===String(id)?{...p,marked:actual}:p));setPeople(current=>current.map(p=>String(p.id)===String(id)?{...p,marked:actual}:p))}
-      await removeFieldMutation(session.session_id,id);await refreshFieldPending(session.session_id);setNotice('');perf('ok');
+      await removeFieldMutation(session.session_id,session.user_id,id);await refreshFieldPending(session.session_id);setNotice('');perf('ok');
     }catch(e){
       const transient=e?.transient||e instanceof TypeError||typeof navigator!=='undefined'&&!navigator.onLine;
       if(transient){
         try{
-          await enqueueFieldMutation({sessionId:session.session_id,personId:id,present:nextValue});
+          await enqueueFieldMutation({sessionId:session.session_id,userId:session.user_id,personId:id,present:nextValue});
           await refreshFieldPending(session.session_id);
           setNotice('Saved on this device. Syncing automatically when the connection returns.');perf('queued');return;
         }catch(queueError){
@@ -537,7 +895,7 @@ export default function AttendanceModal({isOpen,onClose}){
 
   const loadMore=async()=>{
     if(!session||!hasMore||!cursor||loadingMore)return;
-    setLoadingMore(true);setError('');if(fieldReady){setLoadingMore(false);return}
+    setLoadingMore(true);setError('');if(fieldReady&&rosterSnapshotComplete){setLoadingMore(false);return}
     try{await fetchPage(session,query,cursor,true)}
     catch(e){setError(e.message||'Could not load more people.')}
     finally{if(mounted.current)setLoadingMore(false)}
@@ -566,7 +924,7 @@ export default function AttendanceModal({isOpen,onClose}){
       const updated={...person,first_visit_welcome_recorded:true};
       setPeople(current=>current.map(p=>String(p.id)===personId?{...p,first_visit_welcome_recorded:true}:p));
       setFieldRoster(current=>current.map(p=>String(p.id)===personId?{...p,first_visit_welcome_recorded:true}:p));
-      await saveFieldPeople(session.session_id,[updated]).catch(()=>{});
+      await saveFieldPeople(session.session_id,session.user_id,[updated]).catch(()=>{});
       setNotice(data.already_recorded?'This welcome was already saved.':'Welcome recorded. ARIA will keep this as the first-visit outcome for this session, so it will not create a duplicate follow-up.');
       publishDataChange('attendance');
     }catch(e){
@@ -653,10 +1011,16 @@ export default function AttendanceModal({isOpen,onClose}){
       {background&&session&&<div style={backgroundInline}><AriaProcessingStatus kind="attendance" compact status={background.processing_status||'processing'} stage={background.aria_processing_stage||background.stage||''} progress={background.progress||0}/></div>}
 
       {notice&&<div style={noticeBox}>{notice}</div>}
+      {legacyPendingCount>0&&<div style={errorBox} role="alert">This device has {legacyPendingCount} older offline attendance change{legacyPendingCount===1?'':'s'} that are not tied to a specific sign-in. NYEOCARE will not upload them as another account. Compare against the approved paper sheet and ask an owner or admin to reconcile them before relying on the saved total.</div>}
+      {session?.status==='active'&&!rosterSnapshotComplete&&!loading&&<div style={noticeBox} role="status">
+        {networkOnline
+          ? 'The full roster snapshot on this device is not confirmed yet. NYEOCARE is refreshing it; until that finishes, cached totals and search results may be incomplete. Keep the approved paper sheet as the service backup.'
+          : 'Only '+fieldRoster.length+' cached people are available offline on this device, and the cache is not confirmed complete. The directory may be larger and the present count may be incomplete. Use the approved paper attendance sheet as the authoritative record until this device reconnects and refreshes.'}
+      </div>}
       {error&&<div style={errorBox}>{error}</div>}
 
       {loading?<div style={loadingBox}>Preparing attendance…</div>
-      :!session?<div style={createBox}>
+      :!session?canStartSession?<div style={createBox}>
         <div style={plus}>＋</div>
         <strong style={{fontSize:20}}>Start attendance</strong>
         <span style={sub}>ARIA works independently after you save. It never holds the next session hostage.</span>
@@ -680,12 +1044,17 @@ export default function AttendanceModal({isOpen,onClose}){
           {saving?'Starting…':'Start attendance'}
         </button>
       </div>
+      :<div style={createBox}>
+        <div style={plus}>＋</div>
+        <strong style={{fontSize:20}}>An owner or admin must start attendance</strong>
+        <span style={sub}>Ask an owner or admin to start the service. Once it is active, reopen Attendance to join and mark people present.</span>
+      </div>
       :<div style={main}>
         <div style={stats}>
           <div><strong style={big}>{present}</strong><span style={label}>present</span></div>
           <div style={divider}/>
-          <div><strong style={stat}>{total}</strong><span style={label}>people</span></div>
-          <div><strong style={stat}>{percent}%</strong><span style={label}>marked</span></div>
+          <div><strong style={stat}>{total}</strong><span style={label}>{rosterSnapshotComplete?'people':'cached people'}</span></div>
+          <div><strong style={stat}>{percent}%</strong><span style={label}>{rosterSnapshotComplete?'marked':'cached marked'}</span></div>
           <div style={progress}><i style={{width:`${percent}%`}}/></div>
         </div>
 
@@ -699,6 +1068,27 @@ export default function AttendanceModal({isOpen,onClose}){
           />
           {query&&<button style={clear} onClick={()=>setQuery('')} aria-label="Clear search">×</button>}
         </div>
+        <div style={{padding:'0 18px 8px',display:'flex',justifyContent:'flex-end'}}>
+          <button type="button" style={{...markButton,opacity:!networkOnline||addingVisitor?0.5:1}} disabled={!networkOnline||addingVisitor||session.status!=='active'} onClick={()=>setShowAddVisitor(value=>!value)}>
+            {showAddVisitor?'Cancel adding visitor':'+ Add visitor'}
+          </button>
+        </div>
+        {!networkOnline&&<div style={noticeBox}>Offline mode can queue attendance marks for people already in the directory, but it cannot create a new person record safely. Use the church’s approved paper attendance sheet for new visitors and add them when the connection returns.</div>}
+        {showAddVisitor&&<div style={{margin:'0 18px 10px',padding:12,borderRadius:14,border:'1px solid rgba(255,255,255,.13)',background:'rgba(0,0,0,.14)',display:'grid',gap:8}}>
+          <strong style={{fontSize:14}}>Add a first-time visitor</strong>
+          <input style={{...input,width:'100%'}} value={visitorName} onChange={e=>{visitorRequestId.current='';setVisitorName(e.target.value)}} placeholder="Full name (required)" maxLength={180} autoComplete="name" />
+          <input style={{...input,width:'100%'}} value={visitorPhone} onChange={e=>{visitorRequestId.current='';setVisitorPhone(e.target.value)}} placeholder="Phone number (optional)" type="tel" inputMode="tel" autoComplete="tel" />
+          <label style={{display:'flex',alignItems:'flex-start',gap:8,fontSize:12,lineHeight:1.4,color:'rgba(255,255,255,.8)'}}>
+            <input type="checkbox" checked={visitorContactConsent} onChange={e=>{visitorRequestId.current='';setVisitorContactConsent(e.target.checked)}} style={{marginTop:2}} />
+            They explicitly agreed that the church may keep this phone number for follow-up. Leave the phone blank if they did not agree.
+          </label>
+          <span style={{...sub,fontSize:11}}>This adds the person as a Visitor only. It does not make them a member or worker, and no message is sent.</span>
+          <div style={{display:'flex',justifyContent:'flex-end',gap:8,flexWrap:'wrap'}}>
+            <button type="button" style={discardButton} disabled={addingVisitor} onClick={()=>{visitorRequestId.current='';setShowAddVisitor(false);setVisitorName('');setVisitorPhone('');setVisitorContactConsent(false)}}>Cancel</button>
+            <button type="button" style={{...primary,opacity:addingVisitor||!visitorName.trim()||!networkOnline||Boolean(visitorPhone.trim()&&!visitorContactConsent)?0.55:1}} disabled={addingVisitor||!visitorName.trim()||!networkOnline||Boolean(visitorPhone.trim()&&!visitorContactConsent)} onClick={addVisitor}>{addingVisitor?'Adding…':'Save visitor'}</button>
+          </div>
+        </div>}
+        
 
         <div style={peopleBox}>
           {people.map(p=>

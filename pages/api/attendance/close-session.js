@@ -1,9 +1,9 @@
 // pages/api/attendance/close-session.js
 import pool from '../../../lib/db';
-import { withAdmin } from '../../../lib/apiHelpers';
+import { withOrg } from '../../../lib/apiHelpers';
 import { enqueueAttendanceProcessing } from '../../../lib/aria/attendanceQueue';
 
-export default withAdmin(async function handler(req,res){
+export default withOrg(async function handler(req,res){
   if(req.method!=='POST')return res.status(405).json({error:'Method not allowed'});
   const{session_id}=req.body||{};
   if(!session_id)return res.status(400).json({error:'session_id is required.'});
@@ -31,6 +31,17 @@ export default withAdmin(async function handler(req,res){
     }
 
     const current=q.rows[0];
+    const isAdmin=['owner','admin'].includes(String(req.user.role||'').toLowerCase());
+    if(!isAdmin){
+      const membership=await client.query(
+        'SELECT 1 FROM session_users WHERE session_id=$1 AND user_id=$2 LIMIT 1',
+        [session_id,userId]
+      );
+      if(!membership.rows.length){
+        await client.query('ROLLBACK');
+        return res.status(403).json({error:'Join this attendance session before saving it.'});
+      }
+    }
 
     if(current.status!=='active'){
       await client.query('ROLLBACK');

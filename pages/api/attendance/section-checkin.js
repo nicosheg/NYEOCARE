@@ -96,6 +96,7 @@ export default withOrg(async function handler(req,res){
          marked_at=NOW(),
          status='present',
          confirmed=false
+       WHERE attendance_records.confirmed=false
        RETURNING people_id`,
       [orgId,session_id,section.rows[0].id,userId,peopleIds]
     );

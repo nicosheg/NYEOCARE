@@ -78,9 +78,16 @@ export default withOrg(async function handler(req,res){
       `SELECT 1 FROM participation_records
        WHERE organization_id=$1 AND person_id=$2
          AND participation_type='attendance'
-         AND session_id<>$3
+         AND session_id IS DISTINCT FROM $3::uuid
          AND occurred_at<$4
-       LIMIT 1`,
+      UNION ALL
+      SELECT 1 FROM attendance_records prior
+      LEFT JOIN sessions prior_session ON prior_session.id=prior.session_id AND prior_session.organization_id=prior.organization_id
+      WHERE prior.organization_id=$1 AND prior.people_id=$2
+        AND prior.present=true AND prior.confirmed=true
+        AND prior.session_id IS DISTINCT FROM $3::uuid
+        AND COALESCE(prior_session.started_at,prior.attendance_date::timestamptz,prior.marked_at)<$4
+      LIMIT 1`,
       [orgId,personId,sessionId,current.started_at]
     )).rows[0];
     if(previous){
@@ -88,19 +95,7 @@ export default withOrg(async function handler(req,res){
       return res.status(409).json({error:'NYEOCARE has earlier attendance recorded for this person. Keep this as a normal welcome, not a first-visit disposition.'});
     }
 
-    const doNotContact=(await client.query(
-      `SELECT 1 FROM aria_care_contexts
-       WHERE organization_id=$1 AND person_id=$2
-         AND kind='other' AND metadata->>'do_not_contact'='true'
-         AND starts_on<=$3::date AND (ends_on IS NULL OR ends_on>=$3::date)
-       LIMIT 1`,
-      [orgId,personId,current.started_at]
-    )).rows[0];
-    if(doNotContact){
-      await client.query('ROLLBACK');
-      return res.status(409).json({error:'This person has a recorded no-contact preference. Do not initiate outreach.'});
-    }
-
+    // This records a human in-person welcome and sends no outbound communication.
     const context={
       source:'first_visit_welcome_during_attendance',
       outcome:'met_in_person',

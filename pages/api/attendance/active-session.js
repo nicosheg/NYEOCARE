@@ -56,7 +56,7 @@ export default withOrg(async function handler(req,res){
       return res.status(200).json({
         active:false,
         recoverable:Boolean(background),
-        can_start_new_session:true,
+        can_start_new_session:['owner','admin'].includes(String(req.user.role||'').toLowerCase()),
         blocked_reason:null,
         session_id:background?.id||null,
         name:background?.name||null,

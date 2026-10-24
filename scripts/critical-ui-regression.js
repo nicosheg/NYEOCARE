@@ -73,7 +73,7 @@ const vercel=JSON.parse(read('vercel.json'));
 
 const checks=[
  ['Attendance session state separates live work from background ARIA',
-  /s\.status='active'/.test(activeApi)&&/background_processing/.test(activeApi)&&/can_start_new_session:true/.test(activeApi)],
+  /s\.status='active'/.test(activeApi)&&/background_processing/.test(activeApi)&&/can_start_new_session:\['owner','admin'\]\.includes\(String\(req\.user\.role\|\|''\)\.toLowerCase\(\)\)/.test(activeApi)],
  ['Attendance close is atomic with durable queue publication',
   /BEGIN/.test(closeApi)&&/COMMIT/.test(closeApi)&&/enqueueAttendanceProcessing/.test(closeApi)&&/db:client/.test(closeApi)],
  ['Attendance close never waits for ARIA',

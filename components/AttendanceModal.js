@@ -75,6 +75,7 @@ export default function AttendanceModal({isOpen,onClose}){
   const markingIds=useRef(new Set());
   const fieldWarmAt=useRef(0);
   const fieldCursor=useRef({sessionId:'',cursor:''});
+  const fieldSnapshotSessionId=useRef('');
   const fieldRosterRef=useRef([]);
   const fieldRosterLoadSeq=useRef(0);
   const fieldRosterEpoch=useRef(0);
@@ -90,6 +91,9 @@ export default function AttendanceModal({isOpen,onClose}){
     if(fieldCursor.current.sessionId!==sessionId){
       fieldCursor.current={sessionId,cursor:''};
       fieldRosterLoadSeq.current++;
+      fieldRosterEpoch.current++;
+      fieldSnapshotSessionId.current='';
+      fieldWarmAt.current=0;
     }
     if(!sessionId)fieldRosterRef.current=[];
   },[session?.session_id]);
@@ -227,6 +231,7 @@ export default function AttendanceModal({isOpen,onClose}){
       await saveFieldPeople(sessionId,auth.user?.id,all,{replace:true}).catch(()=>{});
       if(!mounted.current||rosterRequestSeq!==fieldRosterLoadSeq.current||snapshotEpoch!==fieldRosterEpoch.current||fieldCursor.current.sessionId!==sessionId)return false;
       fieldRosterRef.current=all;
+      fieldSnapshotSessionId.current=sessionId;
       setFieldRoster(all);
       setFieldReady(all.length>0);
       setTotal(Number(data.total)||all.length);
@@ -253,15 +258,20 @@ export default function AttendanceModal({isOpen,onClose}){
     try{
       const auth=await getClientSession().catch(()=>null);
       if(!auth?.access_token)return;
+      // Incremental changes must never be applied to an incomplete roster. A
+      // successful empty snapshot is valid too, which matters for new churches.
+      if(fieldSnapshotSessionId.current!==sessionId){
+        const currentCursor=fieldCursor.current;
+        if(currentCursor.sessionId!==sessionId||!currentCursor.cursor){
+          await primeFieldCursor({session_id:sessionId},auth);
+        }
+        await warmFieldRoster({session_id:sessionId},auth);
+        return;
+      }
       const currentCursor=fieldCursor.current;
       if(currentCursor.sessionId!==sessionId||!currentCursor.cursor){
         await primeFieldCursor({session_id:sessionId},auth);
-        // If the incremental cursor was previously unavailable, take a fresh
-        // canonical roster snapshot now. It covers changes before this cursor;
-        // later changes are picked up by the next incremental poll.
-        if(fieldCursor.current.sessionId===sessionId&&fieldCursor.current.cursor){
-          await warmFieldRoster({session_id:sessionId},auth);
-        }
+        await warmFieldRoster({session_id:sessionId},auth);
         return;
       }
       const params=new URLSearchParams({session_id:sessionId,since:currentCursor.cursor});
@@ -271,9 +281,7 @@ export default function AttendanceModal({isOpen,onClose}){
       const data=await response.json().catch(()=>({}));
       if(!response.ok||data.success!==true||!data.cursor)return;
       if(fieldCursor.current.sessionId!==sessionId||pollEpoch!==fieldRosterEpoch.current||fieldRosterWarmInProgress.current)return;
-      // Until a full snapshot is available, don't replace the first server page
-      // with an incomplete local roster if the snapshot request has failed.
-      if(!fieldReady&&total>0&&fieldRosterRef.current.length===0)return;
+      if(fieldSnapshotSessionId.current!==sessionId)return;
       fieldCursor.current={sessionId,cursor:String(data.cursor)};
 
       const pending=await getPendingFieldMutations(sessionId,auth.user?.id).catch(()=>[]);
@@ -332,7 +340,7 @@ export default function AttendanceModal({isOpen,onClose}){
     }finally{
       fieldPolling.current=false;
     }
-  },[isOpen,session?.session_id,session?.status,networkOnline,fieldReady,total,primeFieldCursor,warmFieldRoster,refreshFieldPending]);
+  },[isOpen,session?.session_id,session?.status,networkOnline,primeFieldCursor,warmFieldRoster,refreshFieldPending]);
 
   const fetchPage=useCallback(async(live,q='',nextCursor=null,append=false,sessionOverride=null)=>{
     const s=sessionOverride||await getClientSession();

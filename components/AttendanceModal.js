@@ -265,6 +265,9 @@ export default function AttendanceModal({isOpen,onClose}){
       fieldCursor.current={sessionId,cursor:String(data.cursor)};
 
       const pending=await getPendingFieldMutations(sessionId,auth.user?.id).catch(()=>[]);
+      // A canonical roster snapshot may have started while this poll was reading
+      // local outbox state. Never advance/apply an older poll after that snapshot.
+      if(fieldCursor.current.sessionId!==sessionId||pollEpoch!==fieldRosterEpoch.current||fieldRosterWarmInProgress.current)return;
       const pendingByPerson=new Map(pending.map(item=>[String(item.personId),item]));
       const map=new Map((fieldRosterRef.current||[]).map(person=>[String(person.id),person]));
       const persist=new Map();

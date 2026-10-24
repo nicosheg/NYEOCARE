@@ -37,7 +37,7 @@ export default withOrg(async function handler(req,res){
   if(phone&&!contactConsent)return res.status(400).json({error:'Please confirm that the visitor agreed to the church keeping this phone number for follow-up.'});
 
   const orgId=req.org.id,userId=req.user.id,client=await pool.connect();
-  let person=null,alreadyCreated=false;
+  let person=null,alreadyCreated=false,effectiveSessionId=sessionId;
   try{
     await client.query('BEGIN');
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',['people-bulk-create:'+orgId]);
@@ -47,7 +47,7 @@ export default withOrg(async function handler(req,res){
     // original commit must return the same person even if the service was closed
     // before the phone could receive the first response.
     const prior=(await client.query(
-      `SELECT id,first_name,last_name,display_name,phone,phone_numbers,type,status,created_at
+      `SELECT id,first_name,last_name,display_name,phone,phone_numbers,type,status,created_at,metadata
        FROM people
        WHERE organization_id=$1 AND created_by=$3
          AND metadata->>'attendance_add_visitor_request_id'=$2
@@ -59,6 +59,7 @@ export default withOrg(async function handler(req,res){
     if(prior){
       person=prior;
       alreadyCreated=true;
+      effectiveSessionId=String(prior.metadata?.attendance_add_visitor_session_id||sessionId);
     }else{
       const session=(await client.query(
         "SELECT id FROM sessions WHERE id=$1 AND organization_id=$2 AND status='active' LIMIT 1 FOR UPDATE",
@@ -105,6 +106,7 @@ export default withOrg(async function handler(req,res){
       const now=new Date().toISOString();
       const metadata={
         attendance_add_visitor_request_id:requestId,
+        attendance_add_visitor_session_id:sessionId,
         ...(phone?{
           contact_consent:{
             phone:true,
@@ -178,7 +180,7 @@ export default withOrg(async function handler(req,res){
        JOIN sessions s ON s.id=$2 AND s.organization_id=p.organization_id
        WHERE p.id=$1 AND p.organization_id=$3
        LIMIT 1`,
-      [person.id,sessionId,orgId]
+      [person.id,effectiveSessionId,orgId]
     )).rows[0];
     person={...person,
       first_visit_candidate:context?.first_visit_candidate===true,
@@ -187,7 +189,7 @@ export default withOrg(async function handler(req,res){
     const event=await emitAriaEvent({
       organizationId:orgId,personId:person.id,type:'PERSON_CREATED',source:'manual',
       actorId:userId,actorRole:req.user.role,evidenceKind:'human_report',verificationStatus:'reported',confidence:1,
-      metadata:{source:'attendance_add_visitor',session_id:sessionId,type:'visitor',contact_consent:Boolean(phone),request_id:requestId},
+      metadata:{source:'attendance_add_visitor',session_id:effectiveSessionId,type:'visitor',contact_consent:Boolean(phone),request_id:requestId},
       eventKey:'attendance-add-visitor:'+orgId+':'+userId+':'+requestId
     });
     if(event)await directAriaEvent(event);

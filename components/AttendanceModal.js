@@ -331,6 +331,7 @@ export default function AttendanceModal({isOpen,onClose}){
         const joined=await read(joinResponse);
         if(!joinResponse.ok||joined.success!==true)throw Error(joined.error||'Could not join this attendance session. Ask an owner or admin to add you.');
       }
+      await primeFieldCursor(live,s);
       confirmedSessionId=String(live.session_id);
       lastSearchKey.current=attendanceSearchKey(live.session_id,query);
 
@@ -368,21 +369,8 @@ export default function AttendanceModal({isOpen,onClose}){
       if(seq===loadSeq.current&&mounted.current)setLoading(false);
       timing('ok',{cached:Boolean(cached),field_cached:Boolean(fieldCached)});
       if(fieldCached&&fieldWarmAt.current&&Date.now()-fieldWarmAt.current<300000)return;
-      fetchAttendanceWithTimeout('/api/attendance/field-roster?session_id='+encodeURIComponent(live.session_id)+'&limit=5000',{headers:{Authorization:'Bearer '+s.access_token},cache:'no-store'})
-        .then(async r=>{if(!r.ok)return null;return r.json()}).then(async data=>{
-          if(!data?.success||!Array.isArray(data.people))return;
-          let all=data.people.slice();let cursorValue=data.next_cursor||null;let pages=1;
-          while(data.has_more&&cursorValue&&pages<8){
-            const params=new URLSearchParams({session_id:String(live.session_id),limit:'5000',cursor:String(cursorValue)});
-            const r=await fetchAttendanceWithTimeout('/api/attendance/field-roster?'+params.toString(),{headers:{Authorization:'Bearer '+s.access_token},cache:'no-store'});
-            if(!r.ok)break;const more=await r.json();if(!Array.isArray(more.people))break;
-            all=all.concat(more.people);cursorValue=more.next_cursor||null;data.has_more=more.has_more===true;pages++;
-          }
-          if(!mounted.current)return;
-          await saveFieldPeople(live.session_id,all,{replace:true});
-          setFieldRoster(all);setFieldReady(all.length>0);setTotal(Number(data.total)||all.length);setPresent(Number(data.present_count)||all.filter(p=>p.marked===true).length);fieldWarmAt.current=Date.now();
-          const visible=localRosterSearch(all,query,80);setPeople(visible);setCursor(null);setHasMore(false);await refreshFieldPending(live.session_id);
-        }).catch(()=>{});
+      if(fieldCached&&fieldWarmAt.current&&Date.now()-fieldWarmAt.current<300000)return;
+      void warmFieldRoster(live,s).catch(()=>{});
     }catch(e){
       console.error('[ATTENDANCE] Load error:',e);
       if(seq===loadSeq.current&&mounted.current){
@@ -413,7 +401,7 @@ export default function AttendanceModal({isOpen,onClose}){
     }finally{
       if(seq===loadSeq.current&&mounted.current)setLoading(false);
     }
-  },[fetchPage,query,hydrateFieldSession,applyCachedRoster]);
+  },[fetchPage,query,hydrateFieldSession,applyCachedRoster,primeFieldCursor,warmFieldRoster]);
 
   useEffect(()=>{if(isOpen)load();},[isOpen,load]);
 
@@ -557,7 +545,9 @@ export default function AttendanceModal({isOpen,onClose}){
       setCursor(null);
       setHasMore(false);
       setLoading(true);
+      await primeFieldCursor(next,s);
       await fetchPage(next,'','',false,s);
+      void warmFieldRoster(next,s).catch(()=>{});
       setLoading(false);
       publishDataChange('attendance');
     }catch(e){

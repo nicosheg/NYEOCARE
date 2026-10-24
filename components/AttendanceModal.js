@@ -4,7 +4,7 @@ import{createPortal}from'react-dom';
 import{getClientSession}from'../lib/clientSession';
 import{getCached,setCached,clearCached,publishDataChange}from'../lib/appData';
 import{supabase}from'../lib/supabaseClient';import AriaProcessingStatus from'./AriaProcessingStatus';
-import{getFieldSession,getFieldPeople,saveFieldSession,saveFieldPeople,enqueueFieldMutation,removeFieldMutation,getFieldPendingCount,getPendingFieldMutations,getUnattributedPendingFieldMutationCount,removeFieldPerson,localRosterSearch,clearFieldSession,syncFieldMode}from'../lib/attendanceFieldMode';
+import{getFieldSession,getFieldPeople,isFieldRosterSnapshotComplete,saveFieldSession,saveFieldPeople,enqueueFieldMutation,removeFieldMutation,getFieldPendingCount,getPendingFieldMutations,getUnattributedPendingFieldMutationCount,removeFieldPerson,localRosterSearch,clearFieldSession,syncFieldMode}from'../lib/attendanceFieldMode';
 import{measurePerformance}from'../lib/performanceTelemetry';
 
 const ATTENDANCE_REQUEST_TIMEOUT_MS=12000;
@@ -74,6 +74,7 @@ export default function AttendanceModal({isOpen,onClose}){
   const[networkOnline,setNetworkOnline]=useState(true);
   const[fieldRoster,setFieldRoster]=useState([]);
   const[fieldReady,setFieldReady]=useState(false);
+  const[rosterSnapshotComplete,setRosterSnapshotComplete]=useState(false);
   const[pendingCount,setPendingCount]=useState(0);
   const[legacyPendingCount,setLegacyPendingCount]=useState(0);
   const loadSeq=useRef(0);
@@ -103,7 +104,7 @@ export default function AttendanceModal({isOpen,onClose}){
       fieldSnapshotSessionId.current='';
       fieldWarmAt.current=0;
     }
-    if(!sessionId)fieldRosterRef.current=[];
+    if(!sessionId){fieldRosterRef.current=[];setRosterSnapshotComplete(false);}
   },[session?.session_id]);
 
   const refreshFieldPending=useCallback(async(sessionId)=>{
@@ -119,10 +120,10 @@ export default function AttendanceModal({isOpen,onClose}){
       const cached=await getFieldSession(userId);
       if(!cached)return null;
       let cachedPeopleRaw=await getFieldPeople(cached.sessionId,userId);
-      // Before roster caches became user-scoped, the appData cache was already
-      // keyed by the current user. Use that safe cache during a one-time offline
-      // upgrade rather than reusing another operator's IndexedDB roster.
-      if(!cachedPeopleRaw.length){
+      const rosterComplete=await isFieldRosterSnapshotComplete(cached.sessionId,userId).catch(()=>false);
+      // The account-keyed app cache is retained for legacy/offline continuity,
+      // but it is not proof that all roster pages were stored.
+      if(!cachedPeopleRaw.length&&!rosterComplete){
         const accountCache=getCached('attendance:'+String(userId));
         if(String(accountCache?.session?.session_id||'')===String(cached.sessionId)&&Array.isArray(accountCache.people)){
           cachedPeopleRaw=accountCache.people;
@@ -134,17 +135,18 @@ export default function AttendanceModal({isOpen,onClose}){
         const pending=pendingByPerson.get(String(person.id));
         return pending?{...person,marked:pending.present,marked_by_name:pending.present?'You':null}:person;
       });
-      return {...cached,people:cachedPeople};
+      return {...cached,people:cachedPeople,rosterComplete};
     }catch{return null}
   },[]);
 
-  const applyCachedRoster=useCallback((cached)=>{
+  const applyCachedRoster=useCallback((cached,{offlineFallback=false}={})=>{
     const roster=Array.isArray(cached?.people)?cached.people:[];
     setPeople(roster.slice(0,80));
     setTotal(roster.length);
     setPresent(roster.filter(person=>person.marked===true).length);
     setFieldRoster(roster);
     setFieldReady(roster.length>0);
+    setRosterSnapshotComplete(offlineFallback&&cached?.rosterComplete===true);
     setCanDiscard(cached?.session?.can_discard===true);
     setCursor(null);setHasMore(false);
     void refreshFieldPending(cached?.sessionId).catch(()=>{});
@@ -209,6 +211,7 @@ export default function AttendanceModal({isOpen,onClose}){
     const sessionId=String(live?.session_id||'');
     if(!sessionId||!auth?.access_token||fieldRosterWarmInProgress.current)return false;
     fieldRosterWarmInProgress.current=true;
+    setRosterSnapshotComplete(false);
     const snapshotEpoch=++fieldRosterEpoch.current;
     const rosterRequestSeq=++fieldRosterLoadSeq.current;
     // Require a new complete snapshot before accepting another incremental
@@ -256,6 +259,7 @@ export default function AttendanceModal({isOpen,onClose}){
       fieldRosterRef.current=all;
       fieldSnapshotSessionId.current=sessionId;
       setFieldRoster(all);
+      setRosterSnapshotComplete(true);
       setFieldReady(all.length>0);
       setTotal(Number(data.total)||all.length);
       setPresent(all.filter(person=>person.marked===true).length);
@@ -432,7 +436,7 @@ export default function AttendanceModal({isOpen,onClose}){
       if(offline){
         if(fieldCached&&fieldCached.session?.status==='active'){
           setSession({...fieldCached.session,user_id:s.user.id});
-          applyCachedRoster(fieldCached);
+          applyCachedRoster(fieldCached,{offlineFallback:true});
           setBackground(null);
           setError('');
           setNotice('Offline mode is active. Your local attendance session is ready and will sync automatically when the connection returns.');
@@ -646,7 +650,7 @@ export default function AttendanceModal({isOpen,onClose}){
     const started=typeof performance!=='undefined'?performance.now():Date.now();
     const timer=window.setTimeout(async()=>{
       try{
-        if(fieldReady&&fieldRoster.length){
+        if(fieldReady&&fieldRoster.length&&(!networkOnline||rosterSnapshotComplete)){
           const matches=localRosterSearch(fieldRoster,query,80);
           setPeople(matches);setCursor(null);setHasMore(false);setTotal(fieldRoster.length);setPresent(fieldRoster.filter(p=>p.marked===true).length);setError('');
         }else if(networkOnline){
@@ -656,7 +660,7 @@ export default function AttendanceModal({isOpen,onClose}){
       }catch(e){if(seq===searchSeq.current&&mounted.current)setError(e.message||'Could not search people.')}
     },fieldReady?0:220);
     return()=>window.clearTimeout(timer);
-  },[isOpen,session?.session_id,session?.status,query,fetchPage,fieldReady,fieldRoster,networkOnline]);
+  },[isOpen,session?.session_id,session?.status,query,fetchPage,fieldReady,fieldRoster,networkOnline,rosterSnapshotComplete]);
 
   useEffect(()=>{
     if(!isOpen||session?.status!=='active'||!session?.session_id)return;
@@ -880,7 +884,7 @@ export default function AttendanceModal({isOpen,onClose}){
 
   const loadMore=async()=>{
     if(!session||!hasMore||!cursor||loadingMore)return;
-    setLoadingMore(true);setError('');if(fieldReady){setLoadingMore(false);return}
+    setLoadingMore(true);setError('');if(fieldReady&&rosterSnapshotComplete){setLoadingMore(false);return}
     try{await fetchPage(session,query,cursor,true)}
     catch(e){setError(e.message||'Could not load more people.')}
     finally{if(mounted.current)setLoadingMore(false)}

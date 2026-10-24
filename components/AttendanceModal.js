@@ -336,7 +336,9 @@ export default function AttendanceModal({isOpen,onClose}){
           ? {...prior,...incoming,marked:prior.marked===true,marked_by_name:prior.marked_by_name||null}
           : {...incoming,marked:false,marked_by_name:null};
         map.set(id,next);
-        if(!prior)persist.set(id,next);
+        // Persist edits as well as new rows. Otherwise another phone can show
+        // the new name online but resurrect an old name after an offline reopen.
+        persist.set(id,next);
       }
 
       for(const record of Array.isArray(data.attendance)?data.attendance:[]){

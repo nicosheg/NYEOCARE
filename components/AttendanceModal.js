@@ -411,6 +411,7 @@ export default function AttendanceModal({isOpen,onClose}){
 
   const load=useCallback(async({showLoading=true}={})=>{
     const seq=++loadSeq.current;
+    const currentQuery=queryRef.current;
     let fieldCached=null,confirmedSessionId=null,sessionUserId=null;
     if(showLoading&&mounted.current){setLoading(true);setError('');setNotice('');}
     try{
@@ -487,7 +488,7 @@ export default function AttendanceModal({isOpen,onClose}){
       }
       await primeFieldCursor(live,s);
       confirmedSessionId=String(live.session_id);
-      lastSearchKey.current=attendanceSearchKey(live.session_id,query);
+      lastSearchKey.current=attendanceSearchKey(live.session_id,currentQuery);
 
       if(fieldCached&&String(fieldCached.sessionId)!==String(live.session_id)){
         await syncFieldMode().catch(()=>false);
@@ -495,7 +496,7 @@ export default function AttendanceModal({isOpen,onClose}){
         if(oldPending>0){
           setSession({...fieldCached.session,user_id:s.user.id});
           applyCachedRoster(fieldCached);
-          lastSearchKey.current=attendanceSearchKey(fieldCached.sessionId,query);
+          lastSearchKey.current=attendanceSearchKey(fieldCached.sessionId,currentQuery);
           setNotice('Your previous attendance session still has unsynced marks. NYEOCARE is preserving them on this device while synchronization retries.');
           setError('');
           setLoading(false);
@@ -518,11 +519,12 @@ export default function AttendanceModal({isOpen,onClose}){
         if(cached.people.length)setLoading(false);
       }
 
-      await fetchPage(live,query,'',false,s);
+      await fetchPage(live,currentQuery,'',false,s);
       saveFieldSession(s.user.id,{...live,user_id:s.user.id}).catch(()=>{});
       if(seq===loadSeq.current&&mounted.current)setLoading(false);
       timing('ok',{cached:Boolean(cached),field_cached:Boolean(fieldCached)});
-      if(fieldCached&&fieldWarmAt.current&&Date.now()-fieldWarmAt.current<300000)return;
+      // The cached roster may have missed changes that happened while this modal
+      // was closed. Always refresh the canonical roster once on each fresh open.
       void warmFieldRoster(live,s).catch(()=>{});
     }catch(e){
       console.error('[ATTENDANCE] Load error:',e);
@@ -554,7 +556,7 @@ export default function AttendanceModal({isOpen,onClose}){
     }finally{
       if(seq===loadSeq.current&&mounted.current)setLoading(false);
     }
-  },[fetchPage,query,hydrateFieldSession,applyCachedRoster,primeFieldCursor,warmFieldRoster]);
+  },[fetchPage,hydrateFieldSession,applyCachedRoster,primeFieldCursor,warmFieldRoster]);
 
   useEffect(()=>{if(isOpen)load();},[isOpen,load]);
 

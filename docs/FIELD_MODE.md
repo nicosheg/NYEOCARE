@@ -13,7 +13,7 @@ Online:
 
 Offline or degraded:
 - roster and marks remain usable from IndexedDB
-- each person/session mutation is coalesced to its latest state
+- each signed-in-user/session/person mutation is coalesced to its latest state
 - no repeated user retry action is required
 - the outbox synchronizes automatically when connectivity returns
 
@@ -53,7 +53,9 @@ Run in an approved staging environment or a specifically authorized pilot servic
 
 The service worker caches only static assets. It does not cache authenticated application HTML or organization data.
 
-Attendance local data is scoped to the current session and is removed after successful server finalization. Operators should use trusted devices.
+Attendance roster caches and pending mutations are scoped to the signed-in operator and session. A canonical full-roster snapshot marker is written only after every roster page has been fetched and validated; a paged search result is not enough to claim offline completeness. If the device only has a partial or legacy cache, NYEOCARE labels the counts as cached and warns the operator to use the approved paper sheet.
+
+After the server confirms finalization, the local session is removed so a closed service cannot reopen as live attendance offline. If unattributed legacy mutations remain, the session context and roster are retained only for reconciliation; the local session is marked closed, the old marks are not uploaded under another account, and the persistent warning directs the team to reconcile them against the paper sheet. Operators should use trusted devices.
 
 Offline session creation is intentionally not supported yet because a new server session ID and organization lock must be created authoritatively online. Field Mode begins after an attendance session has been created.
 

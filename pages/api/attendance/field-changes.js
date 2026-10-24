@@ -5,7 +5,7 @@ import pool from '../../../lib/db';
 import { withOrg } from '../../../lib/apiHelpers';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const OVERLAP_MS = 5000;
+const OVERLAP_MS = 60000;
 
 export default withOrg(async function handler(req, res) {
   if (req.method !== 'GET') {

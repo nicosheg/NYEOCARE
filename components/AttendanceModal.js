@@ -409,7 +409,7 @@ export default function AttendanceModal({isOpen,onClose}){
     return data;
   },[]);
 
-  const load=useCallback(async({showLoading=true}={})=>{
+  const load=useCallback(async({showLoading=true,forceSnapshot=false}={})=>{
     const seq=++loadSeq.current;
     const currentQuery=queryRef.current;
     let fieldCached=null,confirmedSessionId=null,sessionUserId=null;
@@ -523,8 +523,10 @@ export default function AttendanceModal({isOpen,onClose}){
       saveFieldSession(s.user.id,{...live,user_id:s.user.id}).catch(()=>{});
       if(seq===loadSeq.current&&mounted.current)setLoading(false);
       timing('ok',{cached:Boolean(cached),field_cached:Boolean(fieldCached)});
-      // The cached roster may have missed changes that happened while this modal
-      // was closed. Always refresh the canonical roster once on each fresh open.
+      // Reopen forces a canonical refresh because updates may have happened while
+      // this modal was closed. Internal background refreshes can reuse a fresh
+      // snapshot instead of repeatedly loading thousands of rows.
+      if(fieldCached&&fieldWarmAt.current&&Date.now()-fieldWarmAt.current<300000&&!forceSnapshot)return;
       void warmFieldRoster(live,s).catch(()=>{});
     }catch(e){
       console.error('[ATTENDANCE] Load error:',e);
@@ -558,7 +560,7 @@ export default function AttendanceModal({isOpen,onClose}){
     }
   },[fetchPage,hydrateFieldSession,applyCachedRoster,primeFieldCursor,warmFieldRoster]);
 
-  useEffect(()=>{if(isOpen)load();},[isOpen,load]);
+  useEffect(()=>{if(isOpen)load({forceSnapshot:true});},[isOpen,load]);
 
   useEffect(()=>{
     if(!isOpen||session?.session_id)return;

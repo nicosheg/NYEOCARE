@@ -77,6 +77,8 @@ export default function AttendanceModal({isOpen,onClose}){
   const fieldCursor=useRef({sessionId:'',cursor:''});
   const fieldRosterRef=useRef([]);
   const fieldRosterLoadSeq=useRef(0);
+  const fieldRosterEpoch=useRef(0);
+  const fieldRosterWarmInProgress=useRef(false);
   const queryRef=useRef(query);
   const fieldPolling=useRef(false);
   const onCloseRef=useRef(onClose);
@@ -178,57 +180,67 @@ export default function AttendanceModal({isOpen,onClose}){
 
   const warmFieldRoster=useCallback(async(live,auth)=>{
     const sessionId=String(live?.session_id||'');
-    if(!sessionId||!auth?.access_token)return false;
+    if(!sessionId||!auth?.access_token||fieldRosterWarmInProgress.current)return false;
+    fieldRosterWarmInProgress.current=true;
+    const snapshotEpoch=++fieldRosterEpoch.current;
     const rosterRequestSeq=++fieldRosterLoadSeq.current;
-    const params=new URLSearchParams({session_id:sessionId,limit:'5000'});
-    const response=await fetchAttendanceWithTimeout('/api/attendance/field-roster?'+params.toString(),{
-      headers:{Authorization:'Bearer '+auth.access_token},cache:'no-store'
-    },ATTENDANCE_REQUEST_TIMEOUT_MS);
-    if(!response.ok)return false;
-    let data=await response.json();
-    if(!data?.success||!Array.isArray(data.people))return false;
-    let all=data.people.slice();
-    let cursorValue=data.next_cursor||null;
-    let pages=1;
-    while(data.has_more&&cursorValue&&pages<8){
-      const pageParams=new URLSearchParams({session_id:sessionId,limit:'5000',cursor:String(cursorValue)});
-      const pageResponse=await fetchAttendanceWithTimeout('/api/attendance/field-roster?'+pageParams.toString(),{
+    try{
+      const params=new URLSearchParams({session_id:sessionId,limit:'5000'});
+      const response=await fetchAttendanceWithTimeout('/api/attendance/field-roster?'+params.toString(),{
         headers:{Authorization:'Bearer '+auth.access_token},cache:'no-store'
       },ATTENDANCE_REQUEST_TIMEOUT_MS);
-      if(!pageResponse.ok)break;
-      const page=await pageResponse.json().catch(()=>null);
-      if(!Array.isArray(page?.people))break;
-      all=all.concat(page.people);
-      cursorValue=page.next_cursor||null;
-      data.has_more=page.has_more===true;
-      pages++;
+      if(!response.ok)return false;
+      let data=await response.json();
+      if(!data?.success||!Array.isArray(data.people))return false;
+      let all=data.people.slice();
+      let cursorValue=data.next_cursor||null;
+      let pages=1;
+      while(data.has_more&&cursorValue&&pages<8){
+        const pageParams=new URLSearchParams({session_id:sessionId,limit:'5000',cursor:String(cursorValue)});
+        const pageResponse=await fetchAttendanceWithTimeout('/api/attendance/field-roster?'+pageParams.toString(),{
+          headers:{Authorization:'Bearer '+auth.access_token},cache:'no-store'
+        },ATTENDANCE_REQUEST_TIMEOUT_MS);
+        if(!pageResponse.ok)break;
+        const page=await pageResponse.json().catch(()=>null);
+        if(!Array.isArray(page?.people))break;
+        all=all.concat(page.people);
+        cursorValue=page.next_cursor||null;
+        data.has_more=page.has_more===true;
+        pages++;
+      }
+      const pending=await getPendingFieldMutations(sessionId,auth.user?.id).catch(()=>[]);
+      if(rosterRequestSeq!==fieldRosterLoadSeq.current||snapshotEpoch!==fieldRosterEpoch.current||fieldCursor.current.sessionId!==sessionId)return false;
+      const pendingByPerson=new Map(pending.map(item=>[String(item.personId),item]));
+      all=all.map(person=>{
+        const mutation=pendingByPerson.get(String(person.id));
+        return mutation?{...person,marked:mutation.present,marked_by_name:mutation.present?'You':null}:person;
+      });
+      await saveFieldPeople(sessionId,all,{replace:true}).catch(()=>{});
+      if(!mounted.current||rosterRequestSeq!==fieldRosterLoadSeq.current||snapshotEpoch!==fieldRosterEpoch.current||fieldCursor.current.sessionId!==sessionId)return false;
+      fieldRosterRef.current=all;
+      setFieldRoster(all);
+      setFieldReady(all.length>0);
+      setTotal(Number(data.total)||all.length);
+      setPresent(all.filter(person=>person.marked===true).length);
+      const visible=localRosterSearch(all,queryRef.current,80);
+      setPeople(visible);
+      setCursor(null);setHasMore(false);
+      fieldWarmAt.current=Date.now();
+      void refreshFieldPending(sessionId);
+      return true;
+    }catch(error){
+      console.warn('[ATTENDANCE] Canonical roster refresh deferred:',error?.message||error);
+      return false;
+    }finally{
+      fieldRosterWarmInProgress.current=false;
     }
-    const pending=await getPendingFieldMutations(sessionId,auth.user?.id).catch(()=>[]);
-    if(rosterRequestSeq!==fieldRosterLoadSeq.current||fieldCursor.current.sessionId!==sessionId)return false;
-    const pendingByPerson=new Map(pending.map(item=>[String(item.personId),item]));
-    all=all.map(person=>{
-      const mutation=pendingByPerson.get(String(person.id));
-      return mutation?{...person,marked:mutation.present,marked_by_name:mutation.present?'You':null}:person;
-    });
-    await saveFieldPeople(sessionId,all,{replace:true}).catch(()=>{});
-    if(!mounted.current||rosterRequestSeq!==fieldRosterLoadSeq.current||fieldCursor.current.sessionId!==sessionId)return false;
-    fieldRosterRef.current=all;
-    setFieldRoster(all);
-    setFieldReady(all.length>0);
-    setTotal(Number(data.total)||all.length);
-    setPresent(all.filter(person=>person.marked===true).length);
-    const visible=localRosterSearch(all,queryRef.current,80);
-    setPeople(visible);
-    setCursor(null);setHasMore(false);
-    fieldWarmAt.current=Date.now();
-    void refreshFieldPending(sessionId);
-    return true;
   },[refreshFieldPending]);
 
   const pollFieldChanges=useCallback(async()=>{
     const sessionId=String(session?.session_id||'');
-    if(!isOpen||session?.status!=='active'||!sessionId||!networkOnline||fieldPolling.current)return;
+    if(!isOpen||session?.status!=='active'||!sessionId||!networkOnline||fieldPolling.current||fieldRosterWarmInProgress.current)return;
     fieldPolling.current=true;
+    const pollEpoch=fieldRosterEpoch.current;
     try{
       const auth=await getClientSession().catch(()=>null);
       if(!auth?.access_token)return;
@@ -249,7 +261,7 @@ export default function AttendanceModal({isOpen,onClose}){
       },ATTENDANCE_LOAD_TIMEOUT_MS);
       const data=await response.json().catch(()=>({}));
       if(!response.ok||data.success!==true||!data.cursor)return;
-      if(fieldCursor.current.sessionId!==sessionId)return;
+      if(fieldCursor.current.sessionId!==sessionId||pollEpoch!==fieldRosterEpoch.current||fieldRosterWarmInProgress.current)return;
       fieldCursor.current={sessionId,cursor:String(data.cursor)};
 
       const pending=await getPendingFieldMutations(sessionId,auth.user?.id).catch(()=>[]);

@@ -38,6 +38,13 @@ function withAttendanceFallback(promise,ms,fallback){
   return Promise.race([Promise.resolve(promise),new Promise(resolve=>{timer=setTimeout(()=>resolve(fallback),ms)})]).finally(()=>clearTimeout(timer));
 }
 const attendanceSearchKey=(sessionId,q)=>String(sessionId)+':'+String(q||'').trim();
+function createVisitorRequestId(){
+  try{
+    if(typeof crypto!=='undefined'&&typeof crypto.randomUUID==='function')return crypto.randomUUID();
+  }catch{}
+  const part=()=>Math.random().toString(36).slice(2,12);
+  return 'visitor_'+Date.now().toString(36)+'_'+part()+'_'+part();
+}
 
 export default function AttendanceModal({isOpen,onClose}){
   const[session,setSession]=useState(null);
@@ -73,6 +80,7 @@ export default function AttendanceModal({isOpen,onClose}){
   const searchSeq=useRef(0);
   const lastSearchKey=useRef('');
   const markingIds=useRef(new Set());
+  const visitorRequestId=useRef('');
   const fieldWarmAt=useRef(0);
   const fieldCursor=useRef({sessionId:'',cursor:''});
   const fieldSnapshotSessionId=useRef('');
@@ -743,20 +751,22 @@ export default function AttendanceModal({isOpen,onClose}){
     const fullName=visitorName.trim(),rawPhone=visitorPhone.trim();
     if(!fullName){setError('Enter the visitor’s name first.');return}
     if(rawPhone&&!visitorContactConsent){setError('Ask permission before saving a phone number for church follow-up.');return}
+    const requestId=visitorRequestId.current||createVisitorRequestId();
+    visitorRequestId.current=requestId;
     setAddingVisitor(true);setError('');setNotice('');
     try{
       let auth=await getClientSession();if(!auth)throw Error('You must be logged in.');
       let response=await fetchAttendanceWithTimeout('/api/attendance/add-visitor',{
         method:'POST',
         headers:{'Content-Type':'application/json',Authorization:'Bearer '+auth.access_token},
-        body:JSON.stringify({session_id:session.session_id,full_name:fullName,phone:rawPhone||null,contact_consent:visitorContactConsent})
+        body:JSON.stringify({session_id:session.session_id,request_id:requestId,full_name:fullName,phone:rawPhone||null,contact_consent:visitorContactConsent})
       });
       if(response.status===401){
         auth=await getClientSession({forceRefresh:true}).catch(()=>null);
         if(auth)response=await fetchAttendanceWithTimeout('/api/attendance/add-visitor',{
           method:'POST',
           headers:{'Content-Type':'application/json',Authorization:'Bearer '+auth.access_token},
-          body:JSON.stringify({session_id:session.session_id,full_name:fullName,phone:rawPhone||null,contact_consent:visitorContactConsent})
+          body:JSON.stringify({session_id:session.session_id,request_id:requestId,full_name:fullName,phone:rawPhone||null,contact_consent:visitorContactConsent})
         });
       }
       const data=await read(response);
@@ -781,7 +791,7 @@ export default function AttendanceModal({isOpen,onClose}){
         void warmFieldRoster({session_id:session.session_id},auth).catch(()=>{});
       }
       setTotal(value=>value+1);
-      setVisitorName('');setVisitorPhone('');setVisitorContactConsent(false);setShowAddVisitor(false);
+      visitorRequestId.current='';setVisitorName('');setVisitorPhone('');setVisitorContactConsent(false);setShowAddVisitor(false);
       setNotice('Visitor added to this organization. No message was sent.');
       publishDataChange('attendance');
     }catch(e){
@@ -1021,15 +1031,15 @@ export default function AttendanceModal({isOpen,onClose}){
         {!networkOnline&&<div style={noticeBox}>Offline mode can queue attendance marks for people already in the directory, but it cannot create a new person record safely. Use the church’s approved paper attendance sheet for new visitors and add them when the connection returns.</div>}
         {showAddVisitor&&<div style={{margin:'0 18px 10px',padding:12,borderRadius:14,border:'1px solid rgba(255,255,255,.13)',background:'rgba(0,0,0,.14)',display:'grid',gap:8}}>
           <strong style={{fontSize:14}}>Add a first-time visitor</strong>
-          <input style={{...input,width:'100%'}} value={visitorName} onChange={e=>setVisitorName(e.target.value)} placeholder="Full name (required)" maxLength={180} autoComplete="name" />
-          <input style={{...input,width:'100%'}} value={visitorPhone} onChange={e=>setVisitorPhone(e.target.value)} placeholder="Phone number (optional)" type="tel" inputMode="tel" autoComplete="tel" />
+          <input style={{...input,width:'100%'}} value={visitorName} onChange={e=>{visitorRequestId.current='';setVisitorName(e.target.value)}} placeholder="Full name (required)" maxLength={180} autoComplete="name" />
+          <input style={{...input,width:'100%'}} value={visitorPhone} onChange={e=>{visitorRequestId.current='';setVisitorPhone(e.target.value)}} placeholder="Phone number (optional)" type="tel" inputMode="tel" autoComplete="tel" />
           <label style={{display:'flex',alignItems:'flex-start',gap:8,fontSize:12,lineHeight:1.4,color:'rgba(255,255,255,.8)'}}>
-            <input type="checkbox" checked={visitorContactConsent} onChange={e=>setVisitorContactConsent(e.target.checked)} style={{marginTop:2}} />
+            <input type="checkbox" checked={visitorContactConsent} onChange={e=>{visitorRequestId.current='';setVisitorContactConsent(e.target.checked)}} style={{marginTop:2}} />
             They explicitly agreed that the church may keep this phone number for follow-up. Leave the phone blank if they did not agree.
           </label>
           <span style={{...sub,fontSize:11}}>This adds the person as a Visitor only. It does not make them a member or worker, and no message is sent.</span>
           <div style={{display:'flex',justifyContent:'flex-end',gap:8,flexWrap:'wrap'}}>
-            <button type="button" style={discardButton} disabled={addingVisitor} onClick={()=>{setShowAddVisitor(false);setVisitorName('');setVisitorPhone('');setVisitorContactConsent(false)}}>Cancel</button>
+            <button type="button" style={discardButton} disabled={addingVisitor} onClick={()=>{visitorRequestId.current='';setShowAddVisitor(false);setVisitorName('');setVisitorPhone('');setVisitorContactConsent(false)}}>Cancel</button>
             <button type="button" style={{...primary,opacity:addingVisitor||!visitorName.trim()||!networkOnline||Boolean(visitorPhone.trim()&&!visitorContactConsent)?0.55:1}} disabled={addingVisitor||!visitorName.trim()||!networkOnline||Boolean(visitorPhone.trim()&&!visitorContactConsent)} onClick={addVisitor}>{addingVisitor?'Adding…':'Save visitor'}</button>
           </div>
         </div>}

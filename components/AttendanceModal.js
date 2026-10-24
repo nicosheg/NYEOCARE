@@ -74,8 +74,14 @@ export default function AttendanceModal({isOpen,onClose}){
   const lastSearchKey=useRef('');
   const markingIds=useRef(new Set());
   const fieldWarmAt=useRef(0);
+  const fieldCursor=useRef({sessionId:'',cursor:''});
+  const fieldRosterRef=useRef([]);
+  const queryRef=useRef(query);
+  const fieldPolling=useRef(false);
   const onCloseRef=useRef(onClose);
   useEffect(()=>{onCloseRef.current=onClose},[onClose]);
+  useEffect(()=>{fieldRosterRef.current=fieldRoster},[fieldRoster]);
+  useEffect(()=>{queryRef.current=query},[query]);
 
   const refreshFieldPending=useCallback(async(sessionId)=>{
     try{
@@ -144,6 +150,67 @@ export default function AttendanceModal({isOpen,onClose}){
       can_discard:d.can_discard===true
     };
   };
+
+  const primeFieldCursor=useCallback(async(live,auth)=>{
+    const sessionId=String(live?.session_id||'');
+    fieldCursor.current={sessionId,cursor:''};
+    if(!sessionId||!auth?.access_token)return;
+    try{
+      const response=await fetchAttendanceWithTimeout('/api/attendance/field-changes?session_id='+encodeURIComponent(sessionId),{
+        headers:{Authorization:'Bearer '+auth.access_token},cache:'no-store'
+      },ATTENDANCE_LOAD_TIMEOUT_MS);
+      const data=await response.json().catch(()=>({}));
+      if(response.ok&&data.success===true&&data.cursor){
+        fieldCursor.current={sessionId,cursor:String(data.cursor)};
+      }
+    }catch{}
+  },[]);
+
+  const warmFieldRoster=useCallback(async(live,auth)=>{
+    const sessionId=String(live?.session_id||'');
+    if(!sessionId||!auth?.access_token)return false;
+    const params=new URLSearchParams({session_id:sessionId,limit:'5000'});
+    const response=await fetchAttendanceWithTimeout('/api/attendance/field-roster?'+params.toString(),{
+      headers:{Authorization:'Bearer '+auth.access_token},cache:'no-store'
+    },ATTENDANCE_REQUEST_TIMEOUT_MS);
+    if(!response.ok)return false;
+    let data=await response.json();
+    if(!data?.success||!Array.isArray(data.people))return false;
+    let all=data.people.slice();
+    let cursorValue=data.next_cursor||null;
+    let pages=1;
+    while(data.has_more&&cursorValue&&pages<8){
+      const pageParams=new URLSearchParams({session_id:sessionId,limit:'5000',cursor:String(cursorValue)});
+      const pageResponse=await fetchAttendanceWithTimeout('/api/attendance/field-roster?'+pageParams.toString(),{
+        headers:{Authorization:'Bearer '+auth.access_token},cache:'no-store'
+      },ATTENDANCE_REQUEST_TIMEOUT_MS);
+      if(!pageResponse.ok)break;
+      const page=await pageResponse.json().catch(()=>null);
+      if(!Array.isArray(page?.people))break;
+      all=all.concat(page.people);
+      cursorValue=page.next_cursor||null;
+      data.has_more=page.has_more===true;
+      pages++;
+    }
+    const pending=await getPendingFieldMutations(sessionId,auth.user?.id).catch(()=>[]);
+    const pendingByPerson=new Map(pending.map(item=>[String(item.personId),item]));
+    all=all.map(person=>{
+      const mutation=pendingByPerson.get(String(person.id));
+      return mutation?{...person,marked:mutation.present,marked_by_name:mutation.present?'You':null}:person;
+    });
+    await saveFieldPeople(sessionId,all,{replace:true}).catch(()=>{});
+    if(!mounted.current)return false;
+    setFieldRoster(all);
+    setFieldReady(all.length>0);
+    setTotal(Number(data.total)||all.length);
+    setPresent(all.filter(person=>person.marked===true).length);
+    const visible=localRosterSearch(all,queryRef.current,80);
+    setPeople(visible);
+    setCursor(null);setHasMore(false);
+    fieldWarmAt.current=Date.now();
+    void refreshFieldPending(sessionId);
+    return true;
+  },[refreshFieldPending]);
 
   const fetchPage=useCallback(async(live,q='',nextCursor=null,append=false,sessionOverride=null)=>{
     const s=sessionOverride||await getClientSession();

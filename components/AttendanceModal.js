@@ -83,6 +83,14 @@ export default function AttendanceModal({isOpen,onClose}){
   useEffect(()=>{onCloseRef.current=onClose},[onClose]);
   useEffect(()=>{fieldRosterRef.current=fieldRoster},[fieldRoster]);
   useEffect(()=>{queryRef.current=query},[query]);
+  useEffect(()=>{
+    const sessionId=String(session?.session_id||'');
+    if(fieldCursor.current.sessionId!==sessionId){
+      fieldCursor.current={sessionId,cursor:''};
+      fieldRosterLoadSeq.current++;
+    }
+    if(!sessionId)fieldRosterRef.current=[];
+  },[session?.session_id]);
 
   const refreshFieldPending=useCallback(async(sessionId)=>{
     try{

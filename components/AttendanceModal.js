@@ -796,7 +796,7 @@ export default function AttendanceModal({isOpen,onClose}){
         return;
       }
       const wasAlreadyInRoster=people.some(p=>String(p.id)===String(data.person.id))||fieldRoster.some(p=>String(p.id)===String(data.person.id))||fieldRosterRef.current.some(p=>String(p.id)===String(data.person.id));
-      const person={...data.person,marked:false,marked_by_name:null,first_visit_candidate:true,first_visit_welcome_recorded:false};
+      const person={...data.person,marked:false,marked_by_name:null,first_visit_candidate:data.person.first_visit_candidate===true,first_visit_welcome_recorded:data.person.first_visit_welcome_recorded===true};
       setPeople(current=>{
         if(query.trim()&&!localRosterSearch([person],query,1).length)return current;
         const next=[...current.filter(p=>String(p.id)!==String(person.id)),person];

@@ -571,7 +571,7 @@ export default function AttendanceModal({isOpen,onClose}){
   },[isOpen,session?.session_id,session?.status,query,fetchPage,fieldReady,fieldRoster,networkOnline]);
 
   useEffect(()=>{
-    if(!isOpen||session?.status!=='active'||!session?.session_id||!fieldReady)return;
+    if(!isOpen||session?.status!=='active'||!session?.session_id)return;
     let stopped=false;
     const run=()=>{
       if(!stopped&&document.visibilityState==='visible')void pollFieldChanges();
@@ -587,7 +587,7 @@ export default function AttendanceModal({isOpen,onClose}){
       window.removeEventListener('online',run);
       document.removeEventListener('visibilitychange',onVisible);
     };
-  },[isOpen,session?.session_id,session?.status,fieldReady,pollFieldChanges]);
+  },[isOpen,session?.session_id,session?.status,pollFieldChanges]);
 
   useEffect(()=>{
     if(!isOpen||!session?.session_id)return;

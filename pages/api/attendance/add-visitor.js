@@ -2,7 +2,7 @@
 // Adds only a Visitor while the authenticated operator is participating in an active session.
 import pool from '../../../lib/db';
 import { withOrg } from '../../../lib/apiHelpers';
-import normalizePhone from '../../../lib/phoneUtils';
+import { normalizePhone } from '../../../lib/phoneUtils';
 import { normalizeDisplayName } from '../../../lib/scanValidation';
 import { emitAriaEvent } from '../../../lib/aria/eventEmitter';
 import { directAriaEvent } from '../../../lib/aria/director';

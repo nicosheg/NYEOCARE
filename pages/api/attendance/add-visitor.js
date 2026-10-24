@@ -64,15 +64,15 @@ export default withOrg(async function handler(req,res){
          FROM people p
          WHERE p.organization_id=$1 AND COALESCE(p.status,'active')='active'
            AND (
-             regexp_replace(COALESCE(p.phone,''),'\\D','','g')=ANY($3::text[])
+             regexp_replace(COALESCE(p.phone,''),'\\D','','g')=ANY($2::text[])
              OR EXISTS(
                SELECT 1 FROM jsonb_array_elements(COALESCE(p.phone_numbers,'[]'::jsonb)) v
-               WHERE regexp_replace(COALESCE(v->>'normalized',''),'\\D','','g')=ANY($3::text[])
-                  OR regexp_replace(COALESCE(v->>'raw',''),'\\D','','g')=ANY($3::text[])
+               WHERE regexp_replace(COALESCE(v->>'normalized',''),'\\D','','g')=ANY($2::text[])
+                  OR regexp_replace(COALESCE(v->>'raw',''),'\\D','','g')=ANY($2::text[])
              )
            )
          LIMIT 1`,
-        [orgId,phone,[digits,localDigits]]
+        [orgId,[digits,localDigits]]
       )).rows[0];
       if(duplicate){
         await client.query('ROLLBACK');

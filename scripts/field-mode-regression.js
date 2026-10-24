@@ -36,7 +36,7 @@ const checks=[
  ['Offline sync confirms only canonical matches and reports conflicts',/applied_people_ids: applied/.test(read('pages/api/attendance/sync.js'))&&/conflicted_people_ids: conflicted/.test(read('pages/api/attendance/sync.js'))&&/const applied=new Set\(\(data\.applied_people_ids\|\|\[\]\)\.map\(String\)\)/.test(read('lib/attendanceFieldMode.js'))],
  ['Unresolved offline marks remain queued and display a reconciliation notice',/if\(unresolved\)\{emit\('conflict'/.test(read('lib/attendanceFieldMode.js'))&&/kind==='conflict'/.test(read('components/AttendanceModal.js'))],
  ['Attendance visitor creation keeps visitor type and requires contact consent for phone',/\x27visitor\x27,'active','manual'/.test(read('pages/api/attendance/add-visitor.js'))&&/if\(phone&&!contactConsent\)/.test(read('pages/api/attendance/add-visitor.js'))],
- ['A staff device discovers sessions started on another device',/void load\(\{showLoading:false\}\)/.test(read('components/AttendanceModal.js'))&&/setInterval\(poll,12000\)/.test(read('components/AttendanceModal.js'))]
+ ['A staff device discovers sessions started on another device',/void load\(\{showLoading:false\}\)/.test(read('components/AttendanceModal.js'))&&/setInterval\(poll,12000\)/.test(read('components/AttendanceModal.js'))],
  ['Field Mode test script is registered',JSON.parse(read('package.json')).scripts?.['test:field-mode']==='node scripts/field-mode-regression.js']
 ];
 const failures=checks.filter(([,ok])=>!ok).map(([name])=>name);

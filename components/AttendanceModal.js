@@ -84,7 +84,7 @@ export default function AttendanceModal({isOpen,onClose}){
       const cached=await getFieldSession(userId);
       if(!cached)return null;
       const cachedPeopleRaw=await getFieldPeople(cached.sessionId);
-      const pendingMutations=await getPendingFieldMutations(cached.sessionId).catch(()=>[]);
+      const pendingMutations=await getPendingFieldMutations(cached.sessionId,userId).catch(()=>[]);
       const pendingByPerson=new Map(pendingMutations.map(item=>[String(item.personId),item]));
       const cachedPeople=cachedPeopleRaw.map(person=>{
         const pending=pendingByPerson.get(String(person.id));
@@ -227,7 +227,7 @@ export default function AttendanceModal({isOpen,onClose}){
       if(!data.active){
         if(fieldCached&&typeof navigator!=='undefined'&&navigator.onLine){
           await syncFieldMode().catch(()=>false);
-          const pending=await getFieldPendingCount(fieldCached.sessionId).catch(()=>1);
+          const pending=await getFieldPendingCount(fieldCached.sessionId,s.user.id).catch(()=>1);
           const refreshed=await getFieldSession(s.user.id).catch(()=>null);
           const serverConfirmsClosed=String(data.session_id||'')===String(fieldCached.sessionId)&&data.status==='closed';
           if(pending>0||(refreshed?.closeRequested&&!serverConfirmsClosed)){
@@ -345,7 +345,7 @@ export default function AttendanceModal({isOpen,onClose}){
       const data=await read(response);if(!response.ok)return;
       if(!data.active||String(data.session_id)!==String(session.session_id)){
         await syncFieldMode().catch(()=>false);
-        const pending=await getFieldPendingCount(session.session_id).catch(()=>1);
+        const pending=await getFieldPendingCount(session.session_id,s.user.id).catch(()=>1);
         if(pending>0){
           setPendingCount(pending);
           setNotice('This session is no longer active on the server, but unsynced attendance is still saved on this device. NYEOCARE is preserving it while synchronization retries.');
@@ -501,7 +501,7 @@ export default function AttendanceModal({isOpen,onClose}){
     if(cachedPerson)saveFieldPeople(session.session_id,[{...cachedPerson,marked:nextValue,marked_by_name:nextValue?'You':null}]).catch(()=>{});
     if(!networkOnline){
       try{
-        await enqueueFieldMutation({sessionId:session.session_id,personId:id,present:nextValue});
+        await enqueueFieldMutation({sessionId:session.session_id,userId:session.user_id,personId:id,present:nextValue});
         await refreshFieldPending(session.session_id);
         setNotice('Saved on this device. It will sync automatically when the connection returns.');perf('queued');
       }catch(queueError){
@@ -519,7 +519,7 @@ export default function AttendanceModal({isOpen,onClose}){
       const data=await read(response);if(!response.ok||!data.success)throw Object.assign(Error(data.error||'Could not update attendance.'),{transient:response.status>=500||response.status===0});
       const actual=data.present===true;
       if(actual!==nextValue){setPresent(value=>Math.max(0,value+(actual?1:-1)));setFieldRoster(current=>current.map(p=>String(p.id)===String(id)?{...p,marked:actual}:p));setPeople(current=>current.map(p=>String(p.id)===String(id)?{...p,marked:actual}:p))}
-      await removeFieldMutation(session.session_id,id);await refreshFieldPending(session.session_id);setNotice('');perf('ok');
+      await removeFieldMutation(session.session_id,session.user_id,id);await refreshFieldPending(session.session_id);setNotice('');perf('ok');
     }catch(e){
       const transient=e?.transient||e instanceof TypeError||typeof navigator!=='undefined'&&!navigator.onLine;
       if(transient){

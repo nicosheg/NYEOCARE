@@ -222,6 +222,12 @@ export default function AttendanceModal({isOpen,onClose}){
       const currentCursor=fieldCursor.current;
       if(currentCursor.sessionId!==sessionId||!currentCursor.cursor){
         await primeFieldCursor({session_id:sessionId},auth);
+        // If the incremental cursor was previously unavailable, take a fresh
+        // canonical roster snapshot now. It covers changes before this cursor;
+        // later changes are picked up by the next incremental poll.
+        if(fieldCursor.current.sessionId===sessionId&&fieldCursor.current.cursor){
+          await warmFieldRoster({session_id:sessionId},auth);
+        }
         return;
       }
       const params=new URLSearchParams({session_id:sessionId,since:currentCursor.cursor});
@@ -286,7 +292,7 @@ export default function AttendanceModal({isOpen,onClose}){
     }finally{
       fieldPolling.current=false;
     }
-  },[isOpen,session?.session_id,session?.status,networkOnline,primeFieldCursor,refreshFieldPending]);
+  },[isOpen,session?.session_id,session?.status,networkOnline,primeFieldCursor,warmFieldRoster,refreshFieldPending]);
 
   const fetchPage=useCallback(async(live,q='',nextCursor=null,append=false,sessionOverride=null)=>{
     const s=sessionOverride||await getClientSession();

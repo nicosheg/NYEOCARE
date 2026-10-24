@@ -256,7 +256,7 @@ export default function AttendanceModal({isOpen,onClose}){
 
       if(fieldCached&&String(fieldCached.sessionId)!==String(live.session_id)){
         await syncFieldMode().catch(()=>false);
-        const oldPending=await getFieldPendingCount(fieldCached.sessionId).catch(()=>1);
+        const oldPending=await getFieldPendingCount(fieldCached.sessionId,s.user.id).catch(()=>1);
         if(oldPending>0){
           setSession({...fieldCached.session,user_id:s.user.id});
           applyCachedRoster(fieldCached);
@@ -524,7 +524,7 @@ export default function AttendanceModal({isOpen,onClose}){
       const transient=e?.transient||e instanceof TypeError||typeof navigator!=='undefined'&&!navigator.onLine;
       if(transient){
         try{
-          await enqueueFieldMutation({sessionId:session.session_id,personId:id,present:nextValue});
+          await enqueueFieldMutation({sessionId:session.session_id,userId:session.user_id,personId:id,present:nextValue});
           await refreshFieldPending(session.session_id);
           setNotice('Saved on this device. Syncing automatically when the connection returns.');perf('queued');return;
         }catch(queueError){

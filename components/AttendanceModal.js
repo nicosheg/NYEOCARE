@@ -52,6 +52,11 @@ export default function AttendanceModal({isOpen,onClose}){
   const[notice,setNotice]=useState('');
   const[query,setQuery]=useState('');
   const[sessionName,setSessionName]=useState('');
+  const[showAddVisitor,setShowAddVisitor]=useState(false);
+  const[visitorName,setVisitorName]=useState('');
+  const[visitorPhone,setVisitorPhone]=useState('');
+  const[visitorContactConsent,setVisitorContactConsent]=useState(false);
+  const[addingVisitor,setAddingVisitor]=useState(false);
   const[cursor,setCursor]=useState(null);
   const[hasMore,setHasMore]=useState(false);
   const[total,setTotal]=useState(0);

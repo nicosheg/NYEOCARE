@@ -21,7 +21,7 @@ if(!historical){
 if(session.rows[0].status!=='active'){await client.query('ROLLBACK');return res.status(403).json({error:'This attendance session is no longer active.'})}
 const membership=await client.query(`SELECT 1 FROM session_users WHERE session_id=$1 AND user_id=$2 LIMIT 1`,[session_id,userId]);
 if(!membership.rows.length){await client.query('ROLLBACK');return res.status(403).json({error:'Join this attendance session before marking attendance.'})}
-if(existing.rows[0]?.confirmed){await client.query('COMMIT');return res.status(200).json({success:true,present:true,confirmed:true,changed:false,attendance_id:existing.rows[0].id,person:person.rows[0]})}
+if(existing.rows[0]?.confirmed){await client.query('COMMIT');return res.status(200).json({success:true,present:Boolean(existing.rows[0].present),confirmed:true,changed:false,attendance_id:existing.rows[0].id,person:person.rows[0]})}
 if(!present){
 if(existing.rows[0]&&!existing.rows[0].confirmed)await client.query(`DELETE FROM attendance_records WHERE id=$1 AND organization_id=$2 AND confirmed=false`,[existing.rows[0].id,orgId]);
 await client.query('COMMIT');

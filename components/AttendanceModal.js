@@ -186,6 +186,12 @@ export default function AttendanceModal({isOpen,onClose}){
   const primeFieldCursor=useCallback(async(live,auth)=>{
     const sessionId=String(live?.session_id||'');
     if(fieldCursor.current.sessionId!==sessionId)fieldRosterLoadSeq.current++;
+    // Re-priming gives the next delta sequence a new server cursor. Invalidate
+    // the previous full snapshot first so stale cached rows cannot receive deltas
+    // from a cursor that was established after changes to those rows.
+    fieldRosterEpoch.current++;
+    fieldSnapshotSessionId.current='';
+    setFieldReady(false);
     fieldCursor.current={sessionId,cursor:''};
     if(!sessionId||!auth?.access_token)return;
     try{

@@ -771,6 +771,11 @@ export default function AttendanceModal({isOpen,onClose}){
       }
       const data=await read(response);
       if(!response.ok||data.success!==true||!data.person)throw Error(data.error||'Could not add this visitor.');
+      if(data.person.status!=='active'){
+        visitorRequestId.current='';setVisitorName('');setVisitorPhone('');setVisitorContactConsent(false);setShowAddVisitor(false);
+        setNotice('This visitor request was already processed, but the record is now inactive or archived. No duplicate was created. Ask an owner or admin to review the directory.');
+        return;
+      }
       const person={...data.person,marked:false,marked_by_name:null,first_visit_candidate:true,first_visit_welcome_recorded:false};
       setPeople(current=>{
         if(query.trim()&&!localRosterSearch([person],query,1).length)return current;

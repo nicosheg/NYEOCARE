@@ -56,6 +56,7 @@ export default withOrg(async function handler(req, res) {
     }
 
     let people = [];
+    let removedPeople = [];
     let attendance = [];
     if (since) {
       const created = await pool.query(
@@ -114,6 +115,7 @@ export default withOrg(async function handler(req, res) {
          ORDER BY p.updated_at, p.id`,
         [orgId, since, cursor]
       );
+      removedPeople = removed.rows;
 
       const changedMarks = await pool.query(
         `SELECT ar.people_id, ar.present, ar.confirmed, ar.marked_at,
@@ -155,7 +157,7 @@ export default withOrg(async function handler(req, res) {
       session_id: sessionId,
       cursor: new Date(cursor).toISOString(),
       people,
-      removed_people: since ? removed.rows : [],
+      removed_people: removedPeople,
       attendance,
       total: Number(totals.rows[0]?.count) || 0,
       present_count: Number(presentTotal.rows[0]?.count) || 0

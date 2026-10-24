@@ -211,7 +211,8 @@ export default function AttendanceModal({isOpen,onClose}){
       return mutation?{...person,marked:mutation.present,marked_by_name:mutation.present?'You':null}:person;
     });
     await saveFieldPeople(sessionId,all,{replace:true}).catch(()=>{});
-    if(!mounted.current)return false;
+    if(!mounted.current||rosterRequestSeq!==fieldRosterLoadSeq.current||fieldCursor.current.sessionId!==sessionId)return false;
+    fieldRosterRef.current=all;
     setFieldRoster(all);
     setFieldReady(all.length>0);
     setTotal(Number(data.total)||all.length);
@@ -248,7 +249,7 @@ export default function AttendanceModal({isOpen,onClose}){
       },ATTENDANCE_LOAD_TIMEOUT_MS);
       const data=await response.json().catch(()=>({}));
       if(!response.ok||data.success!==true||!data.cursor)return;
-      if(String(session?.session_id||'')!==sessionId)return;
+      if(fieldCursor.current.sessionId!==sessionId)return;
       fieldCursor.current={sessionId,cursor:String(data.cursor)};
 
       const pending=await getPendingFieldMutations(sessionId,auth.user?.id).catch(()=>[]);

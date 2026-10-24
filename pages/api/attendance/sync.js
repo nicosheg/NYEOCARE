@@ -4,6 +4,7 @@ import { withOrg } from '../../../lib/apiHelpers';
 import { enqueueAttendanceProcessing } from '../../../lib/aria/attendanceQueue';
 
 const MAX_OPERATIONS = 100;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export default withOrg(async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
@@ -11,8 +12,11 @@ export default withOrg(async function handler(req, res) {
   }
 
   const { session_id, operations } = req.body || {};
-  if (!session_id || !Array.isArray(operations) || !operations.length) {
-    return res.status(400).json({ error: 'session_id and operations are required.' });
+  if (!UUID_RE.test(String(session_id || ''))) {
+    return res.status(400).json({ error: 'A valid attendance session is required.' });
+  }
+  if (!Array.isArray(operations) || !operations.length) {
+    return res.status(400).json({ error: 'Attendance operations are required.' });
   }
   if (operations.length > MAX_OPERATIONS) {
     return res.status(413).json({ error: 'Too many attendance changes.' });
@@ -21,6 +25,9 @@ export default withOrg(async function handler(req, res) {
   const deduped = new Map();
   for (const operation of operations) {
     if (!operation?.people_id) continue;
+    if (!UUID_RE.test(String(operation.people_id))) {
+      return res.status(400).json({ error: 'Each attendance change needs a valid person ID.' });
+    }
     if (typeof operation.present !== 'boolean') {
       return res.status(400).json({ error: 'Attendance changes need boolean present values.' });
     }

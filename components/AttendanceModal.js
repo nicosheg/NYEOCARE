@@ -755,18 +755,24 @@ export default function AttendanceModal({isOpen,onClose}){
       const data=await read(response);
       if(!response.ok||data.success!==true||!data.person)throw Error(data.error||'Could not add this visitor.');
       const person={...data.person,marked:false,marked_by_name:null,first_visit_candidate:true,first_visit_welcome_recorded:false};
-      void saveFieldPeople(session.session_id,session.user_id,[person]).catch(()=>{});
       setPeople(current=>{
         if(query.trim()&&!localRosterSearch([person],query,1).length)return current;
         const next=[...current.filter(p=>String(p.id)!==String(person.id)),person];
         next.sort((a,b)=>String(a.display_name||((a.first_name||'')+' '+(a.last_name||''))).localeCompare(String(b.display_name||((b.first_name||'')+' '+(b.last_name||'')))));
         return next.slice(0,80);
       });
-      setFieldRoster(current=>{
-        const next=[...current.filter(p=>String(p.id)!==String(person.id)),person];
+      if(fieldSnapshotSessionId.current===String(session.session_id)){
+        const next=[...fieldRosterRef.current.filter(p=>String(p.id)!==String(person.id)),person];
         next.sort((a,b)=>String(a.display_name||((a.first_name||'')+' '+(a.last_name||''))).localeCompare(String(b.display_name||((b.first_name||'')+' '+(b.last_name||'')))));
-        return next;
-      });
+        fieldRosterRef.current=next;
+        setFieldRoster(next);
+        setFieldReady(true);
+        void saveFieldPeople(session.session_id,session.user_id,[person]).catch(()=>{});
+      }else{
+        // Keep the visible first page responsive, but do not treat a one-person
+        // partial roster as canonical. The full snapshot will include this new row.
+        void warmFieldRoster({session_id:session.session_id},auth).catch(()=>{});
+      }
       setTotal(value=>value+1);
       setVisitorName('');setVisitorPhone('');setVisitorContactConsent(false);setShowAddVisitor(false);
       setNotice('Visitor added to this organization. No message was sent.');

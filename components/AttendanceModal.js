@@ -204,6 +204,7 @@ export default function AttendanceModal({isOpen,onClose}){
       pages++;
     }
     const pending=await getPendingFieldMutations(sessionId,auth.user?.id).catch(()=>[]);
+    if(rosterRequestSeq!==fieldRosterLoadSeq.current||fieldCursor.current.sessionId!==sessionId)return false;
     const pendingByPerson=new Map(pending.map(item=>[String(item.personId),item]));
     all=all.map(person=>{
       const mutation=pendingByPerson.get(String(person.id));

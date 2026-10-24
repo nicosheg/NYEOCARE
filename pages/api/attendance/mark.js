@@ -23,9 +23,14 @@ const membership=await client.query(`SELECT 1 FROM session_users WHERE session_i
 if(!membership.rows.length){await client.query('ROLLBACK');return res.status(403).json({error:'Join this attendance session before marking attendance.'})}
 if(existing.rows[0]?.confirmed){await client.query('COMMIT');return res.status(200).json({success:true,present:Boolean(existing.rows[0].present),confirmed:true,changed:false,attendance_id:existing.rows[0].id,person:person.rows[0]})}
 if(!present){
-if(existing.rows[0]&&!existing.rows[0].confirmed)await client.query(`DELETE FROM attendance_records WHERE id=$1 AND organization_id=$2 AND confirmed=false`,[existing.rows[0].id,orgId]);
+const current=existing.rows[0];
+if(current&&!current.confirmed&&current.present===true){
+await client.query(`UPDATE attendance_records SET present=false,status='not_present',marked_by=$1,marked_at=NOW() WHERE id=$2 AND organization_id=$3 AND confirmed=false`,[userId,current.id,orgId]);
 await client.query('COMMIT');
-return res.status(200).json({success:true,present:false,confirmed:false,changed:!!existing.rows[0],person:person.rows[0]});
+return res.status(200).json({success:true,present:false,confirmed:false,changed:true,attendance_id:current.id,person:person.rows[0]});
+}
+await client.query('COMMIT');
+return res.status(200).json({success:true,present:false,confirmed:Boolean(current?.confirmed),changed:false,attendance_id:current?.id||null,person:person.rows[0]});
 }
 const result=await client.query(`INSERT INTO attendance_records(people_id,attendance_date,present,session_id,marked_by,marked_at,status,confirmed,organization_id) VALUES($1,$2,true,$3,$4,NOW(),'present',false,$5) ON CONFLICT(organization_id,people_id,session_id) WHERE session_id IS NOT NULL DO UPDATE SET present=true,marked_by=EXCLUDED.marked_by,marked_at=NOW(),status='present' WHERE attendance_records.confirmed=false RETURNING id,marked_at`,[people_id,new Date(session.rows[0].started_at||Date.now()).toISOString().slice(0,10),session_id,userId,orgId]);
 await client.query('COMMIT');

@@ -1001,6 +1001,11 @@ export default function AttendanceModal({isOpen,onClose}){
 
       {notice&&<div style={noticeBox}>{notice}</div>}
       {legacyPendingCount>0&&<div style={errorBox} role="alert">This device has {legacyPendingCount} older offline attendance change{legacyPendingCount===1?'':'s'} that are not tied to a specific sign-in. NYEOCARE will not upload them as another account. Compare against the approved paper sheet and ask an owner or admin to reconcile them before relying on the saved total.</div>}
+      {session?.status==='active'&&!rosterSnapshotComplete&&!loading&&<div style={noticeBox} role="status">
+        {networkOnline
+          ? 'The full roster snapshot on this device is not confirmed yet. NYEOCARE is refreshing it; until that finishes, cached totals and search results may be incomplete. Keep the approved paper sheet as the service backup.'
+          : 'Only '+fieldRoster.length+' cached people are available offline on this device, and the cache is not confirmed complete. The directory may be larger and the present count may be incomplete. Use the approved paper attendance sheet as the authoritative record until this device reconnects and refreshes.'}
+      </div>}
       {error&&<div style={errorBox}>{error}</div>}
 
       {loading?<div style={loadingBox}>Preparing attendance…</div>
@@ -1037,8 +1042,8 @@ export default function AttendanceModal({isOpen,onClose}){
         <div style={stats}>
           <div><strong style={big}>{present}</strong><span style={label}>present</span></div>
           <div style={divider}/>
-          <div><strong style={stat}>{total}</strong><span style={label}>people</span></div>
-          <div><strong style={stat}>{percent}%</strong><span style={label}>marked</span></div>
+          <div><strong style={stat}>{total}</strong><span style={label}>{rosterSnapshotComplete?'people':'cached people'}</span></div>
+          <div><strong style={stat}>{percent}%</strong><span style={label}>{rosterSnapshotComplete?'marked':'cached marked'}</span></div>
           <div style={progress}><i style={{width:`${percent}%`}}/></div>
         </div>
 

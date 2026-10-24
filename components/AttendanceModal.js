@@ -154,6 +154,7 @@ export default function AttendanceModal({isOpen,onClose}){
 
   const primeFieldCursor=useCallback(async(live,auth)=>{
     const sessionId=String(live?.session_id||'');
+    if(fieldCursor.current.sessionId!==sessionId)fieldRosterLoadSeq.current++;
     fieldCursor.current={sessionId,cursor:''};
     if(!sessionId||!auth?.access_token)return;
     try{

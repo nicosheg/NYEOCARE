@@ -22,12 +22,13 @@ export default withOrg(async function handler(req, res) {
   }
 
   let since = null;
+  let suppliedSinceTime = null;
   if (rawSince) {
-    const time = Date.parse(rawSince);
-    if (!Number.isFinite(time) || time > Date.now() + 60000) {
+    suppliedSinceTime = Date.parse(rawSince);
+    if (!Number.isFinite(suppliedSinceTime)) {
       return res.status(400).json({ error: 'The attendance change cursor is invalid.' });
     }
-    since = new Date(time - OVERLAP_MS).toISOString();
+    since = new Date(suppliedSinceTime - OVERLAP_MS).toISOString();
   }
 
   const orgId = req.org.id;
@@ -53,6 +54,12 @@ export default withOrg(async function handler(req, res) {
     const cursor = cutoffResult.rows[0]?.cursor;
     if (!cursor) {
       return res.status(503).json({ error: 'Could not establish the attendance sync cursor.' });
+    }
+    // The cursor is server-issued. Avoid relying on each phone's system clock:
+    // clamp a corrupted/future cursor against database time rather than rejecting
+    // a legitimate client whose clock is slow.
+    if (suppliedSinceTime !== null && suppliedSinceTime > new Date(cursor).getTime()) {
+      since = new Date(new Date(cursor).getTime() - OVERLAP_MS).toISOString();
     }
 
     let people = [];

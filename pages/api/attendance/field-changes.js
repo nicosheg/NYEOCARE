@@ -59,7 +59,7 @@ export default withOrg(async function handler(req, res) {
     let attendance = [];
     if (since) {
       const created = await pool.query(
-        `SELECT p.id, p.first_name, p.last_name, p.display_name, p.phone, p.type, p.created_at,
+        `SELECT p.id, p.first_name, p.last_name, p.display_name, p.phone, p.type, p.created_at, p.updated_at,
            CASE WHEN lower(BTRIM(COALESCE(p.type,''))) = 'visitor'
              AND NOT EXISTS (
                SELECT 1 FROM participation_records previous
@@ -95,12 +95,25 @@ export default withOrg(async function handler(req, res) {
          FROM people p
          WHERE p.organization_id = $1
            AND COALESCE(p.status,'active') = 'active'
-           AND p.created_at >= $3::timestamptz
-           AND p.created_at <= $5::timestamptz
-         ORDER BY p.created_at, p.id`,
+           AND p.updated_at >= $3::timestamptz
+           AND p.updated_at <= $5::timestamptz
+         ORDER BY p.updated_at, p.id`,
         [orgId, sessionId, since, session.started_at, cursor]
       );
       people = created.rows;
+
+      // Carry deactivations/merges to other open phones as tombstones so stale
+      // local rosters do not continue offering people the server will reject.
+      const removed = await pool.query(
+        `SELECT p.id, p.status, p.updated_at
+         FROM people p
+         WHERE p.organization_id = $1
+           AND COALESCE(p.status,'active') <> 'active'
+           AND p.updated_at >= $2::timestamptz
+           AND p.updated_at <= $3::timestamptz
+         ORDER BY p.updated_at, p.id`,
+        [orgId, since, cursor]
+      );
 
       const changedMarks = await pool.query(
         `SELECT ar.people_id, ar.present, ar.confirmed, ar.marked_at,
@@ -142,6 +155,7 @@ export default withOrg(async function handler(req, res) {
       session_id: sessionId,
       cursor: new Date(cursor).toISOString(),
       people,
+      removed_people: since ? removed.rows : [],
       attendance,
       total: Number(totals.rows[0]?.count) || 0,
       present_count: Number(presentTotal.rows[0]?.count) || 0

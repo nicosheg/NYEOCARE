@@ -106,7 +106,16 @@ export default function AttendanceModal({isOpen,onClose}){
     try{
       const cached=await getFieldSession(userId);
       if(!cached)return null;
-      const cachedPeopleRaw=await getFieldPeople(cached.sessionId);
+      let cachedPeopleRaw=await getFieldPeople(cached.sessionId,userId);
+      // Before roster caches became user-scoped, the appData cache was already
+      // keyed by the current user. Use that safe cache during a one-time offline
+      // upgrade rather than reusing another operator's IndexedDB roster.
+      if(!cachedPeopleRaw.length){
+        const accountCache=getCached('attendance:'+String(userId));
+        if(String(accountCache?.session?.session_id||'')===String(cached.sessionId)&&Array.isArray(accountCache.people)){
+          cachedPeopleRaw=accountCache.people;
+        }
+      }
       const pendingMutations=await getPendingFieldMutations(cached.sessionId,userId).catch(()=>[]);
       const pendingByPerson=new Map(pendingMutations.map(item=>[String(item.personId),item]));
       const cachedPeople=cachedPeopleRaw.map(person=>{
@@ -215,7 +224,7 @@ export default function AttendanceModal({isOpen,onClose}){
         const mutation=pendingByPerson.get(String(person.id));
         return mutation?{...person,marked:mutation.present,marked_by_name:mutation.present?'You':null}:person;
       });
-      await saveFieldPeople(sessionId,all,{replace:true}).catch(()=>{});
+      await saveFieldPeople(sessionId,auth.user?.id,all,{replace:true}).catch(()=>{});
       if(!mounted.current||rosterRequestSeq!==fieldRosterLoadSeq.current||snapshotEpoch!==fieldRosterEpoch.current||fieldCursor.current.sessionId!==sessionId)return false;
       fieldRosterRef.current=all;
       setFieldRoster(all);
@@ -312,7 +321,7 @@ export default function AttendanceModal({isOpen,onClose}){
       setTotal(Number(data.total)||nextRoster.length);
       setPresent(nextRoster.filter(person=>person.marked===true).length);
       if(nextRoster.length)setFieldReady(true);
-      if(persist.size)void saveFieldPeople(sessionId,[...persist.values()]).catch(()=>{});
+      if(persist.size)void saveFieldPeople(sessionId,auth.user?.id,[...persist.values()]).catch(()=>{});
       void refreshFieldPending(sessionId);
     }catch(error){
       // A failed poll is non-destructive. Realtime and the next poll can recover it.
@@ -357,7 +366,7 @@ export default function AttendanceModal({isOpen,onClose}){
     }
     setTotal(Number(data.organization_total)||0);
     setPresent(Number(data.present_count)||0);
-    void saveFieldPeople(live.session_id,next).catch(()=>{});
+    void saveFieldPeople(live.session_id,s.user.id,next).catch(()=>{});
     void saveFieldSession(s.user.id,{...live,user_id:s.user.id}).catch(()=>{});
     void refreshFieldPending(live.session_id).catch(()=>{});
     setCursor(data.next_cursor||null);
@@ -639,7 +648,7 @@ export default function AttendanceModal({isOpen,onClose}){
           const nextPerson={...prev,marked:nextMarked,marked_by_name:markedByName};
           const next=current.map(p=>String(p.id)===personId?nextPerson:p);
           setPresent(v=>Math.max(0,v+(nextMarked?1:-1)));
-          void saveFieldPeople(session.session_id,[nextPerson]).catch(()=>{});
+          void saveFieldPeople(session.session_id,session.user_id,[nextPerson]).catch(()=>{});
           return next;
         });
         setPeople(current=>current.map(p=>{
@@ -735,7 +744,7 @@ export default function AttendanceModal({isOpen,onClose}){
       const data=await read(response);
       if(!response.ok||data.success!==true||!data.person)throw Error(data.error||'Could not add this visitor.');
       const person={...data.person,marked:false,marked_by_name:null,first_visit_candidate:true,first_visit_welcome_recorded:false};
-      void saveFieldPeople(session.session_id,[person]).catch(()=>{});
+      void saveFieldPeople(session.session_id,session.user_id,[person]).catch(()=>{});
       setPeople(current=>{
         if(query.trim()&&!localRosterSearch([person],query,1).length)return current;
         const next=[...current.filter(p=>String(p.id)!==String(person.id)),person];
@@ -768,7 +777,7 @@ export default function AttendanceModal({isOpen,onClose}){
     setFieldRoster(current=>current.map(p=>String(p.id)===String(id)?{...p,marked:nextValue,marked_by_name:nextValue?'You':null}:p));
     setPresent(value=>Math.max(0,value+(nextValue?1:-1)));setError('');
     const cachedPerson=fieldRoster.find(p=>String(p.id)===String(id));
-    if(cachedPerson)saveFieldPeople(session.session_id,[{...cachedPerson,marked:nextValue,marked_by_name:nextValue?'You':null}]).catch(()=>{});
+    if(cachedPerson)saveFieldPeople(session.session_id,session.user_id,[{...cachedPerson,marked:nextValue,marked_by_name:nextValue?'You':null}]).catch(()=>{});
     if(!networkOnline){
       try{
         await enqueueFieldMutation({sessionId:session.session_id,userId:session.user_id,personId:id,present:nextValue});
@@ -841,7 +850,7 @@ export default function AttendanceModal({isOpen,onClose}){
       const updated={...person,first_visit_welcome_recorded:true};
       setPeople(current=>current.map(p=>String(p.id)===personId?{...p,first_visit_welcome_recorded:true}:p));
       setFieldRoster(current=>current.map(p=>String(p.id)===personId?{...p,first_visit_welcome_recorded:true}:p));
-      await saveFieldPeople(session.session_id,[updated]).catch(()=>{});
+      await saveFieldPeople(session.session_id,session.user_id,[updated]).catch(()=>{});
       setNotice(data.already_recorded?'This welcome was already saved.':'Welcome recorded. ARIA will keep this as the first-visit outcome for this session, so it will not create a duplicate follow-up.');
       publishDataChange('attendance');
     }catch(e){

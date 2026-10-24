@@ -666,10 +666,11 @@ export default function AttendanceModal({isOpen,onClose}){
       {background&&session&&<div style={backgroundInline}><AriaProcessingStatus kind="attendance" compact status={background.processing_status||'processing'} stage={background.aria_processing_stage||background.stage||''} progress={background.progress||0}/></div>}
 
       {notice&&<div style={noticeBox}>{notice}</div>}
+      {legacyPendingCount>0&&<div style={errorBox} role="alert">This device has {legacyPendingCount} older offline attendance change{legacyPendingCount===1?'':'s'} that are not tied to a specific sign-in. NYEOCARE will not upload them as another account. Compare against the approved paper sheet and ask an owner or admin to reconcile them before relying on the saved total.</div>}
       {error&&<div style={errorBox}>{error}</div>}
 
       {loading?<div style={loadingBox}>Preparing attendance…</div>
-      :!session?<div style={createBox}>
+      :!session?canStartSession?<div style={createBox}>
         <div style={plus}>＋</div>
         <strong style={{fontSize:20}}>Start attendance</strong>
         <span style={sub}>ARIA works independently after you save. It never holds the next session hostage.</span>
@@ -692,6 +693,11 @@ export default function AttendanceModal({isOpen,onClose}){
         >
           {saving?'Starting…':'Start attendance'}
         </button>
+      </div>
+      :<div style={createBox}>
+        <div style={plus}>＋</div>
+        <strong style={{fontSize:20}}>An owner or admin must start attendance</strong>
+        <span style={sub}>Ask an owner or admin to start the service. Once it is active, reopen Attendance to join and mark people present.</span>
       </div>
       :<div style={main}>
         <div style={stats}>

@@ -141,6 +141,49 @@ export default withOrg(async function handler(req,res){
   }
 
   try{
+    const context=(await pool.query(
+      `SELECT
+         CASE WHEN lower(BTRIM(COALESCE(p.type,'')))='visitor'
+           AND NOT EXISTS(
+             SELECT 1 FROM participation_records previous
+             WHERE previous.organization_id=p.organization_id
+               AND previous.person_id=p.id
+               AND previous.participation_type='attendance'
+               AND previous.session_id IS DISTINCT FROM s.id
+               AND previous.occurred_at<s.started_at
+           )
+           AND NOT EXISTS(
+             SELECT 1
+             FROM attendance_records prior
+             LEFT JOIN sessions prior_session
+               ON prior_session.id=prior.session_id
+              AND prior_session.organization_id=prior.organization_id
+             WHERE prior.organization_id=p.organization_id
+               AND prior.people_id=p.id
+               AND prior.present=true
+               AND prior.confirmed=true
+               AND prior.session_id IS DISTINCT FROM s.id
+               AND COALESCE(prior_session.started_at,prior.attendance_date::timestamptz,prior.marked_at)<s.started_at
+           ) THEN true ELSE false END AS first_visit_candidate,
+         EXISTS(
+           SELECT 1 FROM care_feedback wf
+           WHERE wf.organization_id=p.organization_id
+             AND wf.person_id=p.id
+             AND wf.context->>'source'='first_visit_welcome_during_attendance'
+             AND wf.context->>'session_id'=s.id::text
+             AND wf.context->>'outcome'='met_in_person'
+             AND wf.verification_status='reported'
+         ) AS first_visit_welcome_recorded
+       FROM people p
+       JOIN sessions s ON s.id=$2 AND s.organization_id=p.organization_id
+       WHERE p.id=$1 AND p.organization_id=$3
+       LIMIT 1`,
+      [person.id,sessionId,orgId]
+    )).rows[0];
+    person={...person,
+      first_visit_candidate:context?.first_visit_candidate===true,
+      first_visit_welcome_recorded:context?.first_visit_welcome_recorded===true
+    };
     const event=await emitAriaEvent({
       organizationId:orgId,personId:person.id,type:'PERSON_CREATED',source:'manual',
       actorId:userId,actorRole:req.user.role,evidenceKind:'human_report',verificationStatus:'reported',confidence:1,

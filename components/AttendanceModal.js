@@ -221,7 +221,7 @@ export default function AttendanceModal({isOpen,onClose}){
       if(!auth?.access_token)return;
       const currentCursor=fieldCursor.current;
       if(currentCursor.sessionId!==sessionId||!currentCursor.cursor){
-        await primeFieldCursor(session,auth);
+        await primeFieldCursor({session_id:sessionId},auth);
         return;
       }
       const params=new URLSearchParams({session_id:sessionId,since:currentCursor.cursor});
@@ -445,7 +445,6 @@ export default function AttendanceModal({isOpen,onClose}){
       if(seq===loadSeq.current&&mounted.current)setLoading(false);
       timing('ok',{cached:Boolean(cached),field_cached:Boolean(fieldCached)});
       if(fieldCached&&fieldWarmAt.current&&Date.now()-fieldWarmAt.current<300000)return;
-      if(fieldCached&&fieldWarmAt.current&&Date.now()-fieldWarmAt.current<300000)return;
       void warmFieldRoster(live,s).catch(()=>{});
     }catch(e){
       console.error('[ATTENDANCE] Load error:',e);
@@ -480,6 +479,16 @@ export default function AttendanceModal({isOpen,onClose}){
   },[fetchPage,query,hydrateFieldSession,applyCachedRoster,primeFieldCursor,warmFieldRoster]);
 
   useEffect(()=>{if(isOpen)load();},[isOpen,load]);
+
+  useEffect(()=>{
+    if(!isOpen||session?.session_id)return;
+    let cancelled=false;
+    const poll=()=>{if(!cancelled&&document.visibilityState==='visible')void load({showLoading:false})};
+    const timer=window.setInterval(poll,12000);
+    return()=>{cancelled=true;window.clearInterval(timer)};
+  },[isOpen,session?.session_id,load]);
+
+
 
   const refreshSessionState=useCallback(async()=>{
     if(!isOpen||!session?.session_id)return;
@@ -520,7 +529,12 @@ export default function AttendanceModal({isOpen,onClose}){
     const onSync=e=>{
       if(!session?.session_id)return;
       refreshFieldPending(session.session_id).catch(()=>{});
-      const kind=e?.detail?.kind;
+      const kind=e?.detail?.kind,detail=e?.detail||{};
+      if(kind==='conflict'&&String(detail.sessionId||'')===String(session.session_id)){
+        setNotice('Some offline attendance marks conflict with a confirmed record or a person no longer in the active directory. Those changes remain saved on this device and were not discarded. Please reconcile them against the paper sheet with an owner or admin.');
+      }else if(kind==='sync'&&String(detail.sessionId||'')===String(session.session_id)&&Number(detail.needsAdminConfirmationCount)>0){
+        setNotice('Some attendance marks arrived after this session closed. They are saved but need an owner or admin to confirm them before ARIA can rely on them.');
+      }
       if(kind==='sync'||kind==='clear')refreshSessionState().catch(()=>{});
     };
     window.addEventListener('nyeocare:field-sync',onSync);
@@ -584,17 +598,21 @@ export default function AttendanceModal({isOpen,onClose}){
       void getPendingFieldMutations(session.session_id,session.user_id).then(pendingRows=>{
         const mutation=(pendingRows||[]).find(item=>String(item.personId)===personId);
         const nextMarked=mutation?mutation.present:(!deleted&&row.present===true);
-        const markedByName=mutation?(mutation.present?'You':null):(nextMarked?null:null);
         setFieldRoster(current=>{
           const prev=current.find(p=>String(p.id)===personId);
           if(!prev||Boolean(prev.marked)===nextMarked)return current;
+          const markedByName=mutation?(mutation.present?'You':null):(nextMarked?(prev.marked_by_name||null):null);
           const nextPerson={...prev,marked:nextMarked,marked_by_name:markedByName};
           const next=current.map(p=>String(p.id)===personId?nextPerson:p);
           setPresent(v=>Math.max(0,v+(nextMarked?1:-1)));
           void saveFieldPeople(session.session_id,[nextPerson]).catch(()=>{});
           return next;
         });
-        setPeople(current=>current.map(p=>String(p.id)===personId?{...p,marked:nextMarked,marked_by_name:markedByName}:p));
+        setPeople(current=>current.map(p=>{
+          if(String(p.id)!==personId)return p;
+          const markedByName=mutation?(mutation.present?'You':null):(nextMarked?(p.marked_by_name||''):null);
+          return {...p,marked:nextMarked,marked_by_name:markedByName};
+        }));
       }).catch(()=>{});
     };
     getClientSession().then(s=>{

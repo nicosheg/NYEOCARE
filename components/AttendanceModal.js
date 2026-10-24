@@ -111,7 +111,7 @@ export default function AttendanceModal({isOpen,onClose}){
     try{
       const auth=await getClientSession().catch(()=>null),userId=String(auth?.user?.id||'');
       setPendingCount(await getFieldPendingCount(sessionId,userId));
-      setLegacyPendingCount(await getUnattributedPendingFieldMutationCount(sessionId));
+      setLegacyPendingCount(await getUnattributedPendingFieldMutationCount());
     }catch{setPendingCount(0);setLegacyPendingCount(0)}
   },[]);
 
@@ -161,6 +161,15 @@ export default function AttendanceModal({isOpen,onClose}){
   },[]);
 
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false}},[]);
+
+  useEffect(()=>{
+    if(!isOpen)return;
+    let cancelled=false;
+    getUnattributedPendingFieldMutationCount()
+      .then(count=>{if(!cancelled)setLegacyPendingCount(count)})
+      .catch(()=>{if(!cancelled)setLegacyPendingCount(0)});
+    return()=>{cancelled=true};
+  },[isOpen]);
 
   const read=async(response)=>{
     const raw=await response.text();
@@ -1077,7 +1086,7 @@ export default function AttendanceModal({isOpen,onClose}){
             <button type="button" style={{...primary,opacity:addingVisitor||!visitorName.trim()||!networkOnline||Boolean(visitorPhone.trim()&&!visitorContactConsent)?0.55:1}} disabled={addingVisitor||!visitorName.trim()||!networkOnline||Boolean(visitorPhone.trim()&&!visitorContactConsent)} onClick={addVisitor}>{addingVisitor?'Adding…':'Save visitor'}</button>
           </div>
         </div>}
-        {legacyPendingCount>0&&<div style={errorBox} role="alert">There are {legacyPendingCount} older offline attendance change{legacyPendingCount===1?'':'s'} without a recorded account owner. They are preserved but will not sync automatically. Reconcile them with the approved paper sheet before relying on the session total.</div>}
+        
 
         <div style={peopleBox}>
           {people.map(p=>

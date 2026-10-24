@@ -212,6 +212,82 @@ export default function AttendanceModal({isOpen,onClose}){
     return true;
   },[refreshFieldPending]);
 
+  const pollFieldChanges=useCallback(async()=>{
+    const sessionId=String(session?.session_id||'');
+    if(!isOpen||session?.status!=='active'||!sessionId||!networkOnline||fieldPolling.current)return;
+    fieldPolling.current=true;
+    try{
+      const auth=await getClientSession().catch(()=>null);
+      if(!auth?.access_token)return;
+      const currentCursor=fieldCursor.current;
+      if(currentCursor.sessionId!==sessionId||!currentCursor.cursor){
+        await primeFieldCursor(session,auth);
+        return;
+      }
+      const params=new URLSearchParams({session_id:sessionId,since:currentCursor.cursor});
+      const response=await fetchAttendanceWithTimeout('/api/attendance/field-changes?'+params.toString(),{
+        headers:{Authorization:'Bearer '+auth.access_token},cache:'no-store'
+      },ATTENDANCE_LOAD_TIMEOUT_MS);
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok||data.success!==true||!data.cursor)return;
+      if(String(session?.session_id||'')!==sessionId)return;
+      fieldCursor.current={sessionId,cursor:String(data.cursor)};
+
+      const pending=await getPendingFieldMutations(sessionId,auth.user?.id).catch(()=>[]);
+      const pendingByPerson=new Map(pending.map(item=>[String(item.personId),item]));
+      const map=new Map((fieldRosterRef.current||[]).map(person=>[String(person.id),person]));
+      const persist=new Map();
+
+      for(const incoming of Array.isArray(data.people)?data.people:[]){
+        const id=String(incoming?.id||'');
+        if(!id)continue;
+        const prior=map.get(id);
+        const next=prior
+          ? {...prior,...incoming,marked:prior.marked===true,marked_by_name:prior.marked_by_name||null}
+          : {...incoming,marked:false,marked_by_name:null};
+        map.set(id,next);
+        if(!prior)persist.set(id,next);
+      }
+
+      for(const record of Array.isArray(data.attendance)?data.attendance:[]){
+        const id=String(record?.people_id||''),prior=map.get(id);
+        if(!id||!prior||markingIds.current.has(id))continue;
+        const mutation=pendingByPerson.get(id);
+        const marked=mutation?mutation.present:record.present===true;
+        const next={...prior,marked,marked_by_name:mutation?(mutation.present?'You':null):(record.present===true?(record.marked_by_name||null):null)};
+        map.set(id,next);
+        persist.set(id,next);
+      }
+
+      for(const mutation of pending){
+        const id=String(mutation.personId),prior=map.get(id);
+        if(!prior)continue;
+        const next={...prior,marked:mutation.present,marked_by_name:mutation.present?'You':null};
+        map.set(id,next);
+        persist.set(id,next);
+      }
+
+      const nextRoster=[...map.values()].sort((a,b)=>
+        String(a.display_name||((a.first_name||'')+' '+(a.last_name||''))).localeCompare(
+          String(b.display_name||((b.first_name||'')+' '+(b.last_name||'')))
+        )
+      );
+      fieldRosterRef.current=nextRoster;
+      setFieldRoster(nextRoster);
+      setPeople(localRosterSearch(nextRoster,queryRef.current,80));
+      setTotal(Number(data.total)||nextRoster.length);
+      setPresent(nextRoster.filter(person=>person.marked===true).length);
+      if(nextRoster.length)setFieldReady(true);
+      if(persist.size)void saveFieldPeople(sessionId,[...persist.values()]).catch(()=>{});
+      void refreshFieldPending(sessionId);
+    }catch(error){
+      // A failed poll is non-destructive. Realtime and the next poll can recover it.
+      console.warn('[ATTENDANCE] Shared attendance refresh deferred:',error?.message||error);
+    }finally{
+      fieldPolling.current=false;
+    }
+  },[isOpen,session?.session_id,session?.status,networkOnline,primeFieldCursor,refreshFieldPending]);
+
   const fetchPage=useCallback(async(live,q='',nextCursor=null,append=false,sessionOverride=null)=>{
     const s=sessionOverride||await getClientSession();
     if(!s)throw Error('You must be logged in.');
@@ -481,29 +557,54 @@ export default function AttendanceModal({isOpen,onClose}){
   },[isOpen,session?.session_id,session?.status,query,fetchPage,fieldReady,fieldRoster,networkOnline]);
 
   useEffect(()=>{
+    if(!isOpen||session?.status!=='active'||!session?.session_id||!fieldReady)return;
+    let stopped=false;
+    const run=()=>{
+      if(!stopped&&document.visibilityState==='visible')void pollFieldChanges();
+    };
+    const onVisible=()=>{if(document.visibilityState==='visible')run()};
+    const timer=window.setInterval(run,12000);
+    window.addEventListener('online',run);
+    document.addEventListener('visibilitychange',onVisible);
+    run();
+    return()=>{
+      stopped=true;
+      window.clearInterval(timer);
+      window.removeEventListener('online',run);
+      document.removeEventListener('visibilitychange',onVisible);
+    };
+  },[isOpen,session?.session_id,session?.status,fieldReady,pollFieldChanges]);
+
+  useEffect(()=>{
     if(!isOpen||!session?.session_id)return;
     let channel=null,stopped=false;
-    const applyAttendanceRow=row=>{
+    const applyAttendanceRow=(row,deleted=false)=>{
       if(!row||String(row.session_id)!==String(session.session_id)||!row.people_id)return;
-      const personId=String(row.people_id),nextMarked=row.present===true;
-      setFieldRoster(current=>{
-        const prev=current.find(p=>String(p.id)===personId);
-        if(!prev||Boolean(prev.marked)===nextMarked)return current;
-        const next=current.map(p=>String(p.id)===personId?{...p,marked:nextMarked}:p);
-        setPresent(v=>Math.max(0,v+(nextMarked?1:-1)));
-        saveFieldPeople(session.session_id,[next.find(p=>String(p.id)===personId)]).catch(()=>{});
-        return next;
-      });
-      setPeople(current=>current.map(p=>String(p.id)===personId?{...p,marked:nextMarked,marked_by_name:nextMarked?(p.marked_by_name||'') : null}:p));
+      const personId=String(row.people_id);
+      void getPendingFieldMutations(session.session_id,session.user_id).then(pendingRows=>{
+        const mutation=(pendingRows||[]).find(item=>String(item.personId)===personId);
+        const nextMarked=mutation?mutation.present:(!deleted&&row.present===true);
+        const markedByName=mutation?(mutation.present?'You':null):(nextMarked?null:null);
+        setFieldRoster(current=>{
+          const prev=current.find(p=>String(p.id)===personId);
+          if(!prev||Boolean(prev.marked)===nextMarked)return current;
+          const nextPerson={...prev,marked:nextMarked,marked_by_name:markedByName};
+          const next=current.map(p=>String(p.id)===personId?nextPerson:p);
+          setPresent(v=>Math.max(0,v+(nextMarked?1:-1)));
+          void saveFieldPeople(session.session_id,[nextPerson]).catch(()=>{});
+          return next;
+        });
+        setPeople(current=>current.map(p=>String(p.id)===personId?{...p,marked:nextMarked,marked_by_name:markedByName}:p));
+      }).catch(()=>{});
     };
     getClientSession().then(s=>{
       if(!s||stopped)return;
       const sessionId=String(session.session_id);
       channel=supabase.channel('attendance-live-'+sessionId+'-'+String(s.user.id))
         .on('postgres_changes',{event:'*',schema:'public',table:'sessions',filter:'id=eq.'+sessionId},()=>refreshSessionState())
-        .on('postgres_changes',{event:'INSERT',schema:'public',table:'attendance_records',filter:'session_id=eq.'+sessionId},payload=>applyAttendanceRow(payload.new))
-        .on('postgres_changes',{event:'UPDATE',schema:'public',table:'attendance_records',filter:'session_id=eq.'+sessionId},payload=>applyAttendanceRow(payload.new))
-        .on('postgres_changes',{event:'DELETE',schema:'public',table:'attendance_records',filter:'session_id=eq.'+sessionId},payload=>applyAttendanceRow(payload.old))
+        .on('postgres_changes',{event:'INSERT',schema:'public',table:'attendance_records',filter:'session_id=eq.'+sessionId},payload=>applyAttendanceRow(payload.new,false))
+        .on('postgres_changes',{event:'UPDATE',schema:'public',table:'attendance_records',filter:'session_id=eq.'+sessionId},payload=>applyAttendanceRow(payload.new,false))
+        .on('postgres_changes',{event:'DELETE',schema:'public',table:'attendance_records',filter:'session_id=eq.'+sessionId},payload=>applyAttendanceRow(payload.old,true))
         .subscribe();
     }).catch(()=>{});
     return()=>{stopped=true;if(channel)supabase.removeChannel(channel)};

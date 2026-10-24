@@ -46,7 +46,7 @@ const checks=[
  ['Unresolved offline marks remain queued and display a reconciliation notice',/if\(unresolved\)\{emit\('conflict'/.test(read('lib/attendanceFieldMode.js'))&&/kind==='conflict'/.test(read('components/AttendanceModal.js'))],
  ['Attendance visitor creation keeps visitor type and requires contact consent for phone',/\x27visitor\x27,'active','manual'/.test(read('pages/api/attendance/add-visitor.js'))&&/if\(phone&&!contactConsent\)/.test(read('pages/api/attendance/add-visitor.js'))],
  ['Visitor duplicate-phone query uses contiguous SQL parameters',/=ANY\(\$2::text\[\]\)/.test(read('pages/api/attendance/add-visitor.js'))&&/\[orgId,\[digits,localDigits\]\]/.test(read('pages/api/attendance/add-visitor.js'))],
- ['Adding the first visitor seeds an empty local roster',/setFieldRoster\(current=>\{\s*const next=\[\.\.\.current\.filter/.test(read('components/AttendanceModal.js'))],
+ ['Adding visitor updates a canonical roster without losing existing people',/fieldSnapshotSessionId\.current===String\(session\.session_id\)/.test(read('components/AttendanceModal.js'))&&/fieldRosterRef\.current=next/.test(read('components/AttendanceModal.js'))&&/setFieldReady\(true\)/.test(read('components/AttendanceModal.js'))],
  ['A staff device discovers sessions started on another device',/void load\(\{showLoading:false\}\)/.test(read('components/AttendanceModal.js'))&&/setInterval\(poll,12000\)/.test(read('components/AttendanceModal.js'))],
  ['Field Mode test script is registered',JSON.parse(read('package.json')).scripts?.['test:field-mode']==='node scripts/field-mode-regression.js']
 ];

@@ -4,7 +4,7 @@ import{createPortal}from'react-dom';
 import{getClientSession}from'../lib/clientSession';
 import{getCached,setCached,clearCached,publishDataChange}from'../lib/appData';
 import{supabase}from'../lib/supabaseClient';import AriaProcessingStatus from'./AriaProcessingStatus';
-import{getFieldSession,getFieldPeople,saveFieldSession,saveFieldPeople,enqueueFieldMutation,removeFieldMutation,getFieldPendingCount,getPendingFieldMutations,getUnattributedPendingFieldMutationCount,localRosterSearch,clearFieldSession,syncFieldMode}from'../lib/attendanceFieldMode';
+import{getFieldSession,getFieldPeople,saveFieldSession,saveFieldPeople,enqueueFieldMutation,removeFieldMutation,getFieldPendingCount,getPendingFieldMutations,getUnattributedPendingFieldMutationCount,removeFieldPerson,localRosterSearch,clearFieldSession,syncFieldMode}from'../lib/attendanceFieldMode';
 import{measurePerformance}from'../lib/performanceTelemetry';
 
 const ATTENDANCE_REQUEST_TIMEOUT_MS=12000;
@@ -311,6 +311,13 @@ export default function AttendanceModal({isOpen,onClose}){
         const next={...prior,marked,marked_by_name:mutation?(mutation.present?'You':null):(record.present===true?(record.marked_by_name||null):null)};
         map.set(id,next);
         persist.set(id,next);
+      }
+
+      const removedIds=new Set((Array.isArray(data.removed_people)?data.removed_people:[]).map(person=>String(person?.id||'')).filter(Boolean));
+      for(const id of removedIds){
+        map.delete(id);
+        persist.delete(id);
+        void removeFieldPerson(sessionId,auth.user?.id,id).catch(()=>{});
       }
 
       for(const mutation of pending){

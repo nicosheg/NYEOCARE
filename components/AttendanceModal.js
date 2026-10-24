@@ -43,6 +43,7 @@ export default function AttendanceModal({isOpen,onClose}){
   const[session,setSession]=useState(null);
   const[background,setBackground]=useState(null);
   const[canDiscard,setCanDiscard]=useState(false);
+  const[canStartSession,setCanStartSession]=useState(false);
   const[people,setPeople]=useState([]);
   const[loading,setLoading]=useState(true);
   const[saving,setSaving]=useState(false);
@@ -225,6 +226,7 @@ export default function AttendanceModal({isOpen,onClose}){
       setBackground(bg);
 
       if(!data.active){
+        setCanStartSession(data.can_start_new_session===true);
         if(fieldCached&&typeof navigator!=='undefined'&&navigator.onLine){
           await syncFieldMode().catch(()=>false);
           const pending=await getFieldPendingCount(fieldCached.sessionId,s.user.id).catch(()=>1);
@@ -249,8 +251,14 @@ export default function AttendanceModal({isOpen,onClose}){
         return;
       }
 
+      setCanStartSession(false);
       const live=normalizeSession(data);
       if(!live)throw Error('Attendance session response was incomplete.');
+      if(data.joined!==true){
+        const joinResponse=await fetchAttendanceWithTimeout('/api/attendance/join-session',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.access_token},body:JSON.stringify({session_id:live.session_id})});
+        const joined=await read(joinResponse);
+        if(!joinResponse.ok||joined.success!==true)throw Error(joined.error||'Could not join this attendance session. Ask an owner or admin to add you.');
+      }
       confirmedSessionId=String(live.session_id);
       lastSearchKey.current=attendanceSearchKey(live.session_id,query);
 

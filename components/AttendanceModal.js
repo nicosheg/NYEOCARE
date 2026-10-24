@@ -179,6 +179,7 @@ export default function AttendanceModal({isOpen,onClose}){
   const warmFieldRoster=useCallback(async(live,auth)=>{
     const sessionId=String(live?.session_id||'');
     if(!sessionId||!auth?.access_token)return false;
+    const rosterRequestSeq=++fieldRosterLoadSeq.current;
     const params=new URLSearchParams({session_id:sessionId,limit:'5000'});
     const response=await fetchAttendanceWithTimeout('/api/attendance/field-roster?'+params.toString(),{
       headers:{Authorization:'Bearer '+auth.access_token},cache:'no-store'

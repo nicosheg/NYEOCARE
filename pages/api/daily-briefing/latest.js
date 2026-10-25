@@ -24,8 +24,14 @@ export default withOrg(async function handler(req,res){
   ]);
   // Home and this endpoint must project the same canonical daily work.
   const items=projectCanonicalBriefingItems(queue,directorBriefing);
-  const groupedCounts={scan:0,follow_up:0,message:0,care:0};
-  for(const item of items){if(item.category==='scan')groupedCounts.scan++;else if(item.task_kind==='follow_up'||item.label==='FOLLOW-UP')groupedCounts.follow_up++;else groupedCounts.care++}
+  const groupedCounts={scan:0,follow_up:0,message:0,identity:0,care:0};
+  for(const item of items){
+   if(item.task_kind==='identity_review'||item.category==='identity'||item.metadata?.kind==='possible_duplicate_identity')groupedCounts.identity++;
+   else if(item.category==='scan')groupedCounts.scan++;
+   else if(item.task_kind==='follow_up'||item.label==='FOLLOW-UP')groupedCounts.follow_up++;
+   else if(item.task_kind==='internal_message')groupedCounts.message++;
+   else groupedCounts.care++;
+  }
   const todayCount=items.length,laterCount=Number(queue.later_count)||0,openCount=Number(queue.open_count)||0;
   const settings=org.rows[0]?.settings||{},vocabulary=settings?.aria?.vocabulary||{person:'people',members:'members',leaders:'leaders',care:'care',prayer:'prayer'};
   const headline=todayCount
@@ -45,7 +51,8 @@ export default withOrg(async function handler(req,res){
     scan:items.filter(x=>x.category==='scan'),
     follow_up:items.filter(x=>x.task_kind==='follow_up'||x.label==='FOLLOW-UP'),
     message:items.filter(x=>x.task_kind==='internal_message'),
-   care:items.filter(x=>x.category!=='scan'&&x.task_kind!=='follow_up'&&x.label!=='FOLLOW-UP'&&x.task_kind!=='internal_message')
+    identity:items.filter(x=>x.task_kind==='identity_review'||x.category==='identity'||x.metadata?.kind==='possible_duplicate_identity'),
+    care:items.filter(x=>x.category!=='scan'&&x.category!=='identity'&&x.task_kind!=='identity_review'&&x.metadata?.kind!=='possible_duplicate_identity'&&x.task_kind!=='follow_up'&&x.label!=='FOLLOW-UP'&&x.task_kind!=='internal_message')
    },
    peopleCount:people.rows[0]?.count||0,
    nextRefresh:`${queue.today}T23:59:59.999`

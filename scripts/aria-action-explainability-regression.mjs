@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { explainAriaAction, attachDirectorContext } from '../lib/aria/actionExplainability.js';
+import { projectCanonicalBriefingItems } from '../lib/aria/briefingProjection.js';
 
 const read = path => readFileSync(path, 'utf8');
 const queueSource = read('lib/dailyQueue.js');
@@ -10,8 +11,12 @@ const uiSource = read('pages/index.js');
 const brainSource = read('lib/aria/corePersonality.js');
 const specSource = read('NYEO_SPEC.md');
 assert.match(queueSource, /explainAriaAction/);
-assert.match(homeSource, /attachDirectorContext/);
-assert.match(briefingSource, /attachDirectorContext/);
+assert.match(homeSource, /projectCanonicalBriefingItems\(dailyQueue,directorData\)/);
+assert.match(briefingSource, /projectCanonicalBriefingItems\(queue,directorBriefing\)/);
+assert.match(homeSource, /projectCanonicalBriefingItems/);
+assert.match(briefingSource, /getDirectorBriefing\(orgId,\{limit:8\}\)/);
+assert.match(homeSource, /from '\.\.\/\.\.\/\.\.\/lib\/aria\/briefingProjection'/);
+assert.match(briefingSource, /from '\.\.\/\.\.\/\.\.\/lib\/aria\/briefingProjection'/);
 assert.match(uiSource, /item\.why_attention/);
 assert.match(uiSource, /item\.what_is_unknown/);
 assert.match(uiSource, /item\.director_context\?\.reason/);
@@ -105,7 +110,7 @@ assert.equal(manualNewPersonRecord.what_happened, 'Person became known to the or
 assert.equal(manualNewPersonRecord.source_label, 'Manual entry');
 assert.match(manualNewPersonRecord.what_aria_knows, /no further context is recorded/i);
 assert.match(manualNewPersonRecord.why_attention, /new to NYEOCARE/i);
-assert.match(manualNewPersonRecord.what_is_unknown, /does not prove they are visiting for the first time/i);
+assert.match(manualNewPersonRecord.what_is_unknown, /does not prove this was a first visit/i);
 assert.match(manualNewPersonRecord.next_step, /Check the person’s existing history/i);
 assert.equal(manualNewPersonRecord.action_label, 'Verify context');
 
@@ -121,9 +126,9 @@ assert.equal(explicitlyApprovedWelcome.action_label, 'Review welcome');
 assert.match(explicitlyApprovedWelcome.next_step, /only if contact is welcome/i);
 
 assert.match(queueSource, /COALESCE\(o\.attention_score,0\)>60/);
-assert.match(queueSource, /UPPER\(o\.type\) IN\('NEW_PERSON','UNUSUAL_ABSENCE'\)/);
-assert.match(queueSource, /const needsContextReview=String\(o\.type\|\|'\'\)===\'NEW_PERSON\'/);
-assert.match(queueSource, /requires_context_review:needsContextReview/);
+assert.match(queueSource, /UPPER\(o\.type\)='UNUSUAL_ABSENCE'/);
+assert.match(queueSource, /UPPER\(o\.type\)<>'NEW_PERSON'/);
+assert.doesNotMatch(queueSource, /needsContextReview|requires_context_review/);
 assert.match(queueSource, /COALESCE\(a\.action_metadata->>'kind',''\)<>'scan_review_required'/);
 assert.doesNotMatch(queueSource, /NOT IN\('scan_review_required','new_person_welcome'\)/);
 
@@ -163,4 +168,47 @@ for (const item of [newcomer, absence, missingEvidence]) {
   assert.ok(item.next_step, 'Every item needs a concrete next step.');
 }
 
-console.log('[ARIA ACTION EXPLAINABILITY] evidence, uncertainty, next-step, Director integration and UI-contract checks passed.');
+const sharedQueue = {
+  items: [
+    { id: 'queue-1', source_id: 'source-1', task_kind: 'action', queue_date: '2026-10-25', payload: {
+      task_kind: 'action', person_id: 'person-1', title: 'Sis Grace', requires_context_review: true,
+      message: 'A new person record is waiting for context verification.', has_contact_number: true,
+      created_at: '2026-10-25T10:00:00.000Z'
+    } }
+  ],
+  candidateItems: [
+    { task_kind: 'action', person_id: 'person-1', title: 'Sis Grace', requires_context_review: true, has_contact_number: true, created_at: '2026-10-25T10:00:00.000Z' },
+    { task_kind: 'action', person_id: 'person-2', title: 'Grace', metadata: { kind: 'new_person_welcome' }, has_contact_number: false, created_at: '2026-10-25T11:00:00.000Z' }
+  ]
+};
+const currentProjection = projectCanonicalBriefingItems(sharedQueue, director);
+assert.equal(currentProjection.length, 1, 'Two identity follow-up candidates with the same normalized name become one shared review item.');
+assert.equal(currentProjection[0].task_kind, 'identity_review');
+assert.equal(currentProjection[0].metadata.record_count, 2);
+assert.deepEqual(currentProjection[0].metadata.person_ids, ['person-1', 'person-2']);
+assert.match(currentProjection[0].message, /has not merged them/i);
+assert.match(currentProjection[0].suggestion, /compare the available name and phone evidence/i);
+
+const futureOnlyProjection = projectCanonicalBriefingItems({ items: [], candidateItems: sharedQueue.candidateItems }, director);
+assert.equal(futureOnlyProjection.length, 1, 'Future candidates use the same identity rule; this is not tied to one named person or only today’s assigned rows.');
+assert.equal(futureOnlyProjection[0].id, currentProjection[0].id, 'The cross-surface identity warning has a stable id across current/future projections.');
+
+const unrelatedNames = projectCanonicalBriefingItems({
+  items: [],
+  candidateItems: [
+    { person_id: 'person-3', title: 'Grace', task_kind: 'action', metadata: { kind: 'new_person_welcome' } },
+    { person_id: 'person-4', title: 'Grace Chukwu', task_kind: 'action', metadata: { kind: 'new_person_welcome' } }
+  ]
+}, director);
+assert.equal(unrelatedNames.length, 0, 'A shared first name alone is not sufficient to raise a duplicate-identity warning.');
+
+const samePersonDuplicates = projectCanonicalBriefingItems({
+  items: [],
+  candidateItems: [
+    { person_id: 'person-5', title: 'Grace', task_kind: 'action', metadata: { kind: 'new_person_welcome' }, source_id: 'action-a' },
+    { person_id: 'person-5', title: 'Grace', task_kind: 'action', metadata: { kind: 'new_person_welcome' }, source_id: 'action-b' }
+  ]
+}, director);
+assert.equal(samePersonDuplicates.length, 0, 'Duplicate source rows for the same person never create a false multi-person identity warning.');
+
+console.log('[ARIA ACTION EXPLAINABILITY] evidence, uncertainty, next-step, canonical current/future projection, deduplication and Director integration checks passed.');

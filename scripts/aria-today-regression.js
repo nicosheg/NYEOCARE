@@ -40,7 +40,7 @@ expect(queue.includes("action:{type:'care',label:explanation.action_label}")&&qu
 expect(home.includes("getDailyQueue(orgId,req.user.id)"),'Home must consume the canonical Daily Queue.');
 expect(home.includes("projectCanonicalBriefingItems(dailyQueue,directorData)")&&dailyBriefingApi.includes("projectCanonicalBriefingItems(queue,directorBriefing)")&&briefingProjection.includes("export function projectCanonicalBriefingItems")&&briefingProjection.includes("candidateItems")&&briefingProjection.includes("possible_duplicate_identity"),'Home and the Daily Briefing API must use one canonical projection for current queue work, future candidates and duplicate identity warnings.');
 expect(queue.includes("candidateItems:sourceItems||[]"),'Home must receive all open candidates so duplicate warnings do not depend on which item is scheduled for today.');
-expect(briefingProjection.includes("kind: 'possible_duplicate_identity'")&&briefingProjection.includes('NYEOCARE has not merged them')&&briefingProjection.includes('Merge only if the evidence supports the same identity'),'Duplicate identity warning must be canonical and must never auto-merge records.');
+expect(briefingProjection.includes("kind: 'possible_duplicate_identity'")&&briefingProjection.includes('NYEOCARE has not merged them')&&briefingProjection.includes('merge only if the evidence supports the same identity'),'Duplicate identity warning must be canonical and must never auto-merge records.');
 expect(index.includes("item?.task_kind==='identity_review'"),'Daily briefing must group duplicate warnings as identity review.');
 expect(!index.includes("const handleBriefAction=item=>{setBriefOpen(false)"),'Opening Review Center or item detail must preserve the current briefing behind it.');
 

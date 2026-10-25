@@ -30,6 +30,7 @@ const newcomer = explainAriaAction({
   },
   actionMetadata: {
     summary: 'Mrs Adaeze has a signal worth your attention.',
+    reason: 'ARIA identified a meaningful care opportunity.',
     suggestion: 'Review the signal and decide what to do.'
   },
   confidence: 0.82,

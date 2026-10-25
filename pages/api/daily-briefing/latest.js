@@ -45,8 +45,8 @@ export default withOrg(async function handler(req,res){
    director,
    organization:{id:orgId,name:org.rows[0]?.name||'your organization',instructions:org.rows[0]?.aria_instructions||'',vocabulary},
    notification:{hasSomething:todayCount>0,text:headline,count:todayCount,laterCount,openCount},
-   briefing:{headline,items,todayCount,laterCount,openCount,operatorCount:queue.operators.length,assignedTo:{id:userId,name:req.user?.name||null,role:req.user?.role||null},capacityPerOperator:queue.capacityPerOperator||5},
-   queue:{today:queue.today,todayCount,laterCount,openCount,operatorCount:queue.operators.length,capacityPerOperator:queue.capacityPerOperator||5,categories:groupedCounts},
+   briefing:{headline,items,todayCount,laterCount,openCount,operatorCount:queue.operators.length,assignedTo:{id:userId,name:req.user?.name||null,role:req.user?.role||null},capacityPerOperator:queue.capacityPerOperator||5,requiredFollowUpCount:Number(queue.requiredFollowUpCount)||0,capacityExceeded:Number(queue.capacityExceeded)||0},
+   queue:{today:queue.today,todayCount,laterCount,openCount,operatorCount:queue.operators.length,capacityPerOperator:queue.capacityPerOperator||5,requiredFollowUpCount:Number(queue.requiredFollowUpCount)||0,capacityExceeded:Number(queue.capacityExceeded)||0,categories:groupedCounts},
    categories:{
     scan:items.filter(x=>x.category==='scan'),
     follow_up:items.filter(x=>x.task_kind==='follow_up'||x.label==='FOLLOW-UP'),

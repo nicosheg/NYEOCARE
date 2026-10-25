@@ -6,6 +6,8 @@ const home=read('pages/index.js');
 const review=read('pages/api/review/index.js');
 const briefing=read('pages/api/daily-briefing/latest.js');
 const queue=read('lib/dailyQueue.js');
+const homeBootstrap=read('pages/api/home/bootstrap.js');
+const briefingProjection=read('lib/aria/briefingProjection.js');
 const defer=read('pages/api/daily-queue/defer.js');
 const migration=read('supabase/migrations/20260927060000_add_aria_daily_queue.sql');
 
@@ -17,6 +19,9 @@ assert(/\/api\/daily-queue\/defer/.test(home)&&/queue_item_id:item\.queue_item_i
 assert(/queueMetaBlock/.test(home)&&/Scheduled later/.test(home),'ARIA Today must expose compressed later-work state.');
 assert(/scan_review_items/.test(review)&&!/attendanceItems/.test(review)&&/pending_count:scanItems\.length\+groups\.length/.test(review),'Review Center must exclude attendance follow-up queue work.');
 assert(/getDailyQueue/.test(briefing)&&/capacityPerOperator:queue\.capacityPerOperator\|\|5/.test(briefing)&&/laterCount/.test(briefing),'Daily briefing API must be backed by the operator queue and expose configured capacity.');
+assert(/projectCanonicalBriefingItems\(queue,directorBriefing\)/.test(briefing)&&/projectCanonicalBriefingItems\(dailyQueue,directorData\)/.test(homeBootstrap)&&/candidateItems/.test(briefingProjection),'Home and the Daily Briefing API must use the same current/future briefing projection.');
+assert(/identity:items\.filter/.test(briefing)&&/groupedCounts\.identity\+\+/.test(briefing)&&/task_kind==='internal_message'/.test(briefing),'Daily briefing categories must count duplicate-identity warnings and operator messages separately from care work.');
+assert(/UPPER\(o\.type\)<>'NEW_PERSON'/.test(queue),'Person-created observations alone must not create a human action or welcome follow-up.');
 assert(/aria_daily_queue_items/.test(queue)&&/DAY_CAPACITY=5/.test(queue)&&/role\s+IN\s*\('owner','admin','leader','worker'(?:,'user')?\)/.test(queue)&&/followUpPolicy\.workerDailyCapacity/.test(queue)&&/internal_message/.test(queue)&&/todayLoad/.test(queue),'Daily queue must be durable, policy-capped, message-aware and distributed across eligible active operators.');
 assert(!/\\\$\{/.test(queue),'Daily queue interpolation must remain executable; escaped template placeholders must never reach production.');
 assert(/row\.task_kind==='internal_message'/.test(queue)&&/item\.task_kind==='internal_message'/.test(queue),'Internal messages must not consume the five-item care queue capacity.');

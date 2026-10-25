@@ -42,6 +42,7 @@ expect(home.includes("projectCanonicalBriefingItems(dailyQueue,directorData)")&&
 expect(queue.includes("candidateItems:sourceItems||[]"),'Home must receive all open candidates so duplicate warnings do not depend on which item is scheduled for today.');
 expect(briefingProjection.includes("kind: 'possible_duplicate_identity'")&&briefingProjection.includes('NYEOCARE has not merged them')&&briefingProjection.includes('merge only if the evidence supports the same identity'),'Duplicate identity warning must be canonical and must never auto-merge records.');
 expect(index.includes("item?.task_kind==='identity_review'"),'Daily briefing must group duplicate warnings as identity review.');
+expect(home.includes("identity:top.filter")&&home.includes("message:top.filter")&&dailyBriefingApi.includes("identity:items.filter")&&dailyBriefingApi.includes("message:items.filter"),'Home and the Daily Briefing API must expose identity reviews and private messages as distinct categories rather than silently classifying them as care actions.');
 expect(!index.includes("const handleBriefAction=item=>{setBriefOpen(false)"),'Opening Review Center or item detail must preserve the current briefing behind it.');
 
 expect(app.includes('<NavigationBack/>')&&!layout.includes('NavigationBack'),'Shared navigation must mount once at app level across every screen.');

@@ -17,7 +17,7 @@ cancelled AS (
     action_metadata = COALESCE(a.action_metadata, '{}'::jsonb) || jsonb_build_object(
       'resolution_reason', 'person_creation_is_not_attendance_or_contact_consent',
       'resolution_source', 'data_migration',
-      'resolution_migration', '20261025200600_cancel_legacy_person_created_welcome_actions',
+      'resolution_migration', '20261025190918_cancel_legacy_person_created_welcome_actions',
       'cancelled_at', NOW()
     ),
     updated_at = NOW()

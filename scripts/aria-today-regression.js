@@ -6,6 +6,8 @@ const expect=(condition,message)=>{if(!condition)failures.push(message)};
 
 const queue=read('lib/dailyQueue.js');
 const home=read('pages/api/home/bootstrap.js');
+const dailyBriefingApi=read('pages/api/daily-briefing/latest.js');
+const briefingProjection=read('lib/aria/briefingProjection.js');
 const index=read('pages/index.js');
 const layout=read('components/Layout.js');
 const navigationBack=read('components/NavigationBack.js');
@@ -36,7 +38,7 @@ expect(queue.includes('const overdueRows=[...existingByKey.values()]'),'Overdue 
 expect(queue.includes("status='pending',updated_at=NOW()"),'Overdue deferred queue items must become actionable again.');
 expect(queue.includes("action:{type:'care',label:explanation.action_label}")&&queue.includes("import { explainAriaAction } from './aria/actionExplainability'"),'ARIA Today actions must use the shared evidence-first explainer and its contextual action labels.');
 expect(home.includes("getDailyQueue(orgId,req.user.id)"),'Home must consume the canonical Daily Queue.');
-expect(home.includes("consolidateDuplicateWelcomeItems(directorAlignedQueueItems,directorAlignedCandidates)")&&home.includes("dailyQueue.candidateItems||queueItems")&&home.includes("attachDirectorContext"),'Same-name welcome tasks must keep their current/later candidates while ARIA Today aligns relevant evidence with the Director.');
+expect(home.includes("projectCanonicalBriefingItems(dailyQueue,directorData)")&&dailyBriefingApi.includes("projectCanonicalBriefingItems(queue,directorBriefing)")&&briefingProjection.includes("export function projectCanonicalBriefingItems")&&briefingProjection.includes("candidateItems")&&briefingProjection.includes("possible_duplicate_identity"),'Home and the Daily Briefing API must use one canonical projection for current queue work, future candidates and duplicate identity warnings.');
 expect(queue.includes("candidateItems:sourceItems||[]"),'Home must receive all open candidates so duplicate warnings do not depend on which item is scheduled for today.');
 expect(home.includes("kind:'possible_duplicate_identity'"),'Duplicate identity warning must explain that merging requires human confirmation.');
 expect(index.includes("item?.task_kind==='identity_review'"),'Daily briefing must group duplicate warnings as identity review.');

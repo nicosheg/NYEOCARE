@@ -130,6 +130,8 @@ assert.match(queueSource, /UPPER\(o\.type\)='UNUSUAL_ABSENCE'/);
 assert.match(queueSource, /UPPER\(o\.type\)<>'NEW_PERSON'/);
 assert.doesNotMatch(queueSource, /needsContextReview|requires_context_review/);
 assert.match(queueSource, /COALESCE\(a\.action_metadata->>'kind',''\)\s*<>\s*'scan_review_required'/);
+assert.match(queueSource, /COALESCE\(a\.action_metadata->>'kind',''\)='new_person_welcome'[\s\S]{0,120}COALESCE\(a\.action_metadata->>'source_event_type',''\)='PERSON_CREATED'/,
+  'Historical welcome actions caused by person creation must be excluded from today and future queue projections.');
 assert.doesNotMatch(queueSource, /NOT IN\('scan_review_required','new_person_welcome'\)/);
 
 const director = {

@@ -41,7 +41,7 @@ assert.match(newcomer.what_aria_knows, /record was created on 25 October 2026/i)
 assert.match(newcomer.why_attention, /interpretation/i);
 assert.match(newcomer.what_is_unknown, /whether someone has already welcomed/i);
 assert.match(newcomer.next_step, /Check whether a welcome has already happened/i);
-assert.notMatch(newcomer.what_happened, /signal worth your attention/i);
+assert.doesNotMatch(newcomer.what_happened, /signal worth your attention/i);
 assert.equal(newcomer.action_label, 'Check welcome');
 assert.equal(newcomer.confidence, 0.82);
 

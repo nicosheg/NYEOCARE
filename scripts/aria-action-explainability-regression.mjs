@@ -9,6 +9,7 @@ const homeSource = read('pages/api/home/bootstrap.js');
 const briefingSource = read('pages/api/daily-briefing/latest.js');
 const uiSource = read('pages/index.js');
 const reviewCenterSource = read('components/ReviewCenterTab.js');
+const reviewApiSource = read('pages/api/review/index.js');
 const brainSource = read('lib/aria/corePersonality.js');
 const specSource = read('NYEO_SPEC.md');
 assert.match(queueSource, /explainAriaAction/);
@@ -29,6 +30,11 @@ assert.match(uiSource, /setReviewGroup\('duplicates'\);setReview\(true\)/, 'The 
 assert.match(uiSource, /<ReviewCenterTab modal initialGroup=\{reviewGroup\}/);
 assert.match(reviewCenterSource, /initialGroup=null/);
 assert.match(reviewCenterSource, /\['follow_up','scan','duplicates'\]\.includes\(initialGroup\)/);
+assert.match(reviewApiSource, /actor_role:req\.user\?\.role\|\|'unknown'/);
+assert.match(reviewCenterSource, /const canResolveDuplicates=\['owner','admin'\]\.includes\(meta\?\.actor_role\)/);
+assert.match(reviewCenterSource, /only an owner or admin can save an identity decision/i);
+assert.match(reviewCenterSource, /disabled=\{!canResolveDuplicates\|\|!selected/);
+assert.match(reviewCenterSource, /disabled=\{!canResolveDuplicates\|\|busy\}/, 'Workers and leaders must be told exactly how to proceed without receiving a broken admin-only control.');
 assert.match(uiSource, /\{identityReview\?<button style=\{primary\} disabled=\{busy\} onClick=\{onReview\}/, 'Synthetic identity warnings must have a review action.');
 
 assert.match(uiSource, /item\.director_context\?\.reason/);

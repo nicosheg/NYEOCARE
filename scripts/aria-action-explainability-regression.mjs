@@ -211,4 +211,32 @@ const samePersonDuplicates = projectCanonicalBriefingItems({
 }, director);
 assert.equal(samePersonDuplicates.length, 0, 'Duplicate source rows for the same person never create a false multi-person identity warning.');
 
-console.log('[ARIA ACTION EXPLAINABILITY] evidence, uncertainty, next-step, canonical current/future projection, deduplication and Director integration checks passed.');
+const requiredVisitProjection = projectCanonicalBriefingItems({
+  items: [{
+    id: 'queue-required',
+    source_id: 'required-action',
+    task_kind: 'follow_up',
+    queue_date: '2026-10-25',
+    priority: 100,
+    payload: {
+      id: 'required-action',
+      source_id: 'required-action',
+      task_kind: 'follow_up',
+      priority: 100,
+      person_id: 'person-6',
+      title: 'Mrs Grace',
+      metadata: { first_visit_required: true },
+      message: 'A first-visit care outcome is due.',
+      created_at: '2026-10-25T12:00:00.000Z'
+    }
+  }],
+  candidateItems: [
+    { person_id: 'person-6', title: 'Mrs Grace', task_kind: 'follow_up', priority: 100, metadata: { first_visit_required: true }, created_at: '2026-10-25T12:00:00.000Z' },
+    { person_id: 'person-7', title: 'Grace', task_kind: 'action', metadata: { kind: 'new_person_welcome' }, created_at: '2026-10-25T13:00:00.000Z' }
+  ]
+}, director);
+assert.equal(requiredVisitProjection.filter(item => item.task_kind === 'identity_review').length, 1);
+assert.ok(requiredVisitProjection.some(item => item.person_id === 'person-6' && item.metadata?.first_visit_required === true),
+  'An identity warning must never hide a required first-visit outcome.');
+
+console.log('[ARIA ACTION EXPLAINABILITY] evidence, uncertainty, next-step, canonical current/future projection, deduplication, required-task preservation and Director integration checks passed.');

@@ -129,7 +129,7 @@ assert.match(queueSource, /COALESCE\(o\.attention_score,0\)>60/);
 assert.match(queueSource, /UPPER\(o\.type\)='UNUSUAL_ABSENCE'/);
 assert.match(queueSource, /UPPER\(o\.type\)<>'NEW_PERSON'/);
 assert.doesNotMatch(queueSource, /needsContextReview|requires_context_review/);
-assert.match(queueSource, /COALESCE\(a\.action_metadata->>'kind',''\)<>'scan_review_required'/);
+assert.match(queueSource, /COALESCE\(a\.action_metadata->>'kind',''\)\s*<>\s*'scan_review_required'/);
 assert.doesNotMatch(queueSource, /NOT IN\('scan_review_required','new_person_welcome'\)/);
 
 const director = {

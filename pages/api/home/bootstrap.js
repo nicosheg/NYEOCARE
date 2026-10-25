@@ -105,9 +105,11 @@ export default withOrg(async function handler(req,res){
     director_status:directorData?'live':'degraded',
     briefing:{headline:[directorData?.primary_focus?.title,directorData?.primary_focus?.summary].filter(Boolean).join(' — ')||'ARIA is keeping watch today.',items:top,director:directorData,requiredFollowUpCount,capacityExceeded,capacityPerOperator:dailyQueue.capacityPerOperator||5},
     categories:{
-      scan:top.filter(x=>x.task_kind==='scan_review'),
-      follow_up:top.filter(x=>x.task_kind==='follow_up'),
-      care:top.filter(x=>x.task_kind==='action')
+      scan:top.filter(x=>x.task_kind==='scan_review'||x.category==='scan'),
+      follow_up:top.filter(x=>x.task_kind==='follow_up'||x.label==='FOLLOW-UP'),
+      message:top.filter(x=>x.task_kind==='internal_message'||x.category==='message'),
+      identity:top.filter(x=>x.task_kind==='identity_review'||x.category==='identity'||x.metadata?.kind==='possible_duplicate_identity'),
+      care:top.filter(x=>x.category!=='scan'&&x.category!=='identity'&&x.task_kind!=='identity_review'&&x.metadata?.kind!=='possible_duplicate_identity'&&x.task_kind!=='follow_up'&&x.label!=='FOLLOW-UP'&&x.task_kind!=='internal_message')
     },
     peopleCount:Number(org.people_count)||0,reviewCount:Number(org.review_count)||0,
     queue:{todayCount:count,laterCount:Number(dailyQueue.later_count)||0,items:top,requiredFollowUpCount,capacityExceeded,capacityPerOperator:dailyQueue.capacityPerOperator||5},

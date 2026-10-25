@@ -193,6 +193,19 @@ const futureOnlyProjection = projectCanonicalBriefingItems({ items: [], candidat
 assert.equal(futureOnlyProjection.length, 1, 'Future candidates use the same identity rule; this is not tied to one named person or only today’s assigned rows.');
 assert.equal(futureOnlyProjection[0].id, currentProjection[0].id, 'The cross-surface identity warning has a stable id across current/future projections.');
 
+const explicitlyKeptSeparate = projectCanonicalBriefingItems({
+  items: [
+    { id: 'queue-a', source_id: 'source-a', task_kind: 'action', payload: sharedQueue.candidateItems[0] },
+    { id: 'queue-b', source_id: 'source-b', task_kind: 'action', payload: sharedQueue.candidateItems[1] }
+  ],
+  candidateItems: sharedQueue.candidateItems,
+  notDuplicateIdentityPairs: [{ person_a_id: 'person-1', person_b_id: 'person-2' }]
+}, director);
+assert.equal(explicitlyKeptSeparate.filter(item => item.task_kind === 'identity_review').length, 0,
+  'A durable keep-separate decision must stop the same pair from being warned on every future briefing.');
+assert.equal(explicitlyKeptSeparate.length, 2,
+  'After an explicit keep-separate decision, the legitimate separate welcome work remains visible.');
+
 const unrelatedNames = projectCanonicalBriefingItems({
   items: [],
   candidateItems: [

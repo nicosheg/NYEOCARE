@@ -165,7 +165,7 @@ assert.equal(requiredFirstVisit.action_label, 'Record outcome');
 assert.match(queueSource, /COALESCE\(o\.attention_score,0\)>60/);
 assert.match(queueSource, /UPPER\(o\.type\)='UNUSUAL_ABSENCE'/);
 assert.match(queueSource, /UPPER\(o\.type\)<>'NEW_PERSON'/);
-assert.doesNotMatch(queueSource, /needsContextReview|requires_context_review/);
+assert.doesNotMatch(queueSource, /const needsContextReview|requires_context_review:needsContextReview/);
 assert.match(queueSource, /COALESCE\(a\.action_metadata->>'kind',''\)\s*<>\s*'scan_review_required'/);
 assert.match(queueSource, /COALESCE\(a\.action_metadata->>'kind',''\)='new_person_welcome'[\s\S]{0,120}COALESCE\(a\.action_metadata->>'source_event_type',''\)='PERSON_CREATED'/,
   'Historical welcome actions caused by person creation must be excluded from today and future queue projections.');

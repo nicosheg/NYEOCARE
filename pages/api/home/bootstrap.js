@@ -4,52 +4,13 @@ import {withOrg} from '../../../lib/apiHelpers';
 import {getDirectorBriefing} from '../../../lib/aria/directorEngine';
 import {ARIA_DIRECTOR_VERSION} from '../../../lib/aria/director';
 import {getDailyQueue} from '../../../lib/dailyQueue';
-import {attachDirectorContext} from '../../../lib/aria/actionExplainability';
+import {projectCanonicalBriefingItems} from '../../../lib/aria/briefingProjection';
 
 const priority=v=>({critical:100,high:80,medium:55,low:25}[String(v||'').toLowerCase()]||10);
 const proactiveLabels={recognition:'RECOGNITION',belonging:'BELONGING',serve_discovery:'CONTRIBUTION'};
 const proactiveActions={recognition:'Review recognition',belonging:'Review belonging opportunity',serve_discovery:'Review contribution opportunity'};
 const personName=x=>[x.first_name,x.last_name].filter(Boolean).join(' ').replace(/^(sis|sister|bro|brother|mrs|mr|miss|ms|pastor|past|pst|dr|rev|elder|deacon|deaconess)\s+/i,'').trim();
 const cleanType=v=>String(v||'').replace(/_/g,' ').replace(/\s+/g,' ').trim().toUpperCase();
-const identityNameKey=v=>String(v||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim().replace(/\s+/g,' ');
-function consolidateDuplicateWelcomeItems(items,candidateItems=items){
- const byName=new Map();
- for(const item of candidateItems){
-  if(item?.metadata?.kind!=='new_person_welcome'||!item.person_id)continue;
-  const key=identityNameKey(item.title);
-  if(!key)continue;
-  const group=byName.get(key)||[];
-  group.push(item);byName.set(key,group);
- }
- const groupedIds=new Set(),notices=[];
- for(const group of byName.values()){
-  const people=new Map(group.map(item=>[String(item.person_id),item]));
-  if(people.size<2)continue;
-  const records=[...people.values()];
-  const ids=records.map(item=>String(item.person_id)).sort();
-  ids.forEach(id=>groupedIds.add(id));
-  const name=records[0].title||'These people';
-  const hasMissingPhone=records.some(item=>!item.has_contact_number);
-  notices.push({
-   id:'identity-review:'+ids.join(':'),
-   task_kind:'identity_review',
-   category:'identity',
-   source_id:'',
-   person_id:null,
-   priority:95,
-   title:'Possible duplicate · '+name,
-   label:'POSSIBLE DUPLICATE',
-   message:'There are '+records.length+' active records with the same name.'+(hasMissingPhone?' At least one record has no phone number.':'')+' NYEOCARE has not merged them because the name alone cannot prove they are the same person.',
-   suggestion:'Open Review Center → Duplicates to compare the records. Merge only if they belong to the same person; otherwise keep them separate.',
-   action:{type:'review',label:'Compare records'},
-   metadata:{kind:'possible_duplicate_identity',person_ids:ids,record_count:records.length},
-   created_at:records.map(item=>item.created_at).filter(Boolean).sort()[0]||null
-  });
- }
- return [...items.filter(item=>!(item?.metadata?.kind==='new_person_welcome'&&groupedIds.has(String(item.person_id)))),...notices]
-  .sort((a,b)=>Number(b.priority||0)-Number(a.priority||0)||new Date(a.created_at||0)-new Date(b.created_at||0));
-}
-
 export default withOrg(async function handler(req,res){
  if(req.method!=='GET')return res.status(405).json({error:'Method not allowed'});
  res.setHeader('Cache-Control','private,no-store,max-age=0,must-revalidate');
@@ -98,19 +59,10 @@ export default withOrg(async function handler(req,res){
    })
   ]);
 
-  const queueItems=(dailyQueue.items||[]).map(row=>({
-    ...(row.payload||{}),
-    id:(row.payload&&row.payload.id)||String(row.source_id||row.id),
-    source_id:String(row.source_id||''),
-    queue_item_id:String(row.id||''),
-    task_kind:String(row.task_kind||row.payload?.task_kind||'action'),
-    queue_date:row.queue_date,
-    defer_count:Number(row.defer_count)||0,
-    assigned_user_id:row.assigned_user_id||null
-  })).filter(item=>item.title||item.message);
-  const directorAlignedQueueItems=queueItems.map(item=>attachDirectorContext(item,directorData));
-  const directorAlignedCandidates=(dailyQueue.candidateItems||queueItems).map(item=>attachDirectorContext(item,directorData));
-  const visibleQueueItems=consolidateDuplicateWelcomeItems(directorAlignedQueueItems,directorAlignedCandidates);
+  // One shared projection is used by Home and the Daily Briefing API.
+  // It refreshes queue payloads, attaches same-person Director context, and
+  // presents identity ambiguity consistently without ever merging records.
+  const visibleQueueItems=projectCanonicalBriefingItems(dailyQueue,directorData);
   // Required first-visit outcomes must never be hidden behind the ordinary five-item cap.
   const requiredFollowUpItems=visibleQueueItems.filter(item=>item.task_kind==='follow_up'&&item.metadata?.first_visit_required===true);
   const nonRequiredQueueItems=visibleQueueItems.filter(item=>!(item.task_kind==='follow_up'&&item.metadata?.first_visit_required===true));

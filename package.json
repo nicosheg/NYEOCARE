@@ -26,7 +26,7 @@
     "test:aria-director": "node scripts/aria-director-regression.js",
     "test:field-mode": "node scripts/field-mode-regression.js",
     "test:daily-briefing": "node --experimental-specifier-resolution=node --experimental-default-type=module scripts/daily-briefing-regression.js",
-    "test:aria-action-explainability": "node --experimental-default-type=module scripts/aria-action-explainability-regression.mjs",
+    "test:aria-action-explainability": "node --experimental-specifier-resolution=node --experimental-default-type=module scripts/aria-action-explainability-regression.mjs",
     "test:identity-evidence": "node scripts/identity-evidence-regression.js",
     "test:scan-review": "node scripts/scan-review-regression.js",
     "test:aria-internal-messaging": "node scripts/aria-internal-messaging-regression.js",

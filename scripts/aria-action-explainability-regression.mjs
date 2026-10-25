@@ -19,6 +19,8 @@ assert.match(homeSource, /from '\.\.\/\.\.\/\.\.\/lib\/aria\/briefingProjection'
 assert.match(briefingSource, /from '\.\.\/\.\.\/\.\.\/lib\/aria\/briefingProjection'/);
 assert.match(uiSource, /item\.why_attention/);
 assert.match(uiSource, /item\.what_is_unknown/);
+assert.match(uiSource, /item\.person_id\?'Unidentified person record':'Organization item'/);
+assert.doesNotMatch(uiSource, /const name=item\.title\|\|item\.first_name\|\|'this person'/);
 assert.match(uiSource, /item\.director_context\?\.reason/);
 assert.match(brainSource, /recorded event, the evidence behind it/);
 assert.match(specSource, /ARIA Today action-explanation contract/);

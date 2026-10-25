@@ -171,13 +171,13 @@ for (const item of [newcomer, absence, missingEvidence]) {
 const sharedQueue = {
   items: [
     { id: 'queue-1', source_id: 'source-1', task_kind: 'action', queue_date: '2026-10-25', payload: {
-      task_kind: 'action', person_id: 'person-1', title: 'Sis Grace', requires_context_review: true,
-      message: 'A new person record is waiting for context verification.', has_contact_number: true,
+      task_kind: 'action', person_id: 'person-1', title: 'Sis Grace', metadata: { kind: 'new_person_welcome' },
+      message: 'A welcome outcome is still open.', has_contact_number: true,
       created_at: '2026-10-25T10:00:00.000Z'
     } }
   ],
   candidateItems: [
-    { task_kind: 'action', person_id: 'person-1', title: 'Sis Grace', requires_context_review: true, has_contact_number: true, created_at: '2026-10-25T10:00:00.000Z' },
+    { task_kind: 'action', person_id: 'person-1', title: 'Sis Grace', metadata: { kind: 'new_person_welcome' }, has_contact_number: true, created_at: '2026-10-25T10:00:00.000Z' },
     { task_kind: 'action', person_id: 'person-2', title: 'Grace', metadata: { kind: 'new_person_welcome' }, has_contact_number: false, created_at: '2026-10-25T11:00:00.000Z' }
   ]
 };

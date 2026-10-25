@@ -16,7 +16,10 @@ export default withOrg(async function handler(req,res){
    pool.query(`SELECT name,aria_instructions,settings FROM organizations WHERE id=$1 LIMIT 1`,[orgId]),
    pool.query(`SELECT COUNT(*)::int count FROM people WHERE organization_id=$1 AND COALESCE(status,'active')='active'`,[orgId]),
    getDirectorState(orgId),
-   getDirectorBriefing(orgId,{limit:8}),
+   getDirectorBriefing(orgId,{limit:8}).catch(error=>{
+    console.error('[ARIA] Director context degraded in daily briefing:',error);
+    return null;
+   }),
    getDailyQueue(orgId,userId)
   ]);
   // Home and this endpoint must project the same canonical daily work.

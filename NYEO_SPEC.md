@@ -1233,7 +1233,7 @@ The UI's retry state is part of this contract: a failed ARIA pass preserves the 
 
 Attendance processing is the authoritative producer of attendance-derived ARIA memory. A completed session must durably create its participation records, absence observations, and immediate human-review actions before processing is marked completed. Retries are idempotent through durable action keys.
 
-Daily Briefing is a read/presentation layer. It MUST NOT discover or insert attendance actions as a side effect. This prevents two independent decision paths from drifting apart.
+Daily Briefing is a read/presentation layer. It MUST NOT discover or insert attendance actions as a side effect. This includes admin-triggered historical snapshot generation: it may persist a summary of the current Director state, but it must not invoke the care cycle or independently propose actions. This prevents two independent decision paths from drifting apart.
 
 Immediate first-session absence is an observation, not a pattern claim. The corresponding follow-up is intentionally lightweight, requires human approval, and carries the source session in action metadata so later context and return events can connect to it.
 

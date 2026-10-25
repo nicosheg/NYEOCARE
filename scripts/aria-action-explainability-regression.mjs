@@ -112,6 +112,8 @@ assert.equal(manualNewPersonRecord.action_label, 'Review welcome');
 assert.match(queueSource, /COALESCE\(o\.attention_score,0\)>60/);
 assert.match(queueSource, /UPPER\(o\.type\) IN\('NEW_PERSON','UNUSUAL_ABSENCE'\)/);
 assert.match(queueSource, /const actionMetadata=welcome\?\{\.\.\.sourceMetadata,kind:'new_person_welcome'\}/);
+assert.match(queueSource, /COALESCE\(a\.action_metadata->>'kind',''\)<>'scan_review_required'/);
+assert.doesNotMatch(queueSource, /NOT IN\('scan_review_required','new_person_welcome'\)/);
 
 const director = {
   intelligence: {

@@ -116,7 +116,7 @@ const checks=[
  ['Home keeps the daily briefing mounted behind action detail',
   !home.includes("const handleBriefAction=item=>{setBriefOpen(false)")&&/setSelected\(item\)/.test(home)],
  ['Daily briefing explains same-name duplicate records without auto-merging them',
-  /consolidateDuplicateWelcomeItems\(directorAlignedQueueItems,directorAlignedCandidates\)/.test(homeBootstrap)&&/dailyQueue\.candidateItems\|\|queueItems/.test(homeBootstrap)&&/attachDirectorContext/.test(homeBootstrap)&&/possible_duplicate_identity/.test(homeBootstrap)&&/name alone cannot prove they are the same person/.test(homeBootstrap)],
+  /projectCanonicalBriefingItems\(dailyQueue,directorData\)/.test(homeBootstrap)&&/projectCanonicalBriefingItems/.test(briefing)&&/projectCanonicalBriefingItems/.test(read\('lib\/aria\/briefingProjection\.js'\))&&/possible_duplicate_identity/.test(read\('lib\/aria\/briefingProjection\.js'\))&&/name evidence cannot prove/.test(read\('lib\/aria\/briefingProjection\.js'\))],
  ['Home shows ARIA progress as background state',
   /aria_processing/.test(homeBootstrap)&&/AriaProcessingStatus/.test(home)&&/ariaAttendance/.test(home)],
  ['Home has no attendance retry action',

@@ -1269,6 +1269,10 @@ Every meaningful system event should enter ARIA's durable event/observation/acti
 - **ARIA conversation:** is the natural control surface over the same capabilities and memory, not a separate brain.
 - **Human permission:** external or consequential actions remain proposed/approved rather than silently executed.
 
+### ARIA Today action-explanation contract
+
+Every actionable item must explain, in concise operator language: (1) the recorded event, (2) the evidence that supports it, (3) why it needs attention, (4) what remains unknown, and (5) one concrete next step. Recorded facts and ARIA's interpretation must remain distinguishable. Evidence and dates must come from the linked organization records; missing evidence must be disclosed rather than replaced with generic claims. A Director-level attendance explanation may be attached only when it refers to the same person and a relevant attendance-related signal. A displayed shortlist must say when it is only the highest-priority subset of the full queue. Opening, drafting, or viewing never counts as a completed or externally executed action.
+
 A module may own its domain transaction, validation, or presentation. It must not create a competing intelligence pipeline for the same evidence.
 
 

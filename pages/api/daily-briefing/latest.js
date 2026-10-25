@@ -3,6 +3,7 @@ import pool from '../../../lib/db';
 import { withOrg } from '../../../lib/apiHelpers';
 import { getDirectorState } from '../../../lib/aria/director';
 import { getDailyQueue } from '../../../lib/dailyQueue';
+import { attachDirectorContext } from '../../../lib/aria/actionExplainability';
 
 export default withOrg(async function handler(req,res){
  if(req.method!=='GET')return res.status(405).json({error:'Method not allowed'});
@@ -18,7 +19,8 @@ export default withOrg(async function handler(req,res){
   ]);
   const items=queue.items.map(row=>{
    const p=row.payload&&typeof row.payload==='object'?row.payload:{};
-   return{...p,queue_item_id:row.id,queue_date:String(row.queue_date),assigned_user_id:row.assigned_user_id,task_kind:row.task_kind,priority:row.priority,defer_count:row.defer_count||0};
+   const item={...p,queue_item_id:row.id,queue_date:String(row.queue_date),assigned_user_id:row.assigned_user_id,task_kind:row.task_kind,priority:row.priority,defer_count:row.defer_count||0};
+   return attachDirectorContext(item,director);
   });
   const groupedCounts={scan:0,follow_up:0,message:0,care:0};
   for(const item of items){if(item.category==='scan')groupedCounts.scan++;else if(item.task_kind==='follow_up'||item.label==='FOLLOW-UP')groupedCounts.follow_up++;else groupedCounts.care++}

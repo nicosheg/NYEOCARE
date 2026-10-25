@@ -11,6 +11,7 @@ const briefingProjection=read('lib/aria/briefingProjection.js');
 const briefingCore=read('lib/aria/dailyBriefing.js');
 const defer=read('pages/api/daily-queue/defer.js');
 const migration=read('supabase/migrations/20260927060000_add_aria_daily_queue.sql');
+const legacyWelcomeMigration=read('supabase/migrations/20261025200600_cancel_legacy_person_created_welcome_actions.sql');
 
 function assert(condition,message){if(!condition)throw new Error(message)}
 
@@ -33,4 +34,7 @@ assert(!/\\\$\{/.test(queue),'Daily queue interpolation must remain executable; 
 assert(/row\.task_kind==='internal_message'/.test(queue)&&/item\.task_kind==='internal_message'/.test(queue),'Internal messages must not consume the five-item care queue capacity.');
 assert(/queue_date/.test(defer)&&/deferDailyQueueItem/.test(defer),'Daily queue defer endpoint must reschedule work instead of rejecting it.');
 assert(/UNIQUE \(organization_id, task_kind, source_id\)/.test(migration),'One active queue assignment must exist per source item.');
+assert(/status IN \('proposed', 'approved'\)/.test(legacyWelcomeMigration)&&/action_metadata->>'kind', ''\) = 'new_person_welcome'/.test(legacyWelcomeMigration)&&/action_metadata->>'source_event_type', ''\) = 'PERSON_CREATED'/.test(legacyWelcomeMigration),'The data repair must target only open welcome proposals created by a person-created event.');
+assert(/status = 'cancelled'/.test(legacyWelcomeMigration)&&/status = 'dismissed'/.test(legacyWelcomeMigration)&&/resolution_migration/.test(legacyWelcomeMigration)&&/UPDATE public\.aria_daily_queue_items/.test(legacyWelcomeMigration),'The data repair must preserve audit history while synchronizing invalid queue rows to dismissed state.');
+assert(!/DELETE\s+FROM\s+public\.aria_actions/i.test(legacyWelcomeMigration)&&!/DELETE\s+FROM\s+public\.people/i.test(legacyWelcomeMigration),'The repair must not delete action history or people.');
 console.log('[DAILY BRIEFING] queue and crash regression checks passed.');

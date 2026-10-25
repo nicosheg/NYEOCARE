@@ -67,7 +67,7 @@ const missingEvidence = explainAriaAction({
 });
 assert.match(missingEvidence.what_happened, /attendance records/i);
 assert.match(missingEvidence.what_aria_knows, /available record confirms only/i);
-assert.match(missingEvidence.next_step, /verify the evidence/i);
+assert.match(missingEvidence.next_step, /Check the linked attendance events/i);
 assert.equal(missingEvidence.confidence, null);
 
 const director = {

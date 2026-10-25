@@ -102,6 +102,7 @@ assert.ok(attendance.includes('createFirstVisitFollowUps(sessionId,orgId)') &&
   'first-visit tasks must be generated from attendance, marked required and given a policy-based deadline');
 assert.ok(attendance.includes("'first_visit_due_at',t.started_at+($3::int*INTERVAL '1 hour')") &&
   attendance.includes("'verify_first_visit_or_existing_connection'") &&
+  attendance.includes("'session_started_at',t.started_at") &&
   attendance.includes("'do_not_contact'"),
   'first-visit work must have a deadline, acknowledge uncertainty, and honour do-not-contact');
 

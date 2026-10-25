@@ -109,9 +109,9 @@ assert.match(manualNewPersonRecord.what_is_unknown, /does not prove they are vis
 assert.match(manualNewPersonRecord.next_step, /Check whether they are already known/i);
 assert.equal(manualNewPersonRecord.action_label, 'Review welcome');
 
-assert.match(queueSource, /COALESCE\\(o\\.attention_score,0\\)>60/);
-assert.match(queueSource, /UPPER\\(o\\.type\\) IN\\('NEW_PERSON','UNUSUAL_ABSENCE'\\)/);
-assert.match(queueSource, /const actionMetadata=welcome\\?\\{\\.\\.\\.sourceMetadata,kind:'new_person_welcome'\\}/);
+assert.match(queueSource, /COALESCE\(o\.attention_score,0\)>60/);
+assert.match(queueSource, /UPPER\(o\.type\) IN\('NEW_PERSON','UNUSUAL_ABSENCE'\)/);
+assert.match(queueSource, /const actionMetadata=welcome\?\{\.\.\.sourceMetadata,kind:'new_person_welcome'\}/);
 
 const director = {
   intelligence: {

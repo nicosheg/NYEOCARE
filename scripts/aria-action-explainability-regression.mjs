@@ -1,5 +1,22 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { explainAriaAction, attachDirectorContext } from '../lib/aria/actionExplainability.js';
+
+const read = path => readFileSync(path, 'utf8');
+const queueSource = read('lib/dailyQueue.js');
+const homeSource = read('pages/api/home/bootstrap.js');
+const briefingSource = read('pages/api/daily-briefing/latest.js');
+const uiSource = read('pages/index.js');
+const brainSource = read('lib/aria/corePersonality.js');
+const specSource = read('NYEO_SPEC.md');
+assert.match(queueSource, /explainAriaAction/);
+assert.match(homeSource, /attachDirectorContext/);
+assert.match(briefingSource, /attachDirectorContext/);
+assert.match(uiSource, /item\.why_attention/);
+assert.match(uiSource, /item\.what_is_unknown/);
+assert.match(uiSource, /item\.director_context\?\.reason/);
+assert.match(brainSource, /recorded event, the evidence behind it/);
+assert.match(specSource, /ARIA Today action-explanation contract/);
 
 const newcomer = explainAriaAction({
   personName: 'Mrs Adaeze',
@@ -89,4 +106,4 @@ for (const item of [newcomer, absence, missingEvidence]) {
   assert.ok(item.next_step, 'Every item needs a concrete next step.');
 }
 
-console.log('[ARIA ACTION EXPLAINABILITY] evidence, uncertainty, next-step and Director-alignment checks passed.');
+console.log('[ARIA ACTION EXPLAINABILITY] evidence, uncertainty, next-step, Director integration and UI-contract checks passed.');

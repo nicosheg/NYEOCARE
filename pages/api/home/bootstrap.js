@@ -4,6 +4,7 @@ import {withOrg} from '../../../lib/apiHelpers';
 import {getDirectorBriefing} from '../../../lib/aria/directorEngine';
 import {ARIA_DIRECTOR_VERSION} from '../../../lib/aria/director';
 import {getDailyQueue} from '../../../lib/dailyQueue';
+import {attachDirectorContext} from '../../../lib/aria/actionExplainability';
 
 const priority=v=>({critical:100,high:80,medium:55,low:25}[String(v||'').toLowerCase()]||10);
 const proactiveLabels={recognition:'RECOGNITION',belonging:'BELONGING',serve_discovery:'CONTRIBUTION'};
@@ -107,7 +108,9 @@ export default withOrg(async function handler(req,res){
     defer_count:Number(row.defer_count)||0,
     assigned_user_id:row.assigned_user_id||null
   })).filter(item=>item.title||item.message);
-  const visibleQueueItems=consolidateDuplicateWelcomeItems(queueItems,dailyQueue.candidateItems||queueItems);
+  const directorAlignedQueueItems=queueItems.map(item=>attachDirectorContext(item,directorData));
+  const directorAlignedCandidates=(dailyQueue.candidateItems||queueItems).map(item=>attachDirectorContext(item,directorData));
+  const visibleQueueItems=consolidateDuplicateWelcomeItems(directorAlignedQueueItems,directorAlignedCandidates);
   // Required first-visit outcomes must never be hidden behind the ordinary five-item cap.
   const requiredFollowUpItems=visibleQueueItems.filter(item=>item.task_kind==='follow_up'&&item.metadata?.first_visit_required===true);
   const nonRequiredQueueItems=visibleQueueItems.filter(item=>!(item.task_kind==='follow_up'&&item.metadata?.first_visit_required===true));

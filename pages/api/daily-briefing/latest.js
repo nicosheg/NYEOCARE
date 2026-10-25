@@ -3,7 +3,8 @@ import pool from '../../../lib/db';
 import { withOrg } from '../../../lib/apiHelpers';
 import { getDirectorState } from '../../../lib/aria/director';
 import { getDailyQueue } from '../../../lib/dailyQueue';
-import { attachDirectorContext } from '../../../lib/aria/actionExplainability';
+import { getDirectorBriefing } from '../../../lib/aria/directorEngine';
+import { projectCanonicalBriefingItems } from '../../../lib/aria/briefingProjection';
 
 export default withOrg(async function handler(req,res){
  if(req.method!=='GET')return res.status(405).json({error:'Method not allowed'});
@@ -11,17 +12,15 @@ export default withOrg(async function handler(req,res){
  res.setHeader('Pragma','no-cache');
  const orgId=req.org.id,userId=req.user.id;
  try{
-  const [org,people,director,queue]=await Promise.all([
+  const [org,people,director,directorBriefing,queue]=await Promise.all([
    pool.query(`SELECT name,aria_instructions,settings FROM organizations WHERE id=$1 LIMIT 1`,[orgId]),
    pool.query(`SELECT COUNT(*)::int count FROM people WHERE organization_id=$1 AND COALESCE(status,'active')='active'`,[orgId]),
    getDirectorState(orgId),
+   getDirectorBriefing(orgId,{limit:8}),
    getDailyQueue(orgId,userId)
   ]);
-  const items=queue.items.map(row=>{
-   const p=row.payload&&typeof row.payload==='object'?row.payload:{};
-   const item={...p,queue_item_id:row.id,queue_date:String(row.queue_date),assigned_user_id:row.assigned_user_id,task_kind:row.task_kind,priority:row.priority,defer_count:row.defer_count||0};
-   return attachDirectorContext(item,director);
-  });
+  // Home and this endpoint must project the same canonical daily work.
+  const items=projectCanonicalBriefingItems(queue,directorBriefing);
   const groupedCounts={scan:0,follow_up:0,message:0,care:0};
   for(const item of items){if(item.category==='scan')groupedCounts.scan++;else if(item.task_kind==='follow_up'||item.label==='FOLLOW-UP')groupedCounts.follow_up++;else groupedCounts.care++}
   const todayCount=items.length,laterCount=Number(queue.later_count)||0,openCount=Number(queue.open_count)||0;

@@ -70,6 +70,17 @@ assert.match(missingEvidence.what_aria_knows, /available record confirms only/i)
 assert.match(missingEvidence.next_step, /Check the linked attendance events/i);
 assert.equal(missingEvidence.confidence, null);
 
+const pendingAction = explainAriaAction({
+  personName: 'Mrs Adaeze',
+  taskKind: 'action',
+  actionType: 'SEND_MESSAGE',
+  evidence: {},
+  actionMetadata: {},
+  confidence: null
+});
+assert.equal(pendingAction.what_happened, 'A pending action is open for Mrs Adaeze.');
+assert.doesNotMatch(pendingAction.what_happened, /recorded a send message/i);
+
 const director = {
   intelligence: {
     attendance_lens: [{

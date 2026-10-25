@@ -39,10 +39,10 @@ const newcomer = explainAriaAction({
 assert.equal(newcomer.what_happened, 'A new person record was added to the People directory.');
 assert.match(newcomer.what_aria_knows, /record was created on 25 October 2026/i);
 assert.match(newcomer.why_attention, /interpretation/i);
-assert.match(newcomer.what_is_unknown, /whether someone has already welcomed/i);
-assert.match(newcomer.next_step, /Check whether a welcome has already happened/i);
+assert.match(newcomer.what_is_unknown, /does not prove this was a first visit/i);
+assert.match(newcomer.next_step, /Check the person’s existing history/i);
 assert.doesNotMatch(newcomer.what_happened, /signal worth your attention/i);
-assert.equal(newcomer.action_label, 'Check welcome');
+assert.equal(newcomer.action_label, 'Verify context');
 assert.equal(newcomer.confidence, 0.82);
 
 const absence = explainAriaAction({
@@ -97,21 +97,33 @@ const manualNewPersonRecord = explainAriaAction({
     occurred_at: '2026-10-25T10:38:26.605Z'
   },
   observationMetadata: { source_event_id: 'example-event-id' },
-  actionMetadata: { kind: 'new_person_welcome' },
+  actionMetadata: {},
   confidence: 1,
   detectedAt: '2026-10-25T10:38:26.622Z'
 });
 assert.equal(manualNewPersonRecord.what_happened, 'Person became known to the organization.');
 assert.equal(manualNewPersonRecord.source_label, 'Manual entry');
 assert.match(manualNewPersonRecord.what_aria_knows, /no further context is recorded/i);
-assert.match(manualNewPersonRecord.why_attention, /This record is newly known/i);
+assert.match(manualNewPersonRecord.why_attention, /new to NYEOCARE/i);
 assert.match(manualNewPersonRecord.what_is_unknown, /does not prove they are visiting for the first time/i);
-assert.match(manualNewPersonRecord.next_step, /Check whether they are already known/i);
-assert.equal(manualNewPersonRecord.action_label, 'Review welcome');
+assert.match(manualNewPersonRecord.next_step, /Check the person’s existing history/i);
+assert.equal(manualNewPersonRecord.action_label, 'Verify context');
+
+const explicitlyApprovedWelcome = explainAriaAction({
+  personName: 'Mrs Adaeze',
+  taskKind: 'action',
+  observationType: 'NEW_PERSON',
+  evidence: { facts: ['Person became known to the organization.'], source: 'manual' },
+  actionMetadata: { kind: 'new_person_welcome' },
+  confidence: 1
+});
+assert.equal(explicitlyApprovedWelcome.action_label, 'Review welcome');
+assert.match(explicitlyApprovedWelcome.next_step, /only if contact is welcome/i);
 
 assert.match(queueSource, /COALESCE\(o\.attention_score,0\)>60/);
 assert.match(queueSource, /UPPER\(o\.type\) IN\('NEW_PERSON','UNUSUAL_ABSENCE'\)/);
-assert.match(queueSource, /const actionMetadata=welcome\?\{\.\.\.sourceMetadata,kind:'new_person_welcome'\}/);
+assert.match(queueSource, /const needsContextReview=String\(o\.type\|\|'\'\)===\'NEW_PERSON\'/);
+assert.match(queueSource, /requires_context_review:needsContextReview/);
 assert.match(queueSource, /COALESCE\(a\.action_metadata->>'kind',''\)<>'scan_review_required'/);
 assert.doesNotMatch(queueSource, /NOT IN\('scan_review_required','new_person_welcome'\)/);
 

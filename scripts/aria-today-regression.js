@@ -34,7 +34,7 @@ expect(queue.includes("AND (o.person_id IS NULL OR p.status='active')"),'Home ob
 expect(queue.includes("WHERE organization_id=$1 AND status IN('pending','deferred')"),'Queue reconciliation must include overdue work.');
 expect(queue.includes('const overdueRows=[...existingByKey.values()]'),'Overdue queue items must be rescheduled rather than hidden by the unique key.');
 expect(queue.includes("status='pending',updated_at=NOW()"),'Overdue deferred queue items must become actionable again.');
-expect(queue.includes("welcome?'Draft welcome':'Review action'"),'New-person welcome actions must not be mislabeled as generic action reviews.');
+expect(queue.includes("action:{type:'care',label:explanation.action_label}")&&queue.includes("import { explainAriaAction } from './aria/actionExplainability'"),'ARIA Today actions must use the shared evidence-first explainer and its contextual action labels.');
 expect(home.includes("getDailyQueue(orgId,req.user.id)"),'Home must consume the canonical Daily Queue.');
 expect(home.includes("consolidateDuplicateWelcomeItems(queueItems,dailyQueue.candidateItems||queueItems)"),'Same-name welcome tasks must be summarized using current and later queue candidates.');
 expect(queue.includes("candidateItems:sourceItems||[]"),'Home must receive all open candidates so duplicate warnings do not depend on which item is scheduled for today.');

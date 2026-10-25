@@ -36,6 +36,7 @@ jobs:
       - run: npm run test:scan
       - run: npm run test:attendance-service-pattern
       - run: npm run test:daily-briefing
+      - run: npm run test:aria-action-explainability
       - run: npm run test:follow-up-policy
       - run: npm run test:identity-evidence
       - run: npm run test:scan-review

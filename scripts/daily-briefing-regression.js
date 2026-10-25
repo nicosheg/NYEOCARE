@@ -11,7 +11,7 @@ const briefingProjection=read('lib/aria/briefingProjection.js');
 const briefingCore=read('lib/aria/dailyBriefing.js');
 const defer=read('pages/api/daily-queue/defer.js');
 const migration=read('supabase/migrations/20260927060000_add_aria_daily_queue.sql');
-const legacyWelcomeMigration=read('supabase/migrations/20261025200600_cancel_legacy_person_created_welcome_actions.sql');
+const legacyWelcomeMigration=read('supabase/migrations/20261025190918_cancel_legacy_person_created_welcome_actions.sql');
 
 function assert(condition,message){if(!condition)throw new Error(message)}
 

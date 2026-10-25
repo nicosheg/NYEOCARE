@@ -125,6 +125,31 @@ const explicitlyApprovedWelcome = explainAriaAction({
 assert.equal(explicitlyApprovedWelcome.action_label, 'Review welcome');
 assert.match(explicitlyApprovedWelcome.next_step, /only if contact is welcome/i);
 
+const requiredFirstVisit = explainAriaAction({
+  personName: 'Mrs Adaeze',
+  taskKind: 'follow_up',
+  actionType: 'SEND_MESSAGE',
+  actionMetadata: {
+    kind: 'first_session_check_in',
+    first_visit_required: true,
+    session_name: 'Sunday Gathering',
+    session_started_at: '2026-10-25T10:00:00.000Z',
+    reason: 'The first recorded visitor attendance requires one human care disposition.',
+    summary: 'Mrs Adaeze needs a first-visit care check within 24 hours.',
+    knowledge: 'This is the first attendance currently recorded for this visitor in NYEOCARE. That does not prove it was their first-ever visit or that nobody has already welcomed them.',
+    suggestion: 'Confirm whether they are visiting for the first time or returning, and whether someone already connected with them. Record what happened; no message is sent automatically.'
+  },
+  detectedAt: '2026-10-25T10:02:00.000Z'
+});
+assert.match(requiredFirstVisit.what_happened, /Attendance was recorded for Mrs Adaeze at Sunday Gathering/i);
+assert.match(requiredFirstVisit.what_aria_knows, /first attendance currently recorded/i);
+assert.match(requiredFirstVisit.why_attention, /one human care disposition/i);
+assert.match(requiredFirstVisit.what_is_unknown, /first-ever visit/i);
+assert.match(requiredFirstVisit.next_step, /record what actually happened/i);
+assert.equal(requiredFirstVisit.source_label, 'Attendance record');
+assert.equal(requiredFirstVisit.recorded_at, '2026-10-25T10:00:00.000Z', 'Use the source session timestamp, not the later action creation time.');
+assert.equal(requiredFirstVisit.action_label, 'Record outcome');
+
 assert.match(queueSource, /COALESCE\(o\.attention_score,0\)>60/);
 assert.match(queueSource, /UPPER\(o\.type\)='UNUSUAL_ABSENCE'/);
 assert.match(queueSource, /UPPER\(o\.type\)<>'NEW_PERSON'/);

@@ -82,6 +82,37 @@ const pendingAction = explainAriaAction({
 assert.equal(pendingAction.what_happened, 'A pending action is open for Mrs Adaeze.');
 assert.doesNotMatch(pendingAction.what_happened, /recorded a send message/i);
 
+const manualNewPersonRecord = explainAriaAction({
+  personName: 'Mrs Adaeze',
+  taskKind: 'action',
+  observationType: 'NEW_PERSON',
+  evidence: {
+    kind: 'observation',
+    facts: ['Person became known to the organization.'],
+    source: 'manual',
+    status: 'observed',
+    authority: 'manual',
+    inference: 'New person discovered.',
+    statement: 'PERSON_CREATED',
+    occurred_at: '2026-10-25T10:38:26.605Z'
+  },
+  observationMetadata: { source_event_id: 'example-event-id' },
+  actionMetadata: { kind: 'new_person_welcome' },
+  confidence: 1,
+  detectedAt: '2026-10-25T10:38:26.622Z'
+});
+assert.equal(manualNewPersonRecord.what_happened, 'Person became known to the organization.');
+assert.equal(manualNewPersonRecord.source_label, 'Manual entry');
+assert.match(manualNewPersonRecord.what_aria_knows, /no further context is recorded/i);
+assert.match(manualNewPersonRecord.why_attention, /This record is newly known/i);
+assert.match(manualNewPersonRecord.what_is_unknown, /does not prove they are visiting for the first time/i);
+assert.match(manualNewPersonRecord.next_step, /Check whether they are already known/i);
+assert.equal(manualNewPersonRecord.action_label, 'Review welcome');
+
+assert.match(queueSource, /COALESCE\\(o\\.attention_score,0\\)>60/);
+assert.match(queueSource, /UPPER\\(o\\.type\\) IN\\('NEW_PERSON','UNUSUAL_ABSENCE'\\)/);
+assert.match(queueSource, /const actionMetadata=welcome\\?\\{\\.\\.\\.sourceMetadata,kind:'new_person_welcome'\\}/);
+
 const director = {
   intelligence: {
     attendance_lens: [{

@@ -5,6 +5,7 @@ const failures=[];
 const expect=(condition,message)=>{if(!condition)failures.push(message)};
 
 const queue=read('lib/dailyQueue.js');
+const attendanceProcessor=read('lib/aria/attendanceProcessor.js');
 const home=read('pages/api/home/bootstrap.js');
 const dailyBriefingApi=read('pages/api/daily-briefing/latest.js');
 const briefingProjection=read('lib/aria/briefingProjection.js');
@@ -30,9 +31,9 @@ const clientDiagnostics=read('components/ClientDiagnostics.js');
 const peopleMutationEngine=read('lib/aria/peopleMutationEngine.js');
 
 expect(queue.includes("m?.kind==='attendance_absence_check_in'||m?.kind==='returned_after_absence'?'follow_up':'action'"),'Attendance absence actions must be canonical follow-up queue items.');
-expect(queue.includes("task_kind:first?'follow_up':'action'"),'UNUSUAL_ABSENCE observations must be canonical follow-up queue items.');
+expect(!queue.includes("task_kind:first?'follow_up':'action'")&&attendanceProcessor.includes("'kind','care_first_check_in'")&&attendanceProcessor.includes("'kind','returned_after_absence'"),'Attendance-derived work must be persisted as canonical aria_actions before it reaches the operator queue; raw observations alone are not executable proposals.');
 expect(queue.includes("AND (a.person_id IS NULL OR p.status='active')"),'Home actions must exclude archived or missing people records.');
-expect(queue.includes("AND (o.person_id IS NULL OR p.status='active')"),'Home observations must exclude archived or missing people records.');
+expect(!queue.includes("AND (o.person_id IS NULL OR p.status='active')"),'The operator queue must not project raw observations, including observations linked to archived/missing people, as executable tasks.');
 expect(queue.includes("WHERE organization_id=$1 AND status IN('pending','deferred')"),'Queue reconciliation must include overdue work.');
 expect(queue.includes('const overdueRows=[...existingByKey.values()]'),'Overdue queue items must be rescheduled rather than hidden by the unique key.');
 expect(queue.includes("status='pending',updated_at=NOW()"),'Overdue deferred queue items must become actionable again.');

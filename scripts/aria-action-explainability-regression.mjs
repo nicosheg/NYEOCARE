@@ -172,7 +172,7 @@ assert.doesNotMatch(queueSource, /SELECT o\.id,o\.person_id,o\.type[\s\S]*?FROM 
   'Raw observations remain ARIA evidence; they must not be projected as operator work without a durable proposal.');
 assert.doesNotMatch(queueSource, /for\(const o of observations\.rows\)/,
   'Every operator task must be backed by a durable action/queue source, not an unfinishable observation-only fallback.');
-assert.match(queueSource, /UPPER\(o\.type\)<>'NEW_PERSON'/);
+assert.doesNotMatch(queueSource, /UPPER\(o\.type\)<>'NEW_PERSON'/, 'Raw observation-type checks are no longer needed in the operator queue because only durable proposals are projected.');
 assert.doesNotMatch(queueSource, /const needsContextReview|requires_context_review:needsContextReview/);
 assert.match(queueSource, /COALESCE\(a\.action_metadata->>'kind',''\)\s*<>\s*'scan_review_required'/);
 assert.match(queueSource, /COALESCE\(a\.action_metadata->>'kind',''\)='new_person_welcome'[\s\S]{0,120}COALESCE\(a\.action_metadata->>'source_event_type',''\)='PERSON_CREATED'/,

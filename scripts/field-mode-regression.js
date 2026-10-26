@@ -71,7 +71,7 @@ const checks=[
  ['Visitor duplicate-phone query uses contiguous SQL parameters',/=ANY\(\$2::text\[\]\)/.test(read('pages/api/attendance/add-visitor.js'))&&/\[orgId,\[digits,localDigits\]\]/.test(read('pages/api/attendance/add-visitor.js'))],
  ['Adding visitor updates a canonical roster without losing existing people',/fieldSnapshotSessionId\.current===String\(session\.session_id\)/.test(read('components/AttendanceModal.js'))&&/fieldRosterRef\.current=next/.test(read('components/AttendanceModal.js'))&&/setFieldReady\(true\)/.test(read('components/AttendanceModal.js'))],
  ['Idempotent visitor retry does not double-increment roster totals',/wasAlreadyInRoster=people\.some/.test(read('components/AttendanceModal.js'))&&/setTotal\(value=>value\+\(wasAlreadyInRoster\?0:1\)\)/.test(read('components/AttendanceModal.js'))],
- ['A staff device discovers sessions started on another device promptly',/void load\(\{showLoading:false\}\)/.test(read('components/AttendanceModal.js'))&&/ACTIVE_SESSION_DISCOVERY_INTERVAL_MS=5000/.test(read('components/AttendanceModal.js'))&&/SESSION_REFRESH_INTERVAL_MS=5000/.test(read('components/AttendanceModal.js'))],
+ ['A staff device discovers sessions and remote session closure promptly',/void load\(\{showLoading:false\}\)/.test(read('components/AttendanceModal.js'))&&/ACTIVE_SESSION_DISCOVERY_INTERVAL_MS=5000/.test(read('components/AttendanceModal.js'))&&/attendance-session-stale/.test(read('components/AttendanceModal.js'))&&/30000/.test(read('components/AttendanceModal.js'))],
  ['Field Mode test script is registered',JSON.parse(read('package.json')).scripts?.['test:field-mode']==='node scripts/field-mode-regression.js']
 ];
 const failures=checks.filter(([,ok])=>!ok).map(([name])=>name);

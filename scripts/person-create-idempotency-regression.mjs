@@ -13,6 +13,7 @@ const read=path=>fs.readFileSync(new URL('../'+path,import.meta.url),'utf8');
 const api=read('pages/api/people.js'),page=read('pages/people.js'),migration=read('supabase/migrations/20261026205524_person_create_request_idempotency.sql'),actorMigration=read('supabase/migrations/20261026205826_person_create_request_actor_delete_safe.sql');
 assert.ok(api.includes('person_create_requests')&&api.includes('pg_advisory_xact_lock'),'The POST API must serialize retries and consult the durable request record.');
 assert.ok(api.includes('PERSON_CREATE_REQUEST_ID_REUSED')&&api.includes('idempotent_replay:true')&&api.includes('idempotent_replay:false'),'The API must distinguish a safe replay from a request-key payload conflict and original creation.');
+assert.ok(api.includes('display_name=split.display_name'),'Manual creation must persist the same normalized display name that the name parser returns.');
 assert.ok(page.includes('client_request_id:requestId')&&page.includes('addRequestRef.current.signature!==signature'),'The UI must reuse a key on unchanged retries and rotate it when the payload changes.');
 assert.ok(page.includes('data.created!==false&&!data.idempotent_replay'),'The UI must not increment the People total for an idempotent replay.');
 assert.ok(migration.includes('PRIMARY KEY (organization_id, client_request_id)')&&migration.includes('ENABLE ROW LEVEL SECURITY')&&migration.includes('REVOKE ALL'),'The durable request table must enforce uniqueness and remain server-only.');

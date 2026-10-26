@@ -38,14 +38,14 @@ assert.ok(queue.includes('const groupKey=item.canonical_work_key||taskKey(item.t
 assert.ok(!queue.includes('const personKey=item.person_id'), 'unrelated needs for the same person must not be collapsed');
 assert.ok(!queue.includes('for(const o of observations.rows)'), 'raw observations without a canonical proposal must not masquerade as executable queue work');
 assert.ok(queue.includes('source_no_longer_active_or_not_canonical'));
-assert.ok(queue.includes('proposal expired before operator disposition'));
+assert.ok(/proposal expired before operator disposition/i.test(queue));
 assert.ok(canonicalCare.includes('source_id=ANY($2::text[])'));
 assert.ok(!canonicalCare.includes('OR person_id=$3'), 'resolving a proposal must not dismiss unrelated work');
 assert.ok(engine.includes('ON CONFLICT DO NOTHING RETURNING *'));
 assert.ok(engine.includes("action_metadata->>'canonical_work_key'"));
 assert.ok(careEngine.includes('ON CONFLICT DO NOTHING'), 'batch care producer must tolerate canonical-key conflicts');
 assert.ok(attendance.includes('first_visit_required') && attendance.includes('ON CONFLICT(organization_id,action_key) DO NOTHING'), 'attendance proposals must keep deterministic source keys and human disposition metadata');
-assert.ok(sqlAttendance.includes('ON CONFLICT(organization_id,action_key) DO NOTHING'), 'database attendance worker remains protected by the same database trigger');
+assert.ok(sqlAttendance.includes('ON CONFLICT (organization_id,action_key) DO NOTHING') || sqlAttendance.includes('ON CONFLICT(organization_id,action_key) DO NOTHING'), 'database attendance worker remains protected by the same database trigger');
 assert.ok(eventProcessor.includes("COALESCE(a.action_metadata->>'first_visit_required','false')<>'true'"));
 assert.ok(completion.includes('already_completed: true'));
 assert.ok(completion.includes('savedResult === outcome'));

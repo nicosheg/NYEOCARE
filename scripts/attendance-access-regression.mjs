@@ -10,6 +10,7 @@ assert.equal(isOrganizationAdmin('admin'), true);
 assert.equal(isOrganizationAdmin('worker'), false);
 
 const contracts = [
+  ['pages/api/people.js', ["req.method==='GET'&&!personCreatorRoles.includes(role)", 'private contact details are limited to authorized organization operators']],
   ['pages/api/attendance/join-session.js', ['isOrganizationOperator', 'Only authorized organization operators can join attendance sessions.']],
   ['pages/api/attendance/field-roster.js', ['isOrganizationOperator', 'session_users su']],
   ['pages/api/attendance/field-changes.js', ['isOrganizationOperator', 'session_users su']],

@@ -1,11 +1,13 @@
 // pages/api/person/journey.js
 import pool from'../../../lib/db';
 import{withOrg}from'../../../lib/apiHelpers';
+import{isOrganizationOperator}from'../../../lib/attendance/access';
 
 const safe=async(sql,args=[])=>{try{return(await pool.query(sql,args)).rows}catch(e){console.error('[PERSON JOURNEY]',e.message);return[]}};
 
 async function handler(req,res){
 if(req.method!=='GET')return res.status(405).json({error:'Method not allowed'});
+if(!isOrganizationOperator(req.user?.role))return res.status(403).json({error:'Person history is limited to authorized organization operators.'});
 const id=String(req.query.person_id||'');
 if(!id)return res.status(400).json({error:'person_id is required'});
 const orgId=req.org.id;

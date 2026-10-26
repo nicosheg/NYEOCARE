@@ -123,7 +123,7 @@ if(req.method==='GET'){
 if(req.method==='POST'){
  const body=req.body||{},rawName=String(body.full_name||'').trim();
  let first_name=String(body.first_name||'').trim(),last_name=String(body.last_name||'').trim(),display_name='';
- if(!first_name&&rawName){const split=splitName(rawName);first_name=split.first_name;last_name=split.last_name;display_name=split.display}
+ if(!first_name&&rawName){const split=splitName(rawName);first_name=split.first_name;last_name=split.last_name;display_name=split.display_name}
  else display_name=[first_name,last_name].filter(Boolean).join(' ');
  if(!first_name)return res.status(400).json({error:'A name is required'});
  if(first_name.length>150||last_name.length>150)return res.status(400).json({error:'Name is too long'});

@@ -20,6 +20,18 @@ trash:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#EF444
 edit:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l1-4L16.5 3.5z"/></svg>
 };
 
+function createPersonCreateRequestId(){
+ const c=typeof window!=='undefined'?window.crypto:null;
+ if(c?.randomUUID)return c.randomUUID().toLowerCase();
+ const bytes=new Uint8Array(16);
+ if(c?.getRandomValues)c.getRandomValues(bytes);
+ else for(let i=0;i<bytes.length;i++)bytes[i]=Math.floor(Math.random()*256);
+ bytes[6]=(bytes[6]&0x0f)|0x40;
+ bytes[8]=(bytes[8]&0x3f)|0x80;
+ const hex=Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');
+ return hex.slice(0,8)+'-'+hex.slice(8,12)+'-'+hex.slice(12,16)+'-'+hex.slice(16,20)+'-'+hex.slice(20);
+}
+
 const getNextBirthday=b=>{
 if(!b)return null;
 const today=new Date(),d=new Date(`${b}T00:00:00`);
@@ -95,7 +107,7 @@ return <><div style={{maxWidth:1100,margin:'0 auto',padding:20}}><div className=
 }
 
 export default function PeoplePage(){
-const router=useRouter();const onboarding=useOnboarding();const[people,setPeople]=useState([]);const[search,setSearch]=useState('');const[roleFilter,setRoleFilter]=useState('all');const[showLivingTruthOnly,setShowLivingTruthOnly]=useState(false);const[msg,setMsg]=useState('');const[msgKind,setMsgKind]=useState('success');const[loading,setLoading]=useState(true);const[showAdd,setShowAdd]=useState(false);const[showBulkAdd,setShowBulkAdd]=useState(false);const[showFilters,setShowFilters]=useState(false);const[showAddMenu,setShowAddMenu]=useState(false);const[bulkText,setBulkText]=useState('');const[bulkDefaultType,setBulkDefaultType]=useState('visitor');const[bulkBusy,setBulkBusy]=useState(false);const[bulkResult,setBulkResult]=useState(null);const[form,setForm]=useState({full_name:'',phone:'',email:'',type:'visitor',birthday:''});const[expandedId,setExpandedId]=useState(null);const[addingNote,setAddingNote]=useState(false);const[noteText,setNoteText]=useState('');const[importingConv,setImportingConv]=useState(false);const[convText,setConvText]=useState('');const[showPicker,setShowPicker]=useState(false);const[pickerTarget,setPickerTarget]=useState(null);const[editingId,setEditingId]=useState(null);const[editName,setEditName]=useState('');const[editPhone,setEditPhone]=useState('');const[editEmail,setEditEmail]=useState('');const[editBirthday,setEditBirthday]=useState('');const[editType,setEditType]=useState('visitor');const[editStatus,setEditStatus]=useState('active');const[personStatusFilter,setPersonStatusFilter]=useState('active');const[selectMode,setSelectMode]=useState(false);const[selectedIds,setSelectedIds]=useState(new Set());const[reviewCount,setReviewCount]=useState(0);const[totalPeople,setTotalPeople]=useState(0);const[nextCursor,setNextCursor]=useState(null);const[loadingMore,setLoadingMore]=useState(false);const abortRef=useRef(null);const addMenuRef=useRef(null);const addMenuButtonRef=useRef(null);const firstLoadRef=useRef(false);const[seenScanIds,setSeenScanIds]=useState(()=>new Set());const scanTimers=useRef(new Map());const[showReviewPanel,setShowReviewPanel]=useState(false);const[accessToken,setAccessToken]=useState(null);const longPressTimer=useRef(null);const longPressTriggered=useRef(false);const scrollRestoreRef=useRef(false);const PEOPLE_SCROLL_KEY='nyeocare:people-scroll:v1';
+const router=useRouter();const onboarding=useOnboarding();const[people,setPeople]=useState([]);const[search,setSearch]=useState('');const[roleFilter,setRoleFilter]=useState('all');const[showLivingTruthOnly,setShowLivingTruthOnly]=useState(false);const[msg,setMsg]=useState('');const[msgKind,setMsgKind]=useState('success');const[loading,setLoading]=useState(true);const[showAdd,setShowAdd]=useState(false);const[showBulkAdd,setShowBulkAdd]=useState(false);const[showFilters,setShowFilters]=useState(false);const[showAddMenu,setShowAddMenu]=useState(false);const[bulkText,setBulkText]=useState('');const[bulkDefaultType,setBulkDefaultType]=useState('visitor');const[bulkBusy,setBulkBusy]=useState(false);const[bulkResult,setBulkResult]=useState(null);const[form,setForm]=useState({full_name:'',phone:'',email:'',type:'visitor',birthday:''});const[expandedId,setExpandedId]=useState(null);const[addingNote,setAddingNote]=useState(false);const[noteText,setNoteText]=useState('');const[importingConv,setImportingConv]=useState(false);const[convText,setConvText]=useState('');const[showPicker,setShowPicker]=useState(false);const[pickerTarget,setPickerTarget]=useState(null);const[editingId,setEditingId]=useState(null);const[editName,setEditName]=useState('');const[editPhone,setEditPhone]=useState('');const[editEmail,setEditEmail]=useState('');const[editBirthday,setEditBirthday]=useState('');const[editType,setEditType]=useState('visitor');const[editStatus,setEditStatus]=useState('active');const[personStatusFilter,setPersonStatusFilter]=useState('active');const[selectMode,setSelectMode]=useState(false);const[selectedIds,setSelectedIds]=useState(new Set());const[reviewCount,setReviewCount]=useState(0);const[totalPeople,setTotalPeople]=useState(0);const[nextCursor,setNextCursor]=useState(null);const[loadingMore,setLoadingMore]=useState(false);const abortRef=useRef(null);const addRequestRef=useRef(null);const addMenuRef=useRef(null);const addMenuButtonRef=useRef(null);const firstLoadRef=useRef(false);const[seenScanIds,setSeenScanIds]=useState(()=>new Set());const scanTimers=useRef(new Map());const[showReviewPanel,setShowReviewPanel]=useState(false);const[accessToken,setAccessToken]=useState(null);const longPressTimer=useRef(null);const longPressTriggered=useRef(false);const scrollRestoreRef=useRef(false);const PEOPLE_SCROLL_KEY='nyeocare:people-scroll:v1';
 const flash=useCallback((text,kind='success')=>{setMsgKind(kind);setMsg(text);if(typeof window!=='undefined')window.setTimeout(()=>setMsg(''),4000)},[]);
 const fetchPeople=useCallback(async({token,reset=true,cursor=null,searchValue=search,typeValue=roleFilter,livingValue=showLivingTruthOnly,statusValue=personStatusFilter,background=false}={})=>{
  if(!token)return;
@@ -143,7 +155,38 @@ const handleCardClick=id=>{if(longPressTriggered.current){longPressTriggered.cur
 const selectAll=()=>setSelectedIds(new Set(filtered.map(p=>p.id)));const clearSelection=()=>setSelectedIds(new Set());const cancelSelect=()=>{setSelectMode(false);setSelectedIds(new Set());longPressTriggered.current=false};
 const startEdit=person=>{setExpandedId(person.id);setEditingId(person.id);setEditName(personDisplayName(person));setEditPhone(person.phone||'');setEditEmail(person.email||'');setEditBirthday(person.birthday||'');setEditType(person.type==='member'?'member':'visitor');setEditStatus(person.status==='inactive'?'inactive':'active');setAddingNote(false);setImportingConv(false)};
 const cancelEdit=()=>{setEditingId(null);setEditName('');setEditPhone('');setEditEmail('');setEditBirthday('');setEditType('visitor');setEditStatus('active')};
-const addPerson=async e=>{e.preventDefault();if(!form.full_name.trim()||!accessToken)return;try{const res=await fetch('/api/people',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${accessToken}`},body:JSON.stringify(form)});const data=await res.json();if(!res.ok||!data.id)throw new Error(data.error||'Could not add person');setPeople(prev=>{const next=[data,...prev.filter(p=>p.id!==data.id)];return next});setTotalPeople(v=>v+1);publishDataChange('people');setForm({full_name:'',phone:'',email:'',type:'visitor',birthday:''});setShowAdd(false);flash('Person added')}catch(err){flash(err.message||'Error adding person','error')}};
+const addPerson=async e=>{
+ e.preventDefault();
+ if(!form.full_name.trim()||!accessToken)return;
+ try{
+  const requestPayload={...form,full_name:form.full_name.trim()};
+  const signature=JSON.stringify({
+   full_name:requestPayload.full_name,
+   phone:String(requestPayload.phone||'').trim(),
+   email:String(requestPayload.email||'').trim().toLowerCase(),
+   type:requestPayload.type,
+   birthday:requestPayload.birthday||null
+  });
+  if(!addRequestRef.current||addRequestRef.current.signature!==signature){
+   addRequestRef.current={signature,id:createPersonCreateRequestId()};
+  }
+  const requestId=addRequestRef.current.id;
+  const res=await fetch('/api/people',{
+   method:'POST',
+   headers:{'Content-Type':'application/json',Authorization:`Bearer ${accessToken}`},
+   body:JSON.stringify({...requestPayload,client_request_id:requestId})
+  });
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok||!data.id)throw new Error(data.error||'Could not add person');
+  setPeople(prev=>[data,...prev.filter(p=>p.id!==data.id)]);
+  if(data.created!==false&&!data.idempotent_replay)setTotalPeople(v=>v+1);
+  publishDataChange('people');
+  setForm({full_name:'',phone:'',email:'',type:'visitor',birthday:''});
+  setShowAdd(false);
+  addRequestRef.current=null;
+  flash(data.idempotent_replay?'Person was already saved. Recovered the existing record.':'Person added');
+ }catch(err){flash(err.message||'Error adding person','error')}
+};
 const saveEdit=async id=>{if(!editName.trim()||!accessToken)return;try{const res=await fetch('/api/people',{method:'PUT',headers:{'Content-Type':'application/json',Authorization:`Bearer ${accessToken}`},body:JSON.stringify({id,full_name:editName.trim(),phone:editPhone,email:editEmail,type:editType,status:editStatus,birthday:editBirthday||null})});const data=await res.json().catch(()=>({}));if(!res.ok||!data.id)throw new Error(data.error||'Update failed');setPeople(prev=>prev.map(p=>p.id===id?{...data,last_seen:p.last_seen,last_attended_date:p.last_attended_date,last_contacted:p.last_contacted}:p));cancelEdit();publishDataChange('people');flash(data.no_changes?'No changes to save.':'Person updated');await fetchPeople({token:accessToken,reset:true,background:true})}catch(err){flash(err.message||'Error updating person','error')}};
 const bulkAddPeople=async()=>{
  if(!accessToken||bulkBusy)return;

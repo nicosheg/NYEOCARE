@@ -16,6 +16,8 @@ const recommendations = read('lib/aria/recommendationEngine.js');
 const packageJson = JSON.parse(read('package.json'));
 const ci = read('.github/workflows/ci.yml');
 const attendanceUi = read('components/AttendanceModal.js');
+const universalWorkspace = read('lib/aria/universalWorkspace.js');
+const personJourney = read('pages/api/person/journey.js');
 const sectionCheckin = read('pages/api/attendance/section-checkin.js');
 const attendanceMark = read('pages/api/attendance/mark.js');
 const attendanceSync = read('pages/api/attendance/sync.js');
@@ -135,6 +137,17 @@ for (const [label, source] of [
 assert.ok(directorState.includes("e.type<>'ATTENDANCE_HISTORY_RESET'") &&
   directorState.includes("reset_event.occurred_at>e.occurred_at"),
   'director state should not treat the reset marker or old attendance events as the latest meaningful event');
+for (const [label, source] of [
+  ['temporal activity', temporal],
+  ['operator activity', organizationContext],
+  ['ARIA director evidence', director],
+  ['director state', directorState],
+  ['ARIA workspace context', universalWorkspace],
+  ['person journey', personJourney]
+]) {
+  assert.ok(source.includes("ATTENDANCE_SESSION_RESET") && source.includes("session_reset.metadata->>'session_id'"),
+    label + ' must ignore immutable attendance evidence for the specifically reset session');
+}
 assert.ok(recommendations.includes("COALESCE(action_metadata->>'attendance_history_reset','false')<>'true'"),
   'person action history should hide attendance actions invalidated by the reset');
 assert.ok(!/DELETE\s+FROM\s+aria_events/i.test(processor + temporal + organizationContext + director),

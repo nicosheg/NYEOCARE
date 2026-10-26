@@ -22,7 +22,7 @@ const sectionCheckin = read('pages/api/attendance/section-checkin.js');
 const attendanceMark = read('pages/api/attendance/mark.js');
 const attendanceSync = read('pages/api/attendance/sync.js');
 const attendanceCorrection = read('pages/api/attendance/aria-correction.js');
-const universalWorkspace = read('lib/aria/universalWorkspace.js');
+
 const eventDate = read('lib/attendance/eventDate.js');
 
 assert.ok(serviceIdentity.includes("THEN ${alias}.service_type") && serviceIdentity.includes("ELSE COALESCE(${alias}.name,'')") &&

@@ -6,6 +6,7 @@ const home=read('pages/index.js');
 const review=read('pages/api/review/index.js');
 const briefing=read('pages/api/daily-briefing/latest.js');
 const queue=read('lib/dailyQueue.js');
+const attendanceProcessor=read('lib/aria/attendanceProcessor.js');
 const homeBootstrap=read('pages/api/home/bootstrap.js');
 const briefingProjection=read('lib/aria/briefingProjection.js');
 const briefingCore=read('lib/aria/dailyBriefing.js');
@@ -29,7 +30,7 @@ assert(/projectCanonicalBriefingItems\(queue,directorBriefing\)/.test(briefing)&
 assert(/const identityCandidates=sourceItems\.filter/.test(queue)&&/candidateItems:identityCandidates/.test(queue)&&/person_a_id=ANY\(\$2::uuid\[\]\) OR person_b_id=ANY\(\$2::uuid\[\]\)/.test(queue),'Duplicate-identity detection must consider only actionable identity candidates and relevant durable decisions, not scan every identity decision for every operator request.');
 assert(/identity:items\.filter/.test(briefing)&&/groupedCounts\.identity\+\+/.test(briefing)&&/task_kind==='internal_message'/.test(briefing),'Daily briefing categories must count duplicate-identity warnings and operator messages separately from care work.');
 assert(/requiredFollowUpCount:Number\(queue\.requiredFollowUpCount\)\|\|0/.test(briefing)&&/capacityExceeded:Number\(queue\.capacityExceeded\)\|\|0/.test(briefing),'Daily Briefing API must expose the same first-visit and capacity counts as Home.');
-assert(/UPPER\(o\.type\)<>'NEW_PERSON'/.test(queue),'Person-created observations alone must not create a human action or welcome follow-up.');
+assert(!/for\(const o of observations\.rows\)/.test(queue)&&/createFirstVisitFollowUps\(sessionId,orgId\)/.test(attendanceProcessor),'Daily queue must not invent actionable work directly from raw observations; attendance must create durable action records from its canonical pipeline.');
 assert(/COALESCE\(a\.action_metadata->>'kind',''\)='new_person_welcome'[\s\S]{0,160}COALESCE\(a\.action_metadata->>'source_event_type',''\)='PERSON_CREATED'/.test(queue),'Legacy welcome proposals caused by person creation must stay out of current/future operator briefings.');
 assert(/aria_daily_queue_items/.test(queue)&&/DAY_CAPACITY=5/.test(queue)&&/role\s+IN\s*\('owner','admin','leader','worker'(?:,'user')?\)/.test(queue)&&/followUpPolicy\.workerDailyCapacity/.test(queue)&&/internal_message/.test(queue)&&/todayLoad/.test(queue),'Daily queue must be durable, policy-capped, message-aware and distributed across eligible active operators.');
 assert(!/\\\$\{/.test(queue),'Daily queue interpolation must remain executable; escaped template placeholders must never reach production.');

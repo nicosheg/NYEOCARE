@@ -6,8 +6,9 @@ import{withOrg}from'../../lib/apiHelpers';
 import{updatePersonRecord}from'../../lib/aria/peopleMutationEngine';
 import{emitAriaEvent}from'../../lib/aria/eventEmitter';
 import{directAriaEvent}from'../../lib/aria/director';
+import{hashPersonCreatePayload,isValidPersonCreateRequestId}from'../../lib/peopleCreateIdempotency';
 const splitName=value=>{const n=normalizeDisplayName(value),parts=n.core.split(/\s+/).filter(Boolean);return{first_name:parts.shift()||'',last_name:parts.join(' '),display_name:n.display}}
-async function duplicatePhone(orgId,phone,excludeId=null){if(!phone)return null;const q=await pool.query(`SELECT id,display_name,phone FROM people WHERE organization_id=$1 AND status='active' AND living_truth->>'status' NOT IN ('needs_decision','conflict') AND id<>COALESCE($2::uuid,'00000000-0000-0000-0000-000000000000') AND (phone=$3 OR EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(phone_numbers,'[]'::jsonb)) v WHERE v->>'normalized'=$3)) LIMIT 1`,[orgId,excludeId,phone]);return q.rows[0]||null}
+async function duplicatePhone(orgId,phone,excludeId=null,db=pool){if(!phone)return null;const q=await db.query(`SELECT id,display_name,phone FROM people WHERE organization_id=$1 AND status='active' AND living_truth->>'status' NOT IN ('needs_decision','conflict') AND id<>COALESCE($2::uuid,'00000000-0000-0000-0000-000000000000') AND (phone=$3 OR EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(phone_numbers,'[]'::jsonb)) v WHERE v->>'normalized'=$3)) LIMIT 1`,[orgId,excludeId,phone]);return q.rows[0]||null}
 async function handler(req,res){const orgId=req.org.id;const role=String(req.user?.role||'').trim().toLowerCase();const adminRoles=['owner','admin'];const personCreatorRoles=['owner','admin','leader','worker'];if(req.method==='GET'&&!personCreatorRoles.includes(role))return res.status(403).json({error:'People records and private contact details are limited to authorized organization operators.'});if(req.method==='POST'&&!personCreatorRoles.includes(role))return res.status(403).json({error:'You do not have permission to add people to this organization.'});if(req.method==='PUT'&&!adminRoles.includes(role))return res.status(403).json({error:'Admin permissions required'});
 if(req.method==='GET'){
  try{
@@ -119,7 +120,85 @@ if(req.method==='GET'){
   return res.status(200).json({items,next_cursor,has_more:hasMore,total_count,limit,search,type,living_truth:living});
  }catch(err){console.error('GET people error:',err);return res.status(500).json({error:'Unable to load people.'})}
 }
-if(req.method==='POST'){const body=req.body||{},name=String(body.full_name||'').trim();let first_name=String(body.first_name||'').trim(),last_name=String(body.last_name||'').trim(),display_name='';if(!first_name&&name){const split=splitName(name);first_name=split.first_name;last_name=split.last_name;display_name=split.display_name}else display_name=[first_name,last_name].filter(Boolean).join(' ');if(!first_name)return res.status(400).json({error:'A name is required'});if(first_name.length>150||last_name.length>150)return res.status(400).json({error:'Name is too long'});const phone=normalizePhone(body.phone);const type=String(body.type||'visitor').trim().toLowerCase();if(!['member','visitor'].includes(type))return res.status(400).json({error:'Type must be member or visitor'});try{const duplicate=await duplicatePhone(orgId,phone);if(duplicate)return res.status(409).json({error:'That full phone number already belongs to another person.',code:'DUPLICATE_ACTIVE_PERSON',person:duplicate});const person=(await pool.query(`INSERT INTO people(organization_id,first_name,last_name,display_name,phone,email,type,birthday,created_by,living_truth,status,source) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'active','manual') RETURNING *`,[orgId,first_name,last_name,display_name||null,phone,String(body.email||'').trim().toLowerCase()||null,type,body.birthday||null,req.user.id,JSON.stringify({status:'alive',confidence:90,source:'canonical_record',updated_at:new Date().toISOString()})])).rows[0];try{const event=await emitAriaEvent({organizationId:orgId,personId:person.id,type:'PERSON_CREATED',source:'manual',actorId:req.user.id,metadata:{source:'api'},eventKey:`manual:${orgId}:person:${person.id}:created`});if(event)await directAriaEvent(event)}catch(err){console.error('ARIA person creation event failed:',err)}return res.status(201).json(person)}catch(err){console.error('POST person error:',err);return res.status(500).json({error:'Unable to create person.'})}}
+if(req.method==='POST'){
+ const body=req.body||{},rawName=String(body.full_name||'').trim();
+ let first_name=String(body.first_name||'').trim(),last_name=String(body.last_name||'').trim(),display_name='';
+ if(!first_name&&rawName){const split=splitName(rawName);first_name=split.first_name;last_name=split.last_name;display_name=split.display}
+ else display_name=[first_name,last_name].filter(Boolean).join(' ');
+ if(!first_name)return res.status(400).json({error:'A name is required'});
+ if(first_name.length>150||last_name.length>150)return res.status(400).json({error:'Name is too long'});
+ const phone=normalizePhone(body.phone);
+ const type=String(body.type||'visitor').trim().toLowerCase();
+ if(!['member','visitor'].includes(type))return res.status(400).json({error:'Type must be member or visitor'});
+ const email=String(body.email||'').trim().toLowerCase()||null;
+ const birthday=String(body.birthday||'').trim()||null;
+ const rawRequestId=String(body.client_request_id||'').trim().toLowerCase();
+ if(rawRequestId&&!isValidPersonCreateRequestId(rawRequestId))return res.status(400).json({error:'Invalid person creation request ID.',code:'PERSON_CREATE_REQUEST_ID_INVALID'});
+ const requestId=rawRequestId||null;
+ const payloadHash=hashPersonCreatePayload({first_name,last_name,display_name,phone,email,type,birthday});
+ const client=await pool.connect();
+ let person=null,wasReplay=false;
+ try{
+  await client.query('BEGIN');
+  if(requestId)await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",['nyeocare:person-create:'+orgId+':'+requestId]);
+  if(phone)await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",['nyeocare:person-create-phone:'+orgId+':'+phone]);
+  let prior=null;
+  if(requestId){
+   prior=(await client.query(
+    `SELECT r.payload_hash AS request_payload_hash,p.*
+     FROM public.person_create_requests r
+     JOIN public.people p ON p.id=r.person_id AND p.organization_id=r.organization_id
+     WHERE r.organization_id=$1 AND r.client_request_id=$2
+     LIMIT 1 FOR UPDATE OF r,p`,
+    [orgId,requestId]
+   )).rows[0]||null;
+  }
+  if(prior){
+   if(prior.request_payload_hash!==payloadHash){
+    await client.query('ROLLBACK');
+    return res.status(409).json({error:'This retry key was already used for different person details. Review the form and submit again.',code:'PERSON_CREATE_REQUEST_ID_REUSED'});
+   }
+   person={...prior};
+   delete person.request_payload_hash;
+   wasReplay=true;
+  }else{
+   const duplicate=await duplicatePhone(orgId,phone,null,client);
+   if(duplicate){
+    await client.query('ROLLBACK');
+    return res.status(409).json({
+     error:'That full phone number already belongs to another person. Review the existing record before adding a new one.',
+     code:'DUPLICATE_ACTIVE_PERSON',
+     person:duplicate
+    });
+   }
+   person=(await client.query(
+    `INSERT INTO people(organization_id,first_name,last_name,display_name,phone,email,type,birthday,created_by,living_truth,status,source)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'active','manual')
+     RETURNING *`,
+    [orgId,first_name,last_name,display_name||null,phone,email,type,birthday,req.user.id,
+     JSON.stringify({status:'alive',confidence:90,source:'canonical_record',updated_at:new Date().toISOString()})]
+   )).rows[0];
+   if(requestId){
+    await client.query(
+     `INSERT INTO public.person_create_requests(organization_id,client_request_id,payload_hash,person_id,created_by)
+      VALUES($1,$2,$3,$4,$5)`,
+     [orgId,requestId,payloadHash,person.id,req.user.id]
+    );
+   }
+  }
+  await client.query('COMMIT');
+ }catch(err){
+  try{await client.query('ROLLBACK')}catch{}
+  console.error('POST person error:',err);
+  return res.status(500).json({error:'Unable to create person.'});
+ }finally{client.release()}
+ if(wasReplay)return res.status(200).json({...person,created:false,idempotent_replay:true});
+ try{
+  const event=await emitAriaEvent({organizationId:orgId,personId:person.id,type:'PERSON_CREATED',source:'manual',actorId:req.user.id,metadata:{source:'api'},eventKey:`manual:${orgId}:person:${person.id}:created`});
+  if(event)await directAriaEvent(event);
+ }catch(err){console.error('ARIA person creation event failed:',err)}
+ return res.status(201).json({...person,created:true,idempotent_replay:false});
+}
 if(req.method==='PUT'){
  const body=req.body||{},id=String(body.id||'').trim();
  if(!id)return res.status(400).json({error:'id is required'});

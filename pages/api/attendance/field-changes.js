@@ -148,21 +148,9 @@ export default withOrg(async function handler(req, res) {
       attendance = changedMarks.rows;
     }
 
-    const [totals, presentTotal] = await Promise.all([
-      pool.query(
-        `SELECT COUNT(*)::int AS count
-         FROM people
-         WHERE organization_id = $1 AND COALESCE(status,'active') = 'active'`,
-        [orgId]
-      ),
-      pool.query(
-        `SELECT COUNT(*)::int AS count
-         FROM attendance_records
-         WHERE organization_id = $1 AND session_id = $2 AND present = true`,
-        [orgId, sessionId]
-      )
-    ]);
-
+    // The client already holds a verified complete roster and applies the returned
+    // person/attendance deltas. Re-counting full tables on every poll adds load but
+    // does not improve sync correctness.
     return res.status(200).json({
       success: true,
       session_id: sessionId,
@@ -170,8 +158,8 @@ export default withOrg(async function handler(req, res) {
       people,
       removed_people: removedPeople,
       attendance,
-      total: Number(totals.rows[0]?.count) || 0,
-      present_count: Number(presentTotal.rows[0]?.count) || 0
+      total: null,
+      present_count: null
     });
   } catch (error) {
     console.error('[ATTENDANCE] Field changes error:', error);

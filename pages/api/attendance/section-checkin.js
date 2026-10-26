@@ -25,7 +25,7 @@ export default withOrg(async function handler(req,res){
     await client.query('BEGIN');
 
     const session=await client.query(
-      `SELECT id FROM sessions
+      `SELECT id, started_at FROM sessions
        WHERE id=$1 AND organization_id=$2 AND status='active'
        LIMIT 1
        FOR UPDATE`,
@@ -36,6 +36,9 @@ export default withOrg(async function handler(req,res){
       await client.query('ROLLBACK');
       return res.status(403).json({error:'Active session not found in your organization.'});
     }
+
+    // Match individual and offline marks: the event's start date is authoritative.
+    const attendanceDate=new Date(session.rows[0].started_at||Date.now()).toISOString().slice(0,10);
 
     const assignment=await client.query(
       `SELECT 1 FROM session_users
@@ -85,7 +88,7 @@ export default withOrg(async function handler(req,res){
          people_id,attendance_date,present,session_id,session_section_id,
          marked_by,marked_at,status,confirmed,organization_id
        )
-       SELECT v.person_id,CURRENT_DATE,true,$2,$3,$4,NOW(),'present',false,$1
+       SELECT v.person_id,$6::date,true,$2,$3,$4,NOW(),'present',false,$1
        FROM valid v
        ON CONFLICT(organization_id,people_id,session_id)
          WHERE session_id IS NOT NULL
@@ -98,7 +101,7 @@ export default withOrg(async function handler(req,res){
          confirmed=false
        WHERE attendance_records.confirmed=false
        RETURNING people_id`,
-      [orgId,session_id,section.rows[0].id,userId,peopleIds]
+      [orgId,session_id,section.rows[0].id,userId,peopleIds,attendanceDate]
     );
 
     const validCount=await client.query(

@@ -14,8 +14,7 @@ if(historical&&!['owner','admin'].includes(req.user.role))return res.status(403)
 const orgId=req.org.id,userId=req.user.id,client=await pool.connect();
 try{
 await client.query('BEGIN');
-// Shared locking keeps the event status stable while allowing workers to mark different people concurrently.
-const session=await client.query(`SELECT s.id,s.name,s.status,s.started_at,COALESCE(NULLIF(o.settings->>'timezone',''),'Africa/Lagos') AS organization_timezone FROM sessions s JOIN organizations o ON o.id=s.organization_id WHERE s.id=$1 AND s.organization_id=$2 LIMIT 1 FOR SHARE OF s`,[session_id,orgId]);
+const session=await client.query(`SELECT s.id,s.name,s.status,s.started_at,COALESCE(NULLIF(o.settings->>'timezone',''),'Africa/Lagos') AS organization_timezone FROM sessions s JOIN organizations o ON o.id=s.organization_id WHERE s.id=$1 AND s.organization_id=$2 LIMIT 1 FOR UPDATE OF s`,[session_id,orgId]);
 if(!session.rows.length){await client.query('ROLLBACK');return res.status(404).json({error:'Attendance session not found.'})}
 const person=await client.query(`SELECT id,first_name,last_name FROM people WHERE id=$1 AND organization_id=$2 AND COALESCE(status,'active')='active' LIMIT 1`,[people_id,orgId]);
 if(!person.rows.length){await client.query('ROLLBACK');return res.status(404).json({error:'Person not found in your organization.'})}

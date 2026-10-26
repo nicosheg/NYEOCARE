@@ -5,12 +5,14 @@
 import pool from '../../../lib/db';
 import { withOrg } from '../../../lib/apiHelpers';
 import { eventAttendanceDate } from '../../../lib/attendance/eventDate';
+import { isOrganizationOperator } from '../../../lib/attendance/access';
 
 export default withOrg(async function handler(req,res){
   if(req.method!=='POST'){
     res.setHeader('Allow','POST');
     return res.status(405).json({error:'Method not allowed'});
   }
+  if(!isOrganizationOperator(req.user?.role))return res.status(403).json({error:'Only authorized organization operators can submit attendance.'});
 
   const{session_id,section_name,present_ids}=req.body||{};
   if(!session_id||!section_name||!Array.isArray(present_ids)){

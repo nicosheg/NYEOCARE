@@ -3,6 +3,7 @@
 // This is a polling fallback for Realtime; the server/database remains canonical.
 import pool from '../../../lib/db';
 import { withOrg } from '../../../lib/apiHelpers';
+import { isOrganizationOperator } from '../../../lib/attendance/access';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const OVERLAP_MS = 60000;
@@ -11,6 +12,9 @@ export default withOrg(async function handler(req, res) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     return res.status(405).json({ error: 'Method not allowed.' });
+  }
+  if (!isOrganizationOperator(req.user?.role)) {
+    return res.status(403).json({ error: 'Attendance access is limited to authorized organization operators.' });
   }
 
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');

@@ -7,6 +7,9 @@ import{supabase}from'../lib/supabaseClient';import AriaProcessingStatus from'./A
 import{getFieldSession,getFieldPeople,isFieldRosterSnapshotComplete,saveFieldSession,saveFieldPeople,enqueueFieldMutation,removeFieldMutation,getFieldPendingCount,getPendingFieldMutations,getUnattributedPendingFieldMutationCount,removeFieldPerson,localRosterSearch,clearFieldSession,syncFieldMode}from'../lib/attendanceFieldMode';
 import{measurePerformance}from'../lib/performanceTelemetry';
 
+const FAST_SYNC_FALLBACK_MS=2500;
+const SLOW_SYNC_FALLBACK_MS=5000;
+const ACTIVE_SESSION_DISCOVERY_INTERVAL_MS=5000;
 const ATTENDANCE_REQUEST_TIMEOUT_MS=12000;
 const ATTENDANCE_LOAD_TIMEOUT_MS=5000;
 const ATTENDANCE_AUTH_TIMEOUT_MS=5000;
@@ -91,6 +94,7 @@ export default function AttendanceModal({isOpen,onClose}){
   const fieldRosterWarmInProgress=useRef(false);
   const queryRef=useRef(query);
   const fieldPolling=useRef(false);
+  const realtimeConnected=useRef(false);
   const onCloseRef=useRef(onClose);
   useEffect(()=>{onCloseRef.current=onClose},[onClose]);
   useEffect(()=>{fieldRosterRef.current=fieldRoster},[fieldRoster]);
@@ -315,7 +319,10 @@ export default function AttendanceModal({isOpen,onClose}){
         headers:{Authorization:'Bearer '+auth.access_token},cache:'no-store'
       },ATTENDANCE_LOAD_TIMEOUT_MS);
       const data=await response.json().catch(()=>({}));
-      if(!response.ok||data.success!==true||!data.cursor)return;
+      if(!response.ok||data.success!==true||!data.cursor){
+        if(response.status===409&&typeof window!=='undefined')window.dispatchEvent(new CustomEvent('nyeocare:attendance-session-stale',{detail:{sessionId}}));
+        return;
+      }
       if(fieldCursor.current.sessionId!==sessionId||pollEpoch!==fieldRosterEpoch.current||fieldRosterWarmInProgress.current)return;
       if(fieldSnapshotSessionId.current!==sessionId)return;
 
@@ -374,7 +381,7 @@ export default function AttendanceModal({isOpen,onClose}){
       fieldRosterRef.current=nextRoster;
       setFieldRoster(nextRoster);
       setPeople(localRosterSearch(nextRoster,queryRef.current,80));
-      setTotal(Number(data.total)||nextRoster.length);
+      setTotal(nextRoster.length);
       setPresent(nextRoster.filter(person=>person.marked===true).length);
       if(nextRoster.length)setFieldReady(true);
       if(persist.size)void saveFieldPeople(sessionId,auth.user?.id,[...persist.values()]).catch(()=>{});
@@ -587,7 +594,7 @@ export default function AttendanceModal({isOpen,onClose}){
     if(!isOpen||session?.session_id)return;
     let cancelled=false;
     const poll=()=>{if(!cancelled&&document.visibilityState==='visible')void load({showLoading:false})};
-    const timer=window.setInterval(poll,12000);
+    const timer=window.setInterval(poll,ACTIVE_SESSION_DISCOVERY_INTERVAL_MS);
     return()=>{cancelled=true;window.clearInterval(timer)};
   },[isOpen,session?.session_id,load]);
 
@@ -626,6 +633,16 @@ export default function AttendanceModal({isOpen,onClose}){
       await refreshFieldPending(live.session_id);
     }catch{}
   },[isOpen,session?.session_id,refreshFieldPending]);
+
+  useEffect(()=>{
+    if(!isOpen)return;
+    const onStale=e=>{
+      if(String(e?.detail?.sessionId||'')!==String(session?.session_id||''))return;
+      void refreshSessionState();
+    };
+    window.addEventListener('nyeocare:attendance-session-stale',onStale);
+    return()=>window.removeEventListener('nyeocare:attendance-session-stale',onStale);
+  },[isOpen,session?.session_id,refreshSessionState]);
 
   useEffect(()=>{
     if(!isOpen)return;
@@ -675,18 +692,27 @@ export default function AttendanceModal({isOpen,onClose}){
 
   useEffect(()=>{
     if(!isOpen||session?.status!=='active'||!session?.session_id)return;
-    let stopped=false;
+    let stopped=false,timer=null;
     const run=()=>{
       if(!stopped&&document.visibilityState==='visible')void pollFieldChanges();
     };
-    const onVisible=()=>{if(document.visibilityState==='visible')run()};
-    const timer=window.setInterval(run,12000);
+    const schedule=()=>{
+      if(stopped)return;
+      if(timer)window.clearTimeout(timer);
+      const delay=realtimeConnected.current?SLOW_SYNC_FALLBACK_MS:FAST_SYNC_FALLBACK_MS;
+      timer=window.setTimeout(async()=>{
+        if(!stopped&&document.visibilityState==='visible')await pollFieldChanges();
+        schedule();
+      },delay);
+    };
+    const onVisible=()=>{if(document.visibilityState==='visible'){run();schedule()}};
+    run();
+    schedule();
     window.addEventListener('online',run);
     document.addEventListener('visibilitychange',onVisible);
-    run();
     return()=>{
       stopped=true;
-      window.clearInterval(timer);
+      if(timer)window.clearTimeout(timer);
       window.removeEventListener('online',run);
       document.removeEventListener('visibilitychange',onVisible);
     };
@@ -718,6 +744,8 @@ export default function AttendanceModal({isOpen,onClose}){
         }));
       }).catch(()=>{});
     };
+    realtimeConnected.current=false;
+    const runFallbackSync=()=>{if(!stopped&&document.visibilityState==='visible')void pollFieldChanges()};
     getClientSession().then(s=>{
       if(!s||stopped)return;
       const sessionId=String(session.session_id);
@@ -726,10 +754,21 @@ export default function AttendanceModal({isOpen,onClose}){
         .on('postgres_changes',{event:'INSERT',schema:'public',table:'attendance_records',filter:'session_id=eq.'+sessionId},payload=>applyAttendanceRow(payload.new,false))
         .on('postgres_changes',{event:'UPDATE',schema:'public',table:'attendance_records',filter:'session_id=eq.'+sessionId},payload=>applyAttendanceRow(payload.new,false))
         .on('postgres_changes',{event:'DELETE',schema:'public',table:'attendance_records',filter:'session_id=eq.'+sessionId},payload=>applyAttendanceRow(payload.old,true))
-        .subscribe();
-    }).catch(()=>{});
-    return()=>{stopped=true;if(channel)supabase.removeChannel(channel)};
-  },[isOpen,session?.session_id,refreshSessionState]);
+        .subscribe(status=>{
+          realtimeConnected.current=status==='SUBSCRIBED';
+          if(stopped)return;
+          if(status==='SUBSCRIBED'){
+            // Reconcile the canonical state immediately after the socket is live.
+            void refreshSessionState();
+            void pollFieldChanges();
+          }else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'||status==='CLOSED'){
+            // Keep the fast server-backed fallback when Realtime is unavailable.
+            runFallbackSync();
+          }
+        });
+    }).catch(()=>{realtimeConnected.current=false});
+    return()=>{stopped=true;realtimeConnected.current=false;if(channel)supabase.removeChannel(channel)};
+  },[isOpen,session?.session_id,refreshSessionState,pollFieldChanges]);
 
   const createSession=async()=>{
     const name=sessionName.trim();

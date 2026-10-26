@@ -9,8 +9,7 @@ import{measurePerformance}from'../lib/performanceTelemetry';
 
 const FAST_SYNC_FALLBACK_MS=2500;
 const SLOW_SYNC_FALLBACK_MS=5000;
-const SESSION_REFRESH_INTERVAL_MS=5000;
-const ACTIVE_SESSION_DISCOVERY_INTERVAL_MS=5000;
+remove session polling constantconst ACTIVE_SESSION_DISCOVERY_INTERVAL_MS=5000;
 const ATTENDANCE_REQUEST_TIMEOUT_MS=12000;
 const ATTENDANCE_LOAD_TIMEOUT_MS=5000;
 const ATTENDANCE_AUTH_TIMEOUT_MS=5000;
@@ -320,7 +319,10 @@ export default function AttendanceModal({isOpen,onClose}){
         headers:{Authorization:'Bearer '+auth.access_token},cache:'no-store'
       },ATTENDANCE_LOAD_TIMEOUT_MS);
       const data=await response.json().catch(()=>({}));
-      if(!response.ok||data.success!==true||!data.cursor)return;
+      if(!response.ok||data.success!==true||!data.cursor){
+        if(response.status===409&&typeof window!=='undefined')window.dispatchEvent(new CustomEvent('nyeocare:attendance-session-stale',{detail:{sessionId}}));
+        return;
+      }
       if(fieldCursor.current.sessionId!==sessionId||pollEpoch!==fieldRosterEpoch.current||fieldRosterWarmInProgress.current)return;
       if(fieldSnapshotSessionId.current!==sessionId)return;
 
@@ -634,6 +636,16 @@ export default function AttendanceModal({isOpen,onClose}){
 
   useEffect(()=>{
     if(!isOpen)return;
+    const onStale=e=>{
+      if(String(e?.detail?.sessionId||'')!==String(session?.session_id||''))return;
+      void refreshSessionState();
+    };
+    window.addEventListener('nyeocare:attendance-session-stale',onStale);
+    return()=>window.removeEventListener('nyeocare:attendance-session-stale',onStale);
+  },[isOpen,session?.session_id,refreshSessionState]);
+
+  useEffect(()=>{
+    if(!isOpen)return;
     const onSync=e=>{
       if(!session?.session_id)return;
       refreshFieldPending(session.session_id).catch(()=>{});
@@ -652,17 +664,10 @@ export default function AttendanceModal({isOpen,onClose}){
   useEffect(()=>{
     if(!isOpen)return;
     let cancelled=false;
-    const run=()=>{if(!cancelled&&document.visibilityState==='visible')void refreshSessionState()};
-    const onVisible=()=>{if(document.visibilityState==='visible')run()};
-    const timer=window.setInterval(run,SESSION_REFRESH_INTERVAL_MS);
-    window.addEventListener('online',run);
-    document.addEventListener('visibilitychange',onVisible);
-    return()=>{
-      cancelled=true;
-      window.clearInterval(timer);
-      window.removeEventListener('online',run);
-      document.removeEventListener('visibilitychange',onVisible);
-    };
+    const timer=window.setInterval(()=>{
+      if(!cancelled&&document.visibilityState==='visible')refreshSessionState();
+    },30000);
+    return()=>{cancelled=true;window.clearInterval(timer)};
   },[isOpen,refreshSessionState]);
 
   useEffect(()=>{

@@ -46,8 +46,8 @@ export default withOrg(async function handler(req, res) {
     await client.query("SELECT pg_advisory_xact_lock(hashtextextended('nyeocare:daily-queue:'||$1,0))", [req.org.id]);
 
     const lookup = await client.query(
-      `SELECT q.id queue_item_id,q.status queue_status,q.task_kind,q.source_id,
-              a.id action_id,a.person_id,a.status action_status,a.action_metadata,
+      `SELECT q.id queue_item_id,q.status queue_status,q.task_kind,q.source_id,q.payload queue_payload,
+              a.id action_id,a.person_id,a.status action_status,a.action_metadata,a.outcome action_outcome,
               p.display_name,p.first_name,p.last_name
        FROM aria_daily_queue_items q
        JOIN aria_actions a ON a.id::text=q.source_id AND a.organization_id=q.organization_id
@@ -57,9 +57,22 @@ export default withOrg(async function handler(req, res) {
       [queueItemId, req.org.id, req.user.id]
     );
     const row = lookup.rows[0];
-    if (!row || !['pending', 'deferred'].includes(row.queue_status)) {
+    if (!row) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'This follow-up is no longer assigned to you.' });
+    }
+    if (row.queue_status === 'completed' && row.action_status === 'executed') {
+      const saved = row.queue_payload?.follow_up_outcome || row.action_outcome || {};
+      const savedResult = saved.result || saved.outcome || null;
+      await client.query('ROLLBACK');
+      if (savedResult === outcome) {
+        return res.status(200).json({ success: true, completed: true, already_completed: true, outcome, first_visit_required: saved.required_first_visit_follow_up === true, feedback_id: saved.feedback_id || null, communication_id: saved.communication_id || null });
+      }
+      return res.status(409).json({ error: 'This follow-up already has a recorded outcome. Refresh ARIA Today before making another change.', completed: true, recorded_outcome: savedResult });
+    }
+    if (!['pending', 'deferred'].includes(row.queue_status)) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'This follow-up is no longer open. Refresh ARIA Today to see its current status.' });
     }
     const firstVisitRequired = row.action_metadata?.first_visit_required === true;
     const routineKinds = new Set([
@@ -232,6 +245,8 @@ export default withOrg(async function handler(req, res) {
       result: outcome,
       label: option.label,
       note,
+      feedback_id: feedback.id,
+      communication_id: communication?.id || null,
       completed_by: req.user.id,
       completed_at: new Date().toISOString()
     };

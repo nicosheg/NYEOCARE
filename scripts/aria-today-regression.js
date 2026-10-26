@@ -5,7 +5,10 @@ const failures=[];
 const expect=(condition,message)=>{if(!condition)failures.push(message)};
 
 const queue=read('lib/dailyQueue.js');
+const attendanceProcessor=read('lib/aria/attendanceProcessor.js');
 const home=read('pages/api/home/bootstrap.js');
+const dailyBriefingApi=read('pages/api/daily-briefing/latest.js');
+const briefingProjection=read('lib/aria/briefingProjection.js');
 const index=read('pages/index.js');
 const layout=read('components/Layout.js');
 const navigationBack=read('components/NavigationBack.js');
@@ -28,18 +31,19 @@ const clientDiagnostics=read('components/ClientDiagnostics.js');
 const peopleMutationEngine=read('lib/aria/peopleMutationEngine.js');
 
 expect(queue.includes("m?.kind==='attendance_absence_check_in'||m?.kind==='returned_after_absence'?'follow_up':'action'"),'Attendance absence actions must be canonical follow-up queue items.');
-expect(queue.includes("task_kind:first?'follow_up':'action'"),'UNUSUAL_ABSENCE observations must be canonical follow-up queue items.');
+expect(!queue.includes("task_kind:first?'follow_up':'action'")&&attendanceProcessor.includes("'kind','care_first_check_in'")&&attendanceProcessor.includes("'kind','returned_after_absence'"),'Attendance-derived work must be persisted as canonical aria_actions before it reaches the operator queue; raw observations alone are not executable proposals.');
 expect(queue.includes("AND (a.person_id IS NULL OR p.status='active')"),'Home actions must exclude archived or missing people records.');
-expect(queue.includes("AND (o.person_id IS NULL OR p.status='active')"),'Home observations must exclude archived or missing people records.');
+expect(!queue.includes("AND (o.person_id IS NULL OR p.status='active')"),'The operator queue must not project raw observations, including observations linked to archived/missing people, as executable tasks.');
 expect(queue.includes("WHERE organization_id=$1 AND status IN('pending','deferred')"),'Queue reconciliation must include overdue work.');
 expect(queue.includes('const overdueRows=[...existingByKey.values()]'),'Overdue queue items must be rescheduled rather than hidden by the unique key.');
 expect(queue.includes("status='pending',updated_at=NOW()"),'Overdue deferred queue items must become actionable again.');
-expect(queue.includes("welcome?'Draft welcome':'Review action'"),'New-person welcome actions must not be mislabeled as generic action reviews.');
+expect(queue.includes("action:{type:'care',label:explanation.action_label}")&&queue.includes("import { explainAriaAction } from './aria/actionExplainability'"),'ARIA Today actions must use the shared evidence-first explainer and its contextual action labels.');
 expect(home.includes("getDailyQueue(orgId,req.user.id)"),'Home must consume the canonical Daily Queue.');
-expect(home.includes("consolidateDuplicateWelcomeItems(queueItems,dailyQueue.candidateItems||queueItems)"),'Same-name welcome tasks must be summarized using current and later queue candidates.');
-expect(queue.includes("candidateItems:sourceItems||[]"),'Home must receive all open candidates so duplicate warnings do not depend on which item is scheduled for today.');
-expect(home.includes("kind:'possible_duplicate_identity'"),'Duplicate identity warning must explain that merging requires human confirmation.');
+expect(home.includes("projectCanonicalBriefingItems(dailyQueue,directorData)")&&dailyBriefingApi.includes("projectCanonicalBriefingItems(queue,directorBriefing)")&&briefingProjection.includes("export function projectCanonicalBriefingItems")&&briefingProjection.includes("candidateItems")&&briefingProjection.includes("possible_duplicate_identity"),'Home and the Daily Briefing API must use one canonical projection for current queue work, future candidates and duplicate identity warnings.');
+expect(queue.includes("const identityCandidates=sourceItems.filter")&&queue.includes("candidateItems:identityCandidates")&&queue.includes("identityCandidateIds"),'Duplicate warnings must consider the complete current/future source set, while passing only identity-relevant candidates to the shared projection.');
+expect(briefingProjection.includes("kind: 'possible_duplicate_identity'")&&briefingProjection.includes('NYEOCARE has not merged them')&&briefingProjection.includes('merge only if the evidence supports the same identity'),'Duplicate identity warning must be canonical and must never auto-merge records.');
 expect(index.includes("item?.task_kind==='identity_review'"),'Daily briefing must group duplicate warnings as identity review.');
+expect(home.includes("identity:top.filter")&&home.includes("message:top.filter")&&dailyBriefingApi.includes("identity:items.filter")&&dailyBriefingApi.includes("message:items.filter"),'Home and the Daily Briefing API must expose identity reviews and private messages as distinct categories rather than silently classifying them as care actions.');
 expect(!index.includes("const handleBriefAction=item=>{setBriefOpen(false)"),'Opening Review Center or item detail must preserve the current briefing behind it.');
 
 expect(app.includes('<NavigationBack/>')&&!layout.includes('NavigationBack'),'Shared navigation must mount once at app level across every screen.');

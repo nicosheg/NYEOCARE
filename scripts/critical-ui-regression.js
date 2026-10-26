@@ -60,6 +60,7 @@ const intelligence=read('lib/aria/attendanceIntelligence.js');
 const director=read('lib/aria/director.js');
 const eventProcessor=read('lib/aria/eventProcessor.js');
 const briefing=read('pages/api/daily-briefing/latest.js');
+const briefingProjection=read('lib/aria/briefingProjection.js');
 const dailyQueue=read('lib/dailyQueue.js');
 const dailyQueueDefer=read('pages/api/daily-queue/defer.js');
 const dailyQueueMigration=read('supabase/migrations/20260927060000_add_aria_daily_queue.sql');
@@ -116,7 +117,7 @@ const checks=[
  ['Home keeps the daily briefing mounted behind action detail',
   !home.includes("const handleBriefAction=item=>{setBriefOpen(false)")&&/setSelected\(item\)/.test(home)],
  ['Daily briefing explains same-name duplicate records without auto-merging them',
-  /consolidateDuplicateWelcomeItems\(queueItems,dailyQueue\.candidateItems\|\|queueItems\)/.test(homeBootstrap)&&/possible_duplicate_identity/.test(homeBootstrap)&&/name alone cannot prove they are the same person/.test(homeBootstrap)],
+  /projectCanonicalBriefingItems\(dailyQueue,directorData\)/.test(homeBootstrap)&&/projectCanonicalBriefingItems\(queue,directorBriefing\)/.test(briefing)&&/export function projectCanonicalBriefingItems/.test(briefingProjection)&&/possible_duplicate_identity/.test(briefingProjection)&&/name evidence cannot prove/.test(briefingProjection)],
  ['Home shows ARIA progress as background state',
   /aria_processing/.test(homeBootstrap)&&/AriaProcessingStatus/.test(home)&&/ariaAttendance/.test(home)],
  ['Home has no attendance retry action',

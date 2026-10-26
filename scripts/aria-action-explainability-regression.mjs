@@ -168,8 +168,10 @@ assert.equal(requiredFirstVisit.source_label, 'Attendance record');
 assert.equal(requiredFirstVisit.recorded_at, '2026-10-25T10:00:00.000Z', 'Use the source session timestamp, not the later action creation time.');
 assert.equal(requiredFirstVisit.action_label, 'Record outcome');
 
-assert.match(queueSource, /COALESCE\(o\.attention_score,0\)>60/);
-assert.match(queueSource, /UPPER\(o\.type\)='UNUSUAL_ABSENCE'/);
+assert.doesNotMatch(queueSource, /SELECT o\.id,o\.person_id,o\.type[\s\S]*?FROM aria_observations/,
+  'Raw observations remain ARIA evidence; they must not be projected as operator work without a durable proposal.');
+assert.doesNotMatch(queueSource, /for\(const o of observations\.rows\)/,
+  'Every operator task must be backed by a durable action/queue source, not an unfinishable observation-only fallback.');
 assert.match(queueSource, /UPPER\(o\.type\)<>'NEW_PERSON'/);
 assert.doesNotMatch(queueSource, /const needsContextReview|requires_context_review:needsContextReview/);
 assert.match(queueSource, /COALESCE\(a\.action_metadata->>'kind',''\)\s*<>\s*'scan_review_required'/);

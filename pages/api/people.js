@@ -118,7 +118,9 @@ if(req.method==='GET'){
   }
   const next_cursor=hasMore&&last?Buffer.from(JSON.stringify({new_rank:last.new_rank,truth_rank:last.truth_rank,sort_name:last.sort_name,id:last.id})).toString('base64url'):null;
   return res.status(200).json({items,next_cursor,has_more:hasMore,total_count,limit,search,type,living_truth:living});
- }catch(erif(req.method==='POST'){
+ }catch(err){console.error('GET people error:',err);return res.status(500).json({error:'Unable to load people.'})}
+}
+if(req.method==='POST'){
  const body=req.body||{},rawName=String(body.full_name||'').trim();
  let first_name=String(body.first_name||'').trim(),last_name=String(body.last_name||'').trim(),display_name='';
  if(!first_name&&rawName){const split=splitName(rawName);first_name=split.first_name;last_name=split.last_name;display_name=split.display}
@@ -215,7 +217,6 @@ if(req.method==='GET'){
  }catch(err){console.error('ARIA person creation event failed:',err)}
  return res.status(201).json({...person,created:true,idempotent_replay:false});
 }
-{console.error('POST person error:',err);return res.status(500).json({error:'Unable to create person.'})}}
 if(req.method==='PUT'){
  const body=req.body||{},id=String(body.id||'').trim();
  if(!id)return res.status(400).json({error:'id is required'});

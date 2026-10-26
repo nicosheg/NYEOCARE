@@ -4,16 +4,36 @@
 
 import pool from '../../../lib/db';
 import { withOrg } from '../../../lib/apiHelpers';
+import { isOrganizationOperator, isOrganizationAdmin } from '../../../lib/attendance/access';
 
 async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).end();
   }
 
-  const { q } = req.query;
+  const { q, session_id } = req.query;
   const orgId = req.org.id;
+  if (!isOrganizationOperator(req.user?.role)) {
+    return res.status(403).json({ error: 'Attendance access is limited to authorized organization operators.' });
+  }
+  if (!session_id) {
+    return res.status(400).json({ error: 'session_id is required.' });
+  }
 
   try {
+    const sessionAccess = await pool.query(
+      `SELECT 1 FROM sessions s
+       WHERE s.id=$1 AND s.organization_id=$2 AND s.status='active'
+         AND ($3::boolean OR EXISTS(
+           SELECT 1 FROM session_users su WHERE su.session_id=s.id AND su.user_id=$4
+         ))
+       LIMIT 1`,
+      [session_id, orgId, isOrganizationAdmin(req.user?.role), req.user.id]
+    );
+    if (!sessionAccess.rows.length) {
+      return res.status(403).json({ error: 'Join this attendance session before searching its people.' });
+    }
+
     let people = [];
 
     if (typeof q === 'string' && q.trim()) {

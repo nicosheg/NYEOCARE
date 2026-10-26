@@ -3,6 +3,7 @@
 // request_id makes retries safe when a weak connection loses the response after commit.
 import pool from '../../../lib/db';
 import { withOrg } from '../../../lib/apiHelpers';
+import { isOrganizationOperator } from '../../../lib/attendance/access';
 import { normalizePhone } from '../../../lib/phoneUtils';
 import { normalizeDisplayName } from '../../../lib/scanValidation';
 import { emitAriaEvent } from '../../../lib/aria/eventEmitter';
@@ -12,6 +13,9 @@ const UUID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a
 const REQUEST_ID_RE=/^[A-Za-z0-9_-]{20,80}$/;
 
 export default withOrg(async function handler(req,res){
+  if (!isOrganizationOperator(req.user?.role)) {
+    return res.status(403).json({ error: 'Only authorized organization operators can add people during attendance.' });
+  }
   if(req.method!=='POST'){
     res.setHeader('Allow','POST');
     return res.status(405).json({error:'Method not allowed'});

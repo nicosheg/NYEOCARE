@@ -177,7 +177,7 @@ SELECT
    SELECT * FROM care_feedback WHERE organization_id=$1 AND person_id=$2 ORDER BY observed_at DESC,created_at DESC LIMIT 50
  )x),'[]'::json) AS feedback,
  COALESCE((SELECT json_agg(x) FROM(
-   SELECT * FROM aria_events WHERE organization_id=$1 AND person_id IN(SELECT person_id FROM merged_lineage) ORDER BY occurred_at DESC,created_at DESC LIMIT 100
+   SELECT e.* FROM aria_events e WHERE e.organization_id=$1 AND e.person_id IN(SELECT person_id FROM merged_lineage) AND e.type<>'ATTENDANCE_SESSION_RESET' AND NOT (e.source='attendance' AND COALESCE(e.metadata->>'session_id',e.metadata #>> '{memory,value,session_id}') IS NOT NULL AND EXISTS(SELECT 1 FROM aria_events session_reset WHERE session_reset.organization_id=e.organization_id AND session_reset.type='ATTENDANCE_SESSION_RESET' AND session_reset.source='manual' AND session_reset.metadata->>'session_id'=COALESCE(e.metadata->>'session_id',e.metadata #>> '{memory,value,session_id}'))) ORDER BY e.occurred_at DESC,e.created_at DESC LIMIT 100
  )x),'[]'::json) AS aria_events
 FROM person
 `,[orgId,id])).rows[0];

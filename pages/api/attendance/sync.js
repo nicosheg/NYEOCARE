@@ -2,6 +2,7 @@
 import pool from '../../../lib/db';
 import { withOrg } from '../../../lib/apiHelpers';
 import { eventAttendanceDate } from '../../../lib/attendance/eventDate';
+import { isOrganizationOperator } from '../../../lib/attendance/access';
 import { enqueueAttendanceProcessing } from '../../../lib/aria/attendanceQueue';
 
 const MAX_OPERATIONS = 100;
@@ -10,6 +11,9 @@ export default withOrg(async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'Method not allowed.' });
+  }
+  if (!isOrganizationOperator(req.user?.role)) {
+    return res.status(403).json({ error: 'Only authorized organization operators can sync attendance.' });
   }
 
   const { session_id, operations } = req.body || {};

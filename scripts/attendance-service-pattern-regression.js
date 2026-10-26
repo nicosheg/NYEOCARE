@@ -49,6 +49,16 @@ for (const [label, source] of [
     label + ' must not derive an event calendar date by slicing the UTC timestamp.');
 }
 
+const sessionLockAt = attendanceMark.indexOf('FOR SHARE OF s');
+const personEventLockAt = attendanceMark.indexOf('nyeocare:attendance-mark:');
+const existingAttendanceReadAt = attendanceMark.indexOf('SELECT id,confirmed,present FROM attendance_records');
+assert.ok(sessionLockAt >= 0 && sessionLockAt < personEventLockAt && personEventLockAt < existingAttendanceReadAt,
+  'attendance must stabilize session state, lock the person/event pair, then read canonical attendance');
+assert.ok(attendanceMark.includes('pg_advisory_xact_lock(hashtextextended($1,0))'),
+  'same-person attendance updates must serialize while different people are marked concurrently');
+assert.doesNotMatch(attendanceMark, /LIMIT 1 FOR UPDATE OF s/,
+  'independent live marks must not contend on an exclusive session-row lock');
+
 assert.ok(createSession.includes("[orgId,name.trim(),service_type||null,userId,event_kind||'service'"),
   'attendance session creation must persist service_type and started_by in their correct positions instead of grouping services by creator UUID');
 

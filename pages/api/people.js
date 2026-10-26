@@ -8,7 +8,7 @@ import{emitAriaEvent}from'../../lib/aria/eventEmitter';
 import{directAriaEvent}from'../../lib/aria/director';
 const splitName=value=>{const n=normalizeDisplayName(value),parts=n.core.split(/\s+/).filter(Boolean);return{first_name:parts.shift()||'',last_name:parts.join(' '),display_name:n.display}}
 async function duplicatePhone(orgId,phone,excludeId=null){if(!phone)return null;const q=await pool.query(`SELECT id,display_name,phone FROM people WHERE organization_id=$1 AND status='active' AND living_truth->>'status' NOT IN ('needs_decision','conflict') AND id<>COALESCE($2::uuid,'00000000-0000-0000-0000-000000000000') AND (phone=$3 OR EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(phone_numbers,'[]'::jsonb)) v WHERE v->>'normalized'=$3)) LIMIT 1`,[orgId,excludeId,phone]);return q.rows[0]||null}
-async function handler(req,res){const orgId=req.org.id;if(req.method!=='GET'&&!['owner','admin'].includes(req.user.role))return res.status(403).json({error:'Admin permissions required'});
+async function handler(req,res){const orgId=req.org.id;const role=String(req.user?.role||'').trim().toLowerCase();const adminRoles=['owner','admin'];const personCreatorRoles=['owner','admin','leader','worker'];if(req.method==='POST'&&!personCreatorRoles.includes(role))return res.status(403).json({error:'You do not have permission to add people to this organization.'});if(req.method==='PUT'&&!adminRoles.includes(role))return res.status(403).json({error:'Admin permissions required'});
 if(req.method==='GET'){
  try{
   const limit=Math.min(Math.max(Number.parseInt(req.query?.limit,10)||50,1),80);

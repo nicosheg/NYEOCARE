@@ -1,6 +1,7 @@
 // pages/api/attendance/sync.js
 import pool from '../../../lib/db';
 import { withOrg } from '../../../lib/apiHelpers';
+import { eventAttendanceDate } from '../../../lib/attendance/eventDate';
 import { enqueueAttendanceProcessing } from '../../../lib/aria/attendanceQueue';
 
 const MAX_OPERATIONS = 100;
@@ -48,10 +49,12 @@ export default withOrg(async function handler(req, res) {
   try {
     await client.query('BEGIN');
     const session = (await client.query(
-      `SELECT id, started_at, status, aria_processing_status, closed_by
-       FROM sessions
-       WHERE id = $1 AND organization_id = $2
-       LIMIT 1 FOR UPDATE`,
+      `SELECT s.id, s.started_at, s.status, s.aria_processing_status, s.closed_by,
+              COALESCE(NULLIF(o.settings->>'timezone',''),'Africa/Lagos') AS organization_timezone
+       FROM sessions s
+       JOIN organizations o ON o.id = s.organization_id
+       WHERE s.id = $1 AND s.organization_id = $2
+       LIMIT 1 FOR UPDATE OF s`,
       [session_id, orgId]
     )).rows[0];
 
@@ -85,7 +88,7 @@ export default withOrg(async function handler(req, res) {
     const ignored = ids.filter(id => !validSet.has(id));
     const ops = [...deduped.values()].filter(operation => validSet.has(operation.people_id));
     const payload = JSON.stringify(ops);
-    const date = new Date(session.started_at || Date.now()).toISOString().slice(0, 10);
+    const date = eventAttendanceDate(session.started_at, session.organization_timezone);
     const confirmed = session.status === 'closed' && isAdmin;
     let writes = [];
 

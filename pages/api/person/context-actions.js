@@ -1,9 +1,11 @@
 // pages/api/person/context-actions.js
 import pool from'../../../lib/db';
 import{withOrg}from'../../../lib/apiHelpers';
+import{isOrganizationOperator}from'../../../lib/attendance/access';
 
 export default withOrg(async function handler(req,res){
 if(req.method!=='GET')return res.status(405).json({error:'Method not allowed'});
+if(!isOrganizationOperator(req.user?.role))return res.status(403).json({error:'Person care context is limited to authorized organization operators.'});
 const personId=String(req.query.person_id||'');
 if(!personId)return res.status(400).json({error:'Missing person_id'});
 const orgId=req.org.id;

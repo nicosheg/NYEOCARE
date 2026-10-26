@@ -4,12 +4,15 @@
 
 import pool from '../../../lib/db';
 import { withOrg } from '../../../lib/apiHelpers';
+import { eventAttendanceDate } from '../../../lib/attendance/eventDate';
+import { isOrganizationOperator } from '../../../lib/attendance/access';
 
 export default withOrg(async function handler(req,res){
   if(req.method!=='POST'){
     res.setHeader('Allow','POST');
     return res.status(405).json({error:'Method not allowed'});
   }
+  if(!isOrganizationOperator(req.user?.role))return res.status(403).json({error:'Only authorized organization operators can submit attendance.'});
 
   const{session_id,section_name,present_ids}=req.body||{};
   if(!session_id||!section_name||!Array.isArray(present_ids)){
@@ -25,10 +28,12 @@ export default withOrg(async function handler(req,res){
     await client.query('BEGIN');
 
     const session=await client.query(
-      `SELECT id FROM sessions
-       WHERE id=$1 AND organization_id=$2 AND status='active'
+      `SELECT s.id, s.started_at, COALESCE(NULLIF(o.settings->>'timezone',''),'Africa/Lagos') AS organization_timezone
+       FROM sessions s
+       JOIN organizations o ON o.id=s.organization_id
+       WHERE s.id=$1 AND s.organization_id=$2 AND s.status='active'
        LIMIT 1
-       FOR UPDATE`,
+       FOR UPDATE OF s`,
       [session_id,orgId]
     );
 
@@ -36,6 +41,9 @@ export default withOrg(async function handler(req,res){
       await client.query('ROLLBACK');
       return res.status(403).json({error:'Active session not found in your organization.'});
     }
+
+    // Match individual and offline marks: the event's start date is authoritative.
+    const attendanceDate=eventAttendanceDate(session.rows[0].started_at,session.rows[0].organization_timezone);
 
     const assignment=await client.query(
       `SELECT 1 FROM session_users
@@ -85,7 +93,7 @@ export default withOrg(async function handler(req,res){
          people_id,attendance_date,present,session_id,session_section_id,
          marked_by,marked_at,status,confirmed,organization_id
        )
-       SELECT v.person_id,CURRENT_DATE,true,$2,$3,$4,NOW(),'present',false,$1
+       SELECT v.person_id,$6::date,true,$2,$3,$4,NOW(),'present',false,$1
        FROM valid v
        ON CONFLICT(organization_id,people_id,session_id)
          WHERE session_id IS NOT NULL
@@ -98,7 +106,7 @@ export default withOrg(async function handler(req,res){
          confirmed=false
        WHERE attendance_records.confirmed=false
        RETURNING people_id`,
-      [orgId,session_id,section.rows[0].id,userId,peopleIds]
+      [orgId,session_id,section.rows[0].id,userId,peopleIds,attendanceDate]
     );
 
     const validCount=await client.query(

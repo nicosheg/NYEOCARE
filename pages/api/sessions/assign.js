@@ -1,6 +1,7 @@
 // pages/api/sessions/assign.js
 import pool from '../../../lib/db';
 import { withAdmin } from '../../../lib/apiHelpers';
+import { isOrganizationOperator } from '../../../lib/attendance/access';
 
 export default withAdmin(async function handler(req, res) {
     const { session_id, user_id } = req.body;
@@ -21,11 +22,15 @@ export default withAdmin(async function handler(req, res) {
 
     // Verify user belongs to org
     const userCheck = await pool.query(
-        `SELECT id FROM users WHERE id = $1 AND organization_id = $2`,
+        `SELECT id,role,active FROM users WHERE id = $1 AND organization_id = $2 AND active=true`,
         [user_id, orgId]
     );
     if (userCheck.rows.length === 0) {
         return res.status(403).json({ error: 'User not found in your organization' });
+    }
+
+    if (!isOrganizationOperator(userCheck.rows[0].role)) {
+        return res.status(400).json({ error: 'Only authorized organization operators can be assigned to attendance sessions.' });
     }
 
     if (req.method === 'POST') {

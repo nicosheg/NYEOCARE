@@ -1,15 +1,17 @@
 // pages/api/attendance/field-roster.js
 import pool from'../../../lib/db';
 import{withOrg}from'../../../lib/apiHelpers';
+import{isOrganizationOperator,isOrganizationAdmin}from'../../../lib/attendance/access';
 const MAX_LIMIT=5000;
 function decodeCursor(value){if(!value)return null;try{const x=JSON.parse(Buffer.from(String(value),'base64url').toString('utf8'));return x&&typeof x.name==='string'&&typeof x.id==='string'?x:null}catch{return null}}
 function encodeCursor(row){return Buffer.from(JSON.stringify({name:String(row.sort_name||''),id:String(row.id)})).toString('base64url')}
 export default withOrg(async function handler(req,res){
  if(req.method!=='GET')return res.status(405).json({error:'Method not allowed'});
+ if(!isOrganizationOperator(req.user?.role))return res.status(403).json({error:'Attendance access is limited to authorized organization operators.'});
  const{session_id,cursor}=req.query||{};if(!session_id)return res.status(400).json({error:'session_id is required'});
  const orgId=req.org.id,limit=Math.min(Math.max(Number(req.query.limit)||MAX_LIMIT,1),MAX_LIMIT),decoded=decodeCursor(cursor);res.setHeader('Cache-Control','private,no-store,max-age=0');
  try{
-  const session=(await pool.query("SELECT id,status FROM sessions WHERE id=$1 AND organization_id=$2 AND(status='active' OR(status='closed' AND aria_processing_status IN('pending','processing'))) LIMIT 1",[session_id,orgId])).rows[0];
+  const session=(await pool.query("SELECT s.id,s.status FROM sessions s WHERE s.id=$1 AND s.organization_id=$2 AND (s.status='active' OR (s.status='closed' AND s.aria_processing_status IN('pending','processing'))) AND ($3::boolean OR EXISTS(SELECT 1 FROM session_users su WHERE su.session_id=s.id AND su.user_id=$4)) LIMIT 1",[session_id,orgId,isOrganizationAdmin(req.user?.role),req.user.id])).rows[0];
   if(!session)return res.status(404).json({error:'Attendance session is not available.'});
   const nameExpr="coalesce(nullif(p.display_name,''),trim(coalesce(p.first_name,'')||' '||coalesce(p.last_name,'')))",params=[orgId,session_id];let cursorSql='';
   if(decoded){params.push(decoded.name,decoded.id);cursorSql='AND ('+nameExpr+',p.id)>($3::text,$4::uuid)'}

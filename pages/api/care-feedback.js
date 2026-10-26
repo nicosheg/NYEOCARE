@@ -1,9 +1,11 @@
 // pages/api/care-feedback.js
 import{withOrg}from'../../lib/apiHelpers';
+import{isOrganizationOperator}from'../../lib/attendance/access';
 import{recordCareFeedback,getCareFeedback}from'../../lib/aria/feedbackEngine';
 
 async function handler(req,res){
  const organizationId=req.org.id;
+ if(!isOrganizationOperator(req.user?.role))return res.status(403).json({error:'Care feedback is limited to authorized organization operators.'});
  try{
   if(req.method==='GET'){
    const personId=String(req.query.person_id||'');

@@ -1,6 +1,7 @@
 // pages/api/attendance/people.js
 import pool from '../../../lib/db';
 import { withOrg } from '../../../lib/apiHelpers';
+import { isOrganizationOperator, isOrganizationAdmin } from '../../../lib/attendance/access';
 
 function decodeCursor(value){
   if(!value)return null;
@@ -21,6 +22,7 @@ function encodeCursor(row){
 
 export default withOrg(async function handler(req,res){
   if(req.method!=='GET')return res.status(405).json({error:'Method not allowed'});
+  if(!isOrganizationOperator(req.user?.role))return res.status(403).json({error:'Attendance access is limited to authorized organization operators.'});
   const{session_id,q,cursor}=req.query||{};
   if(!session_id)return res.status(400).json({error:'session_id is required'});
 
@@ -31,6 +33,18 @@ export default withOrg(async function handler(req,res){
   res.setHeader('Cache-Control','private,no-store,max-age=0');
 
   try{
+    if(!isOrganizationAdmin(req.user?.role)){
+      const sessionAccess=await pool.query(
+        `SELECT 1
+         FROM sessions s
+         JOIN session_users su ON su.session_id=s.id AND su.user_id=$3
+         WHERE s.id=$1 AND s.organization_id=$2
+           AND (s.status='active' OR (s.status='closed' AND s.aria_processing_status IN('pending','processing')))
+         LIMIT 1`,
+        [session_id,orgId,req.user.id]
+      );
+      if(!sessionAccess.rows.length)return res.status(403).json({error:'Join this attendance session before viewing its people.'});
+    }
     const params=[orgId,session_id];
     const clauses=[
       's.id=$2',

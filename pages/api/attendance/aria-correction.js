@@ -1,6 +1,7 @@
 // pages/api/attendance/aria-correction.js
 import pool from'../../../lib/db';
 import{withAdmin}from'../../../lib/apiHelpers';
+import{eventAttendanceDate}from'../../../lib/attendance/eventDate';
 import{enqueueAttendanceProcessing}from'../../../lib/aria/attendanceQueue';import{resolveCareWorkInTransaction}from'../../../lib/aria/canonicalCare';
 
 const clean=(v,max=1000)=>String(v??'').trim().slice(0,max);
@@ -12,7 +13,7 @@ export default withAdmin(async function handler(req,res){
  const orgId=req.org.id,userId=req.user.id,db=await pool.connect();
  try{
   await db.query('BEGIN');
-  const session=(await db.query(`SELECT id,name,status,started_at,service_type FROM sessions WHERE id=$1 AND organization_id=$2 LIMIT 1`,[session_id,orgId])).rows[0];
+  const session=(await db.query(`SELECT s.id,s.name,s.status,s.started_at,s.service_type,COALESCE(NULLIF(o.settings->>'timezone',''),'Africa/Lagos') AS organization_timezone FROM sessions s JOIN organizations o ON o.id=s.organization_id WHERE s.id=$1 AND s.organization_id=$2 LIMIT 1`,[session_id,orgId])).rows[0];
   if(!session){await db.query('ROLLBACK');return res.status(404).json({error:'Attendance session not found.'})}
   if(session.status!=='closed'){await db.query('ROLLBACK');return res.status(409).json({error:'Only a saved attendance session can be corrected from here.'})}
   const person=(await db.query(`SELECT id,first_name,last_name,display_name FROM people WHERE id=$1 AND organization_id=$2 AND status='active' LIMIT 1`,[people_id,orgId])).rows[0];
@@ -27,7 +28,7 @@ export default withAdmin(async function handler(req,res){
    await db.query(`INSERT INTO attendance_records(people_id,attendance_date,present,session_id,marked_by,marked_at,status,confirmed,reviewed_by,reviewed_at,organization_id)
      VALUES($1,$2,$3,$4,$5,NOW(),$6,true,$5,NOW(),$7)`,[
       people_id,
-      new Date(session.started_at||Date.now()).toISOString().slice(0,10),
+      eventAttendanceDate(session.started_at,session.organization_timezone),
       present,
       session_id,
       userId,

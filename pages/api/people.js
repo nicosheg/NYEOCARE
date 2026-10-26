@@ -137,80 +137,62 @@ if(req.method==='POST'){
  const requestId=rawRequestId||null;
  const payloadHash=hashPersonCreatePayload({first_name,last_name,display_name,phone,email,type,birthday});
  const client=await pool.connect();
- let person=null;
+ let person=null,wasReplay=false;
  try{
   await client.query('BEGIN');
+  if(requestId)await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",['nyeocare:person-create:'+orgId+':'+requestId]);
+  if(phone)await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",['nyeocare:person-create-phone:'+orgId+':'+phone]);
+  let prior=null;
   if(requestId){
-   await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",['nyeocare:person-create:'+orgId+':'+requestId]);
-  }
-  if(phone){
-   await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",['nyeocare:person-create-phone:'+orgId+':'+phone]);
-  }
-  if(requestId){
-   const prior=(await client.query(
+   prior=(await client.query(
     `SELECT r.payload_hash AS request_payload_hash,p.*
      FROM public.person_create_requests r
      JOIN public.people p ON p.id=r.person_id AND p.organization_id=r.organization_id
      WHERE r.organization_id=$1 AND r.client_request_id=$2
-     LIMIT 1
-     FOR UPDATE OF r,p`,
+     LIMIT 1 FOR UPDATE OF r,p`,
     [orgId,requestId]
-   )).rows[0];
-   if(prior){
-    if(prior.request_payload_hash!==payloadHash){
-     await client.query('ROLLBACK');
-     return res.status(409).json({error:'This retry key was already used for different person details. Review the form and submit again.',code:'PERSON_CREATE_REQUEST_ID_REUSED'});
-    }
-    const replay={...prior};
-    delete replay.request_payload_hash;
-    await client.query('COMMIT');
-    return res.status(200).json({...replay,created:false,idempotent_replay:true});
+   )).rows[0]||null;
+  }
+  if(prior){
+   if(prior.request_payload_hash!==payloadHash){
+    await client.query('ROLLBACK');
+    return res.status(409).json({error:'This retry key was already used for different person details. Review the form and submit again.',code:'PERSON_CREATE_REQUEST_ID_REUSED'});
    }
-  }
-  const duplicate=await duplicatePhone(orgId,phone,null,client);
-  if(duplicate){
-   await client.query('ROLLBACK');
-   return res.status(409).json({
-    error:'That full phone number already belongs to another person. Review the existing record before adding a new one.',
-    code:'DUPLICATE_ACTIVE_PERSON',
-    person:duplicate
-   });
-  }
-  person=(await client.query(
-   `INSERT INTO people(organization_id,first_name,last_name,display_name,phone,email,type,birthday,created_by,living_truth,status,source)
-    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'active','manual')
-    RETURNING *`,
-   [orgId,first_name,last_name,display_name||null,phone,email,type,birthday,req.user.id,
-    JSON.stringify({status:'alive',confidence:90,source:'canonical_record',updated_at:new Date().toISOString()})]
-  )).rows[0];
-  if(requestId){
-   await client.query(
-    `INSERT INTO public.person_create_requests(organization_id,client_request_id,payload_hash,person_id,created_by)
-     VALUES($1,$2,$3,$4,$5)`,
-    [orgId,requestId,payloadHash,person.id,req.user.id]
-   );
+   person={...prior};
+   delete person.request_payload_hash;
+   wasReplay=true;
+  }else{
+   const duplicate=await duplicatePhone(orgId,phone,null,client);
+   if(duplicate){
+    await client.query('ROLLBACK');
+    return res.status(409).json({
+     error:'That full phone number already belongs to another person. Review the existing record before adding a new one.',
+     code:'DUPLICATE_ACTIVE_PERSON',
+     person:duplicate
+    });
+   }
+   person=(await client.query(
+    `INSERT INTO people(organization_id,first_name,last_name,display_name,phone,email,type,birthday,created_by,living_truth,status,source)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'active','manual')
+     RETURNING *`,
+    [orgId,first_name,last_name,display_name||null,phone,email,type,birthday,req.user.id,
+     JSON.stringify({status:'alive',confidence:90,source:'canonical_record',updated_at:new Date().toISOString()})]
+   )).rows[0];
+   if(requestId){
+    await client.query(
+     `INSERT INTO public.person_create_requests(organization_id,client_request_id,payload_hash,person_id,created_by)
+      VALUES($1,$2,$3,$4,$5)`,
+     [orgId,requestId,payloadHash,person.id,req.user.id]
+    );
+   }
   }
   await client.query('COMMIT');
  }catch(err){
   try{await client.query('ROLLBACK')}catch{}
-  if(err.code==='23505'&&requestId){
-   try{
-    const prior=(await pool.query(
-     `SELECT r.payload_hash AS request_payload_hash,p.*
-      FROM public.person_create_requests r
-      JOIN public.people p ON p.id=r.person_id AND p.organization_id=r.organization_id
-      WHERE r.organization_id=$1 AND r.client_request_id=$2 LIMIT 1`,
-     [orgId,requestId]
-    )).rows[0];
-    if(prior&&prior.request_payload_hash===payloadHash){
-     const replay={...prior};delete replay.request_payload_hash;
-     return res.status(200).json({...replay,created:false,idempotent_replay:true});
-    }
-   }catch{}
-  }
   console.error('POST person error:',err);
   return res.status(500).json({error:'Unable to create person.'});
  }finally{client.release()}
+ if(wasReplay)return res.status(200).json({...person,created:false,idempotent_replay:true});
  try{
   const event=await emitAriaEvent({organizationId:orgId,personId:person.id,type:'PERSON_CREATED',source:'manual',actorId:req.user.id,metadata:{source:'api'},eventKey:`manual:${orgId}:person:${person.id}:created`});
   if(event)await directAriaEvent(event);

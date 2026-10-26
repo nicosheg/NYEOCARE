@@ -15,6 +15,7 @@ const ariaPage=read('pages/aria.js');
 
 assert.ok(peopleApi.includes("import{updatePersonRecord}from'../../lib/aria/peopleMutationEngine';"),'The People API must use the canonical edit mutation.');
 assert.ok(peopleApi.includes("const personCreatorRoles=['owner','admin','leader','worker']")&&peopleApi.includes("req.method==='POST'&&!personCreatorRoles.includes(role)"),'Owner, admin, leader and worker accounts must be able to create people while members remain restricted.');
+assert.ok(peopleApi.includes("req.method==='GET'&&!personCreatorRoles.includes(role)")&&peopleApi.includes('private contact details are limited to authorized organization operators'),'Members must not receive the organization-wide People directory or private contact details through the API.');
 assert.ok(peopleApi.includes("req.method==='PUT'&&!adminRoles.includes(role)"),'Opening person creation to workers must not silently grant worker-level edits to existing records.');
 assert.ok(peopleApi.includes("requestedPersonStatus")&&peopleApi.includes("p.status=$"),'The inactive status filter must use a bound SQL parameter.');
 assert.ok(peopleApi.includes("r.type,r.status,r.birthday"),'People API responses must include organization status.');

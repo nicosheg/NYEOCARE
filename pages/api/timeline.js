@@ -1,9 +1,15 @@
 // pages/api/timeline.js
 import pool from '../../lib/db';
 import { withOrg } from '../../lib/apiHelpers';
+import { isOrganizationOperator } from '../../lib/attendance/access';
 
 async function handler(req,res){
  const orgId=req.org.id;
+ if(!['GET','POST'].includes(req.method)){
+  res.setHeader('Allow','GET,POST');
+  return res.status(405).json({error:'Method not allowed'});
+ }
+ if(!isOrganizationOperator(req.user?.role))return res.status(403).json({error:'Person timeline is limited to authorized organization operators.'});
 
  if(req.method==='GET'){
   const personId=String(req.query.person_id||'');

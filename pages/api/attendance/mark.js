@@ -14,9 +14,12 @@ if(historical&&!['owner','admin'].includes(req.user.role))return res.status(403)
 const orgId=req.org.id,userId=req.user.id,client=await pool.connect();
 try{
 await client.query('BEGIN');
-const session=await client.query(`SELECT s.id,s.name,s.status,s.started_at,COALESCE(NULLIF(o.settings->>'timezone',''),'Africa/Lagos') AS organization_timezone FROM sessions s JOIN organizations o ON o.id=s.organization_id WHERE s.id=$1 AND s.organization_id=$2 LIMIT 1 FOR UPDATE OF s`,[session_id,orgId]);
+// A shared session lock still blocks closure/deletion, but does not serialize workers marking different people.
+const session=await client.query(`SELECT s.id,s.name,s.status,s.started_at,COALESCE(NULLIF(o.settings->>'timezone',''),'Africa/Lagos') AS organization_timezone FROM sessions s JOIN organizations o ON o.id=s.organization_id WHERE s.id=$1 AND s.organization_id=$2 LIMIT 1 FOR SHARE OF s`,[session_id,orgId]);
 if(!session.rows.length){await client.query('ROLLBACK');return res.status(404).json({error:'Attendance session not found.'})}
-const person=await client.query(`SELECT id,first_name,last_name FROM people WHERE id=$1 AND organization_id=$2 AND COALESCE(status,'active')='active' LIMIT 1`,[people_id,orgId]);
+// Serialize edits for this person/event pair; distinct people can be marked concurrently.
+await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",['nyeocare:attendance-mark:'+orgId+':'+session_id+':'+people_id]);
+const person=await client.query(`SELECT id,first_name,last_name FROM people WHERE id=$1 AND organization_id=$2 AND COALESCE(status,'active')='active' LIMIT 1 FOR SHARE`,[people_id,orgId]);
 if(!person.rows.length){await client.query('ROLLBACK');return res.status(404).json({error:'Person not found in your organization.'})}
 const existing=await client.query(`SELECT id,confirmed,present FROM attendance_records WHERE organization_id=$1 AND people_id=$2 AND session_id=$3 LIMIT 1`,[orgId,people_id,session_id]);
 

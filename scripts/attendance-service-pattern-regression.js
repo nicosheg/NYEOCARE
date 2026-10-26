@@ -16,10 +16,18 @@ const recommendations = read('lib/aria/recommendationEngine.js');
 const packageJson = JSON.parse(read('package.json'));
 const ci = read('.github/workflows/ci.yml');
 const attendanceUi = read('components/AttendanceModal.js');
+const sectionCheckin = read('pages/api/attendance/section-checkin.js');
 
 assert.ok(serviceIdentity.includes("THEN ${alias}.service_type") && serviceIdentity.includes("ELSE COALESCE(${alias}.name,'')") &&
   serviceIdentity.includes("!~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"),
   'opaque UUID service IDs should fall back to the entered session name instead of merging distinct services');
+
+assert.ok(sectionCheckin.includes('SELECT id, started_at FROM sessions') &&
+  sectionCheckin.includes('const attendanceDate=new Date(session.rows[0].started_at||Date.now()).toISOString().slice(0,10)') &&
+  sectionCheckin.includes('SELECT v.person_id,$6::date,true') &&
+  sectionCheckin.includes('[orgId,session_id,section.rows[0].id,userId,peopleIds,attendanceDate]'),
+  'Section attendance must persist the same event date used by individual and offline marks, not the date a delayed submission happens.');
+assert.doesNotMatch(sectionCheckin, /CURRENT_DATE/, 'Section submissions must not stamp attendance using the database server current date.');
 
 assert.ok(createSession.includes("[orgId,name.trim(),service_type||null,userId,event_kind||'service'"),
   'attendance session creation must persist service_type and started_by in their correct positions instead of grouping services by creator UUID');

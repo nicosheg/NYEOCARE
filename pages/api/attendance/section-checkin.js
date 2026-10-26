@@ -4,6 +4,7 @@
 
 import pool from '../../../lib/db';
 import { withOrg } from '../../../lib/apiHelpers';
+import { eventAttendanceDate } from '../../../lib/attendance/eventDate';
 
 export default withOrg(async function handler(req,res){
   if(req.method!=='POST'){
@@ -25,10 +26,12 @@ export default withOrg(async function handler(req,res){
     await client.query('BEGIN');
 
     const session=await client.query(
-      `SELECT id, started_at FROM sessions
-       WHERE id=$1 AND organization_id=$2 AND status='active'
+      `SELECT s.id, s.started_at, COALESCE(NULLIF(o.settings->>'timezone',''),'Africa/Lagos') AS organization_timezone
+       FROM sessions s
+       JOIN organizations o ON o.id=s.organization_id
+       WHERE s.id=$1 AND s.organization_id=$2 AND s.status='active'
        LIMIT 1
-       FOR UPDATE`,
+       FOR UPDATE OF s`,
       [session_id,orgId]
     );
 
@@ -38,7 +41,7 @@ export default withOrg(async function handler(req,res){
     }
 
     // Match individual and offline marks: the event's start date is authoritative.
-    const attendanceDate=new Date(session.rows[0].started_at||Date.now()).toISOString().slice(0,10);
+    const attendanceDate=eventAttendanceDate(session.rows[0].started_at,session.rows[0].organization_timezone);
 
     const assignment=await client.query(
       `SELECT 1 FROM session_users

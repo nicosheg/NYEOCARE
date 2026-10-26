@@ -13,7 +13,7 @@
     "test:scan": "node --experimental-specifier-resolution=node --experimental-default-type=module scripts/scan-regression.js",
     "test:critical-ui": "node scripts/critical-ui-regression.js",
     "test:attendance-service-pattern": "node --check lib/aria/attendanceProcessor.js && node --check lib/aria/serviceIdentity.js && node --check lib/aria/temporalEngine.js && node --check lib/aria/organizationContext.js && node --check lib/aria/directorEngine.js && node --check lib/aria/director.js && node scripts/attendance-service-pattern-regression.js",
-    "test": "npm run test:daily-briefing && npm run test:aria-action-explainability && npm run test:follow-up-policy && npm run test:aria-internal-messaging && npm run test:scan && npm run test:attendance-service-pattern && npm run test:critical-ui && npm run test:aria-conversation && npm run test:aria-message-drafting && npm run test:aria-greeting-intent && npm run test:aria-bulk-people-type && npm run test:people-edit",
+    "test": "npm run test:daily-briefing && npm run test:aria-action-explainability && npm run test:canonical-action-lifecycle && npm run test:follow-up-policy && npm run test:aria-internal-messaging && npm run test:scan && npm run test:attendance-service-pattern && npm run test:critical-ui && npm run test:aria-conversation && npm run test:aria-message-drafting && npm run test:aria-greeting-intent && npm run test:aria-bulk-people-type && npm run test:people-edit",
     "test:persistence": "node scripts/persistence-regression.js",
     "test:review-surface": "node scripts/review-surface-regression.js",
     "test:system-scale": "node scripts/system-scale-regression.js",
@@ -40,7 +40,8 @@
     "test:aria-greeting-intent": "node scripts/aria-greeting-intent-regression.js",
     "test:aria-bulk-people-type": "node --experimental-specifier-resolution=node --experimental-default-type=module scripts/aria-bulk-people-type-regression.js",
     "test:people-edit": "node scripts/people-edit-regression.js",
-    "test:follow-up-policy": "node --experimental-default-type=module scripts/follow-up-policy-regression.mjs"
+    "test:follow-up-policy": "node --experimental-default-type=module scripts/follow-up-policy-regression.mjs",
+    "test:canonical-action-lifecycle": "node --experimental-default-type=module scripts/canonical-action-lifecycle-regression.mjs"
   },
   "dependencies": {
     "next": "15.5.24",

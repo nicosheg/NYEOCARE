@@ -48,9 +48,9 @@ export default function SectionCheckin() {
       const session = await getSession();
       if (!session) return;
 
-      const query = search.trim()
-        ? `?q=${encodeURIComponent(search.trim())}`
-        : '';
+      const params = new URLSearchParams({ session_id: String(sessionId) });
+      if (search.trim()) params.set('q', search.trim());
+      const query = `?${params.toString()}`;
 
       const res = await fetch(`/api/attendance/search${query}`, {
         headers: {

@@ -17,17 +17,37 @@ const packageJson = JSON.parse(read('package.json'));
 const ci = read('.github/workflows/ci.yml');
 const attendanceUi = read('components/AttendanceModal.js');
 const sectionCheckin = read('pages/api/attendance/section-checkin.js');
+const attendanceMark = read('pages/api/attendance/mark.js');
+const attendanceSync = read('pages/api/attendance/sync.js');
+const attendanceCorrection = read('pages/api/attendance/aria-correction.js');
+const universalWorkspace = read('lib/aria/universalWorkspace.js');
+const eventDate = read('lib/attendance/eventDate.js');
 
 assert.ok(serviceIdentity.includes("THEN ${alias}.service_type") && serviceIdentity.includes("ELSE COALESCE(${alias}.name,'')") &&
   serviceIdentity.includes("!~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"),
   'opaque UUID service IDs should fall back to the entered session name instead of merging distinct services');
 
-assert.ok(sectionCheckin.includes('SELECT id, started_at FROM sessions') &&
-  sectionCheckin.includes('const attendanceDate=new Date(session.rows[0].started_at||Date.now()).toISOString().slice(0,10)') &&
+assert.ok(sectionCheckin.includes('SELECT s.id, s.started_at') &&
+  sectionCheckin.includes('eventAttendanceDate(session.rows[0].started_at,session.rows[0].organization_timezone)') &&
   sectionCheckin.includes('SELECT v.person_id,$6::date,true') &&
   sectionCheckin.includes('[orgId,session_id,section.rows[0].id,userId,peopleIds,attendanceDate]'),
-  'Section attendance must persist the same event date used by individual and offline marks, not the date a delayed submission happens.');
+  'Section attendance must persist the organization-local event date, not the delayed submission date.');
 assert.doesNotMatch(sectionCheckin, /CURRENT_DATE/, 'Section submissions must not stamp attendance using the database server current date.');
+assert.ok(eventDate.includes("const DEFAULT_TIME_ZONE = 'Africa/Lagos'") &&
+  eventDate.includes('normalizeOrganizationTimeZone') && eventDate.includes('formatToParts'),
+  'Attendance event dates must use a validated organization time zone with a safe Lagos fallback.');
+for (const [label, source] of [
+  ['individual attendance', attendanceMark],
+  ['offline attendance sync', attendanceSync],
+  ['section attendance', sectionCheckin],
+  ['admin attendance correction', attendanceCorrection],
+  ['ARIA workspace attendance', universalWorkspace]
+]) {
+  assert.ok(source.includes('eventAttendanceDate') && source.includes('organization_timezone'),
+    label + ' must derive attendance_date from the event timestamp in the organization time zone.');
+  assert.doesNotMatch(source, /toISOString\(\)\.slice\(0,\s*10\)/,
+    label + ' must not derive an event calendar date by slicing the UTC timestamp.');
+}
 
 assert.ok(createSession.includes("[orgId,name.trim(),service_type||null,userId,event_kind||'service'"),
   'attendance session creation must persist service_type and started_by in their correct positions instead of grouping services by creator UUID');

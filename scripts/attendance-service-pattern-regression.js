@@ -49,6 +49,11 @@ for (const [label, source] of [
     label + ' must not derive an event calendar date by slicing the UTC timestamp.');
 }
 
+assert.match(attendanceMark, /LIMIT 1 FOR SHARE OF s/,
+  'individual attendance marks must use a shared session lock so different workers can record attendance concurrently while event state remains stable');
+assert.doesNotMatch(attendanceMark, /LIMIT 1 FOR UPDATE OF s/,
+  'individual attendance marks must not serialize all workers behind an exclusive session lock');
+
 assert.ok(createSession.includes("[orgId,name.trim(),service_type||null,userId,event_kind||'service'"),
   'attendance session creation must persist service_type and started_by in their correct positions instead of grouping services by creator UUID');
 

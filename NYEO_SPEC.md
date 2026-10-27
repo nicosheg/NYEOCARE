@@ -2848,10 +2848,10 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 
 ---
 
-## People card save fidelity — 27 October 2026
+## People card editing and phone fidelity — 27 October 2026
 
-- The Edit action belongs in the visible card header; do not add a second footer/outside-card control.
-- The card editor submits only changed fields. In particular, never resend a prefilled phone number when the operator changed only a name, email, birthday, type, or status. An unchanged shared phone must not block a non-phone edit; a genuinely changed phone still goes through the identity collision checks.
-- A successful save applies the canonical row returned by the committed mutation to the visible list using string-normalized IDs, then reloads People data. Save controls visibly prevent repeat submissions while a write is in flight.
-- Manual full-name edits normalize casing and update the canonical display name and first/last-name fields together. Preserve an existing recognized honorific when a new full name omits one, matching the established identity-review contract; a recognized replacement honorific takes precedence. Keep all values parameterized in SQL so literal characters, including apostrophes and dollar signs, are data rather than SQL syntax.
-- Regression coverage must include unchanged-phone omission, a literal dollar sign in a name, explicit honorific removal, card-header Edit placement, and canonical UI refresh after a successful save.
+- The canonical Edit action lives inside each People card and opens that card's existing editor. Keep it there; do not add a second Edit action below/outside the cards or on the person detail action row.
+- The card editor submits only changed fields. In particular, never resend an unchanged phone number when only a name, email, birthday, type, or status changed. An unchanged shared phone must not block a non-phone edit; a genuinely changed phone still uses identity-collision review.
+- A successful card save applies the canonical row returned by the committed mutation to the visible list using string-normalized IDs, then reloads People data. Save controls prevent repeated submissions while a write is in flight.
+- Cards resolve phone display from the canonical primary `phone` column and fall back to the ordered `phone_numbers` JSON list. If both are empty, the card must report that no phone is stored; do not fabricate or copy a phone from another organization.
+- Regression coverage verifies the card editor remains reachable, no outside-card duplicate Edit action appears, the canonical response is reflected, and primary/ordered JSON phone resolution works.

@@ -66,7 +66,7 @@ export default function AttendanceModal({isOpen,onClose}){
   const[visitorName,setVisitorName]=useState('');
   const[visitorPhone,setVisitorPhone]=useState('');
   const[visitorContactConsent,setVisitorContactConsent]=useState(false);
-  const[addingVisitor,setAddingVisitor]=useState(false);
+  const[addingVisitor,setAddingVisitor]=useState(false);const[visitorIdentityReview,setVisitorIdentityReview]=useState(null);
   const[cursor,setCursor]=useState(null);
   const[hasMore,setHasMore]=useState(false);
   const[total,setTotal]=useState(0);
@@ -819,7 +819,7 @@ export default function AttendanceModal({isOpen,onClose}){
     }
   };
 
-  const addVisitor=async()=>{
+  const addVisitor=async(identityReview=null)=>{
     if(!session||session.status!=='active'||!networkOnline||addingVisitor)return;
     const fullName=visitorName.trim(),rawPhone=visitorPhone.trim();
     if(!fullName){setError('Enter the visitor’s name first.');return}
@@ -832,20 +832,24 @@ export default function AttendanceModal({isOpen,onClose}){
       let response=await fetchAttendanceWithTimeout('/api/attendance/add-visitor',{
         method:'POST',
         headers:{'Content-Type':'application/json',Authorization:'Bearer '+auth.access_token},
-        body:JSON.stringify({session_id:session.session_id,request_id:requestId,full_name:fullName,phone:rawPhone||null,contact_consent:visitorContactConsent})
+        body:JSON.stringify({session_id:session.session_id,request_id:requestId,full_name:fullName,phone:rawPhone||null,contact_consent:visitorContactConsent,...(identityReview?{identity_review:identityReview}:{})})
       });
       if(response.status===401){
         auth=await getClientSession({forceRefresh:true}).catch(()=>null);
         if(auth)response=await fetchAttendanceWithTimeout('/api/attendance/add-visitor',{
           method:'POST',
           headers:{'Content-Type':'application/json',Authorization:'Bearer '+auth.access_token},
-          body:JSON.stringify({session_id:session.session_id,request_id:requestId,full_name:fullName,phone:rawPhone||null,contact_consent:visitorContactConsent})
+          body:JSON.stringify({session_id:session.session_id,request_id:requestId,full_name:fullName,phone:rawPhone||null,contact_consent:visitorContactConsent,...(identityReview?{identity_review:identityReview}:{})})
         });
       }
       const data=await read(response);
+      if(!response.ok&&response.status===409&&['PERSON_IDENTITY_REVIEW_REQUIRED','PERSON_IDENTITY_REVIEW_STALE','DUPLICATE_IDENTITY_NOT_DISTINCT'].includes(data.code)){
+        setVisitorIdentityReview({code:data.code,message:data.error||'Review possible matches before saving.',candidates:Array.isArray(data.candidates)?data.candidates:[]});
+        return;
+      }
       if(!response.ok||data.success!==true||!data.person)throw Error(data.error||'Could not add this visitor.');
       if(data.person.status!=='active'){
-        visitorRequestId.current='';setVisitorName('');setVisitorPhone('');setVisitorContactConsent(false);setShowAddVisitor(false);
+        visitorRequestId.current='';setVisitorName('');setVisitorPhone('');setVisitorContactConsent(false);setVisitorIdentityReview(null);setShowAddVisitor(false);
         setNotice('This visitor request was already processed, but the record is now inactive or archived. No duplicate was created. Ask an owner or admin to review the directory.');
         return;
       }
@@ -871,7 +875,7 @@ export default function AttendanceModal({isOpen,onClose}){
       }
       setTotal(value=>value+(wasAlreadyInRoster?0:1));
       visitorRequestId.current='';setVisitorName('');setVisitorPhone('');setVisitorContactConsent(false);setShowAddVisitor(false);
-      setNotice('Visitor added to this organization. No message was sent.');
+      setVisitorIdentityReview(null);setNotice(data.identity_review_confirmed?'Visitor added after identity review. ARIA’s decision was recorded. No message was sent.':'Visitor added to this organization. No message was sent.');
       publishDataChange('attendance');
     }catch(e){
       if(mounted.current)setError(e.message||'Could not add this visitor.');
@@ -1108,19 +1112,20 @@ export default function AttendanceModal({isOpen,onClose}){
           {query&&<button style={clear} onClick={()=>setQuery('')} aria-label="Clear search">×</button>}
         </div>
         <div style={{padding:'0 18px 8px',display:'flex',justifyContent:'flex-end'}}>
-          <button type="button" style={{...markButton,opacity:!networkOnline||addingVisitor?0.5:1}} disabled={!networkOnline||addingVisitor||session.status!=='active'} onClick={()=>setShowAddVisitor(value=>!value)}>
+          <button type="button" style={{...markButton,opacity:!networkOnline||addingVisitor?0.5:1}} disabled={!networkOnline||addingVisitor||session.status!=='active'} onClick={()=>{setVisitorIdentityReview(null);setShowAddVisitor(value=>!value)}}>
             {showAddVisitor?'Cancel adding visitor':'+ Add visitor'}
           </button>
         </div>
         {!networkOnline&&<div style={noticeBox}>Offline mode can queue attendance marks for people already in the directory, but it cannot create a new person record safely. Use the church’s approved paper attendance sheet for new visitors and add them when the connection returns.</div>}
         {showAddVisitor&&<div style={{margin:'0 18px 10px',padding:12,borderRadius:14,border:'1px solid rgba(255,255,255,.13)',background:'rgba(0,0,0,.14)',display:'grid',gap:8}}>
           <strong style={{fontSize:14}}>Add a first-time visitor</strong>
-          <input style={{...input,width:'100%'}} value={visitorName} onChange={e=>{visitorRequestId.current='';setVisitorName(e.target.value)}} placeholder="Full name (required)" maxLength={180} autoComplete="name" />
-          <input style={{...input,width:'100%'}} value={visitorPhone} onChange={e=>{visitorRequestId.current='';setVisitorPhone(e.target.value)}} placeholder="Phone number (optional)" type="tel" inputMode="tel" autoComplete="tel" />
+          <input style={{...input,width:'100%'}} value={visitorName} onChange={e=>{visitorRequestId.current='';setVisitorIdentityReview(null);setVisitorName(e.target.value)}} placeholder="Full name (required)" maxLength={180} autoComplete="name" />
+          <input style={{...input,width:'100%'}} value={visitorPhone} onChange={e=>{visitorRequestId.current='';setVisitorIdentityReview(null);setVisitorPhone(e.target.value)}} placeholder="Phone number (optional)" type="tel" inputMode="tel" autoComplete="tel" />
           <label style={{display:'flex',alignItems:'flex-start',gap:8,fontSize:12,lineHeight:1.4,color:'rgba(255,255,255,.8)'}}>
             <input type="checkbox" checked={visitorContactConsent} onChange={e=>{visitorRequestId.current='';setVisitorContactConsent(e.target.checked)}} style={{marginTop:2}} />
             They explicitly agreed that the church may keep this phone number for follow-up. Leave the phone blank if they did not agree.
           </label>
+          {visitorIdentityReview&&<div role="alert" style={{padding:12,borderRadius:12,border:'1px solid rgba(212,175,55,.35)',background:'rgba(212,175,55,.06)',display:'grid',gap:8}}><strong style={{fontSize:13}}>{visitorIdentityReview.code==='DUPLICATE_IDENTITY_NOT_DISTINCT'?'Same identity already exists':'Review possible matches'}</strong><span style={{fontSize:12,lineHeight:1.5,opacity:.8}}>{visitorIdentityReview.message}</span>{visitorIdentityReview.candidates.map(candidate=><div key={candidate.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,padding:'7px 0',borderTop:'1px solid rgba(255,255,255,.08)'}}><div style={{minWidth:0}}><strong style={{display:'block',fontSize:12}}>{candidate.display_name||[candidate.first_name,candidate.last_name].filter(Boolean).join(' ')}</strong><span style={{display:'block',fontSize:11,opacity:.7,marginTop:3}}>{candidate.phone||'No phone recorded'}{candidate.status?' · '+candidate.status:''}</span><span style={{display:'block',fontSize:10,opacity:.55,marginTop:2}}>{candidate.name_match?'Same normalized name · ':candidate.similar_name?'Similar name · ':''}{candidate.phone_match?'Same phone number':''}</span></div><a href={`/person/${candidate.id}`} target="_blank" rel="noreferrer" style={{fontSize:11,color:'#D4AF37',whiteSpace:'nowrap'}}>Open record</a></div>)}{visitorIdentityReview.code!=='DUPLICATE_IDENTITY_NOT_DISTINCT'&&<button type="button" style={primary} disabled={addingVisitor} onClick={()=>addVisitor({confirmed:true,candidate_ids:visitorIdentityReview.candidates.map(candidate=>candidate.id)})}>Verified: this is a separate person</button>}<button type="button" style={discardButton} onClick={()=>setVisitorIdentityReview(null)}>Close review</button></div>}
           <span style={{...sub,fontSize:11}}>This adds the person as a Visitor only. It does not make them a member or worker, and no message is sent.</span>
           <div style={{display:'flex',justifyContent:'flex-end',gap:8,flexWrap:'wrap'}}>
             <button type="button" style={discardButton} disabled={addingVisitor} onClick={()=>{visitorRequestId.current='';setShowAddVisitor(false);setVisitorName('');setVisitorPhone('');setVisitorContactConsent(false)}}>Cancel</button>

@@ -1,5 +1,6 @@
 import fs from'node:fs';
 import assert from'node:assert/strict';
+import { normalizePhoneList, primaryPhone } from '../lib/phoneUtils.js';
 
 const read=p=>fs.readFileSync(p,'utf8');
 const peoplePage=read('pages/people.js');
@@ -85,5 +86,7 @@ assert.ok(peoplePage.includes('aria-label="Search people by name, phone, or emai
 assert.ok(peoplePage.includes('aria-controls="people-filter-panel"')&&peoplePage.includes('Reset filters')&&peoplePage.includes('aria-pressed={showLivingTruthOnly}'),'People filters must be consolidated into an accessible expandable panel with reset support.');
 assert.ok(peoplePage.includes('Add multiple people')&&peoplePage.includes('Bulk add from a list')&&!peoplePage.includes('Bulk add</button>'),'Single and bulk person creation must share one Add people action rather than competing toolbar buttons.');
 assert.ok(peoplePage.includes("search||activeFilterCount>0?'No people found':'No people yet'"),'An empty People result caused by any active filter must not be described as an empty organization.');
+assert.equal(primaryPhone({phone:null,phone_numbers:[{normalized:'unreadable',raw:'08012345678',index:1}]}),'+2348012345678','Primary-phone resolution must fall back to a valid raw phone when the normalized field is corrupt.');
+assert.deepEqual(normalizePhoneList({phone:'+2348098765432',phone_numbers:[{normalized:'invalid',raw:'08012345678',index:1}] }),['+2348098765432','+2348012345678'],'Phone-list resolution must prefer the canonical primary and then recover valid raw alternates.');
 console.log('[PEOPLE EDIT REGRESSION]');
 console.log('PASS: SQL-bound edits, email/type/status persistence, inactive directory filtering, and ARIA synchronization/suppression contracts.');

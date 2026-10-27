@@ -2833,3 +2833,14 @@ Routine confirmed bulk People type changes use one explicit confirmation step. T
 
 ### Regression contract
 The People edit regression must cover the prior PostgreSQL UUID-versus-integer failure class, bound SQL parameters, all editable fields, active/inactive filters, canonical ARIA event processing, inactivity suppression, and the single bulk confirmation contract. The production check is not complete until CI, build, health verification, and the deployed commit all succeed.
+
+
+
+---
+
+## People card editing and Review Center refresh reliability — 27 October 2026
+
+- Every visible People card must expose an explicit, accessible **Edit details** action. The editor must be reachable without relying on a hidden gesture; button/input interactions must not activate card navigation or long-press selection.
+- Editing a person must continue through the shared `/api/people` → `updatePersonRecord` transaction. The save response and a fresh no-cache People read must both feed the visible roster; the card must render the canonical `display_name` (including meaningful honorifics) and the persisted contact fields.
+- Every successful Review Center identity decision that persists a person (scan review edit/approve/separate, duplicate merge, or keep-separate) must refresh the People surface after the API verifies persistence and the intended identity outcome. Emit the standard People data-change signal and app refresh event; a failed or stale decision must leave the review open.
+- Regression gates cover the reachable card editor, card gesture isolation, canonical mutation path, selected-survivor merge invariants, and cross-surface refresh. Production is not considered verified until tests/build pass and Vercel's production deployment SHA matches the merged commit.

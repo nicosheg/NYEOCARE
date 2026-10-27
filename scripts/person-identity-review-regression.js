@@ -12,8 +12,11 @@ const community = read('components/CommunityTab.js');
 const attendanceApi = read('pages/api/attendance/add-visitor.js');
 const attendanceUi = read('components/AttendanceModal.js');
 const capabilityRegistry = read('lib/aria/capabilityRegistry.js');
+const validation = read('lib/scanValidation.js');
 
 assert.ok(api.includes('normalizeDisplayName(rawName)') && api.includes('identityNameKey(display_name||rawName)'), 'Person creation must normalize names and strip honorifics before identity comparison.');
+assert.ok(validation.includes("replace(/^\\s*\\d+[\\.\\)]\\s*/,'')"), 'Leading printed row numbers should be stripped from identity comparison.');
+assert.ok(validation.includes("replace(/[^a-z0-9\\s'\\-]/g,' ')"), 'Meaningful digits within a saved person name must remain part of its canonical identity key.');
 assert.ok(api.includes('DUPLICATE_IDENTITY_NOT_DISTINCT') && api.includes('PERSON_IDENTITY_REVIEW_REQUIRED') && api.includes('PERSON_IDENTITY_REVIEW_STALE'), 'Creation must prevent identical name+phone identities and route ambiguous matches through a stale-safe review gate.');
 assert.ok(api.includes('identity_pair_decisions') && api.includes('identity_shared_contacts') && api.includes("'not_duplicate'"), 'A human review must save an auditable distinct-person decision and verified shared-contact relationships.');
 assert.ok(api.includes('const personEditorRoles=[\'owner\',\'admin\',\'leader\',\'worker\',\'user\']'), 'People access must be role-based on application operators, not People type.');

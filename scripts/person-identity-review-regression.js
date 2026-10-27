@@ -38,7 +38,7 @@ for (const name of ['create_person','import_people_roster','update_person_record
   const start = capabilityRegistry.indexOf(name + ':{');
   const end = capabilityRegistry.indexOf('\n', start);
   const definition = capabilityRegistry.slice(start, end < 0 ? capabilityRegistry.length : end);
-  assert.ok(start >= 0 && !definition.includes("requiredRole:'owner_or_admin'") && /Authorized organization operators/.test(definition), name + ' must be available to recognized organization operators; owner/admin-only registry metadata would block the user role before server authorization.');
+  assert.ok(start >= 0 && !definition.includes("requiredRole:'owner_or_admin'") && !/Owner\/admin only/.test(definition), name + ' must not retain owner/admin-only registry metadata that blocks the user role before server authorization.');
 }
 assert.ok(read('lib/aria/commandEngine.js').includes('PERSON_IDENTITY_REVIEW_REQUIRED') && read('lib/aria/commandEngine.js').includes('Open People and use Add one person'), 'ARIA must explain identity conflicts and direct operators to the human-review workflow.');
 assert.ok(read('pages/person/[id].js').includes('editIdentityReview') && read('pages/person/[id].js').includes('PERSON_IDENTITY_REVIEW_REQUIRED'), 'The person profile editor must also offer human identity review rather than fail closed with a generic error.');

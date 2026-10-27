@@ -1,6 +1,6 @@
 // pages/api/people.js
 import pool from'../../lib/db';
-import{normalizePhone}from'../../lib/phoneUtils';
+import{normalizePhone,primaryPhone}from'../../lib/phoneUtils';
 import{normalizeDisplayName}from'../../lib/scanValidation';
 import{withOrg}from'../../lib/apiHelpers';
 import{updatePersonRecord}from'../../lib/aria/peopleMutationEngine';
@@ -18,13 +18,13 @@ async function findIdentityCandidates(orgId,nameKey,phone,db=pool,excludePersonI
  const displayExpr="COALESCE(NULLIF(p.display_name, ''::text), ((COALESCE(p.first_name, ''::text) || ' '::text) || COALESCE(p.last_name, ''::text)))";
  const result=await db.query(
   "WITH matches AS ("+
-  " SELECT p.id,p.first_name,p.last_name,p.display_name,p.phone,p.email,p.type,p.status,p.created_at,"+
+  " SELECT p.id,p.first_name,p.last_name,p.display_name,p.phone,p.phone_numbers,p.email,p.type,p.status,p.created_at,"+
   " CASE WHEN "+phoneMatchExpr+" THEN TRUE ELSE FALSE END AS phone_match,"+
   " CASE WHEN "+displayExpr+" % $5::text THEN TRUE ELSE FALSE END AS similar_name "+
   " FROM people p WHERE p.organization_id=$1 AND p.status='active' AND p.id<>$6::uuid "+
   " AND (("+phoneMatchExpr+") OR ("+nameExpr+"=$3) OR ("+displayExpr+" % $5::text)) "+
   " UNION ALL "+
-  " SELECT p.id,p.first_name,p.last_name,p.display_name,p.phone,p.email,p.type,p.status,p.created_at,"+
+  " SELECT p.id,p.first_name,p.last_name,p.display_name,p.phone,p.phone_numbers,p.email,p.type,p.status,p.created_at,"+
   " CASE WHEN "+phoneMatchExpr+" THEN TRUE ELSE FALSE END AS phone_match,"+
   " CASE WHEN "+displayExpr+" % $5::text THEN TRUE ELSE FALSE END AS similar_name "+
   " FROM people p WHERE p.organization_id=$1 AND p.status IN ('inactive','archived') AND p.id<>$6::uuid "+
@@ -36,7 +36,7 @@ async function findIdentityCandidates(orgId,nameKey,phone,db=pool,excludePersonI
   const displayName=row.display_name||[row.first_name,row.last_name].filter(Boolean).join(' ')||row.first_name||'Unnamed person';
   return {
    id:String(row.id),first_name:row.first_name||'',last_name:row.last_name||'',
-   display_name:displayName,phone:row.phone||null,email:row.email||null,
+   display_name:displayName,phone:primaryPhone(row),email:row.email||null,
    type:row.type||null,status:row.status||null,
    name_match:identityNameKey(displayName)===nameKey,
    phone_match:row.phone_match===true,
@@ -80,9 +80,12 @@ if(req.method==='GET'){
     values.push(`%${digits}%`);
     const phoneDigitsExpr=`regexp_replace(COALESCE(p.phone,''), '[^0-9]', '', 'g')`;
     const localPhoneExpr=`CASE WHEN ${phoneDigitsExpr} LIKE '234%' AND LENGTH(${phoneDigitsExpr})=13 THEN '0'||SUBSTRING(${phoneDigitsExpr} FROM 4) ELSE ${phoneDigitsExpr} END`;
-    phoneDigitsClause=` OR ${phoneDigitsExpr} LIKE $${digitsIndex}::text OR (${localPhoneExpr}) LIKE $${digitsIndex}::text`;
+    const storedDigitsExpr=`regexp_replace(COALESCE(phone_entry.value->>'normalized',phone_entry.value->>'raw',''), '[^0-9]', '', 'g')`;
+    const storedLocalPhoneExpr=`CASE WHEN ${storedDigitsExpr} LIKE '234%' AND LENGTH(${storedDigitsExpr})=13 THEN '0'||SUBSTRING(${storedDigitsExpr} FROM 4) ELSE ${storedDigitsExpr} END`;
+    const storedPhoneExists=`EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(p.phone_numbers)='array' THEN p.phone_numbers ELSE '[]'::jsonb END) AS phone_entry(value) WHERE ${storedDigitsExpr} LIKE $${digitsIndex}::text OR (${storedLocalPhoneExpr}) LIKE $${digitsIndex}::text)`;
+    phoneDigitsClause=` OR ${phoneDigitsExpr} LIKE $${digitsIndex}::text OR (${localPhoneExpr}) LIKE $${digitsIndex}::text OR ${storedPhoneExists}`;
    }
-   where.push(`(COALESCE(p.display_name,'') ILIKE $${patternIndex}::text  OR COALESCE(TRIM(CONCAT_WS(' ',p.first_name,p.last_name)),'') ILIKE $${patternIndex}::text  OR COALESCE(p.phone,'') ILIKE $${patternIndex}::text  OR COALESCE(p.email,'') ILIKE $${patternIndex}::text ${phoneDigitsClause})`);
+   where.push(`(COALESCE(p.display_name,'') ILIKE $${patternIndex}::text OR COALESCE(TRIM(CONCAT_WS(' ',p.first_name,p.last_name)),'') ILIKE $${patternIndex}::text OR COALESCE(p.phone,'') ILIKE $${patternIndex}::text OR EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(p.phone_numbers)='array' THEN p.phone_numbers ELSE '[]'::jsonb END) AS phone_item(value) WHERE COALESCE(phone_item.value->>'normalized',phone_item.value->>'raw','') ILIKE $${patternIndex}::text) OR COALESCE(p.email,'') ILIKE $${patternIndex}::text ${phoneDigitsClause})`);
   }
   const sortName=`LOWER(COALESCE(NULLIF(p.display_name,''),NULLIF(TRIM(CONCAT_WS(' ',p.first_name,p.last_name)),''),p.first_name,''))`;
   const cursorClause=cursor?`(r.new_rank,r.truth_rank,r.sort_name,r.id) > (${values.length+1}::int,${values.length+2}::int,${values.length+3}::text,${values.length+4}::uuid)`:'';
@@ -96,7 +99,7 @@ if(req.method==='GET'){
    ),
    ranked AS(
      SELECT
-       p.id,p.organization_id,p.first_name,p.last_name,p.display_name,p.phone,p.email,p.type,p.birthday,
+       p.id,p.organization_id,p.first_name,p.last_name,p.display_name,p.phone,p.phone_numbers,p.email,p.type,p.birthday,
        p.living_truth,p.status,p.source,p.created_at,p.updated_at,p.last_scan_job_id,
        COALESCE(em.last_seen,(
          SELECT MAX(pr.occurred_at)
@@ -136,7 +139,7 @@ if(req.method==='GET'){
      LEFT JOIN latest_scan ls ON TRUE
      WHERE ${where.join(' AND ')}
    )
-   SELECT r.id,r.first_name,r.last_name,r.display_name,r.phone,r.email,r.type,r.status,r.birthday,r.living_truth,r.last_seen,r.last_attended_date,r.new_from_latest_scan,r.new_rank,r.truth_rank,r.sort_name
+   SELECT r.id,r.first_name,r.last_name,r.display_name,r.phone,r.phone_numbers,r.email,r.type,r.status,r.birthday,r.living_truth,r.last_seen,r.last_attended_date,r.new_from_latest_scan,r.new_rank,r.truth_rank,r.sort_name
    FROM ranked r
    WHERE ${cursorClause||'TRUE'}
    ORDER BY r.new_rank,r.truth_rank,r.sort_name,r.id
@@ -144,7 +147,17 @@ if(req.method==='GET'){
   const actualValues=cursor?[...values,cursor.new_rank,cursor.truth_rank,cursor.sort_name,cursor.id]:values;
   const result=await pool.query(sql,actualValues);
   const hasMore=result.rows.length>limit;
-  const items=result.rows.slice(0,limit);
+  const items=result.rows.slice(0,limit).map(row=>{
+   // The identity engine reads both phone and phone_numbers. Mirror that contract in
+   // the People API so a number stored by scans/merges is searchable, visible, and editable.
+   const stored=Array.isArray(row.phone_numbers)?row.phone_numbers:[];
+   const ordered=stored.map((entry,index)=>({entry,index,order:Number.isFinite(Number(entry?.index))&&Number(entry?.index)>0?Number(entry.index):index+1}))
+    .sort((a,b)=>a.order-b.order||a.index-b.index)
+    .map(item=>item.entry);
+   const candidates=[row.phone,...ordered.flatMap(entry=>typeof entry==='string'?[entry]:[entry?.normalized,entry?.raw,entry?.phone])].map(value=>String(value||'').trim()).filter(Boolean);
+   const primary=candidates.map(value=>normalizePhone(value)).find(Boolean)||candidates[0]||null;
+   return {...row,phone:primary,phone_numbers:ordered};
+  });
   const last=items[items.length-1];
   let total_count=null;
   if(includeTotal){
@@ -245,10 +258,10 @@ if(req.method==='POST'){
     return res.status(409).json({error:'The records changed while you were reviewing. Refresh the People list and try again.',code:'PERSON_IDENTITY_REVIEW_STALE',candidates:[]});
    }
    person=(await client.query(
-    `INSERT INTO people(organization_id,first_name,last_name,display_name,phone,email,type,birthday,created_by,living_truth,status,source)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'active','manual')
+    `INSERT INTO people(organization_id,first_name,last_name,display_name,phone,phone_numbers,email,type,birthday,created_by,living_truth,status,source)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'active','manual')
      RETURNING *`,
-    [orgId,first_name,last_name,display_name||null,phone,email,type,birthday,req.user.id,
+    [orgId,first_name,last_name,display_name||null,phone,JSON.stringify(phone?[{raw:phone,normalized:phone,source:'manual',index:1}]:[]),email,type,birthday,req.user.id,
      JSON.stringify({status:'alive',confidence:90,source:'canonical_record',updated_at:new Date().toISOString()})]
    )).rows[0];
    if(candidates.length){

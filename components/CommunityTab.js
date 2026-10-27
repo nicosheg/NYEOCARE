@@ -103,11 +103,21 @@ export default function CommunityTab() {
   }, []);
 
   const fetchPeople = async (token) => {
-    const res = await fetch('/api/people', {
-      headers: { 'Authorization': `Bearer ${token}` },
-    });
-    const data = await res.json();
-    if (Array.isArray(data)) { setPeople(data); setLoading(false); }
+    try {
+      const res = await fetch('/api/people?limit=80', {
+        headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Unable to load people.');
+    // /api/people returns a bounded cursor-paginated envelope, not a raw array.
+    if (Array.isArray(data)) setPeople(data);
+    else if (Array.isArray(data.items)) setPeople(data.items);
+    setLoading(false);
+    } catch (err) {
+      console.error('People directory load failed:', err);
+      setMsg(err.message || 'Unable to load people.');
+      setLoading(false);
+    }
   };
 
   const initAria = async (token) => {

@@ -29,7 +29,7 @@ expect(engine.includes("case'create_person'"),'Capability engine must execute di
 expect(engine.includes('createPerson'), 'Capability engine must use the canonical person creation mutation.');
 expect(!peopleMutation.includes("x->>'normalized'=$2) LIMIT 1"),'People duplicate-phone SQL must close the OR predicate before LIMIT for $2.');
 expect(!peopleMutation.includes("x->>'normalized'=$3) LIMIT 1"),'People duplicate-phone SQL must close the OR predicate before LIMIT for $3.');
-expect(peopleMutation.includes("x->>'normalized'=$2)) LIMIT 1"),'People duplicate-phone SQL must place LIMIT outside the OR predicate for $2.');
+expect(peopleMutation.includes('export async function findIdentityCandidates(organizationId,nameKey,phone,db=pool,excludePersonId=null)'), 'Canonical identity matching must be shared across People and ARIA mutation routes.');
 expect(peopleMutation.includes('const phoneMatchExpr="($2::text IS NOT NULL AND (p.phone=$2 OR')&&peopleMutation.includes("v->>'normalized'=$2 OR regexp_replace")&&peopleMutation.includes('LIMIT 20'),'Identity candidate SQL must group normalized-phone OR predicates and cap candidate review queries.');
 expect(workspace.includes("export function currentTime"),'Universal workspace must expose current time.');
 expect(workspace.includes("export async function latestAttendance"),'Universal workspace must expose latest attendance.');

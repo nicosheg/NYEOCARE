@@ -155,6 +155,45 @@ const toggleSelected=id=>setSelectedIds(prev=>{const next=new Set(prev);if(next.
 const rememberPeopleScroll=useCallback(()=>{try{sessionStorage.setItem(PEOPLE_SCROLL_KEY,JSON.stringify({y:window.scrollY,pathname:router.asPath}))}catch{}},[router.asPath]);
 const handleCardClick=id=>{if(longPressTriggered.current){longPressTriggered.current=false;return}if(selectMode){toggleSelected(id);return}rememberPeopleScroll();setAddingNote(false);setImportingConv(false);setNoteText('');setConvText('');router.push(`/person/${id}?return_to=${encodeURIComponent(router.asPath)}`)};
 const selectAll=()=>setSelectedIds(new Set(filtered.map(p=>p.id)));const clearSelection=()=>setSelectedIds(new Set());const cancelSelect=()=>{setSelectMode(false);setSelectedIds(new Set());longPressTriggered.current=false};
+const addPerson=async(e,identityReview=null)=>{
+ if(e?.preventDefault)e.preventDefault();
+ if(!form.full_name.trim()||!accessToken)return;
+ try{
+  const requestPayload={...form,full_name:form.full_name.trim()};
+  const signature=JSON.stringify({
+   full_name:requestPayload.full_name,
+   phone:String(requestPayload.phone||'').trim(),
+   email:String(requestPayload.email||'').trim().toLowerCase(),
+   type:requestPayload.type,
+   birthday:requestPayload.birthday||null
+  });
+  if(!addRequestRef.current||addRequestRef.current.signature!==signature){
+   addRequestRef.current={signature,id:createPersonCreateRequestId()};
+  }
+  const requestId=addRequestRef.current.id;
+  const res=await fetch('/api/people',{
+   method:'POST',
+   headers:{'Content-Type':'application/json',Authorization:`Bearer ${accessToken}`},
+   body:JSON.stringify({...requestPayload,client_request_id:requestId,...(identityReview?{identity_review:identityReview}:{})})
+  });
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok||!data.id){
+   if(res.status===409&&['PERSON_IDENTITY_REVIEW_REQUIRED','PERSON_IDENTITY_REVIEW_STALE','DUPLICATE_IDENTITY_NOT_DISTINCT'].includes(data.code)){
+    setDuplicateReview({code:data.code,message:data.error||'Review possible matches before saving.',candidates:Array.isArray(data.candidates)?data.candidates:[]});
+    return;
+   }
+   throw new Error(data.error||'Could not add person');
+  }
+  setPeople(prev=>[data,...prev.filter(p=>p.id!==data.id)]);
+  if(data.created!==false&&!data.idempotent_replay)setTotalPeople(v=>v+1);
+  publishDataChange('people');
+  setForm({full_name:'',phone:'',email:'',type:'visitor',birthday:''});
+  setShowAdd(false);
+  setDuplicateReview(null);
+  addRequestRef.current=null;
+  flash(data.identity_review_confirmed?'Person added after identity review. ARIA’s decision was recorded.':data.idempotent_replay?'Person was already saved. Recovered the existing record.':'Person added');
+ }catch(err){flash(err.message||'Error adding person','error')}
+};
 const bulkAddPeople=async()=>{
  if(!accessToken||bulkBusy)return;
  const parsedRows=parseBulkPeopleRows(bulkText,bulkDefaultType);

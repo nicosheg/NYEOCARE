@@ -94,7 +94,7 @@ assert.deepEqual(normalizePhoneList({phone:'+2348098765432',phone_numbers:[{norm
 
 assert.ok(!peoplePage.includes('aria-label={`Edit ${fullName}`}')&&!peoplePage.includes('Edit details</span>')&&!peoplePage.includes('startEdit(person)'),'People roster cards must not add a duplicate Edit control; the existing Person Journey Edit action is the canonical entry point.');
 assert.ok(personPage.includes('onClick={openEdit}')&&personPage.includes('const openEdit=()=>')&&personPage.includes('const saveEdit=async(identityReview=null)=>'),'The existing Person Journey Edit action must open and use its canonical save handler.');
-assert.ok(peoplePage.includes("e.target?.closest?.('button,input,select,textarea,[contenteditable=\"true\"]')")&&peoplePage.includes("userSelect:editing?'text':'none'"), 'Interactive card fields must not trigger long-press selection, and edited text must remain selectable.');
+assert.ok(peoplePage.includes("e.target?.closest?.('button,input,select,textarea,[contenteditable=\"true\"]')")&&peoplePage.includes('handleCardClick=id=>')&&peoplePage.includes('personCardPhone(person)')&&!peoplePage.includes('aria-label={`Edit ${fullName}`}'), 'People cards remain navigation surfaces; form controls bypass card gestures and the editor remains on the person detail page.');
 assert.ok(reviewCenter.includes("refreshPeopleAfterReview('review-duplicate-decision'")&&reviewCenter.includes("refreshPeopleAfterReview('review-identity-decision'")&&reviewCenter.includes("publishDataChange('people'")&&reviewCenter.includes("nyeocare:app-refresh"), 'Every persisted Review Center identity decision must signal the People UI to reload canonical records.');
 
 

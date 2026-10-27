@@ -9,8 +9,8 @@ assert.ok(people.includes("import{updatePersonRecord}from'../../lib/aria/peopleM
 assert.ok(mutation.includes('WHERE id=$"+idIndex+"::uuid AND organization_id=$"+organizationIndex'),'Person edits must bind UUID and organization id parameters.');
 assert.doesNotMatch(people,/WHERE id=\$\{n\} AND organization_id=\$\{n\+1\}/,'The legacy UUID-versus-integer update query must not return.');
 
-assert.match(resolve,/metadata=metadata\|\|\$8::jsonb/);
-assert.match(resolve,/metadata=metadata\|\|\$3::jsonb/);
+assert.match(resolve,/metadata=COALESCE\(metadata,'\{\}'::jsonb\)\|\|\$8::jsonb/);
+assert.match(resolve,/metadata=COALESCE\(metadata,'\{\}'::jsonb\)\|\|\$3::jsonb/);
 
 
 assert.ok(mutation.includes("const rawPhone=String(fields.phone??'').trim()"),'Empty phone must be treated as a clearable value, not an invalid phone.');

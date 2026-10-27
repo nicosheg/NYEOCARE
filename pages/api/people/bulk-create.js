@@ -57,8 +57,8 @@ export default withOrg(async function handler(req, res) {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'Method not allowed' });
   }
-  if (!['owner', 'admin'].includes(req.user.role)) {
-    return res.status(403).json({ error: 'Admin permissions required.' });
+  if (!['owner', 'admin', 'leader', 'worker', 'user'].includes(String(req.user.role||'').toLowerCase())) {
+    return res.status(403).json({ error: 'Authorized organization operator permissions required.' });
   }
 
   const body = req.body || {};

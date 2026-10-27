@@ -60,9 +60,9 @@ assert.ok(mutation.includes("await directAriaEvent(event)"),'Person edits must b
 assert.ok(mutation.includes("eventKey:'aria-person-edit:'"),'Person edits must have an auditable ARIA event identity.');
 
 assert.ok(peoplePage.includes("value={personStatusFilter}"),'The People page must expose active/inactive status filtering.');
-assert.ok(personPage.includes("value={editType}"),'The existing Person Journey editor must retain member/visitor selection.');
-assert.ok(personPage.includes("value={editStatus}"),'The existing Person Journey editor must allow active/inactive status changes.');
-assert.ok(personPage.includes("if(nextStatus!==originalStatus)body.status=nextStatus"),'The profile edit request must send organization status when it actually changes.');
+assert.ok(peoplePage.includes("value={editType}"),'The People edit card must retain member/visitor selection.');
+assert.ok(peoplePage.includes("value={editStatus}"),'The People edit card must allow active/inactive status changes.');
+assert.ok(peoplePage.includes("if(editStatus!==originalStatus)body.status=editStatus"),'The People edit request must send organization status when it actually changes.');
 assert.ok(personPage.includes("value={editType}"),'The person profile editor must offer member/visitor selection.');
 assert.ok(personPage.includes("value={editStatus}"),'The person profile editor must offer active/inactive status selection.');
 assert.ok(personPage.includes("body.status=nextStatus"),'The profile edit request must persist status changes.');
@@ -92,18 +92,20 @@ assert.ok(peoplePage.includes("search||activeFilterCount>0?'No people found':'No
 assert.equal(primaryPhone({phone:null,phone_numbers:[{normalized:'unreadable',raw:'08012345678',index:1}]}),'+2348012345678','Primary-phone resolution must fall back to a valid raw phone when the normalized field is corrupt.');
 assert.deepEqual(normalizePhoneList({phone:'+2348098765432',phone_numbers:[{normalized:'invalid',raw:'08012345678',index:1}] }),['+2348098765432','+2348012345678'],'Phone-list resolution must prefer the canonical primary and then recover valid raw alternates.');
 
-assert.ok(!peoplePage.includes('aria-label={`Edit ${fullName}`}')&&!peoplePage.includes('Edit details</span>')&&!peoplePage.includes('startEdit(person)'),'People roster cards must not add a duplicate Edit control; the existing Person Journey Edit action is the canonical entry point.');
-assert.ok(personPage.includes('onClick={openEdit}')&&personPage.includes('const openEdit=()=>')&&personPage.includes('const saveEdit=async(identityReview=null)=>'),'The existing Person Journey Edit action must open and use its canonical save handler.');
-assert.ok(peoplePage.includes("e.target?.closest?.('button,input,select,textarea,[contenteditable=\"true\"]')")&&peoplePage.includes('handleCardClick=id=>')&&peoplePage.includes('personCardPhone(person)')&&!peoplePage.includes('aria-label={`Edit ${fullName}`}'), 'People cards remain navigation surfaces; form controls bypass card gestures and the editor remains on the person detail page.');
+assert.ok((peoplePage.match(/startEdit/g)||[]).length>1&&peoplePage.includes('aria-label={`Edit ${fullName}`}')&&peoplePage.includes('startEdit(person)'), 'Every visible People card must expose a working, accessible Edit action wired to the existing canonical editor.');
+assert.ok(peoplePage.includes("e.target?.closest?.('button,input,select,textarea,[contenteditable=\"true\"]')")&&peoplePage.includes("userSelect:editing?'text':'none'"), 'Interactive card fields must not trigger long-press selection, and edited text must remain selectable.');
 assert.ok(reviewCenter.includes("refreshPeopleAfterReview('review-duplicate-decision'")&&reviewCenter.includes("refreshPeopleAfterReview('review-identity-decision'")&&reviewCenter.includes("publishDataChange('people'")&&reviewCenter.includes("nyeocare:app-refresh"), 'Every persisted Review Center identity decision must signal the People UI to reload canonical records.');
 
 
-assert.ok(personPage.includes('const body={id};')&&personPage.includes('if(nextPhone!==originalPhone)body.phone=nextPhone')&&personPage.includes('if(nextEmail!==originalEmail)body.email=nextEmail')&&personPage.includes('if(nextBirthday!==originalBirthday)body.birthday=nextBirthday||null'), 'The existing profile editor must submit only fields the operator actually changed; an unchanged phone must not be resent as a phone edit.');
-assert.ok(personPage.includes('setP(prev=>({...prev,...d')&&personPage.includes('await load(activeToken)')&&personPage.includes("cache:'no-store'"), 'A successful profile edit must apply the canonical saved row and reload the profile with no-cache reads.');
-assert.ok(!peoplePage.includes('aria-label={`Edit ${fullName}`}')&&!peoplePage.includes('Edit details</span>')&&peoplePage.includes('personCardPhone(person)')&&peoplePage.includes('primaryPhone(person)'), 'People cards have no duplicate Edit button and resolve phones from both primary and ordered JSON storage.');
-assert.ok(personPage.includes('disabled={busy||!editName.trim()}')&&personPage.includes("busy?'Saving…':'Save changes'")&&personPage.includes('if(x.status===401)')&&personPage.includes('refreshClientSession()'), 'The profile Edit action must prevent duplicate submissions and retry after refreshing an expired session.');
+assert.ok(peoplePage.includes('const body={id};')&&peoplePage.includes('if(nextPhone!==originalPhone)body.phone=nextPhone')&&peoplePage.includes('if(nextEmail!==originalEmail)body.email=nextEmail')&&peoplePage.includes('if(nextBirthday!==originalBirthday)body.birthday=nextBirthday||null'), 'People card edits must submit only fields the operator actually changed; an unchanged shared phone must not be resent as a phone edit.');
+assert.ok(peoplePage.includes('String(p.id)===String(id)')&&peoplePage.includes("source:'people-card-edit'")&&peoplePage.includes('setPeople(prev=>prev.map'), 'A successful edit must update the visible card from the canonical saved row using stable string IDs.');
+assert.ok(peoplePage.indexOf('aria-label={`Edit ${fullName}`}')<peoplePage.indexOf('className="ny-last-seen"')&&!peoplePage.includes('Edit details</span>'), 'The only card Edit control must live in the card header, not below the card content.');
+assert.ok(peoplePage.includes('savingEditId===String(person.id)')&&peoplePage.includes('Saving…'), 'A person-card save must prevent repeated submissions and show the in-flight state.');
 assert.equal(normalizeDisplayName('Caleb $5').display,'Caleb $5','Dollar signs in literal names must survive name normalization.');
 assert.ok(mutation.includes("if(existingName.honorific&&!incomingName.honorific)incoming=existingName.honorific+' '+incoming"), 'A direct name edit must preserve the existing recognized honorific while applying the edited name text.');
+
+assert.ok(peoplePage.includes('personCardPhone(person)')&&peoplePage.includes('primaryPhone(person)'), 'People cards must display the canonical primary phone or fall back to the ordered phone_numbers JSON list.');
+assert.ok(!personPage.includes('<button style={S.action} onClick={openEdit}>Edit</button>'), 'Do not render a second Edit action outside the People cards.');
 
 console.log('[PEOPLE EDIT REGRESSION]');
 console.log('PASS: SQL-bound edits, email/type/status persistence, inactive directory filtering, and ARIA synchronization/suppression contracts.');

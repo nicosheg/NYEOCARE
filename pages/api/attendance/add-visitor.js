@@ -86,6 +86,8 @@ export default withOrg(async function handler(req,res){
       }
 
       const incomingNameKey=identityNameKey(normalizedName.display||rawName);
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',['nyeocare:person-name:'+orgId+':'+incomingNameKey]);
+      if(phone)await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',['nyeocare:person-phone:'+orgId+':'+phone]);
       const candidates=await findIdentityCandidates(orgId,incomingNameKey,phone,client);
       const exactIdentity=candidates.find(candidate=>candidate.name_match&&candidate.phone_match);
       const candidatePayload=candidates.map(candidate=>({

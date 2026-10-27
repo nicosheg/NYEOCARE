@@ -1,6 +1,6 @@
 // pages/api/people.js
 import pool from'../../lib/db';
-import{normalizePhone}from'../../lib/phoneUtils';
+import{normalizePhone,primaryPhone}from'../../lib/phoneUtils';
 import{normalizeDisplayName}from'../../lib/scanValidation';
 import{withOrg}from'../../lib/apiHelpers';
 import{updatePersonRecord}from'../../lib/aria/peopleMutationEngine';
@@ -18,13 +18,13 @@ async function findIdentityCandidates(orgId,nameKey,phone,db=pool,excludePersonI
  const displayExpr="COALESCE(NULLIF(p.display_name, ''::text), ((COALESCE(p.first_name, ''::text) || ' '::text) || COALESCE(p.last_name, ''::text)))";
  const result=await db.query(
   "WITH matches AS ("+
-  " SELECT p.id,p.first_name,p.last_name,p.display_name,p.phone,p.email,p.type,p.status,p.created_at,"+
+  " SELECT p.id,p.first_name,p.last_name,p.display_name,p.phone,p.phone_numbers,p.email,p.type,p.status,p.created_at,"+
   " CASE WHEN "+phoneMatchExpr+" THEN TRUE ELSE FALSE END AS phone_match,"+
   " CASE WHEN "+displayExpr+" % $5::text THEN TRUE ELSE FALSE END AS similar_name "+
   " FROM people p WHERE p.organization_id=$1 AND p.status='active' AND p.id<>$6::uuid "+
   " AND (("+phoneMatchExpr+") OR ("+nameExpr+"=$3) OR ("+displayExpr+" % $5::text)) "+
   " UNION ALL "+
-  " SELECT p.id,p.first_name,p.last_name,p.display_name,p.phone,p.email,p.type,p.status,p.created_at,"+
+  " SELECT p.id,p.first_name,p.last_name,p.display_name,p.phone,p.phone_numbers,p.email,p.type,p.status,p.created_at,"+
   " CASE WHEN "+phoneMatchExpr+" THEN TRUE ELSE FALSE END AS phone_match,"+
   " CASE WHEN "+displayExpr+" % $5::text THEN TRUE ELSE FALSE END AS similar_name "+
   " FROM people p WHERE p.organization_id=$1 AND p.status IN ('inactive','archived') AND p.id<>$6::uuid "+
@@ -36,7 +36,7 @@ async function findIdentityCandidates(orgId,nameKey,phone,db=pool,excludePersonI
   const displayName=row.display_name||[row.first_name,row.last_name].filter(Boolean).join(' ')||row.first_name||'Unnamed person';
   return {
    id:String(row.id),first_name:row.first_name||'',last_name:row.last_name||'',
-   display_name:displayName,phone:row.phone||null,email:row.email||null,
+   display_name:displayName,phone:primaryPhone(row),email:row.email||null,
    type:row.type||null,status:row.status||null,
    name_match:identityNameKey(displayName)===nameKey,
    phone_match:row.phone_match===true,

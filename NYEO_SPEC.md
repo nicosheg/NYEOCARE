@@ -2844,3 +2844,14 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 - Editing a person must continue through the shared `/api/people` → `updatePersonRecord` transaction. The save response and a fresh no-cache People read must both feed the visible roster; the card must render the canonical `display_name` (including meaningful honorifics) and the persisted contact fields.
 - Every successful Review Center identity decision that persists a person (scan review edit/approve/separate, duplicate merge, or keep-separate) must refresh the People surface after the API verifies persistence and the intended identity outcome. Emit the standard People data-change signal and app refresh event; a failed or stale decision must leave the review open.
 - Regression gates cover the reachable card editor, card gesture isolation, canonical mutation path, selected-survivor merge invariants, and cross-surface refresh. Production is not considered verified until tests/build pass and Vercel's production deployment SHA matches the merged commit.
+
+
+---
+
+## People card save fidelity — 27 October 2026
+
+- The Edit action belongs in the visible card header; do not add a second footer/outside-card control.
+- The card editor submits only changed fields. In particular, never resend a prefilled phone number when the operator changed only a name, email, birthday, type, or status. An unchanged shared phone must not block a non-phone edit; a genuinely changed phone still goes through the identity collision checks.
+- A successful save applies the canonical row returned by the committed mutation to the visible list using string-normalized IDs, then reloads People data. Save controls visibly prevent repeat submissions while a write is in flight.
+- Manual full-name edits respect the text the operator entered. Normalize casing and parse first/last-name storage as needed, but do not silently reinsert an existing honorific after the operator removes it. Keep all values parameterized in SQL so literal characters, including apostrophes and dollar signs, are data rather than SQL syntax.
+- Regression coverage must include unchanged-phone omission, a literal dollar sign in a name, explicit honorific removal, card-header Edit placement, and canonical UI refresh after a successful save.

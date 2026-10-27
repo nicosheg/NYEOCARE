@@ -9,6 +9,8 @@ const access = read('lib/attendance/access.js');
 const profileApi = read('pages/api/profile.js');
 const profileUi = read('pages/profile.js');
 const community = read('components/CommunityTab.js');
+const attendanceApi = read('pages/api/attendance/add-visitor.js');
+const attendanceUi = read('components/AttendanceModal.js');
 
 assert.ok(api.includes('normalizeDisplayName(rawName)') && api.includes('identityNameKey(display_name||rawName)'), 'Person creation must normalize names and strip honorifics before identity comparison.');
 assert.ok(api.includes('DUPLICATE_IDENTITY_NOT_DISTINCT') && api.includes('PERSON_IDENTITY_REVIEW_REQUIRED') && api.includes('PERSON_IDENTITY_REVIEW_STALE'), 'Creation must prevent identical name+phone identities and route ambiguous matches through a stale-safe review gate.');
@@ -22,6 +24,8 @@ assert.ok(profileApi.includes('auth.admin.updateUserById') && profileApi.include
 assert.ok(profileUi.includes('d.identity_sync_warning||\'Saved\''), 'A failed metadata sync must not be falsely reported as a clean save.');
 assert.ok(community.includes('Array.isArray(data.items)'), 'Legacy People views must understand the paginated People API response.');
 assert.ok(community.includes('full_name: editName.trim()') && community.includes('PERSON_IDENTITY_REVIEW_REQUIRED'), 'Legacy People edit/create controls must use the canonical full_name contract and offer the same human identity review.');
+assert.ok(attendanceApi.includes('findIdentityCandidates') && attendanceApi.includes('recordIdentityReview') && attendanceApi.includes('PERSON_IDENTITY_REVIEW_REQUIRED'), 'Adding a visitor during attendance must review same-phone and similar-name candidates and persist verified shared-contact evidence.');
+assert.ok(attendanceUi.includes('visitorIdentityReview') && attendanceUi.includes('Verified: this is a separate person'), 'Attendance must keep the add-person workflow usable while the operator reviews identity matches.');
 assert.ok(read('pages/person/[id].js').includes('editIdentityReview') && read('pages/person/[id].js').includes('PERSON_IDENTITY_REVIEW_REQUIRED'), 'The person profile editor must also offer human identity review rather than fail closed with a generic error.');
 console.log('[PERSON IDENTITY REVIEW REGRESSION]');
 console.log('PASS: honorific normalization, strict identity uniqueness, human review, shared contact evidence, edit review, account access, and profile-name synchronization.');

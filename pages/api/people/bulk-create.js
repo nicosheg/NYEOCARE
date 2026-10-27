@@ -218,7 +218,7 @@ export default withOrg(async function handler(req, res) {
           row.person_id, row.first_name, row.last_name, row.display_name || null,
           row.phone, row.email, row.type, row.birthday, req.user.id, row.living_truth
         );
-        return `(${first},$1,${first + 1},${first + 2},${first + 3},${first + 4},${first + 5},${first + 6},${first + 7},${first + 8},${first + 9}::jsonb,'active','manual')`;
+        return `($${first},$1,$${first + 1},$${first + 2},$${first + 3},$${first + 4},$${first + 5},$${first + 6},$${first + 7},$${first + 8},$${first + 9}::jsonb,'active','manual')`;
       });
       const created = await client.query(
         `INSERT INTO people

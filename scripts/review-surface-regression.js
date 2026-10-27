@@ -42,6 +42,10 @@ assert.match(review,/save\(selected\?'edit':'separate'\)/,'editing must update a
 assert.match(review,/result\?\.persisted!==true/,'the UI must require a verified persistence response before clearing a review');
 assert.match(review,/if\(!silent\)setLoading\(false\)/,'silent refresh must not temporarily blank the queue');
 
+assert.match(reviewResolve,/import\{resolveIdentities\}from'\.\.\/\.\.\/\.\.\/lib\/identityResolver'/,'fresh candidates from Review Center must be revalidated server-side before editing');
+assert.match(reviewResolve,/freshAllowed\.includes\(selected\)/,'a fresh candidate can be edited only if current server-side identity matching confirms it');
+assert.match(reviewResolve,/REVIEW_CANDIDATES_UNAVAILABLE/,'candidate verification failure must keep the review pending');
+assert.match(reviewResolve,/REVIEW_CANDIDATE_STALE/,'stale edit targets must not silently turn into person creation');
 assert.match(reviewResolve,/REVIEW_PERSISTENCE_VERIFICATION_FAILED/);
 assert.match(reviewResolve,/const savedResult=await db\.query/);
 assert.match(reviewResolve,/persisted\.identity_verification_status/);

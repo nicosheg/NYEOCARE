@@ -11,6 +11,7 @@ assert.doesNotMatch(people,/WHERE id=\$\{n\} AND organization_id=\$\{n\+1\}/,'Th
 
 assert.match(resolve,/metadata=COALESCE\(metadata,'\{\}'::jsonb\)\|\|\$8::jsonb/);
 assert.match(resolve,/metadata=COALESCE\(metadata,'\{\}'::jsonb\)\|\|\$3::jsonb/);
+assert.match(resolve,/phonesFrom=row=>\{const v=\[\.\.\.\(Array\.isArray\(row\?\.phones\)\?row\.phones:\[\]\),\.\.\.\(Array\.isArray\(row\?\.phone_numbers\)\?row\.phone_numbers:\[\]\),\.\.\.\(row\?\.phone\?\[row\.phone\]:\[\]\)\]/,'legacy primary phone must be preserved when phone_numbers is empty');
 
 
 assert.ok(mutation.includes("const rawPhone=String(fields.phone??'').trim()"),'Empty phone must be treated as a clearable value, not an invalid phone.');

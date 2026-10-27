@@ -258,10 +258,10 @@ if(req.method==='POST'){
     return res.status(409).json({error:'The records changed while you were reviewing. Refresh the People list and try again.',code:'PERSON_IDENTITY_REVIEW_STALE',candidates:[]});
    }
    person=(await client.query(
-    `INSERT INTO people(organization_id,first_name,last_name,display_name,phone,email,type,birthday,created_by,living_truth,status,source)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'active','manual')
+    `INSERT INTO people(organization_id,first_name,last_name,display_name,phone,phone_numbers,email,type,birthday,created_by,living_truth,status,source)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'active','manual')
      RETURNING *`,
-    [orgId,first_name,last_name,display_name||null,phone,email,type,birthday,req.user.id,
+    [orgId,first_name,last_name,display_name||null,phone,JSON.stringify(phone?[{raw:phone,normalized:phone,source:'manual',index:1}]:[]),email,type,birthday,req.user.id,
      JSON.stringify({status:'alive',confidence:90,source:'canonical_record',updated_at:new Date().toISOString()})]
    )).rows[0];
    if(candidates.length){

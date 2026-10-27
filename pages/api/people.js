@@ -201,6 +201,8 @@ if(req.method==='POST'){
    wasReplay=true;
   }else{
    const incomingNameKey=identityNameKey(display_name||rawName);
+   await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',['nyeocare:person-name:'+orgId+':'+incomingNameKey]);
+   if(phone)await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',['nyeocare:person-phone:'+orgId+':'+phone]);
    const candidates=await findIdentityCandidates(orgId,incomingNameKey,phone,client);
    const candidatePayload=candidates.map(row=>({
     id:String(row.id),

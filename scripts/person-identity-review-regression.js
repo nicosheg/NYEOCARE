@@ -11,6 +11,7 @@ const profileUi = read('pages/profile.js');
 const community = read('components/CommunityTab.js');
 const attendanceApi = read('pages/api/attendance/add-visitor.js');
 const attendanceUi = read('components/AttendanceModal.js');
+const capabilityRegistry = read('lib/aria/capabilityRegistry.js');
 
 assert.ok(api.includes('normalizeDisplayName(rawName)') && api.includes('identityNameKey(display_name||rawName)'), 'Person creation must normalize names and strip honorifics before identity comparison.');
 assert.ok(api.includes('DUPLICATE_IDENTITY_NOT_DISTINCT') && api.includes('PERSON_IDENTITY_REVIEW_REQUIRED') && api.includes('PERSON_IDENTITY_REVIEW_STALE'), 'Creation must prevent identical name+phone identities and route ambiguous matches through a stale-safe review gate.');
@@ -33,6 +34,12 @@ assert.ok(bulkApi.includes("return `($${first},$1,$${first + 1}") && bulkApi.inc
 assert.ok(mutation.includes('Possible identity matches need human review before ARIA can create this person.') && mutation.includes("source:'aria_person_create_identity_review'"), 'ARIA direct person creation must use the same human identity-review contract.');
 assert.ok(mutation.includes('Use People > Add multiple people to review the candidate names and phone numbers.') && mutation.includes('identityNameKey(parsedName.display_name||row.name)'), 'ARIA roster import must leave ambiguous rows unsaved and direct them to human review.');
 assert.ok(read('lib/aria/capabilityEngine.js').includes('identityReview:parameters.identity_review||null') && read('lib/aria/capabilityEngine.js').includes('requireActor(organizationId,actorId)'), 'ARIA person creation must use operator authorization and pass reviewed identity decisions.');
+for (const name of ['create_person','import_people_roster','update_person_record']) {
+  const start = capabilityRegistry.indexOf(name + ':{');
+  const end = capabilityRegistry.indexOf('\n', start);
+  const definition = capabilityRegistry.slice(start, end < 0 ? capabilityRegistry.length : end);
+  assert.ok(start >= 0 && !definition.includes("requiredRole:'owner_or_admin'") && /Authorized organization operators/.test(definition), name + ' must be available to recognized organization operators; owner/admin-only registry metadata would block the user role before server authorization.');
+}
 assert.ok(read('lib/aria/commandEngine.js').includes('PERSON_IDENTITY_REVIEW_REQUIRED') && read('lib/aria/commandEngine.js').includes('Open People and use Add one person'), 'ARIA must explain identity conflicts and direct operators to the human-review workflow.');
 assert.ok(read('pages/person/[id].js').includes('editIdentityReview') && read('pages/person/[id].js').includes('PERSON_IDENTITY_REVIEW_REQUIRED'), 'The person profile editor must also offer human identity review rather than fail closed with a generic error.');
 console.log('[PERSON IDENTITY REVIEW REGRESSION]');

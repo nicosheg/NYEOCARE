@@ -1,7 +1,7 @@
 // pages/api/identity/resolve.js
 import pool from'../../../lib/db';
 import{withAdmin}from'../../../lib/apiHelpers';
-import{normalizeName}from'../../../lib/scanValidation';
+import{normalizeName}from'../../../lib/scanValidation';import normalizePhone from'../../../lib/phoneUtils';
 
 async function handler(req,res){
 if(req.method!=='POST'){
@@ -50,9 +50,11 @@ resolvedPersonId=person.id;
 await pool.query(`UPDATE people SET living_truth=$1,updated_at=NOW() WHERE id=$2 AND organization_id=$3`,[JSON.stringify({...(person.living_truth||{}),status:'alive',confidence:item?.confidence||70,source:'human_confirmed_new',confirmed_at:new Date().toISOString(),confirmed_by:req.user.id}),person.id,orgId]);
 }else{
 const name=String(new_name||sourceName).trim();
-const phone=String(new_phone||item?.extracted_phone||'').trim()||null;
+const rawPhone=String(new_phone||item?.extracted_phone||'').trim(),phone=rawPhone?normalizePhone(rawPhone):null;
 if(!name)return res.status(400).json({error:'A name is required'});
-const insert=await pool.query(`INSERT INTO people(organization_id,first_name,phone,type,status,confidence,source,created_by,living_truth) VALUES($1,$2,$3,'visitor','active',$4,'scan',$5,$6) RETURNING id`,[orgId,name,phone,item?.confidence||70,req.user.id,JSON.stringify({status:'alive',confidence:item?.confidence||70,source:'human_resolved_scan',confirmed_at:new Date().toISOString(),confirmed_by:req.user.id})]);
+if(rawPhone&&!phone)return res.status(400).json({error:'The phone number is invalid. Correct it before saving or remove it from the review.'});
+const phoneNumbers=JSON.stringify(phone?[{raw:phone,normalized:phone,source:'human_resolved_scan',index:1}]:[]);
+const insert=await pool.query(`INSERT INTO people(organization_id,first_name,phone,phone_numbers,type,status,confidence,source,created_by,living_truth) VALUES($1,$2,$3,$4,'visitor','active',$5,'scan',$6,$7) RETURNING id`,[orgId,name,phone,phoneNumbers,item?.confidence||70,req.user.id,JSON.stringify({status:'alive',confidence:item?.confidence||70,source:'human_resolved_scan',confirmed_at:new Date().toISOString(),confirmed_by:req.user.id})]);
 resolvedPersonId=insert.rows[0].id;
 }
 }else return res.status(400).json({error:`Unsupported action: ${action}`});

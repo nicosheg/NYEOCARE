@@ -2848,10 +2848,10 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 
 ---
 
-## People card save fidelity — 27 October 2026
+## People record editor and phone fidelity — 27 October 2026
 
-- The Edit action belongs in the visible card header; do not add a second footer/outside-card control.
-- The card editor submits only changed fields. In particular, never resend a prefilled phone number when the operator changed only a name, email, birthday, type, or status. An unchanged shared phone must not block a non-phone edit; a genuinely changed phone still goes through the identity collision checks.
-- A successful save applies the canonical row returned by the committed mutation to the visible list using string-normalized IDs, then reloads People data. Save controls visibly prevent repeat submissions while a write is in flight.
-- Manual full-name edits normalize casing and update the canonical display name and first/last-name fields together. Preserve an existing recognized honorific when a new full name omits one, matching the established identity-review contract; a recognized replacement honorific takes precedence. Keep all values parameterized in SQL so literal characters, including apostrophes and dollar signs, are data rather than SQL syntax.
-- Regression coverage must include unchanged-phone omission, a literal dollar sign in a name, explicit honorific removal, card-header Edit placement, and canonical UI refresh after a successful save.
+- People list cards are navigation surfaces; do not add a second inline, header, or footer Edit button to each card. The existing **Edit** action on `/person/[id]` is the canonical editor and must remain visible and functional.
+- The existing profile editor submits only changed fields, retries once after refreshing an expired session, disables duplicate saves while a request is active, applies the canonical saved response, and reloads the profile with no-cache reads.
+- Cards display the canonical primary phone, with fallback to the ordered `phone_numbers` JSON data when present. The editor must use the same phone-resolution contract so a JSON-stored primary phone is not silently blanked on a name-only update.
+- Phone records are organization-scoped. Never copy a number from a different organization to fill a missing field. If the active record and its ordered phone list are empty, report that no phone is stored for that record; do not infer or fabricate one.
+- Regression coverage verifies there is no duplicate card Edit action, the existing profile Edit button persists changed details, session renewal and canonical response refresh work, and phone resolution checks both primary and ordered JSON storage.

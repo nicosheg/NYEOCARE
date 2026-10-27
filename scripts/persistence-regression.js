@@ -20,7 +20,8 @@ assert.ok(mutation.includes('fields.status!==undefined'),'The active/inactive st
 assert.match(bulkPeople,/const MAX_ROWS = 200/);
 assert.match(bulkPeople,/pg_advisory_xact_lock/);
 assert.match(bulkPeople,/Phone number duplicates row/);
-assert.match(bulkPeople,/phone_numbers/);
+assert.match(mutation,/phone_numbers/);
+assert.match(bulkPeople,/findIdentityCandidates/);
 assert.ok(bulkPeople.includes('waitUntil(processCreatedPeople('));
 assert.ok(bulkPeople.includes("await client.query('COMMIT')"));
 

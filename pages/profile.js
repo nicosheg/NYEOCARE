@@ -68,8 +68,8 @@ if(d.organization){
 setName(d.organization.name||'');
 
 }
-setMsg('Saved');
-setTimeout(()=>setMsg(''),1800);
+setMsg(d.identity_sync_warning||'Saved');
+setTimeout(()=>setMsg(''),d.identity_sync_warning?5000:1800);
 }catch(e){
 setMsg('Unable to save.');
 }finally{

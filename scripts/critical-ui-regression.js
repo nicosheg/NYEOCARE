@@ -318,7 +318,7 @@ const checks=[
  ['People page exposes fast bulk add with a row preview and skipped-row feedback',
   /Bulk add/.test(peoplePage)&&/parseBulkPeopleRows/.test(peoplePage)&&/phoneOnly=line\.match/.test(peoplePage)&&/source_line_numbers/.test(peoplePage)&&/Add many people at once/.test(peoplePage)&&/bulkPreviewRows\.length>200/.test(peoplePage)&&/only skipped rows remain in the box/.test(peoplePage)],
  ['Bulk person creation is bounded, authorized, and duplicate-safe',
-  /withOrg/.test(bulkPeopleApi)&&/\['owner',\s*'admin'\]/.test(bulkPeopleApi)&&/MAX_ROWS = 200/.test(bulkPeopleApi)&&/pg_advisory_xact_lock/.test(bulkPeopleApi)&&/phone_numbers/.test(bulkPeopleApi)&&/Phone number duplicates row/.test(bulkPeopleApi)],
+  /withOrg/.test(bulkPeopleApi)&&/\['owner',\s*'admin',\s*'leader',\s*'worker',\s*'user'\]/.test(bulkPeopleApi)&&/MAX_ROWS = 200/.test(bulkPeopleApi)&&/pg_advisory_xact_lock/.test(bulkPeopleApi)&&/findIdentityCandidates/.test(bulkPeopleApi)&&/recordIdentityReview/.test(bulkPeopleApi)&&/Phone number duplicates row/.test(bulkPeopleApi)],
  ['Bulk person creation schedules ARIA updates after the main insert',
   /waitUntil\(processCreatedPeople/.test(bulkPeopleApi)&&/type: 'PERSON_CREATED'/.test(bulkPeopleApi)&&/await client\.query\('COMMIT'\)/.test(bulkPeopleApi)],
  ['Scan start preserves structured capacity and retry-after details',

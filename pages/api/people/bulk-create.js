@@ -1,11 +1,13 @@
 // pages/api/people/bulk-create.js
 import pool from '../../../lib/db';
+import { randomUUID } from 'node:crypto';
 import { waitUntil } from '@vercel/functions';
 import { normalizePhone } from '../../../lib/phoneUtils';
 import { normalizeDisplayName } from '../../../lib/scanValidation';
 import { withOrg } from '../../../lib/apiHelpers';
 import { emitAriaEvent } from '../../../lib/aria/eventEmitter';
 import { directAriaEvent } from '../../../lib/aria/director';
+import { identityNameKey, findIdentityCandidates, recordIdentityReview } from '../../../lib/aria/peopleMutationEngine';
 
 const MAX_ROWS = 200;
 
@@ -57,8 +59,8 @@ export default withOrg(async function handler(req, res) {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'Method not allowed' });
   }
-  if (!['owner', 'admin'].includes(req.user.role)) {
-    return res.status(403).json({ error: 'Admin permissions required.' });
+  if (!['owner', 'admin', 'leader', 'worker', 'user'].includes(String(req.user.role||'').toLowerCase())) {
+    return res.status(403).json({ error: 'Authorized organization operator permissions required.' });
   }
 
   const body = req.body || {};
@@ -82,7 +84,8 @@ export default withOrg(async function handler(req, res) {
     const type = String(row.type || defaultType).trim().toLowerCase();
     const line = rowNumber(row, index);
     const sourceLines = Array.isArray(row.source_line_numbers) ? row.source_line_numbers.map(Number).filter(value => Number.isInteger(value) && value > 0) : [line];
-    const outcome = { row: line, source_line_numbers: sourceLines.length ? sourceLines : [line], name, status: 'skipped', reason: '' };
+    const review_key = `${name.trim().toLowerCase()}|${phoneText.trim()}`;
+    const outcome = { row: line, source_line_numbers: sourceLines.length ? sourceLines : [line], name, review_key, status: 'skipped', reason: '' };
 
     if (!name) {
       outcome.reason = 'Name is required.';
@@ -116,6 +119,7 @@ export default withOrg(async function handler(req, res) {
       candidate: {
         index,
         ...split,
+        identity_review: row.identity_review&&typeof row.identity_review==='object'?row.identity_review:null,
         phone,
         email: email || null,
         type,
@@ -132,16 +136,26 @@ export default withOrg(async function handler(req, res) {
 
   // Keep the first valid instance of a phone number in the pasted list.
   const seenPhones = new Map();
+  const seenNames = new Map();
   const candidates = [];
   for (const item of results) {
     const candidate = item.candidate;
     if (!candidate) continue;
+    const nameKey=identityNameKey(candidate.display_name||item.outcome.name);
     if (candidate.phone && seenPhones.has(candidate.phone)) {
-      item.outcome.reason = `Phone number duplicates row ${seenPhones.get(candidate.phone)} in this list.`;
+      item.outcome.status='needs_review';
+      item.outcome.reason = `Phone number duplicates row ${seenPhones.get(candidate.phone)} in this list. Save the first row, then review this row's shared number.`;
+      item.candidate = null;
+      continue;
+    }
+    if (nameKey && seenNames.has(nameKey)) {
+      item.outcome.status='needs_review';
+      item.outcome.reason = `Name is similar to row ${seenNames.get(nameKey)} in this list. Save the first row, then review this row before adding it.`;
       item.candidate = null;
       continue;
     }
     if (candidate.phone) seenPhones.set(candidate.phone, item.outcome.row);
+    if (nameKey) seenNames.set(nameKey,item.outcome.row);
     candidates.push(candidate);
   }
 
@@ -153,49 +167,46 @@ export default withOrg(async function handler(req, res) {
     // Avoid two simultaneous bulk submissions racing each other through the duplicate check.
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`people-bulk-create:${organizationId}`]);
 
-    const phones = candidates.map(row => row.phone).filter(Boolean);
-    const existingByPhone = new Map();
-    if (phones.length) {
-      const existing = await client.query(
-        `SELECT p.id, p.display_name, p.phone, p.phone_numbers
-         FROM people p
-         WHERE p.organization_id=$1
-           AND COALESCE(p.status,'active')='active'
-           AND COALESCE(p.living_truth->>'status','alive') NOT IN ('needs_decision','conflict')
-           AND (
-             p.phone=ANY($2::text[])
-             OR EXISTS (
-               SELECT 1
-               FROM jsonb_array_elements(COALESCE(p.phone_numbers,'[]'::jsonb)) v
-               WHERE v->>'normalized'=ANY($2::text[])
-             )
-           )`,
-        [organizationId, phones]
-      );
-      for (const person of existing.rows) {
-        const phonesOnPerson = [
-          person.phone,
-          ...(Array.isArray(person.phone_numbers)
-            ? person.phone_numbers.flatMap(value => [value?.normalized, value?.raw, value?.phone])
-            : [])
-        ];
-        for (const rawPhone of phonesOnPerson) {
-          const normalized = normalizePhone(rawPhone);
-          if (normalized) existingByPhone.set(normalized, person);
-        }
-      }
-    }
-
     const accepted = [];
     for (const item of results) {
       const candidate = item.candidate;
       if (!candidate) continue;
-      const existing = candidate.phone ? existingByPhone.get(candidate.phone) : null;
-      if (existing) {
-        item.outcome.reason = `Phone already belongs to ${existing.display_name || existing.phone || 'another person'}.`;
-        item.candidate = null;
+      const nameKey=identityNameKey(candidate.display_name||item.outcome.name);
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`nyeocare:person-name:${organizationId}:${nameKey}`]);
+      if(candidate.phone)await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`nyeocare:person-phone:${organizationId}:${candidate.phone}`]);
+      const matches=await findIdentityCandidates(organizationId,nameKey,candidate.phone,client);
+      const candidatePayload=matches.map(match=>({
+        id:String(match.id),display_name:match.display_name||[match.first_name,match.last_name].filter(Boolean).join(' ')||'Unnamed person',
+        first_name:match.first_name||'',last_name:match.last_name||'',phone:match.phone||null,
+        type:match.type||null,status:match.status||null,
+        name_match:match.name_match===true,phone_match:match.phone_match===true,similar_name:match.similar_name===true
+      }));
+      const exact=matches.find(match=>match.name_match&&match.phone_match);
+      if(exact){
+        item.outcome.reason='The same normalized name and phone number already exist. Open the existing record instead of creating a duplicate.';
+        item.outcome.candidates=candidatePayload.filter(match=>match.id===exact.id);
+        item.candidate=null;
         continue;
       }
+      const review=candidate.identity_review;
+      const expectedIds=Array.isArray(review?.candidate_ids)?[...new Set(review.candidate_ids.map(value=>String(value)))].sort():[];
+      const currentIds=candidatePayload.map(match=>match.id).sort();
+      if(matches.length&&review?.confirmed!==true){
+        item.outcome.status='needs_review';
+        item.outcome.reason='Possible identity matches require human review before this row can be saved.';
+        item.outcome.candidates=candidatePayload;
+        item.candidate=null;
+        continue;
+      }
+      if((matches.length&&(expectedIds.length!==currentIds.length||expectedIds.some((value,index)=>value!==currentIds[index])))||(!matches.length&&review?.confirmed===true&&expectedIds.length)){
+        item.outcome.status='needs_review';
+        item.outcome.reason='Possible matches changed while this row was being reviewed. Review the refreshed candidates before saving.';
+        item.outcome.candidates=candidatePayload;
+        item.candidate=null;
+        continue;
+      }
+      candidate.person_id=randomUUID();
+      candidate.identity_candidates=matches.length?matches:[];
       accepted.push(candidate);
     }
 
@@ -204,19 +215,27 @@ export default withOrg(async function handler(req, res) {
       const groups = accepted.map(row => {
         const first = values.length + 1;
         values.push(
-          row.first_name, row.last_name, row.display_name || null,
+          row.person_id, row.first_name, row.last_name, row.display_name || null,
           row.phone, row.email, row.type, row.birthday, req.user.id, row.living_truth
         );
-        return `($1,$${first},$${first + 1},$${first + 2},$${first + 3},$${first + 4},$${first + 5},$${first + 6},$${first + 7},$${first + 8}::jsonb,'active','manual')`;
+        return `($${first},$1,$${first + 1},$${first + 2},$${first + 3},$${first + 4},$${first + 5},$${first + 6},$${first + 7},$${first + 8},$${first + 9}::jsonb,'active','manual')`;
       });
       const created = await client.query(
         `INSERT INTO people
-          (organization_id,first_name,last_name,display_name,phone,email,type,birthday,created_by,living_truth,status,source)
+          (id,organization_id,first_name,last_name,display_name,phone,email,type,birthday,created_by,living_truth,status,source)
          VALUES ${groups.join(',')}
          RETURNING id,first_name,last_name,display_name,phone,email,type,birthday,created_at`,
         values
       );
       insertedPeople = created.rows;
+      const acceptedById=new Map(accepted.map(row=>[row.person_id,row]));
+      for (const person of insertedPeople) {
+        const input=acceptedById.get(person.id);
+        if(input?.identity_candidates?.length)await recordIdentityReview(client,{
+          organizationId,actorId:req.user.id,actorRole:req.user.role,
+          person,candidates:input.identity_candidates,phone:person.phone,source:'bulk_people_identity_review'
+        });
+      }
       for (const candidate of accepted) results[candidate.index].outcome.status = 'created';
     }
 

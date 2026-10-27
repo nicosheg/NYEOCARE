@@ -2,6 +2,7 @@
 import pool from'../../lib/db';
 import{withOrg}from'../../lib/apiHelpers';
 import{updateOrganizationProfile}from'../../lib/organizationMutationEngine';
+import{supabaseAdmin}from'../../lib/supabaseClient';
 
 export default withOrg(async function handler(req,res){
  const user=req.user;
@@ -31,7 +32,30 @@ export default withOrg(async function handler(req,res){
     ...(ariaInstructions!==undefined?{ariaInstructions}: {})
    }
   });
-  return res.status(200).json({success:true,request_id:req.nyeoRequestId,...data});
+  let identity_sync_warning=null;
+  // users.name is NYEOCARE's canonical display name. Keep Supabase Auth profile
+  // metadata aligned so downstream account/profile surfaces do not revert to the
+  // original sign-up metadata (which can be different from the organization name).
+  if(userName!==undefined&&user.supabase_user_id){
+   if(!supabaseAdmin){
+    identity_sync_warning='Your name was saved in NYEOCARE, but account-profile metadata could not be synchronized. Check the server Supabase admin configuration and save again.';
+   }else{
+    try{
+     const currentAuth=await supabaseAdmin.auth.admin.getUserById(user.supabase_user_id);
+     if(currentAuth.error)throw currentAuth.error;
+     const authMetadata=currentAuth.data?.user?.user_metadata||{};
+     const canonicalName=String(data.user?.name||userName).trim();
+     const updatedAuth=await supabaseAdmin.auth.admin.updateUserById(user.supabase_user_id,{
+      user_metadata:{...authMetadata,name:canonicalName,full_name:canonicalName}
+     });
+     if(updatedAuth.error)throw updatedAuth.error;
+    }catch(syncError){
+     console.error('[PROFILE] Auth display-name sync failed:',{request_id:req.nyeoRequestId,message:syncError?.message||syncError});
+     identity_sync_warning='Your name was saved in NYEOCARE, but the account profile could not be synchronized. Save your name again to retry.';
+    }
+   }
+  }
+  return res.status(200).json({success:true,request_id:req.nyeoRequestId,identity_sync_warning,...data});
  }catch(error){
   console.error('[PROFILE] PATCH failed:',{request_id:req.nyeoRequestId,message:error?.message||error,code:error?.code||null});
   const status=Number(error?.status)||500;

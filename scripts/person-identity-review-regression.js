@@ -25,6 +25,8 @@ assert.ok(mutation.includes('identityReview=null') && mutation.includes('PERSON_
 assert.ok(mutation.includes("p.status IN ('inactive','archived')"), 'Possible identity matches must include archived records so a former person cannot be re-created as a duplicate.');
 assert.ok(page.includes('Verified: these are separate people') && page.includes('DUPLICATE_IDENTITY_NOT_DISTINCT') && page.includes('Open record'), 'The People screen must expose human review and block a second record for an identical name+phone pair.');
 assert.ok(page.includes('Your edit has not been saved yet.') && page.includes('Confirm separate identities & save changes'), 'Direct People edits must clearly explain and require the explicit identity-review confirmation before saving.');
+assert.ok(mutation.includes("if(existingName.honorific&&!incomingName.honorific)incoming=existingName.honorific+' '+incoming"), 'A direct numeric-name edit must preserve existing honorifics while retaining the edited name text.');
+assert.ok(mutation.includes("replace(/[^a-z0-9]+/g,' ').trim()"), 'Identity comparison for direct edits must preserve digits within names.');
 assert.ok(access.includes("'owner', 'admin', 'leader', 'worker', 'user'"), 'Legacy user accounts must remain usable as operators until role migration is designed.');
 assert.ok(profileApi.includes('auth.admin.updateUserById') && profileApi.includes('user_metadata:{...authMetadata,name:canonicalName,full_name:canonicalName}'), 'The canonical NYEOCARE profile name must synchronize to Supabase Auth metadata.');
 assert.ok(profileUi.includes('d.identity_sync_warning||\'Saved\''), 'A failed metadata sync must not be falsely reported as a clean save.');

@@ -1,6 +1,7 @@
 import fs from'node:fs';
 import assert from'node:assert/strict';
 import { normalizePhoneList, primaryPhone } from '../lib/phoneUtils.js';
+import { normalizeDisplayName } from '../lib/scanValidation.js';
 
 const read=p=>fs.readFileSync(p,'utf8');
 const peoplePage=read('pages/people.js');
@@ -61,7 +62,7 @@ assert.ok(mutation.includes("eventKey:'aria-person-edit:'"),'Person edits must h
 assert.ok(peoplePage.includes("value={personStatusFilter}"),'The People page must expose active/inactive status filtering.');
 assert.ok(peoplePage.includes("value={editType}"),'The People edit card must retain member/visitor selection.');
 assert.ok(peoplePage.includes("value={editStatus}"),'The People edit card must allow active/inactive status changes.');
-assert.ok(peoplePage.includes("status:editStatus"),'The People edit request must send organization status.');
+assert.ok(peoplePage.includes("if(editStatus!==originalStatus)body.status=editStatus"),'The People edit request must send organization status when it actually changes.');
 assert.ok(personPage.includes("value={editType}"),'The person profile editor must offer member/visitor selection.');
 assert.ok(personPage.includes("value={editStatus}"),'The person profile editor must offer active/inactive status selection.');
 assert.ok(personPage.includes("body.status=nextStatus"),'The profile edit request must persist status changes.');
@@ -94,6 +95,14 @@ assert.deepEqual(normalizePhoneList({phone:'+2348098765432',phone_numbers:[{norm
 assert.ok((peoplePage.match(/startEdit/g)||[]).length>1&&peoplePage.includes('aria-label={`Edit ${fullName}`}')&&peoplePage.includes('startEdit(person)'), 'Every visible People card must expose a working, accessible Edit action wired to the existing canonical editor.');
 assert.ok(peoplePage.includes("e.target?.closest?.('button,input,select,textarea,[contenteditable=\"true\"]')")&&peoplePage.includes("userSelect:editing?'text':'none'"), 'Interactive card fields must not trigger long-press selection, and edited text must remain selectable.');
 assert.ok(reviewCenter.includes("refreshPeopleAfterReview('review-duplicate-decision'")&&reviewCenter.includes("refreshPeopleAfterReview('review-identity-decision'")&&reviewCenter.includes("publishDataChange('people'")&&reviewCenter.includes("nyeocare:app-refresh"), 'Every persisted Review Center identity decision must signal the People UI to reload canonical records.');
+
+
+assert.ok(peoplePage.includes('const body={id};')&&peoplePage.includes('if(nextPhone!==originalPhone)body.phone=nextPhone')&&peoplePage.includes('if(nextEmail!==originalEmail)body.email=nextEmail')&&peoplePage.includes('if(nextBirthday!==originalBirthday)body.birthday=nextBirthday||null'), 'People card edits must submit only fields the operator actually changed; an unchanged shared phone must not be resent as a phone edit.');
+assert.ok(peoplePage.includes('String(p.id)===String(id)')&&peoplePage.includes("source:'people-card-edit'")&&peoplePage.includes('setPeople(prev=>prev.map'), 'A successful edit must update the visible card from the canonical saved row using stable string IDs.');
+assert.ok(peoplePage.indexOf('aria-label={`Edit ${fullName}`}')<peoplePage.indexOf('className="ny-last-seen"')&&!peoplePage.includes('Edit details</span>'), 'The only card Edit control must live in the card header, not below the card content.');
+assert.ok(peoplePage.includes('savingEditId===String(person.id)')&&peoplePage.includes('Saving…'), 'A person-card save must prevent repeated submissions and show the in-flight state.');
+assert.equal(normalizeDisplayName('Caleb $5').display,'Caleb $5','Dollar signs in literal names must survive name normalization.');
+assert.ok(mutation.includes("if(existingName.honorific&&!incomingName.honorific)incoming=existingName.honorific+' '+incoming"), 'A direct name edit must preserve the existing recognized honorific while applying the edited name text.');
 
 console.log('[PEOPLE EDIT REGRESSION]');
 console.log('PASS: SQL-bound edits, email/type/status persistence, inactive directory filtering, and ARIA synchronization/suppression contracts.');

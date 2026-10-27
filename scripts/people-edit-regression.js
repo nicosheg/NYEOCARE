@@ -44,6 +44,8 @@ assert.ok(mutation.includes('phone_numbers,email,birthday') && mutation.includes
 assert.ok(mutation.includes('p.phone,p.phone_numbers,p.email') && mutation.includes('phone:primaryPhone(row)'), 'Edit identity candidates must display the same phone source the backend used to match them.');
 assert.ok(mutation.includes("add('phone_numbers',desiredPhoneNumbersJson)") && mutation.includes("if(currentPhoneColumn!==(nextPhone||''))add('phone',nextPhone)"), 'Changing a phone or repairing stored phone data must write phone and phone_numbers together while preserving alternate numbers.');
 assert.ok(mutation.includes("function phoneNumbersForEditedPrimary(person,nextPrimary,primarySource='human_edit')"), 'Phone edits must preserve the selected primary and remaining stored alternate numbers without stale phone values.');
+assert.ok(mutation.includes("normalizePhoneList({phones:[entry]},{limit:1})"), 'Phone edits must recover a valid raw number when a stored normalized value is invalid.');
+assert.ok(duplicateAction.includes('for(const option of options){const normalized=normalizePhone(option);if(normalized)return normalized}'), 'Duplicate merges must prefer a valid normalized/raw number instead of allowing a corrupt normalized value to replace it.');
 assert.ok(personPage.includes('p?.phone_numbers'), 'Person Journey must display a number stored in phone_numbers when phone is blank.');
 assert.ok(peopleApi.includes("p.status IN ('active','inactive')"),'The directory must be able to query active and inactive records.');
 assert.ok(!/WHERE id=\$\{n\} AND organization_id=\$\{n\+1\}/.test(peopleApi),'The old UUID-versus-integer update predicate must not return.');

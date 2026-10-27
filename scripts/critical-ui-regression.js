@@ -313,8 +313,9 @@ const checks=[
 
  ['Canonical People edit can clear phone and change member/visitor type',
   peopleMutation.includes("const rawPhone=String(fields.phone??'').trim()")&&/if\(rawPhone&&!phone\)/.test(peopleMutation)&&/type!==String\(current\.type\|\|'visitor'\)\.toLowerCase\(\)/.test(peopleMutation)],
- ['Existing Person Journey Edit handles member and inactive status without duplicate card controls',
-  !/aria-label=\{`Edit \$\{fullName\}`\}/.test(peoplePage)&&/value=\{editType\}/.test(personPage)&&/value=\{editStatus\}/.test(personPage)&&/if\(nextStatus!==originalStatus\)body\.status=nextStatus/.test(personPage)&&/onClick=\{openEdit\}/.test(personPage)],
+ ['People edit exposes member and inactive status on both edit surfaces',
+  /value=\{editType\}/.test(peoplePage)&&/value=\{editStatus\}/.test(peoplePage)&&/if\(editStatus!==originalStatus\)body\.status=editStatus/.test(peoplePage)&&/value=\{editType\}/.test(personPage)&&/value=\{editStatus\}/.test(personPage)&&/body\.status=nextStatus/.test(personPage)],
+ ['Person detail page has no duplicate visible Edit action outside the People cards',!personPage.includes("<button style={S.action} onClick={openEdit}>Edit</button>")&&/aria-label=\{`Edit \$\{fullName\}`\}/.test(peoplePage)],
  ['People page exposes fast bulk add with a row preview and skipped-row feedback',
   /Bulk add/.test(peoplePage)&&/parseBulkPeopleRows/.test(peoplePage)&&/phoneOnly=line\.match/.test(peoplePage)&&/source_line_numbers/.test(peoplePage)&&/Add many people at once/.test(peoplePage)&&/bulkPreviewRows\.length>200/.test(peoplePage)&&/only skipped rows remain in the box/.test(peoplePage)],
  ['Bulk person creation is bounded, authorized, and duplicate-safe',

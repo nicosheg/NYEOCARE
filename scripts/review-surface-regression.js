@@ -66,6 +66,9 @@ assert.match(review,/sharedPhoneOwnerIds:sharedPhoneReview\.phone_owners\.map/,'
 assert.match(review,/e\?\.code\|\|''\)\)\)\{setSharedPhoneReview/,'the UI must keep the edit open and show the shared-phone review instead of discarding the error');
 const duplicateAction=fs.readFileSync('pages/api/review/duplicate-action.js','utf8');
 assert.match(review,/canonicalId:selected,duplicateId:other\.id/,'the selected duplicate candidate must be the canonical record');
+assert.match(review,/mergeResult\?\.canonical_id\)!==String\(selected\)/,'the UI must verify that the selected person is the canonical merge survivor before closing the review');
+assert.match(review,/mergeResult\?\.archived_id\)!==String\(other\.id\)/,'the UI must verify that only the other selected record was archived');
+assert.match(review,/mergeResult\?\.record_verified!==true/,'the UI must not close a merge review without server-side read-back verification');
 assert.match(duplicateAction,/await mergePeople\(db,req\.org\.id,canonicalId,duplicateId,req\.user\.id,evidence\)/,'merge must preserve the selected canonical ID');
 assert.match(duplicateAction,/UPDATE people SET status='archived'.*\[duplicateId,canonicalId,actorId,org\]/s,'only the non-selected duplicate record should be archived');
 console.log('NYEOCARE review queue persistence and edit-verification regression checks passed.');

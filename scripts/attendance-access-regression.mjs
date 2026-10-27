@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import { isOrganizationOperator, isOrganizationAdmin } from '../lib/attendance/access.js';
 
 const read = path => fs.readFileSync(new URL('../' + path, import.meta.url), 'utf8');
-for (const role of ['owner', 'admin', 'leader', 'worker', ' LEADER ']) assert.equal(isOrganizationOperator(role), true);
+for (const role of ['owner', 'admin', 'leader', 'worker', 'user', ' USER ', ' LEADER ']) assert.equal(isOrganizationOperator(role), true);
 for (const role of ['member', 'visitor', '', null, undefined]) assert.equal(isOrganizationOperator(role), false);
 assert.equal(isOrganizationAdmin('owner'), true);
 assert.equal(isOrganizationAdmin('admin'), true);
@@ -33,4 +33,4 @@ for (const [path, required] of contracts) {
   for (const value of required) assert.ok(source.includes(value), path + ' must enforce ' + value);
 }
 console.log('[ATTENDANCE ACCESS REGRESSION]');
-console.log('PASS: only owner/admin/leader/worker roles can operate attendance, and roster/search endpoints are scoped to the session.');
+console.log('PASS: recognized organization operator roles, including the persisted legacy user role, can operate attendance, and roster/search endpoints remain scoped to the session.');

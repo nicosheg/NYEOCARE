@@ -142,7 +142,9 @@ if(req.method==='POST'){
  const first_name=nameParts.shift()||'',last_name=nameParts.join(' '),display_name=normalizedInput.display;
  if(!first_name)return res.status(400).json({error:'A name is required'});
  if(first_name.length>150||last_name.length>150||display_name.length>200)return res.status(400).json({error:'Name is too long'});
- const phone=normalizePhone(body.phone);
+ const rawPhone=String(body.phone||'').trim();
+ const phone=normalizePhone(rawPhone);
+ if(rawPhone&&!phone)return res.status(400).json({error:'That phone number is incomplete or invalid.',code:'INVALID_PHONE'});
  const type=String(body.type||'visitor').trim().toLowerCase();
  if(!['member','visitor'].includes(type))return res.status(400).json({error:'Type must be member or visitor'});
  const email=String(body.email||'').trim().toLowerCase()||null;
@@ -283,13 +285,14 @@ if(req.method==='PUT'){
  for(const key of ['full_name','phone','email','birthday','type','status'])if(Object.prototype.hasOwnProperty.call(body,key))fields[key]=body[key];
  if(!Object.keys(fields).length)return res.status(400).json({error:'Provide at least one person field to update.'});
  try{
-  const result=await updatePersonRecord({organizationId:orgId,actorId:req.user.id,personId:id,fields});
+  const identityReview=body.identity_review&&typeof body.identity_review==='object'?body.identity_review:null;
+  const result=await updatePersonRecord({organizationId:orgId,actorId:req.user.id,personId:id,fields,identityReview});
   return res.status(200).json({...result.person,updated_fields:result.updated_fields,no_changes:Boolean(result.no_changes),event_id:result.event_id||null});
  }catch(err){
   console.error('PUT person error:',err);
   const status=[400,403,404,409].includes(Number(err?.status))?Number(err.status):err?.code==='DUPLICATE_ACTIVE_PERSON'?409:500;
   const safeMessage=status<500?String(err.message||'Unable to update person.'):'Unable to update person.';
-  return res.status(status).json({error:safeMessage,code:err?.code||undefined});
+  return res.status(status).json({error:safeMessage,code:err?.code||undefined,...(Array.isArray(err?.candidates)?{candidates:err.candidates}:{})});
  }
 }
 res.setHeader('Allow','GET,POST,PUT');return res.status(405).json({error:'Method not allowed'})}

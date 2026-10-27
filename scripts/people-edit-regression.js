@@ -32,8 +32,10 @@ assert.ok(read('pages/api/identity/resolve.js').includes('phone,phone_numbers,ty
 assert.ok(mutation.includes("const identityFieldsChanged=updatedFields.some(field=>['first_name','last_name','display_name'].includes(field))||userPrimaryPhoneChanged") && mutation.includes('if(!userPrimaryPhoneChanged)identityCandidates=identityCandidates.filter(candidate=>candidate.name_match||candidate.similar_name)'), 'A storage-only phone repair must not be mistaken for a user phone change or create a false shared-phone conflict.');
 const reviewCenter=read('components/ReviewCenterTab.js');
 const duplicateAction=read('pages/api/review/duplicate-action.js');
+const reviewResolve=read('pages/api/review/resolve.js');
 assert.ok(reviewCenter.includes('selectedCandidate=(item.candidates||[]).find(c=>String(c.id)===String(initialSelected))') && reviewCenter.includes('contactPhones=item.kind!==\'database_duplicate\'&&selectedCandidate?phones(selectedCandidate):p'), 'Review Center must prefill an edit from the selected canonical person, not stale scan-extracted phone values.');
 assert.ok(reviewCenter.includes('const existingPhones=phones(c);setPhone(existingPhones[0]||\'\');setPhone2(existingPhones[1]||\'\')'), 'Changing the selected review target must refresh the phone fields to that exact target before saving.');
+assert.ok(reviewResolve.includes('sameVisible?existingTargetPhones:[...new Set([...submittedPhones,...existingTargetPhones.slice(2)])].slice(0,4)'), 'Review Center edits must preserve hidden third/fourth alternate phones when the user changes only the two visible phone fields.');
 assert.ok(duplicateAction.includes('values=[p?.phone,...ordered,...(Array.isArray(p?.phones)?p.phones:[])]'), 'A duplicate merge must retain the selected survivor\'s primary phone before alternate phones from either record.');
 
 assert.ok(mutation.includes('phone_numbers,email,birthday') && mutation.includes('const currentPhone=primaryPhone(current)'), 'An edit must compare against the visible phone even when the primary is stored only in phone_numbers.');

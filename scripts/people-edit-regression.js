@@ -92,7 +92,7 @@ assert.equal(primaryPhone({phone:null,phone_numbers:[{normalized:'unreadable',ra
 assert.deepEqual(normalizePhoneList({phone:'+2348098765432',phone_numbers:[{normalized:'invalid',raw:'08012345678',index:1}] }),['+2348098765432','+2348012345678'],'Phone-list resolution must prefer the canonical primary and then recover valid raw alternates.');
 
 assert.ok((peoplePage.match(/startEdit/g)||[]).length>1&&peoplePage.includes('aria-label={`Edit ${fullName}`}')&&peoplePage.includes('startEdit(person)'), 'Every visible People card must expose a working, accessible Edit action wired to the existing canonical editor.');
-assert.ok(peoplePage.includes('e.target?.closest?.(\'button,input,select,textarea,[contenteditable="true"]\')')&&peoplePage.includes("userSelect:editing?'text':'none'"), 'Interactive card fields must not trigger long-press selection, and edited text must remain selectable.');
+assert.ok(peoplePage.includes("e.target?.closest?.('button,input,select,textarea,[contenteditable=\"true\"]')")&&peoplePage.includes("userSelect:editing?'text':'none'"), 'Interactive card fields must not trigger long-press selection, and edited text must remain selectable.');
 assert.ok(reviewCenter.includes("publishDataChange('people',{source:'review-duplicate-decision'")&&reviewCenter.includes("nyeocare:app-refresh"), 'A completed Review Center merge/separation must signal the People UI to reload persisted canonical records.');
 
 console.log('[PEOPLE EDIT REGRESSION]');

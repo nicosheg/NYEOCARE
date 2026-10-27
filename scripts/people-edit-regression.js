@@ -24,6 +24,7 @@ assert.ok(peopleApi.includes('p.phone_numbers') && peopleApi.includes('phone:pri
 assert.ok(peopleApi.includes('jsonb_array_elements(CASE WHEN jsonb_typeof(p.phone_numbers)=\'array\' THEN p.phone_numbers ELSE \'[]\'::jsonb END)'), 'People search must include JSON-stored phone numbers, not only the legacy phone column.');
 assert.ok(phoneUtils.includes('function primaryPhone(source)') && phoneUtils.includes('source?.phone_numbers'), 'Primary-phone resolution must be shared and use the same stored contact data as the identity engine.');
 assert.ok(mutation.includes('phone_numbers,email,birthday') && mutation.includes('const currentPhone=primaryPhone(current)'), 'An edit must compare against the visible phone even when the primary is stored only in phone_numbers.');
+assert.ok(mutation.includes('p.phone,p.phone_numbers,p.email') && mutation.includes('phone:primaryPhone(row)'), 'Edit identity candidates must display the same phone source the backend used to match them.');
 assert.ok(mutation.includes("add('phone_numbers',JSON.stringify(phoneNumbersForEditedPrimary(current,phone)))"), 'Changing a phone must write phone and phone_numbers together while preserving alternate numbers.');
 assert.ok(mutation.includes('function phoneNumbersForEditedPrimary(person,nextPrimary)'), 'Phone edits must preserve remaining stored alternate numbers and avoid stale phone values.');
 assert.ok(personPage.includes('p?.phone_numbers'), 'Person Journey must display a number stored in phone_numbers when phone is blank.');

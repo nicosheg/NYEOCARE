@@ -8,7 +8,21 @@ import{emitAriaEvent}from'../../lib/aria/eventEmitter';
 import{directAriaEvent}from'../../lib/aria/director';
 import{hashPersonCreatePayload,isValidPersonCreateRequestId}from'../../lib/peopleCreateIdempotency';
 const splitName=value=>{const n=normalizeDisplayName(value),parts=n.core.split(/\s+/).filter(Boolean);return{first_name:parts.shift()||'',last_name:parts.join(' '),display_name:n.display}}
-async function duplicatePhone(orgId,phone,excludeId=null,db=pool){if(!phone)return null;const q=await db.query(`SELECT id,display_name,phone FROM people WHERE organization_id=$1 AND status='active' AND living_truth->>'status' NOT IN ('needs_decision','conflict') AND id<>COALESCE($2::uuid,'00000000-0000-0000-0000-000000000000') AND (phone=$3 OR EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(phone_numbers,'[]'::jsonb)) v WHERE v->>'normalized'=$3)) LIMIT 1`,[orgId,excludeId,phone]);return q.rows[0]||null}
+const identityNameKey=value=>normalizeDisplayName(value).core.toLowerCase().normalize('NFKD').replace(/[\\u0300-\\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
+async function findIdentityCandidates(orgId,nameKey,phone,db=pool){
+ const digits=String(phone||'').replace(/\\D/g,'');
+ const localDigits=digits.startsWith('234')?'0'+digits.slice(3):digits;
+ const phoneVariants=[...new Set([digits,localDigits].filter(Boolean))];
+ const phoneMatchExpr="($2::text IS NOT NULL AND (p.phone=$2 OR regexp_replace(COALESCE(p.phone,''), '[^0-9]', '', 'g')=ANY($4::text[]) OR EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(p.phone_numbers,'[]'::jsonb)) v WHERE v->>'normalized'=$2 OR regexp_replace(COALESCE(v->>'normalized',''), '[^0-9]', '', 'g')=ANY($4::text[]) OR regexp_replace(COALESCE(v->>'raw',''), '[^0-9]', '', 'g')=ANY($4::text[]))))";
+ const nameExpr="lower(regexp_replace(trim(COALESCE(NULLIF(CONCAT_WS(' ',p.first_name,p.last_name),''),p.display_name,'')), '[^a-zA-Z0-9]+', ' ', 'g'))";
+ const q=await db.query(
+  'SELECT p.id,p.first_name,p.last_name,p.display_name,p.phone,p.email,p.type,p.status,'+nameExpr+' AS name_key,CASE WHEN '+phoneMatchExpr+' THEN TRUE ELSE FALSE END AS phone_match '+
+  'FROM people p WHERE p.organization_id=$1 AND p.status IN (\'active\',\'inactive\') AND (('+phoneMatchExpr+') OR ($3::text<>\'\' AND '+nameExpr+'=$3)) '+
+  'ORDER BY CASE WHEN '+phoneMatchExpr+' THEN 0 ELSE 1 END,p.created_at ASC LIMIT 20',
+  [orgId,phone||null,nameKey||'',phoneVariants]
+ );
+ return q.rows.map(row=>({...row,phone_match:row.phone_match===true}));
+}
 async function handler(req,res){const orgId=req.org.id;const role=String(req.user?.role||'').trim().toLowerCase();const adminRoles=['owner','admin'];const personCreatorRoles=['owner','admin','leader','worker','user'];const personEditorRoles=['owner','admin','leader','worker','user'];if(req.method==='GET'&&!personCreatorRoles.includes(role))return res.status(403).json({error:'People records and private contact details are limited to authorized organization operators.'});if(req.method==='POST'&&!personCreatorRoles.includes(role))return res.status(403).json({error:'You do not have permission to add people to this organization.'});if(req.method==='PUT'&&!personEditorRoles.includes(role))return res.status(403).json({error:'Authorized organization operator permissions required.'});
 if(req.method==='GET'){
  try{
@@ -121,12 +135,13 @@ if(req.method==='GET'){
  }catch(err){console.error('GET people error:',err);return res.status(500).json({error:'Unable to load people.'})}
 }
 if(req.method==='POST'){
- const body=req.body||{},rawName=String(body.full_name||'').trim();
- let first_name=String(body.first_name||'').trim(),last_name=String(body.last_name||'').trim(),display_name='';
- if(!first_name&&rawName){const split=splitName(rawName);first_name=split.first_name;last_name=split.last_name;display_name=split.display_name}
- else display_name=[first_name,last_name].filter(Boolean).join(' ');
+ const body=req.body||{};
+ const rawName=String(body.full_name||[body.first_name,body.last_name].filter(Boolean).join(' ')).trim();
+ const normalizedInput=normalizeDisplayName(rawName);
+ const nameParts=normalizedInput.core.split(/\s+/).filter(Boolean);
+ const first_name=nameParts.shift()||'',last_name=nameParts.join(' '),display_name=normalizedInput.display;
  if(!first_name)return res.status(400).json({error:'A name is required'});
- if(first_name.length>150||last_name.length>150)return res.status(400).json({error:'Name is too long'});
+ if(first_name.length>150||last_name.length>150||display_name.length>200)return res.status(400).json({error:'Name is too long'});
  const phone=normalizePhone(body.phone);
  const type=String(body.type||'visitor').trim().toLowerCase();
  if(!['member','visitor'].includes(type))return res.status(400).json({error:'Type must be member or visitor'});
@@ -162,14 +177,46 @@ if(req.method==='POST'){
    delete person.request_payload_hash;
    wasReplay=true;
   }else{
-   const duplicate=await duplicatePhone(orgId,phone,null,client);
-   if(duplicate){
+   const incomingNameKey=identityNameKey(display_name||rawName);
+   const candidates=await findIdentityCandidates(orgId,incomingNameKey,phone,client);
+   const candidatePayload=candidates.map(row=>({
+    id:String(row.id),
+    display_name:row.display_name||[row.first_name,row.last_name].filter(Boolean).join(' ')||row.first_name||'Unnamed person',
+    first_name:row.first_name||'',last_name:row.last_name||'',phone:row.phone||null,
+    type:row.type||null,status:row.status||null,
+    name_match:Boolean(row.name_key&&row.name_key===incomingNameKey),
+    phone_match:row.phone_match===true
+   }));
+   const exactIdentity=candidatePayload.find(row=>row.name_match&&row.phone_match);
+   if(exactIdentity){
     await client.query('ROLLBACK');
     return res.status(409).json({
-     error:'That full phone number already belongs to another person. Review the existing record before adding a new one.',
-     code:'DUPLICATE_ACTIVE_PERSON',
-     person:duplicate
+     error:'A person with this same name and phone number already exists. Open the existing record or correct the name/number; NYEOCARE will not create a second person with the same identity.',
+     code:'DUPLICATE_IDENTITY_NOT_DISTINCT',candidates:[exactIdentity]
     });
+   }
+   const review=body.identity_review&&typeof body.identity_review==='object'?body.identity_review:null;
+   const reviewCandidateIds=Array.isArray(review?.candidate_ids)?[...new Set(review.candidate_ids.map(v=>String(v)))].sort():[];
+   const currentCandidateIds=candidatePayload.map(row=>row.id).sort();
+   if(candidates.length){
+    if(review?.confirmed!==true){
+     await client.query('ROLLBACK');
+     return res.status(409).json({
+      error:'ARIA found possible matches. Review the records before deciding whether this is a separate person.',
+      code:'PERSON_IDENTITY_REVIEW_REQUIRED',candidates:candidatePayload,
+      review_reasons:[...new Set(candidates.map(row=>row.phone_match?'phone_already_used':'similar_name'))]
+     });
+    }
+    if(reviewCandidateIds.length!==currentCandidateIds.length||reviewCandidateIds.some((value,index)=>value!==currentCandidateIds[index])){
+     await client.query('ROLLBACK');
+     return res.status(409).json({
+      error:'The possible matches changed while you were reviewing. Review the refreshed candidate list before saving.',
+      code:'PERSON_IDENTITY_REVIEW_STALE',candidates:candidatePayload
+     });
+    }
+   }else if(review?.confirmed===true&&reviewCandidateIds.length){
+    await client.query('ROLLBACK');
+    return res.status(409).json({error:'The records changed while you were reviewing. Refresh the People list and try again.',code:'PERSON_IDENTITY_REVIEW_STALE',candidates:[]});
    }
    person=(await client.query(
     `INSERT INTO people(organization_id,first_name,last_name,display_name,phone,email,type,birthday,created_by,living_truth,status,source)
@@ -178,6 +225,35 @@ if(req.method==='POST'){
     [orgId,first_name,last_name,display_name||null,phone,email,type,birthday,req.user.id,
      JSON.stringify({status:'alive',confidence:90,source:'canonical_record',updated_at:new Date().toISOString()})]
    )).rows[0];
+   if(candidates.length){
+    for(const candidate of candidates){
+     const sharedPhone=candidate.phone_match===true&&Boolean(phone);
+     const evidence=JSON.stringify({
+      source:'manual_person_create_review',decision:'not_duplicate',
+      actor_id:req.user.id,actor_role:role,reviewed_at:new Date().toISOString(),
+      incoming_person_id:person.id,incoming_display_name:person.display_name||display_name,
+      incoming_phone:phone||null,matched_person_id:candidate.id,
+      matched_display_name:candidate.display_name||[candidate.first_name,candidate.last_name].filter(Boolean).join(' '),
+      reason:sharedPhone?'operator_verified_distinct_people_sharing_a_contact':'operator_verified_distinct_people_with_similar_names'
+     });
+     await client.query(
+      `INSERT INTO identity_pair_decisions(organization_id,person_a_id,person_b_id,decision,decided_by,evidence)
+       VALUES($1,LEAST($2::uuid,$3::uuid),GREATEST($2::uuid,$3::uuid),'not_duplicate',$4,$5::jsonb)
+       ON CONFLICT (organization_id,LEAST(person_a_id,person_b_id),GREATEST(person_a_id,person_b_id))
+       DO UPDATE SET decision='not_duplicate',decided_by=EXCLUDED.decided_by,evidence=EXCLUDED.evidence,updated_at=NOW()`,
+      [orgId,person.id,candidate.id,req.user.id,evidence]
+     );
+     if(sharedPhone){
+      const sharedMetadata=JSON.stringify({source:'manual_person_create_review',reason:'operator_verified_shared_contact',reviewed_by:req.user.id,reviewed_at:new Date().toISOString()});
+      await client.query(
+       `INSERT INTO identity_shared_contacts(organization_id,person_a_id,person_b_id,phone,confirmed_by,metadata)
+        VALUES($1,LEAST($2::uuid,$3::uuid),GREATEST($2::uuid,$3::uuid),$4,$5,$6::jsonb)
+        ON CONFLICT DO NOTHING`,
+       [orgId,person.id,candidate.id,phone,req.user.id,sharedMetadata]
+      );
+     }
+    }
+   }
    if(requestId){
     await client.query(
      `INSERT INTO public.person_create_requests(organization_id,client_request_id,payload_hash,person_id,created_by)
@@ -197,7 +273,7 @@ if(req.method==='POST'){
   const event=await emitAriaEvent({organizationId:orgId,personId:person.id,type:'PERSON_CREATED',source:'manual',actorId:req.user.id,metadata:{source:'api'},eventKey:`manual:${orgId}:person:${person.id}:created`});
   if(event)await directAriaEvent(event);
  }catch(err){console.error('ARIA person creation event failed:',err)}
- return res.status(201).json({...person,created:true,idempotent_replay:false});
+ return res.status(201).json({...person,created:true,idempotent_replay:false,identity_review_confirmed:Boolean(req.body?.identity_review?.confirmed)});
 }
 if(req.method==='PUT'){
  const body=req.body||{},id=String(body.id||'').trim();

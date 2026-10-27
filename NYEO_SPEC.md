@@ -209,6 +209,16 @@ When a user reviews an attendance-derived care signal, ARIA can accept an explic
 ### Review queue clearing
 Review Center distinguishes evidence that still needs a human decision from evidence the operator intentionally dismisses. Scan review items may be selected individually, including by a mobile long-press gesture, and dismissed in bulk. Bulk dismissal changes the review item to `rejected` with an auditable decision record; it must not delete the original scan evidence, scan job, or person records. Database duplicate groups are never part of scan-review bulk dismissal and retain their dedicated merge/keep-separate workflow.
 
+### Review Center identity correction and merge contract
+
+- Opening a review is read-only. It does not resolve, dismiss, or remove the review. The review remains visible in the queue until an explicit human decision is successfully persisted.
+- When merging a duplicate pair, the explicitly selected record is the canonical survivor. The other record is archived only after compatible history is reconciled. Keep the action auditable and label the target clearly.
+- Editing a reviewed scan row must update the selected existing person. It must not silently create a second person when the selected target is stale or unavailable. A new person is created only through an explicit “different person” decision.
+- A review may leave the pending queue only after the intended People record is read back and its saved identity fields and verification state are confirmed. If writing, verification, or review-state update fails, the transaction rolls back and the item remains pending.
+- A name-only correction must not be rejected solely because the existing phone on that same record is already shared. When a human explicitly confirms that a scanned row is a different person despite a shared phone, keep both People records and persist an `identity_shared_contacts` relationship plus a `keep_separate` identity decision. A newly added phone that conflicts with another record still requires safe review.
+- Numeric tokens inside a person's name are meaningful identity data and must remain in the canonical comparison. Only a leading printed row/list ordinal (for example, `12. Name`) may be removed from the comparison key; digits elsewhere must not be silently removed.
+- A phone number is supporting contact evidence, not proof that two people are the same person. Preserve separate identities and shared-phone relationships as distinct facts.
+
 ### Physical register is the extraction unit
 The physical row is the fundamental unit. Extraction must preserve:
 - original name/title spelling where readable;

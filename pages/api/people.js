@@ -27,7 +27,7 @@ async function findIdentityCandidates(orgId,nameKey,phone,db=pool,excludePersonI
   " SELECT p.id,p.first_name,p.last_name,p.display_name,p.phone,p.email,p.type,p.status,p.created_at,"+
   " CASE WHEN "+phoneMatchExpr+" THEN TRUE ELSE FALSE END AS phone_match,"+
   " CASE WHEN "+displayExpr+" % $5::text THEN TRUE ELSE FALSE END AS similar_name "+
-  " FROM people p WHERE p.organization_id=$1 AND p.status='inactive' AND p.id<>$6::uuid "+
+  " FROM people p WHERE p.organization_id=$1 AND p.status IN ('inactive','archived') AND p.id<>$6::uuid "+
   " AND (("+phoneMatchExpr+") OR ("+nameExpr+"=$3) OR ("+displayExpr+" % $5::text)) "+
   ") SELECT * FROM matches ORDER BY CASE WHEN phone_match THEN 0 WHEN similar_name THEN 1 ELSE 2 END,created_at ASC LIMIT 20",
   [orgId,phone||null,nameKey||'',phoneVariants,nameKey||'',excludePersonId||'00000000-0000-0000-0000-000000000000']

@@ -62,7 +62,7 @@ assert.ok(mutation.includes("eventKey:'aria-person-edit:'"),'Person edits must h
 assert.ok(peoplePage.includes("value={personStatusFilter}"),'The People page must expose active/inactive status filtering.');
 assert.ok(peoplePage.includes("value={editType}"),'The People edit card must retain member/visitor selection.');
 assert.ok(peoplePage.includes("value={editStatus}"),'The People edit card must allow active/inactive status changes.');
-assert.ok(peoplePage.includes("status:editStatus"),'The People edit request must send organization status.');
+assert.ok(peoplePage.includes("if(editStatus!==originalStatus)body.status=editStatus"),'The People edit request must send organization status when it actually changes.');
 assert.ok(personPage.includes("value={editType}"),'The person profile editor must offer member/visitor selection.');
 assert.ok(personPage.includes("value={editStatus}"),'The person profile editor must offer active/inactive status selection.');
 assert.ok(personPage.includes("body.status=nextStatus"),'The profile edit request must persist status changes.');

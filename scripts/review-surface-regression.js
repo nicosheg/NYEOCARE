@@ -58,6 +58,12 @@ assert.match(reviewResolve,/regexp_replace\(COALESCE\(phone,''\),'\[\^0-9\]','',
 assert.match(reviewResolve,/if\(explicitNew&&finalId&&\(candidates\.length\|\|sharedPhoneOwners\.length\)\)/,'an explicit different-person decision must support an intentional shared phone');
 assert.match(reviewResolve,/INSERT INTO identity_shared_contacts/,'an explicitly shared phone must be recorded as a shared contact, not used as identity proof');
 assert.match(reviewResolve,/human_confirmed_separate_scan_person/,'the shared-contact relation must retain its human-review provenance');
+assert.match(reviewResolve,/SHARED_PHONE_REVIEW_REQUIRED/,'an existing-person edit with a newly added shared phone must ask for human confirmation before writing');
+assert.match(reviewResolve,/SHARED_PHONE_REVIEW_STALE/,'shared-phone confirmation must be invalidated when the phone owners change');
+assert.match(reviewResolve,/human_confirmed_review_edit_shared_phone/,'reviewed existing-person edits must audit an intentional shared phone');
+assert.match(review,/Confirm shared phone & save/,'Review Center must offer an explicit human confirmation for a legitimate shared phone');
+assert.match(review,/sharedPhoneOwnerIds:sharedPhoneReview\.phone_owners\.map/,'the server must receive the exact owner set the operator reviewed');
+assert.match(review,/e\?\.code\|\|''\)\)\)\{setSharedPhoneReview/,'the UI must keep the edit open and show the shared-phone review instead of discarding the error');
 const duplicateAction=fs.readFileSync('pages/api/review/duplicate-action.js','utf8');
 assert.match(review,/canonicalId:selected,duplicateId:other\.id/,'the selected duplicate candidate must be the canonical record');
 assert.match(duplicateAction,/await mergePeople\(db,req\.org\.id,canonicalId,duplicateId,req\.user\.id,evidence\)/,'merge must preserve the selected canonical ID');

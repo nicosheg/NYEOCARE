@@ -8,6 +8,7 @@ import { normalizePhone } from '../../../lib/phoneUtils';
 import { normalizeDisplayName } from '../../../lib/scanValidation';
 import { emitAriaEvent } from '../../../lib/aria/eventEmitter';
 import { directAriaEvent } from '../../../lib/aria/director';
+import { identityNameKey, findIdentityCandidates, recordIdentityReview } from '../../../lib/aria/peopleMutationEngine';
 
 const UUID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const REQUEST_ID_RE=/^[A-Za-z0-9_-]{20,80}$/;
@@ -26,6 +27,7 @@ export default withOrg(async function handler(req,res){
   const rawName=String(req.body?.full_name||'').trim();
   const rawPhone=String(req.body?.phone||'').trim();
   const contactConsent=req.body?.contact_consent===true;
+  const identityReview=req.body?.identity_review&&typeof req.body.identity_review==='object'?req.body.identity_review:null;
 
   if(!UUID_RE.test(sessionId))return res.status(400).json({error:'A valid active attendance session is required.'});
   if(!REQUEST_ID_RE.test(requestId))return res.status(400).json({error:'A valid visitor request ID is required.'});
@@ -83,28 +85,37 @@ export default withOrg(async function handler(req,res){
         return res.status(403).json({error:'Join this attendance session before adding a visitor.'});
       }
 
-      if(phone){
-        const digits=phone.replace(/\D/g,'');
-        const localDigits=digits.startsWith('234')?'0'+digits.slice(3):digits;
-        const duplicate=(await client.query(
-          `SELECT 1
-           FROM people p
-           WHERE p.organization_id=$1 AND COALESCE(p.status,'active')='active'
-             AND (
-               regexp_replace(COALESCE(p.phone,''),'\\D','','g')=ANY($2::text[])
-               OR EXISTS(
-                 SELECT 1 FROM jsonb_array_elements(COALESCE(p.phone_numbers,'[]'::jsonb)) v
-                 WHERE regexp_replace(COALESCE(v->>'normalized',''),'\\D','','g')=ANY($2::text[])
-                    OR regexp_replace(COALESCE(v->>'raw',''),'\\D','','g')=ANY($2::text[])
-               )
-             )
-           LIMIT 1`,
-          [orgId,[digits,localDigits]]
-        )).rows[0];
-        if(duplicate){
-          await client.query('ROLLBACK');
-          return res.status(409).json({error:'A person with this phone number already exists in this organization. Search the attendance list and use the existing record.',code:'DUPLICATE_ACTIVE_PERSON'});
-        }
+      const incomingNameKey=identityNameKey(normalizedName.display||rawName);
+      const candidates=await findIdentityCandidates(orgId,incomingNameKey,phone,client);
+      const exactIdentity=candidates.find(candidate=>candidate.name_match&&candidate.phone_match);
+      const candidatePayload=candidates.map(candidate=>({
+        id:String(candidate.id),display_name:candidate.display_name||[candidate.first_name,candidate.last_name].filter(Boolean).join(' ')||'Unnamed person',
+        first_name:candidate.first_name||'',last_name:candidate.last_name||'',phone:candidate.phone||null,
+        type:candidate.type||null,status:candidate.status||null,
+        name_match:candidate.name_match===true,phone_match:candidate.phone_match===true,similar_name:candidate.similar_name===true
+      }));
+      if(exactIdentity){
+        await client.query('ROLLBACK');
+        return res.status(409).json({
+          error:'A person with this same name and phone number already exists. Use the existing person rather than creating a second identical identity.',
+          code:'DUPLICATE_IDENTITY_NOT_DISTINCT',candidates:candidatePayload.filter(candidate=>candidate.id===exactIdentity.id)
+        });
+      }
+      const reviewedIds=Array.isArray(identityReview?.candidate_ids)?[...new Set(identityReview.candidate_ids.map(value=>String(value)))].sort():[];
+      const currentIds=candidatePayload.map(candidate=>candidate.id).sort();
+      if(candidates.length&&identityReview?.confirmed!==true){
+        await client.query('ROLLBACK');
+        return res.status(409).json({
+          error:'ARIA found possible matches. Compare the existing records and confirm whether this is a separate visitor before saving.',
+          code:'PERSON_IDENTITY_REVIEW_REQUIRED',candidates:candidatePayload
+        });
+      }
+      if((candidates.length&&(reviewedIds.length!==currentIds.length||reviewedIds.some((value,index)=>value!==currentIds[index])))||(!candidates.length&&identityReview?.confirmed===true&&reviewedIds.length)){
+        await client.query('ROLLBACK');
+        return res.status(409).json({
+          error:'The possible matches changed while you were reviewing. Review the refreshed candidates before saving.',
+          code:'PERSON_IDENTITY_REVIEW_STALE',candidates:candidatePayload
+        });
       }
 
       const now=new Date().toISOString();
@@ -135,6 +146,7 @@ export default withOrg(async function handler(req,res){
           JSON.stringify({status:'alive',confidence:90,source:'canonical_record',updated_at:now})
         ]
       )).rows[0];
+      if(candidates.length)await recordIdentityReview(client,{organizationId:orgId,actorId:userId,actorRole:req.user.role,person,candidates,phone,source:'attendance_add_visitor_identity_review'});
     }
 
     await client.query('COMMIT');
@@ -201,5 +213,5 @@ export default withOrg(async function handler(req,res){
     if(event)await directAriaEvent(event);
   }catch(err){console.error('[ATTENDANCE] Visitor created but ARIA event processing was deferred:',err)}
 
-  return res.status(alreadyCreated?200:201).json({success:true,person,already_exists:alreadyCreated});
+  return res.status(alreadyCreated?200:201).json({success:true,person,already_exists:alreadyCreated,identity_review_confirmed:Boolean(identityReview?.confirmed)});
 });

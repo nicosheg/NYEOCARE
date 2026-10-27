@@ -73,7 +73,7 @@ assert.match(review,/mergeResult\?\.record_verified!==true/,'the UI must not clo
 assert.match(duplicateAction,/await mergePeople\(db,req\.org\.id,canonicalId,duplicateId,req\.user\.id,evidence\)/,'merge must preserve the selected canonical ID');
 assert.match(duplicateAction,/UPDATE people SET status='archived'.*\[duplicateId,canonicalId,actorId,org\]/s,'only the non-selected duplicate record should be archived');
 
-assert.ok(review.includes("publishDataChange('people',{source:'review-duplicate-decision'")&&review.includes("nyeocare:app-refresh"), 'A verified duplicate merge or keep-separate decision must invalidate People data and refresh mounted directory surfaces.');
+assert.ok(review.includes("refreshPeopleAfterReview('review-duplicate-decision'")&&review.includes("refreshPeopleAfterReview('review-identity-decision'")&&review.includes("publishDataChange('people'")&&review.includes("nyeocare:app-refresh"), 'Every verified Review Center identity decision must invalidate People data and refresh mounted directory surfaces.');
 assert.ok(people.includes('aria-label={`Edit ${fullName}`}')&&people.includes('startEdit(person)'), 'Person cards must expose a directly reachable Edit action, not an unreachable editor state.');
 
 console.log('NYEOCARE review queue persistence and edit-verification regression checks passed.');

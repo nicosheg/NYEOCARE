@@ -216,15 +216,16 @@ export default withOrg(async function handler(req, res) {
         const first = values.length + 1;
         values.push(
           row.person_id, row.first_name, row.last_name, row.display_name || null,
-          row.phone, row.email, row.type, row.birthday, req.user.id, row.living_truth
+          row.phone, JSON.stringify(row.phone ? [{raw:row.phone,normalized:row.phone,source:'manual',index:1}] : []),
+          row.email, row.type, row.birthday, req.user.id, row.living_truth
         );
-        return `($${first},$1,$${first + 1},$${first + 2},$${first + 3},$${first + 4},$${first + 5},$${first + 6},$${first + 7},$${first + 8},$${first + 9}::jsonb,'active','manual')`;
+        return `(${first},$1,${first + 1},${first + 2},${first + 3},${first + 4},${first + 5},${first + 6},${first + 7},${first + 8},${first + 9},${first + 10}::jsonb,'active','manual')`;
       });
       const created = await client.query(
         `INSERT INTO people
-          (id,organization_id,first_name,last_name,display_name,phone,email,type,birthday,created_by,living_truth,status,source)
+          (id,organization_id,first_name,last_name,display_name,phone,phone_numbers,email,type,birthday,created_by,living_truth,status,source)
          VALUES ${groups.join(',')}
-         RETURNING id,first_name,last_name,display_name,phone,email,type,birthday,created_at`,
+         RETURNING id,first_name,last_name,display_name,phone,phone_numbers,email,type,birthday,created_at`,
         values
       );
       insertedPeople = created.rows;

@@ -2,6 +2,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const home=fs.readFileSync('pages/index.js','utf8');
 const people=fs.readFileSync('pages/people.js','utf8');
+const personPage=fs.readFileSync('pages/person/[id].js','utf8');
 const config=fs.readFileSync('next.config.js','utf8');
 
 assert.ok(home.includes("const ReviewCenterTab=dynamic(()=>import('../components/ReviewCenterTab')"));
@@ -74,6 +75,7 @@ assert.match(duplicateAction,/await mergePeople\(db,req\.org\.id,canonicalId,dup
 assert.match(duplicateAction,/UPDATE people SET status='archived'.*\[duplicateId,canonicalId,actorId,org\]/s,'only the non-selected duplicate record should be archived');
 
 assert.ok(review.includes("refreshPeopleAfterReview('review-duplicate-decision'")&&review.includes("refreshPeopleAfterReview('review-identity-decision'")&&review.includes("publishDataChange('people'")&&review.includes("nyeocare:app-refresh"), 'Every verified Review Center identity decision must invalidate People data and refresh mounted directory surfaces.');
-assert.ok(people.includes('aria-label={`Edit ${fullName}`}')&&people.includes('startEdit(person)'), 'Person cards must expose a directly reachable Edit action, not an unreachable editor state.');
+assert.ok(!people.includes('aria-label={`Edit ${fullName}`}')&&!people.includes('Edit details</span>')&&!people.includes('startEdit(person)'), 'People cards must remain navigation-only and must not add a second Edit button.');
+assert.ok(personPage.includes('onClick={openEdit}')&&personPage.includes('const saveEdit=async(identityReview=null)=>{')&&personPage.includes('await load(activeToken)'), 'The existing Person Journey Edit action must stay reachable and persist/reload its canonical record.');
 
 console.log('NYEOCARE review queue persistence and edit-verification regression checks passed.');

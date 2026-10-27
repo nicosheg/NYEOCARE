@@ -32,8 +32,7 @@ export default function ReviewCenterTab({modal=false,onClose}){
     if(!selected)throw Error('Choose the person you want to keep.');
     const other=(active.candidates||[]).find(c=>String(c.id)!==String(selected));
     if(!other)throw Error('A second active person is required.');
-    await api('/api/review/duplicate-action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:effectiveMode==='merge'?'merge':'keep_separate',canonicalId:selected,duplicateId:other.id})});
-    finish();await load({silent:true});return;
+    const decision=effectiveMode==='merge'?'merge':'keep_separate';const mergeResult=await api('/api/review/duplicate-action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:decision,canonicalId:selected,duplicateId:other.id})});if(decision==='merge'&&(mergeResult?.action!=='merged'||String(mergeResult?.canonical_id)!==String(selected)||String(mergeResult?.archived_id)!==String(other.id)||mergeResult?.verified!==true||mergeResult?.record_verified!==true)){throw Error('NYEOCARE did not verify that the selected person remained the main record. The review stays open; refresh and inspect the two records before trying again.')}if(decision==='keep_separate'&&(mergeResult?.action!=='kept_separate'||mergeResult?.ok!==true)){throw Error('NYEOCARE did not confirm the keep-separate decision. The review stays open; refresh and try again.')}finish();await load({silent:true});return;
    }
    const action=effectiveMode==='separate'?'separate':effectiveMode==='use_existing'||effectiveMode==='confirm'?'approve':'edit';
    const body={id:active.source_review_id||active.id,action,name,phones:[phone,phone2].filter(Boolean),candidateId:['approve','edit'].includes(action)?selected:null,createNew:action==='separate',...(sharedPhoneConfirmed&&sharedPhoneReview?{sharedPhoneConfirmed:true,sharedPhoneOwnerIds:sharedPhoneReview.phone_owners.map(owner=>String(owner.id))}:{})};

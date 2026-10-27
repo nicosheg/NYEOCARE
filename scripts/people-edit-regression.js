@@ -5,6 +5,7 @@ const read=p=>fs.readFileSync(p,'utf8');
 const peoplePage=read('pages/people.js');
 const personPage=read('pages/person/[id].js');
 const peopleApi=read('pages/api/people.js');
+const phoneUtils=read('lib/phoneUtils.js');
 const mutation=read('lib/aria/peopleMutationEngine.js');
 const recommendations=read('lib/aria/recommendationEngine.js');
 const eventProcessor=read('lib/aria/eventProcessor.js');
@@ -19,6 +20,13 @@ assert.ok(peopleApi.includes("req.method==='GET'&&!personCreatorRoles.includes(r
 assert.ok(peopleApi.includes("const personEditorRoles=['owner','admin','leader','worker','user']")&&peopleApi.includes("req.method==='PUT'&&!personEditorRoles.includes(role)"),'Only recognized organization operator account roles may edit People; People type must not grant operator permissions.');
 assert.ok(peopleApi.includes("requestedPersonStatus")&&peopleApi.includes("p.status=$"),'The inactive status filter must use a bound SQL parameter.');
 assert.ok(peopleApi.includes("r.type,r.status,r.birthday"),'People API responses must include organization status.');
+assert.ok(peopleApi.includes('p.phone_numbers') && peopleApi.includes('phone:primaryPhone(row)'), 'The People list must expose a primary phone sourced from either phone or phone_numbers.'); 
+assert.ok(peopleApi.includes('jsonb_array_elements(CASE WHEN jsonb_typeof(p.phone_numbers)=\'array\' THEN p.phone_numbers ELSE \'[]\'::jsonb END)'), 'People search must include JSON-stored phone numbers, not only the legacy phone column.');
+assert.ok(phoneUtils.includes('function primaryPhone(source)') && phoneUtils.includes('source?.phone_numbers'), 'Primary-phone resolution must be shared and use the same stored contact data as the identity engine.');
+assert.ok(mutation.includes('phone_numbers,email,birthday') && mutation.includes('const currentPhone=primaryPhone(current)'), 'An edit must compare against the visible phone even when the primary is stored only in phone_numbers.');
+assert.ok(mutation.includes("add('phone_numbers',JSON.stringify(phoneNumbersForEditedPrimary(current,phone)))"), 'Changing a phone must write phone and phone_numbers together while preserving alternate numbers.');
+assert.ok(mutation.includes('function phoneNumbersForEditedPrimary(person,nextPrimary)'), 'Phone edits must preserve remaining stored alternate numbers and avoid stale phone values.');
+assert.ok(personPage.includes('p?.phone_numbers'), 'Person Journey must display a number stored in phone_numbers when phone is blank.');
 assert.ok(peopleApi.includes("p.status IN ('active','inactive')"),'The directory must be able to query active and inactive records.');
 assert.ok(!/WHERE id=\$\{n\} AND organization_id=\$\{n\+1\}/.test(peopleApi),'The old UUID-versus-integer update predicate must not return.');
 

@@ -1,10 +1,10 @@
 // pages/api/review/duplicate-action.js
 import pool from'../../../lib/db';
 import{withAdmin}from'../../../lib/apiHelpers';
-import{detectDuplicates}from'../../../lib/duplicateDetector';
+import{detectDuplicates}from'../../../lib/duplicateDetector';import normalizePhone from'../../../lib/phoneUtils';
 async function person(db,id,org){const q=await db.query(`SELECT id,display_name,first_name,last_name,phone,phone_numbers,metadata,living_truth,identity_verification_status,identity_verified_at,identity_verified_by FROM people WHERE id=$1 AND organization_id=$2 AND status='active' FOR UPDATE`,[id,org]);return q.rows[0]||null}
 function nameOf(p){return String(p.display_name||[p.first_name,p.last_name].filter(Boolean).join(' ')||p.first_name||'').trim()}
-function phoneList(p){const v=[...(Array.isArray(p?.phone_numbers)?p.phone_numbers:[]),...(p?.phone?[p.phone]:[])];return[...new Set(v.filter(Boolean).map(x=>typeof x==='string'?x:x?.normalized||x?.raw||x?.phone).filter(Boolean))]}
+function phoneList(p){const stored=Array.isArray(p?.phone_numbers)?p.phone_numbers:[],ordered=stored.map((entry,index)=>({entry,index,order:Number.isFinite(Number(entry?.index))&&Number(entry.index)>0?Number(entry.index):index+1})).sort((a,b)=>a.order-b.order||a.index-b.index).map(item=>item.entry),values=[p?.phone,...ordered,...(Array.isArray(p?.phones)?p.phones:[])],phones=values.map(x=>{const raw=typeof x==='string'?x:x?.normalized||x?.raw||x?.phone;if(!raw)return null;return normalizePhone(raw)||String(raw).trim()}).filter(Boolean);return[...new Set(phones)]}
 function normalizeAliasKey(value){return String(value||'').normalize('NFKD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'').trim().slice(0,160)}
 async function mergeAttendanceHistory(db,org,canonicalId,duplicateId){
  const collisions=(await db.query(`

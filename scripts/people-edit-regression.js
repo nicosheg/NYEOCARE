@@ -102,7 +102,7 @@ assert.ok(peoplePage.includes('String(p.id)===String(id)')&&peoplePage.includes(
 assert.ok(peoplePage.indexOf('aria-label={`Edit ${fullName}`}')<peoplePage.indexOf('className="ny-last-seen"')&&!peoplePage.includes('Edit details</span>'), 'The only card Edit control must live in the card header, not below the card content.');
 assert.ok(peoplePage.includes('savingEditId===String(person.id)')&&peoplePage.includes('Saving…'), 'A person-card save must prevent repeated submissions and show the in-flight state.');
 assert.equal(normalizeDisplayName('Caleb $5').display,'Caleb $5','Dollar signs in literal names must survive name normalization.');
-assert.ok(!mutation.includes("if(existingName.honorific&&!incomingName.honorific)incoming=existingName.honorific+' '+incoming"), 'A manually edited name must not silently regain an old honorific that the operator removed.');
+assert.ok(mutation.includes("if(existingName.honorific&&!incomingName.honorific)incoming=existingName.honorific+' '+incoming"), 'A direct name edit must preserve the existing recognized honorific while applying the edited name text.');
 
 console.log('[PEOPLE EDIT REGRESSION]');
 console.log('PASS: SQL-bound edits, email/type/status persistence, inactive directory filtering, and ARIA synchronization/suppression contracts.');

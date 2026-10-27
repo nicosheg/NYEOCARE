@@ -81,6 +81,8 @@ export default function CommunityTab() {
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editBirthday, setEditBirthday] = useState('');
+  const [duplicateReview, setDuplicateReview] = useState(null);
+  const [editIdentityReview, setEditIdentityReview] = useState(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const timer = useRef(null);
@@ -185,8 +187,8 @@ export default function CommunityTab() {
   const selectAll = () => setSelectedIds(new Set(filtered.map(p => p.id)));
   const cancelSelect = () => { setSelectMode(false); setSelectedIds(new Set()); };
 
-  const addPerson = async (e) => {
-    e.preventDefault();
+  const addPerson = async (e, identityReview = null) => {
+    if (e?.preventDefault) e.preventDefault();
     if (!form.full_name.trim() || !accessToken) return;
     try {
       const res = await fetch('/api/people', {
@@ -196,27 +198,34 @@ export default function CommunityTab() {
           'Authorization': `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
-          first_name: form.full_name.trim(),
+          full_name: form.full_name.trim(),
           phone: form.phone,
           type: form.type,
           birthday: form.birthday || null,
+          ...(identityReview ? { identity_review: identityReview } : {}),
         }),
       });
-      const data = await res.json();
-      if (res.ok && data.id) {
-        setPeople(prev => [data, ...prev]);
-        setForm({ full_name: '', phone: '', type: 'visitor', birthday: '' });
-        setShowAdd(false);
-        setMsg('Person added');
-        setTimeout(() => setMsg(''), 3000);
-      } else {
-        setMsg('Error: ' + (data.error || 'Could not add'));
-        setTimeout(() => setMsg(''), 3000);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.id) {
+        if (res.status === 409 && ['PERSON_IDENTITY_REVIEW_REQUIRED', 'PERSON_IDENTITY_REVIEW_STALE', 'DUPLICATE_IDENTITY_NOT_DISTINCT'].includes(data.code)) {
+          setDuplicateReview({ code: data.code, message: data.error || 'Review possible identity matches before saving.', candidates: Array.isArray(data.candidates) ? data.candidates : [] });
+          return;
+        }
+        throw new Error(data.error || 'Could not add person.');
       }
-    } catch (err) { setMsg('Error adding.'); setTimeout(() => setMsg(''), 3000); }
+      setPeople(prev => [data, ...prev.filter(person => person.id !== data.id)]);
+      setForm({ full_name: '', phone: '', type: 'visitor', birthday: '' });
+      setShowAdd(false);
+      setDuplicateReview(null);
+      setMsg(data.identity_review_confirmed ? 'Person added after identity review. ARIA’s decision was recorded.' : 'Person added');
+      setTimeout(() => setMsg(''), 3000);
+    } catch (err) {
+      setMsg('Error: ' + (err.message || 'Could not add person.'));
+      setTimeout(() => setMsg(''), 4000);
+    }
   };
 
-  const saveEdit = async (id) => {
+  const saveEdit = async (id, identityReview = null) => {
     if (!editName.trim() || !accessToken) return;
     try {
       const res = await fetch('/api/people', {
@@ -227,24 +236,31 @@ export default function CommunityTab() {
         },
         body: JSON.stringify({
           id,
-          first_name: editName.trim(),
+          full_name: editName.trim(),
           phone: editPhone,
-          type: people.find(p => p.id === id)?.type || 'visitor',
+          type: people.find(person => person.id === id)?.type || 'visitor',
           birthday: editBirthday || null,
+          ...(identityReview ? { identity_review: identityReview } : {}),
         }),
       });
-      const data = await res.json();
-      if (res.ok && data.id) {
-        setPeople(prev => prev.map(p => p.id === id ? data : p));
-        setMsg('Updated');
-        setTimeout(() => setMsg(''), 3000);
-        setEditingId(null);
-        cancelSelect();
-      } else {
-        setMsg('Error: ' + (data.error || 'Update failed'));
-        setTimeout(() => setMsg(''), 3000);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.id) {
+        if (res.status === 409 && ['PERSON_IDENTITY_REVIEW_REQUIRED', 'PERSON_IDENTITY_REVIEW_STALE', 'DUPLICATE_IDENTITY_NOT_DISTINCT'].includes(data.code)) {
+          setEditIdentityReview({ code: data.code, message: data.error || 'Review possible identity matches before saving.', candidates: Array.isArray(data.candidates) ? data.candidates : [] });
+          return;
+        }
+        throw new Error(data.error || 'Update failed');
       }
-    } catch (err) { setMsg('Error updating.'); setTimeout(() => setMsg(''), 3000); }
+      setPeople(prev => prev.map(person => person.id === id ? { ...person, ...data } : person));
+      setMsg(identityReview ? 'Updated after identity review. ARIA’s decision was recorded.' : 'Updated');
+      setTimeout(() => setMsg(''), 3000);
+      setEditingId(null);
+      setEditIdentityReview(null);
+      cancelSelect();
+    } catch (err) {
+      setMsg('Error: ' + (err.message || 'Update failed'));
+      setTimeout(() => setMsg(''), 4000);
+    }
   };
 
   const deletePerson = async (id, e) => {
@@ -485,8 +501,8 @@ export default function CommunityTab() {
 
         {showAdd && (
           <form onSubmit={addPerson} className="fiducia-card" style={{ padding: 20, marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <input placeholder="Full Name" value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })} required style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(20,25,40,0.6)', color: '#fff', outline: 'none' }} />
-            <input placeholder="Phone" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(20,25,40,0.6)', color: '#fff', outline: 'none' }} />
+            <input placeholder="Full Name" value={form.full_name} onChange={e => { setDuplicateReview(null); setForm({ ...form, full_name: e.target.value }); }}} required style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(20,25,40,0.6)', color: '#fff', outline: 'none' }} />
+            <input placeholder="Phone" value={form.phone} onChange={e => { setDuplicateReview(null); setForm({ ...form, phone: e.target.value }); }}} style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(20,25,40,0.6)', color: '#fff', outline: 'none' }} />
             <div style={{ marginBottom: 8 }}>
               <label style={{ display: 'block', fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}><span style={{ color: '#D4AF37', marginRight: 6 }}>●</span> Birthday <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginLeft: 6 }}>When should ARIA celebrate?</span></label>
               <button type="button" onClick={() => { setPickerTarget('add'); setShowPicker(true); }} style={{ width: '100%', padding: '12px 16px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(20,25,40,0.6)', color: form.birthday ? '#f0f0f0' : 'rgba(255,255,255,0.3)', fontSize: 15, textAlign: 'left', cursor: 'pointer', outline: 'none' }}>
@@ -495,6 +511,7 @@ export default function CommunityTab() {
               {form.birthday && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>Next birthday in {getNextBirthday(form.birthday)} days</div>}
             </div>
             <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })} style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(20,25,40,0.6)', color: '#fff', outline: 'none' }}><option value="visitor">Visitor</option><option value="member">Member</option></select>
+            {duplicateReview && <div role="alert" className="fiducia-card" style={{ padding: 12, display: 'grid', gap: 8, border: '1px solid rgba(212,175,55,.35)' }}><strong>{duplicateReview.code === 'DUPLICATE_IDENTITY_NOT_DISTINCT' ? 'Same identity already exists' : 'Review possible matches'}</strong><p style={{ margin: 0, fontSize: 12 }}>{duplicateReview.message}</p>{duplicateReview.candidates.map(candidate => <div key={candidate.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}><div><strong>{candidate.display_name || [candidate.first_name, candidate.last_name].filter(Boolean).join(' ')}</strong><div style={{ fontSize: 12, opacity: .65 }}>{candidate.phone || 'No phone recorded'}</div><div style={{ fontSize: 11, opacity: .55 }}>{candidate.name_match ? 'Same normalized name · ' : candidate.similar_name ? 'Similar name · ' : ''}{candidate.phone_match ? 'Same phone number' : ''}</div></div><Link href={`/person/${candidate.id}`} onClick={e => e.stopPropagation()} style={{ color: '#D4AF37', fontSize: 12 }}>Open record</Link></div>)}{duplicateReview.code !== 'DUPLICATE_IDENTITY_NOT_DISTINCT' && <button type="button" className="fiducia-button fiducia-button-primary" onClick={() => addPerson(null, { confirmed: true, candidate_ids: duplicateReview.candidates.map(candidate => candidate.id) })}>Verified: these are separate people</button>}<button type="button" className="fiducia-button fiducia-button-ghost" onClick={() => setDuplicateReview(null)}>Close review</button></div>}
             <button type="submit" className="fiducia-button fiducia-button-primary">Save</button>
           </form>
         )}
@@ -515,8 +532,8 @@ export default function CommunityTab() {
 
                 {editingId === person.id ? (
                   <div onClick={stopProp} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <input value={editName} onChange={e => setEditName(e.target.value)} style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(20,25,40,0.6)', color: '#fff', outline: 'none' }} placeholder="Full Name" />
-                    <input value={editPhone} onChange={e => setEditPhone(e.target.value)} style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(20,25,40,0.6)', color: '#fff', outline: 'none' }} placeholder="Phone" />
+                    <input value={editName} onChange={e => { setEditIdentityReview(null); setEditName(e.target.value); }} style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(20,25,40,0.6)', color: '#fff', outline: 'none' }} placeholder="Full Name" />
+                    <input value={editPhone} onChange={e => { setEditIdentityReview(null); setEditPhone(e.target.value); }} style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(20,25,40,0.6)', color: '#fff', outline: 'none' }} placeholder="Phone" />
                     <div style={{ marginBottom: 8 }}>
                       <label style={{ display: 'block', fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}><span style={{ color: '#D4AF37', marginRight: 6 }}>●</span> Birthday</label>
                       <button type="button" onClick={() => { setPickerTarget('edit'); setShowPicker(true); }} style={{ width: '100%', padding: '12px 16px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(20,25,40,0.6)', color: editBirthday ? '#f0f0f0' : 'rgba(255,255,255,0.3)', fontSize: 15, textAlign: 'left', cursor: 'pointer', outline: 'none' }}>
@@ -525,8 +542,9 @@ export default function CommunityTab() {
                       {editBirthday && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>Next birthday in {getNextBirthday(editBirthday)} days</div>}
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
+                    {editIdentityReview && <div role="alert" className="fiducia-card" style={{ padding: 12, display: 'grid', gap: 8, border: '1px solid rgba(212,175,55,.35)' }}><strong>{editIdentityReview.code === 'DUPLICATE_IDENTITY_NOT_DISTINCT' ? 'Same identity already exists' : 'Review possible matches'}</strong><p style={{ margin: 0, fontSize: 12 }}>{editIdentityReview.message}</p>{editIdentityReview.candidates.map(candidate => <div key={candidate.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}><div><strong>{candidate.display_name || [candidate.first_name, candidate.last_name].filter(Boolean).join(' ')}</strong><div style={{ fontSize: 12, opacity: .65 }}>{candidate.phone || 'No phone recorded'}</div><div style={{ fontSize: 11, opacity: .55 }}>{candidate.name_match ? 'Same normalized name · ' : candidate.similar_name ? 'Similar name · ' : ''}{candidate.phone_match ? 'Same phone number' : ''}</div></div><Link href={`/person/${candidate.id}`} onClick={e => e.stopPropagation()} style={{ color: '#D4AF37', fontSize: 12 }}>Open record</Link></div>)}{editIdentityReview.code !== 'DUPLICATE_IDENTITY_NOT_DISTINCT' && <button type="button" className="fiducia-button fiducia-button-primary" onClick={e => { e.stopPropagation(); saveEdit(person.id, { confirmed: true, candidate_ids: editIdentityReview.candidates.map(candidate => candidate.id) }); }}>Verified: these are separate people</button>}<button type="button" className="fiducia-button fiducia-button-ghost" onClick={e => { e.stopPropagation(); setEditIdentityReview(null); }}>Close review</button></div>}
                       <button onClick={(e) => { e.stopPropagation(); saveEdit(person.id); }} className="fiducia-button fiducia-button-primary" style={{ padding: '6px 12px', fontSize: 13 }}>Save</button>
-                      <button onClick={(e) => { e.stopPropagation(); setEditingId(null); cancelSelect(); }} className="fiducia-button fiducia-button-ghost" style={{ padding: '6px 12px', fontSize: 13 }}>Cancel</button>
+                      <button onClick={(e) => { e.stopPropagation(); setEditingId(null); setEditIdentityReview(null); cancelSelect(); }} className="fiducia-button fiducia-button-ghost" style={{ padding: '6px 12px', fontSize: 13 }}>Cancel</button>
                     </div>
                   </div>
                 ) : (

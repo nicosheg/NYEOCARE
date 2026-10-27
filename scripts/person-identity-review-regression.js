@@ -12,8 +12,11 @@ const community = read('components/CommunityTab.js');
 const attendanceApi = read('pages/api/attendance/add-visitor.js');
 const attendanceUi = read('components/AttendanceModal.js');
 const capabilityRegistry = read('lib/aria/capabilityRegistry.js');
+const validation = read('lib/scanValidation.js');
 
 assert.ok(api.includes('normalizeDisplayName(rawName)') && api.includes('identityNameKey(display_name||rawName)'), 'Person creation must normalize names and strip honorifics before identity comparison.');
+assert.ok(validation.includes("replace(/^\\s*\\d+[\\.\\)]\\s*/,'')"), 'Leading printed row numbers should be stripped from identity comparison.');
+assert.ok(validation.includes("replace(/[^a-z0-9\\s'\\-]/g,' ')"), 'Meaningful digits within a saved person name must remain part of its canonical identity key.');
 assert.ok(api.includes('DUPLICATE_IDENTITY_NOT_DISTINCT') && api.includes('PERSON_IDENTITY_REVIEW_REQUIRED') && api.includes('PERSON_IDENTITY_REVIEW_STALE'), 'Creation must prevent identical name+phone identities and route ambiguous matches through a stale-safe review gate.');
 assert.ok(api.includes('identity_pair_decisions') && api.includes('identity_shared_contacts') && api.includes("'not_duplicate'"), 'A human review must save an auditable distinct-person decision and verified shared-contact relationships.');
 assert.ok(api.includes('const personEditorRoles=[\'owner\',\'admin\',\'leader\',\'worker\',\'user\']'), 'People access must be role-based on application operators, not People type.');
@@ -21,6 +24,9 @@ assert.ok(api.includes('fields,identityReview})') && api.includes('candidates:er
 assert.ok(mutation.includes('identityReview=null') && mutation.includes('PERSON_IDENTITY_REVIEW_REQUIRED') && mutation.includes('recordIdentityReview'), 'Canonical person edits must use the same identity review and audit contract as creation.');
 assert.ok(mutation.includes("p.status IN ('inactive','archived')"), 'Possible identity matches must include archived records so a former person cannot be re-created as a duplicate.');
 assert.ok(page.includes('Verified: these are separate people') && page.includes('DUPLICATE_IDENTITY_NOT_DISTINCT') && page.includes('Open record'), 'The People screen must expose human review and block a second record for an identical name+phone pair.');
+assert.ok(page.includes('Your edit has not been saved yet.') && page.includes('Confirm separate identities & save changes'), 'Direct People edits must clearly explain and require the explicit identity-review confirmation before saving.');
+assert.ok(mutation.includes("if(existingName.honorific&&!incomingName.honorific)incoming=existingName.honorific+' '+incoming"), 'A direct numeric-name edit must preserve existing honorifics while retaining the edited name text.');
+assert.ok(mutation.includes("replace(/[^a-z0-9]+/g,' ').trim()"), 'Identity comparison for direct edits must preserve digits within names.');
 assert.ok(access.includes("'owner', 'admin', 'leader', 'worker', 'user'"), 'Legacy user accounts must remain usable as operators until role migration is designed.');
 assert.ok(profileApi.includes('auth.admin.updateUserById') && profileApi.includes('user_metadata:{...authMetadata,name:canonicalName,full_name:canonicalName}'), 'The canonical NYEOCARE profile name must synchronize to Supabase Auth metadata.');
 assert.ok(profileUi.includes('d.identity_sync_warning||\'Saved\''), 'A failed metadata sync must not be falsely reported as a clean save.');

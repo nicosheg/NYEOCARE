@@ -32,7 +32,7 @@ const bulkSms = read('pages/api/send-whatsapp-bulk.js');
 const migrationRoute = read('pages/api/admin/migrate-to-people.js');
 const mergeRoute = read('pages/api/admin/merge-and-drop-members.js');
 const dropRoute = read('pages/api/admin/drop-members.js');
-const migration = read('supabase/migrations/20261028150000_strict_tenant_isolation_hardening.sql');
+const migration = read('supabase/migrations/20261028215806_strict_tenant_isolation_hardening.sql');
 
 const checks = [
   ['No API route may use the old query-controlled demo organization fallback',

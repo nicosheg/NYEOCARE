@@ -208,6 +208,7 @@ if(req.method==='POST'){
    }));
    const exactIdentity=candidatePayload.find(row=>row.name_match&&row.phone_match);
    if(exactIdentity){
+    console.warn('[PEOPLE_IDENTITY_REVIEW_BLOCK]',{request_id:req.nyeoRequestId||null,organization_id:orgId,code:'DUPLICATE_IDENTITY_NOT_DISTINCT',candidate_ids:[exactIdentity.id],candidate_organization_ids:[exactIdentity.organization_id]});
     await client.query('ROLLBACK');
     return res.status(409).json({
      error:'A person with this same name and phone number already exists. Open the existing record or correct the name/number; NYEOCARE will not create a second person with the same identity.',
@@ -219,6 +220,7 @@ if(req.method==='POST'){
    const currentCandidateIds=candidatePayload.map(row=>row.id).sort();
    if(candidates.length){
     if(review?.confirmed!==true){
+     console.warn('[PEOPLE_IDENTITY_REVIEW_BLOCK]',{request_id:req.nyeoRequestId||null,organization_id:orgId,code:'PERSON_IDENTITY_REVIEW_REQUIRED',candidate_ids:candidatePayload.map(candidate=>candidate.id),candidate_organization_ids:candidatePayload.map(candidate=>candidate.organization_id)});
      await client.query('ROLLBACK');
      return res.status(409).json({
       error:'ARIA found possible matches. Review the records before deciding whether this is a separate person.',
@@ -227,6 +229,7 @@ if(req.method==='POST'){
      });
     }
     if(reviewCandidateIds.length!==currentCandidateIds.length||reviewCandidateIds.some((value,index)=>value!==currentCandidateIds[index])){
+     console.warn('[PEOPLE_IDENTITY_REVIEW_BLOCK]',{request_id:req.nyeoRequestId||null,organization_id:orgId,code:'PERSON_IDENTITY_REVIEW_STALE',candidate_ids:currentCandidateIds,candidate_organization_ids:candidatePayload.map(candidate=>candidate.organization_id)});
      await client.query('ROLLBACK');
      return res.status(409).json({
       error:'The possible matches changed while you were reviewing. Review the refreshed candidate list before saving.',

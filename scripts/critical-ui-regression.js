@@ -10,6 +10,13 @@ const duplicateApi=read('pages/api/review/duplicate-action.js');
 const home=read('pages/index.js');
 const peoplePage=read('pages/people.js');
 const personPage=read('pages/person/[id].js');
+const journeyActionsStart=personPage.indexOf('<div style={S.actions}>');
+const journeyActionsEnd=personPage.indexOf('</div>',journeyActionsStart);
+const journeyActionRow=journeyActionsStart>=0&&journeyActionsEnd>journeyActionsStart?personPage.slice(journeyActionsStart,journeyActionsEnd):'';
+const journeyHeroStart=personPage.indexOf('<section style={S.hero}>');
+const journeyHeroEnd=personPage.indexOf('</section>',journeyHeroStart);
+const journeyContextStart=personPage.indexOf('<section className="fiducia-card" style={S.chat}>');
+const countMatches=(source,pattern)=>(source.match(pattern)||[]).length;
 const peopleApi=read('pages/api/people.js');
 const peopleMutation=read('lib/aria/peopleMutationEngine.js');
 const bulkPeopleApi=read('pages/api/people/bulk-create.js');
@@ -315,7 +322,22 @@ const checks=[
   peopleMutation.includes("const rawPhone=String(fields.phone??'').trim()")&&/if\(rawPhone&&!phone\)/.test(peopleMutation)&&/type!==String\(current\.type\|\|'visitor'\)\.toLowerCase\(\)/.test(peopleMutation)],
  ['People edit exposes member and inactive status on both edit surfaces',
   /value=\{editType\}/.test(peoplePage)&&/value=\{editStatus\}/.test(peoplePage)&&/if\(editStatus!==originalStatus\)body\.status=editStatus/.test(peoplePage)&&/value=\{editType\}/.test(personPage)&&/value=\{editStatus\}/.test(personPage)&&/body\.status=nextStatus/.test(personPage)],
- ['People cards stay uncluttered and Journey owns Message Note More Edit',!peoplePage.includes('className="person-card-actions"')&&!peoplePage.includes("aria-label={'Message '+fullName}")&&!peoplePage.includes("aria-label={`Edit ${fullName}`}")&&personPage.includes('<div style={S.actions}>')&&personPage.includes('<button style={S.action} disabled={!phone} onClick={message}>Message</button>')&&personPage.includes('<button style={S.action} onClick={()=>setNote(true)}>Note</button>')&&personPage.includes('<button style={S.action} aria-label="Edit details" onClick={openEdit}>Edit</button>')],
+ ['People cards stay compact; one Journey row owns Message, Note, More and Edit',
+  !peoplePage.includes('className="person-card-actions"')&&
+  !peoplePage.includes("onClick={message}")&&
+  !peoplePage.includes("onClick={()=>setNote(true)}")&&
+  !peoplePage.includes("onClick={()=>setMore(v=>!v)}")&&
+  !peoplePage.includes("onClick={openEdit}")&&
+  countMatches(personPage,/<div style={S\\.actions}>/g)===1&&
+  journeyActionRow.length>0&&
+  journeyActionsStart>journeyHeroEnd&&
+  journeyActionsStart<journeyContextStart&&
+  countMatches(personPage,/>Message<\\/button>/g)===1&&
+  countMatches(personPage,/>Note<\\/button>/g)===1&&
+  countMatches(personPage,/>••• More<\\/button>/g)===1&&
+  countMatches(personPage,/>Edit<\\/button>/g)===1&&
+  journeyActionRow.includes('aria-label="More options"')&&
+  journeyActionRow.includes('aria-label="Edit details"')],
  ['People page exposes fast bulk add with a row preview and skipped-row feedback',
   /Bulk add/.test(peoplePage)&&/parseBulkPeopleRows/.test(peoplePage)&&/phoneOnly=line\.match/.test(peoplePage)&&/source_line_numbers/.test(peoplePage)&&/Add many people at once/.test(peoplePage)&&/bulkPreviewRows\.length>200/.test(peoplePage)&&/only skipped rows remain in the box/.test(peoplePage)],
  ['Bulk person creation is bounded, authorized, and duplicate-safe',

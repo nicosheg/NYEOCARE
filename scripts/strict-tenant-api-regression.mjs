@@ -33,6 +33,7 @@ const migrationRoute = read('pages/api/admin/migrate-to-people.js');
 const mergeRoute = read('pages/api/admin/merge-and-drop-members.js');
 const dropRoute = read('pages/api/admin/drop-members.js');
 const migration = read('supabase/migrations/20261028215806_strict_tenant_isolation_hardening.sql');
+const remainingRlsMigration = read('supabase/migrations/20261028215931_strict_tenant_force_remaining_rls_tables.sql');
 
 const checks = [
   ['No API route may use the old query-controlled demo organization fallback',
@@ -66,7 +67,7 @@ const checks = [
   ['Session membership writes verify both session and user belong to the caller organization',
     migration.includes('u.organization_id = (SELECT public.current_user_org_id())') && migration.includes('s.organization_id = (SELECT public.current_user_org_id())')],
   ['Tenant tables are forced through RLS where PostgreSQL supports it',
-    migration.includes('FORCE ROW LEVEL SECURITY') && migration.includes('ALTER TABLE public.organizations FORCE ROW LEVEL SECURITY')],
+    migration.includes('FORCE ROW LEVEL SECURITY') && migration.includes('ALTER TABLE public.organizations FORCE ROW LEVEL SECURITY') && ['ai_provider_admission', 'aria_global_learning', 'aria_messages'].every(table => remainingRlsMigration.includes('ALTER TABLE public.' + table + ' FORCE ROW LEVEL SECURITY'))],
 ];
 
 const failed = checks.filter(([, passed]) => !passed).map(([name]) => name);

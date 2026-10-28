@@ -105,5 +105,13 @@ assert.ok(mutation.includes("if(existingName.honorific&&!incomingName.honorific)
 assert.ok(peoplePage.includes('personCardPhone(person)')&&peoplePage.includes('primaryPhone(person)'), 'People cards must display the canonical primary phone or fall back to the ordered phone_numbers JSON list.');
 assert.ok(personPage.includes('<button style={S.action} aria-label="Edit details" onClick={openEdit}>Edit</button>'), 'The single accessible Edit action belongs in the People Journey action row beside Message, Note and More.');
 
+assert.ok(mutation.includes("organization_id:String(row.organization_id)"),'Identity candidates must carry their trusted organization ID for defense-in-depth validation.');
+assert.ok(peopleApi.includes('filterRowsToOrganization(rawCandidates,orgId)')&&peopleApi.includes('discarded_foreign_candidate_count'),'The People API must re-check the tenant boundary before exposing identity conflicts and log rejected foreign candidates without contact PII.');
+assert.ok(peopleApi.includes("request_id:req.nyeoRequestId||null"),'Person-save conflicts must include the request ID needed for reliable production tracing.');
+assert.ok(peoplePage.includes('data-person-edit-identity-review')&&peoplePage.includes("Records in other organizations are excluded."),'A blocked People editor save must surface a visible explanation and focus the identity-review panel rather than silently returning.');
+assert.ok(peoplePage.includes('data-person-create-identity-review')&&peoplePage.includes("Records in other organizations are excluded. Review the highlighted panel."),'A blocked person-creation save must show why it was not saved.');
+assert.ok(personPage.includes('data-person-journey-identity-review')&&personPage.includes('Not saved: a possible match inside '),'Person Journey must show an explicit notice and scroll to the review panel when identity review pauses a save.');
+assert.ok(personPage.includes('Organization: {candidate.organization_name||\'Current organization\'}'),'Identity candidates must visibly identify the organization that owns the candidate.');
+
 console.log('[PEOPLE EDIT REGRESSION]');
 console.log('PASS: SQL-bound edits, email/type/status persistence, inactive directory filtering, and ARIA synchronization/suppression contracts.');

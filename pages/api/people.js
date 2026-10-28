@@ -187,7 +187,7 @@ if(req.method==='POST'){
   if(prior){
    if(prior.request_payload_hash!==payloadHash){
     await client.query('ROLLBACK');
-    return res.status(409).json({error:'This retry key was already used for different person details. Review the form and submit again.',code:'PERSON_CREATE_REQUEST_ID_REUSED'});
+    return res.status(409).json({error:'This retry key was already used for different person details. Review the form and submit again.',code:'PERSON_CREATE_REQUEST_ID_REUSED',request_id:req.nyeoRequestId||null});
    }
    person={...prior};
    delete person.request_payload_hash;
@@ -198,7 +198,7 @@ if(req.method==='POST'){
    if(phone)await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',['nyeocare:person-phone:'+orgId+':'+phone]);
    const candidates=await findIdentityCandidates(orgId,incomingNameKey,phone,client);
    const candidatePayload=candidates.map(row=>({
-    id:String(row.id),
+    id:String(row.id),organization_id:String(row.organization_id),organization_name:req.org.name||null,
     display_name:row.display_name||[row.first_name,row.last_name].filter(Boolean).join(' ')||row.first_name||'Unnamed person',
     first_name:row.first_name||'',last_name:row.last_name||'',phone:row.phone||null,
     type:row.type||null,status:row.status||null,
@@ -208,10 +208,11 @@ if(req.method==='POST'){
    }));
    const exactIdentity=candidatePayload.find(row=>row.name_match&&row.phone_match);
    if(exactIdentity){
+    console.warn('[PEOPLE_IDENTITY_REVIEW_BLOCK]',{request_id:req.nyeoRequestId||null,organization_id:orgId,code:'DUPLICATE_IDENTITY_NOT_DISTINCT',candidate_ids:[exactIdentity.id],candidate_organization_ids:[exactIdentity.organization_id]});
     await client.query('ROLLBACK');
     return res.status(409).json({
      error:'A person with this same name and phone number already exists. Open the existing record or correct the name/number; NYEOCARE will not create a second person with the same identity.',
-     code:'DUPLICATE_IDENTITY_NOT_DISTINCT',candidates:[exactIdentity]
+     code:'DUPLICATE_IDENTITY_NOT_DISTINCT',request_id:req.nyeoRequestId||null,candidates:[exactIdentity]
     });
    }
    const review=body.identity_review&&typeof body.identity_review==='object'?body.identity_review:null;
@@ -219,23 +220,25 @@ if(req.method==='POST'){
    const currentCandidateIds=candidatePayload.map(row=>row.id).sort();
    if(candidates.length){
     if(review?.confirmed!==true){
+     console.warn('[PEOPLE_IDENTITY_REVIEW_BLOCK]',{request_id:req.nyeoRequestId||null,organization_id:orgId,code:'PERSON_IDENTITY_REVIEW_REQUIRED',candidate_ids:candidatePayload.map(candidate=>candidate.id),candidate_organization_ids:candidatePayload.map(candidate=>candidate.organization_id)});
      await client.query('ROLLBACK');
      return res.status(409).json({
       error:'ARIA found possible matches. Review the records before deciding whether this is a separate person.',
-      code:'PERSON_IDENTITY_REVIEW_REQUIRED',candidates:candidatePayload,
+      code:'PERSON_IDENTITY_REVIEW_REQUIRED',request_id:req.nyeoRequestId||null,candidates:candidatePayload,
       review_reasons:[...new Set(candidates.map(row=>row.phone_match?'phone_already_used':'similar_name'))]
      });
     }
     if(reviewCandidateIds.length!==currentCandidateIds.length||reviewCandidateIds.some((value,index)=>value!==currentCandidateIds[index])){
+     console.warn('[PEOPLE_IDENTITY_REVIEW_BLOCK]',{request_id:req.nyeoRequestId||null,organization_id:orgId,code:'PERSON_IDENTITY_REVIEW_STALE',candidate_ids:currentCandidateIds,candidate_organization_ids:candidatePayload.map(candidate=>candidate.organization_id)});
      await client.query('ROLLBACK');
      return res.status(409).json({
       error:'The possible matches changed while you were reviewing. Review the refreshed candidate list before saving.',
-      code:'PERSON_IDENTITY_REVIEW_STALE',candidates:candidatePayload
+      code:'PERSON_IDENTITY_REVIEW_STALE',request_id:req.nyeoRequestId||null,candidates:candidatePayload
      });
     }
    }else if(review?.confirmed===true&&reviewCandidateIds.length){
     await client.query('ROLLBACK');
-    return res.status(409).json({error:'The records changed while you were reviewing. Refresh the People list and try again.',code:'PERSON_IDENTITY_REVIEW_STALE',candidates:[]});
+    return res.status(409).json({error:'The records changed while you were reviewing. Refresh the People list and try again.',code:'PERSON_IDENTITY_REVIEW_STALE',request_id:req.nyeoRequestId||null,candidates:[]});
    }
    person=(await client.query(
     `INSERT INTO people(organization_id,first_name,last_name,display_name,phone,phone_numbers,email,type,birthday,created_by,living_truth,status,source)
@@ -306,10 +309,27 @@ if(req.method==='PUT'){
   const result=await updatePersonRecord({organizationId:orgId,actorId:req.user.id,personId:id,fields,identityReview});
   return res.status(200).json({...result.person,updated_fields:result.updated_fields,no_changes:Boolean(result.no_changes),event_id:result.event_id||null});
  }catch(err){
-  console.error('PUT person error:',err);
   const status=[400,403,404,409].includes(Number(err?.status))?Number(err.status):err?.code==='DUPLICATE_ACTIVE_PERSON'?409:500;
+  const rawCandidates=Array.isArray(err?.candidates)?err.candidates:[];
+  // Never reflect an identity candidate from a different organization to the browser.
+  // The matcher is already tenant-scoped; this is a second API-boundary guard.
+  const scopedCandidates=filterRowsToOrganization(rawCandidates,orgId);
+  const discardedForeignCandidates=rawCandidates.length-scopedCandidates.length;
+  if(status===409&&(String(err?.code||'').startsWith('PERSON_IDENTITY_')||String(err?.code||'').startsWith('DUPLICATE_IDENTITY'))){
+   console.warn('[PEOPLE_IDENTITY_REVIEW_BLOCK]',{
+    request_id:req.nyeoRequestId||null,organization_id:orgId,person_id:id,code:err?.code||'IDENTITY_CONFLICT',
+    candidate_count:scopedCandidates.length,candidate_ids:scopedCandidates.map(candidate=>String(candidate.id)),
+    candidate_organization_ids:scopedCandidates.map(candidate=>String(candidate.organization_id||'')),
+    discarded_foreign_candidate_count:discardedForeignCandidates
+   });
+  }else{
+   console.error('PUT person error:',{request_id:req.nyeoRequestId||null,organization_id:orgId,code:err?.code||null,error:err?.message||String(err)});
+  }
   const safeMessage=status<500?String(err.message||'Unable to update person.'):'Unable to update person.';
-  return res.status(status).json({error:safeMessage,code:err?.code||undefined,...(Array.isArray(err?.candidates)?{candidates:err.candidates}:{})});
+  return res.status(status).json({
+   error:safeMessage,code:err?.code||undefined,request_id:req.nyeoRequestId||null,
+   ...(Array.isArray(err?.candidates)?{candidates:scopedCandidates.map(candidate=>({...candidate,organization_id:orgId,organization_name:req.org.name||null}))}:{})
+  });
  }
 }
 res.setHeader('Allow','GET,POST,PUT');return res.status(405).json({error:'Method not allowed'})}

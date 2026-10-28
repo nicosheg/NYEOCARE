@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS public.person_identity_review_items (
   organization_id text NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   client_request_id uuid NOT NULL,
   payload_hash text NOT NULL,
+  request_payload_hash text NOT NULL,
   source text NOT NULL DEFAULT 'manual_create'
     CHECK (source IN ('manual_create', 'bulk_create')),
   proposed_payload jsonb NOT NULL

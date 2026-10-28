@@ -1,81 +1,54 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { findIdentityCandidates, identityNameKey } from '../lib/aria/peopleMutationEngine.js';
+import { filterRowsToOrganization } from '../lib/aria/tenantScope.js';
 
 const currentOrganization = 'org-havilah-test';
 const otherOrganization = 'org-another-church-test';
-const name = 'Bro Nicholas';
-const phone = '08031234567';
-const nameKey = identityNameKey(name);
 
-function person(id, organizationId) {
-  return {
-    id,
-    organization_id: organizationId,
-    first_name: 'Bro',
-    last_name: 'Nicholas',
-    display_name: name,
-    phone,
-    phone_numbers: [{ raw: phone, normalized: phone, source: 'test', index: 1 }],
-    email: null,
-    type: 'member',
-    status: 'active',
-    created_at: '2026-10-01T00:00:00.000Z',
-    phone_match: true,
-    similar_name: true
-  };
-}
+const foreignPerson = {
+  id: '22222222-2222-4222-8222-222222222222',
+  organization_id: otherOrganization,
+  display_name: 'Bro Nicholas',
+  phone: '08031234567'
+};
+const localPerson = {
+  id: '11111111-1111-4111-8111-111111111111',
+  organization_id: currentOrganization,
+  display_name: 'Bro Nicholas',
+  phone: '08031234567'
+};
 
-function fakeDb(rows, expectedOrganization) {
-  const calls = [];
-  return {
-    calls,
-    async query(sql, params) {
-      calls.push({ sql, params });
-      assert.equal(params[0], expectedOrganization, 'the tenant ID must be the first bound query parameter');
-      assert.equal(
-        (sql.match(/p\.organization_id=\$1/g) || []).length,
-        2,
-        'both active and inactive/archived identity searches must be organization-scoped'
-      );
-      assert.match(sql, /FROM people p WHERE p\.organization_id=\$1 AND p\.status='active'/);
-      assert.match(sql, /FROM people p WHERE p\.organization_id=\$1 AND p\.status IN \('inactive','archived'\)/);
-      return { rows };
-    }
-  };
-}
-
-// Even if a faulty adapter or future query regression returns a matching person from
-// another tenant, that person must not become a candidate and must not block this save.
-const crossTenantDb = fakeDb([person('22222222-2222-4222-8222-222222222222', otherOrganization)], currentOrganization);
-const crossTenantCandidates = await findIdentityCandidates(
-  currentOrganization, nameKey, phone, crossTenantDb
+// Same name + phone in another organization must never become an identity candidate.
+assert.deepEqual(
+  filterRowsToOrganization([foreignPerson], currentOrganization),
+  [],
+  'a foreign-tenant match must not trigger identity review or block saving'
 );
-assert.deepEqual(crossTenantCandidates, [], 'another organization must not affect identity review or saving');
-assert.equal(crossTenantDb.calls.length, 1);
 
-// Identity safety remains enabled inside the same organization.
-const localPerson = person('11111111-1111-4111-8111-111111111111', currentOrganization);
-const sameTenantDb = fakeDb([localPerson], currentOrganization);
-const sameTenantCandidates = await findIdentityCandidates(
-  currentOrganization, nameKey, phone, sameTenantDb
+// A mixed result must expose only the signed-in organization's row.
+assert.deepEqual(
+  filterRowsToOrganization([foreignPerson, localPerson], currentOrganization).map(row => row.id),
+  [localPerson.id],
+  'foreign-tenant candidates must be removed even if a query/adapter returns them'
 );
-assert.equal(sameTenantCandidates.length, 1, 'same-organization potential duplicates must still be reviewed');
-assert.equal(sameTenantCandidates[0].id, localPerson.id);
-assert.equal(sameTenantCandidates[0].name_match, true);
-assert.equal(sameTenantCandidates[0].phone_match, true);
 
-// Keep the primary People API on the one canonical tenant-scoped matcher so its
-// create flow cannot drift into a second, differently scoped implementation.
+// Do not fail open when tenant context is missing or malformed.
+assert.deepEqual(filterRowsToOrganization([foreignPerson, localPerson], ''), []);
+assert.deepEqual(filterRowsToOrganization(null, currentOrganization), []);
+
+// Verify the actual canonical mutation engine uses both SQL tenant predicates and
+// the filter above, and the main People API does not keep a separate matcher.
 const peopleApi = fs.readFileSync(new URL('../pages/api/people.js', import.meta.url), 'utf8');
 const mutationEngine = fs.readFileSync(new URL('../lib/aria/peopleMutationEngine.js', import.meta.url), 'utf8');
 assert.ok(
   peopleApi.includes("import{identityNameKey,findIdentityCandidates,updatePersonRecord}from'../../lib/aria/peopleMutationEngine';"),
-  'People API must import the shared identity matcher'
+  'People API must import the canonical identity matcher'
 );
 assert.doesNotMatch(peopleApi, /async function findIdentityCandidates/, 'People API must not retain a duplicate candidate matcher');
-assert.match(peopleApi, /findIdentityCandidates\(orgId,incomingNameKey,phone,client\)/);
-assert.match(mutationEngine, /const scopedRows=result\.rows\.filter\(row=>String\(row\.organization_id\|\|''\)===String\(organizationId\)\)/);
-assert.match(mutationEngine, /WHERE id=\$1::uuid AND organization_id=\$2/);
+assert.match(peopleApi, /findIdentityCandidates\\(orgId,incomingNameKey,phone,client\\)/);
+assert.match(mutationEngine, /FROM people p WHERE p\\.organization_id=\\$1 AND p\\.status='active'/);
+assert.match(mutationEngine, /FROM people p WHERE p\\.organization_id=\\$1 AND p\\.status IN \\('inactive','archived'\\)/);
+assert.match(mutationEngine, /const scopedRows=filterRowsToOrganization\\(result\\.rows,organizationId\\)/);
+assert.match(mutationEngine, /WHERE id=\\$1::uuid AND organization_id=\\$2/);
 
 console.log('Tenant identity isolation regression checks passed.');

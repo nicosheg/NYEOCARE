@@ -317,8 +317,9 @@ if(req.method==='PUT'){
   const discardedForeignCandidates=rawCandidates.length-scopedCandidates.length;
   if(status===409&&(String(err?.code||'').startsWith('PERSON_IDENTITY_')||String(err?.code||'').startsWith('DUPLICATE_IDENTITY'))){
    console.warn('[PEOPLE_IDENTITY_REVIEW_BLOCK]',{
-    request_id:req.nyeoRequestId||null,organization_id:orgId,code:err?.code||'IDENTITY_CONFLICT',
+    request_id:req.nyeoRequestId||null,organization_id:orgId,person_id:id,code:err?.code||'IDENTITY_CONFLICT',
     candidate_count:scopedCandidates.length,candidate_ids:scopedCandidates.map(candidate=>String(candidate.id)),
+    candidate_organization_ids:scopedCandidates.map(candidate=>String(candidate.organization_id||'')),
     discarded_foreign_candidate_count:discardedForeignCandidates
    });
   }else{

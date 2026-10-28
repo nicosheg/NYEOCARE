@@ -2867,3 +2867,13 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 - `findIdentityCandidates` in `lib/aria/peopleMutationEngine.js` is the canonical candidate matcher for People creation, edits, bulk entry, and attendance visitor entry. It filters returned candidate rows by `organization_id` as a second safety boundary. Do not reintroduce a separate People API matcher.
 - Preserve identity review for records within the same organization. Tenant isolation is not a reason to disable valid same-organization duplicate checks or shared-contact review.
 - The tenant-isolation regression simulates a matching row from a different organization and verifies it cannot be returned as a candidate or block a save, while a matching row in the current organization remains reviewable. Production verification must include both cases and confirm that the deployed Vercel SHA matches the tested main-branch commit.
+
+---
+
+## People identity conflict visibility and tenant proof — 28 October 2026
+
+- A person name or phone used by another organization is never an identity candidate or save blocker. The canonical matcher scopes active, inactive, and archived candidate searches to the authenticated organization, filters returned rows again by `organization_id`, and preserves that organization ID in every candidate.
+- The People API applies a second candidate-scope guard before returning edit conflicts. If a foreign-organization candidate is ever supplied unexpectedly, it is discarded and counted in a structured log without writing names, phone numbers, or other contact details.
+- An identity-conflict response must include the request ID and the organization owning every returned candidate. The create form, People card editor, and Person Journey editor must display a visible “not saved” explanation, show the owning organization, and bring the review panel into view. A 409 identity-review response must never be handled as a silent return.
+- A same-organization match can still require review or prevent creation of a second identical identity. This is intentional; tenant isolation must not disable duplicate protection or household/shared-contact review within the same organization.
+- CI covers fail-closed candidate filtering, organization IDs on returned candidates, API-boundary filtering, and visible conflict feedback in all People editing surfaces. Production is verified only when the merged commit is READY on Vercel and its production SHA matches the commit under test.

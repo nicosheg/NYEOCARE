@@ -74,6 +74,6 @@ assert.match(duplicateAction,/await mergePeople\(db,req\.org\.id,canonicalId,dup
 assert.match(duplicateAction,/UPDATE people SET status='archived'.*\[duplicateId,canonicalId,actorId,org\]/s,'only the non-selected duplicate record should be archived');
 
 assert.ok(review.includes("refreshPeopleAfterReview('review-duplicate-decision'")&&review.includes("refreshPeopleAfterReview('review-identity-decision'")&&review.includes("publishDataChange('people'")&&review.includes("nyeocare:app-refresh"), 'Every verified Review Center identity decision must invalidate People data and refresh mounted directory surfaces.');
-assert.ok(people.includes('aria-label={`Edit ${fullName}`}')&&people.includes('startEdit(person)'), 'Person cards must expose a directly reachable Edit action, not an unreachable editor state.');
+assert.ok(!people.includes('className="person-card-actions"')&&person.includes('<div style={S.actions}>')&&person.includes('<button style={S.action} aria-label="Edit details" onClick={openEdit}>Edit</button>')&&person.includes('<button style={S.action} disabled={!phone} onClick={message}>Message</button>')&&person.includes('<button style={S.action} onClick={()=>setNote(true)}>Note</button>'), 'People cards must stay uncluttered while the Journey row exposes accessible Message, Note, More, and Edit actions.');
 
 console.log('NYEOCARE review queue persistence and edit-verification regression checks passed.');

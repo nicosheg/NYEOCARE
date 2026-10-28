@@ -5,7 +5,7 @@ const mutation=fs.readFileSync('lib/aria/peopleMutationEngine.js','utf8');
 const resolve=fs.readFileSync('pages/api/review/resolve.js','utf8');
 const bulkPeople=fs.readFileSync('pages/api/people/bulk-create.js','utf8');
 
-assert.ok(people.includes("import{updatePersonRecord}from'../../lib/aria/peopleMutationEngine';"),'People API must delegate edits to the canonical mutation engine.');
+assert.ok(people.includes("import{identityNameKey,findIdentityCandidates,updatePersonRecord}from'../../lib/aria/peopleMutationEngine';"),'People API must use the canonical identity matcher and mutation engine.');
 assert.ok(mutation.includes('WHERE id=$"+idIndex+"::uuid AND organization_id=$"+organizationIndex'),'Person edits must bind UUID and organization id parameters.');
 assert.doesNotMatch(people,/WHERE id=\$\{n\} AND organization_id=\$\{n\+1\}/,'The legacy UUID-versus-integer update query must not return.');
 

@@ -46,6 +46,9 @@ assert.ok(
 );
 assert.doesNotMatch(peopleApi, /async function findIdentityCandidates/, 'People API must not retain a duplicate candidate matcher');
 assert.match(peopleApi, /findIdentityCandidates\(orgId,incomingNameKey,phone,client\)/);
+assert.match(peopleApi, /async function duplicatePhone\(orgId,phone,excludeId=null,db=pool\)/);
+assert.match(peopleApi, /SELECT id,organization_id,display_name,phone FROM people/);
+assert.match(peopleApi, /return filterRowsToOrganization\(q\.rows,orgId\)\[0\]\|\|null/);
 assert.match(mutationEngine, /FROM people p WHERE p\.organization_id=\$1 AND p\.status='active'/);
 assert.match(mutationEngine, /FROM people p WHERE p\.organization_id=\$1 AND p\.status IN \('inactive','archived'\)/);
 assert.match(mutationEngine, /const scopedRows=filterRowsToOrganization\(result\.rows,organizationId\)/);

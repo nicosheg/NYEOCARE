@@ -176,7 +176,7 @@ export default withOrg(async function handler(req, res) {
       if(candidate.phone)await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`nyeocare:person-phone:${organizationId}:${candidate.phone}`]);
       const matches=await findIdentityCandidates(organizationId,nameKey,candidate.phone,client);
       const candidatePayload=matches.map(match=>({
-        id:String(match.id),display_name:match.display_name||[match.first_name,match.last_name].filter(Boolean).join(' ')||'Unnamed person',
+        id:String(match.id),organization_id:String(match.organization_id),organization_name:req.org.name||null,display_name:match.display_name||[match.first_name,match.last_name].filter(Boolean).join(' ')||'Unnamed person',
         first_name:match.first_name||'',last_name:match.last_name||'',phone:match.phone||null,
         type:match.type||null,status:match.status||null,
         name_match:match.name_match===true,phone_match:match.phone_match===true,similar_name:match.similar_name===true

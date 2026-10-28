@@ -187,7 +187,7 @@ if(req.method==='POST'){
   if(prior){
    if(prior.request_payload_hash!==payloadHash){
     await client.query('ROLLBACK');
-    return res.status(409).json({error:'This retry key was already used for different person details. Review the form and submit again.',code:'PERSON_CREATE_REQUEST_ID_REUSED'});
+    return res.status(409).json({error:'This retry key was already used for different person details. Review the form and submit again.',code:'PERSON_CREATE_REQUEST_ID_REUSED',request_id:req.nyeoRequestId||null});
    }
    person={...prior};
    delete person.request_payload_hash;
@@ -211,7 +211,7 @@ if(req.method==='POST'){
     await client.query('ROLLBACK');
     return res.status(409).json({
      error:'A person with this same name and phone number already exists. Open the existing record or correct the name/number; NYEOCARE will not create a second person with the same identity.',
-     code:'DUPLICATE_IDENTITY_NOT_DISTINCT',candidates:[exactIdentity]
+     code:'DUPLICATE_IDENTITY_NOT_DISTINCT',request_id:req.nyeoRequestId||null,candidates:[exactIdentity]
     });
    }
    const review=body.identity_review&&typeof body.identity_review==='object'?body.identity_review:null;
@@ -222,7 +222,7 @@ if(req.method==='POST'){
      await client.query('ROLLBACK');
      return res.status(409).json({
       error:'ARIA found possible matches. Review the records before deciding whether this is a separate person.',
-      code:'PERSON_IDENTITY_REVIEW_REQUIRED',candidates:candidatePayload,
+      code:'PERSON_IDENTITY_REVIEW_REQUIRED',request_id:req.nyeoRequestId||null,candidates:candidatePayload,
       review_reasons:[...new Set(candidates.map(row=>row.phone_match?'phone_already_used':'similar_name'))]
      });
     }
@@ -230,12 +230,12 @@ if(req.method==='POST'){
      await client.query('ROLLBACK');
      return res.status(409).json({
       error:'The possible matches changed while you were reviewing. Review the refreshed candidate list before saving.',
-      code:'PERSON_IDENTITY_REVIEW_STALE',candidates:candidatePayload
+      code:'PERSON_IDENTITY_REVIEW_STALE',request_id:req.nyeoRequestId||null,candidates:candidatePayload
      });
     }
    }else if(review?.confirmed===true&&reviewCandidateIds.length){
     await client.query('ROLLBACK');
-    return res.status(409).json({error:'The records changed while you were reviewing. Refresh the People list and try again.',code:'PERSON_IDENTITY_REVIEW_STALE',candidates:[]});
+    return res.status(409).json({error:'The records changed while you were reviewing. Refresh the People list and try again.',code:'PERSON_IDENTITY_REVIEW_STALE',request_id:req.nyeoRequestId||null,candidates:[]});
    }
    person=(await client.query(
     `INSERT INTO people(organization_id,first_name,last_name,display_name,phone,phone_numbers,email,type,birthday,created_by,living_truth,status,source)
@@ -312,7 +312,7 @@ if(req.method==='PUT'){
   // The matcher is already tenant-scoped; this is a second API-boundary guard.
   const scopedCandidates=filterRowsToOrganization(rawCandidates,orgId);
   const discardedForeignCandidates=rawCandidates.length-scopedCandidates.length;
-  if(status===409&&String(err?.code||'').startsWith('PERSON_IDENTITY_')||status===409&&String(err?.code||'').startsWith('DUPLICATE_IDENTITY')){
+  if(status===409&&(String(err?.code||'').startsWith('PERSON_IDENTITY_')||String(err?.code||'').startsWith('DUPLICATE_IDENTITY'))){
    console.warn('[PEOPLE_IDENTITY_REVIEW_BLOCK]',{
     request_id:req.nyeoRequestId||null,organization_id:orgId,code:err?.code||'IDENTITY_CONFLICT',
     candidate_count:scopedCandidates.length,candidate_ids:scopedCandidates.map(candidate=>String(candidate.id)),

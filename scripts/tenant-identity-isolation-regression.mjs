@@ -52,6 +52,6 @@ assert.match(peopleApi, /return filterRowsToOrganization\(q\.rows,orgId\)\[0\]\|
 assert.match(mutationEngine, /FROM people p WHERE p\.organization_id=\$1 AND p\.status='active'/);
 assert.match(mutationEngine, /FROM people p WHERE p\.organization_id=\$1 AND p\.status IN \('inactive','archived'\)/);
 assert.match(mutationEngine, /const scopedRows=filterRowsToOrganization\(result\.rows,organizationId\)/);
-assert.match(mutationEngine, /WHERE id=\$1::uuid AND organization_id=\$2/);
+assert.ok(mutationEngine.includes('WHERE id=$"+idIndex+"::uuid AND organization_id=$"+organizationIndex'), 'person updates must bind both the target UUID and trusted organization ID');
 
 console.log('Tenant identity isolation regression checks passed.');

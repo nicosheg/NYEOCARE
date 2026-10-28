@@ -101,7 +101,14 @@ person AS(
 SELECT
  (SELECT row_to_json(person) FROM person) AS person,
  COALESCE((SELECT json_agg(x) FROM(
-   SELECT * FROM timeline_events WHERE people_id=$2 ORDER BY COALESCE(occurred_at,created_at) DESC LIMIT 100
+   SELECT te.*
+   FROM timeline_events te
+   JOIN people timeline_person
+     ON timeline_person.id=te.people_id
+    AND timeline_person.organization_id=$1
+   WHERE te.people_id=$2
+   ORDER BY COALESCE(te.occurred_at,te.created_at) DESC
+   LIMIT 100
  )x),'[]'::json) AS timeline,
  COALESCE((SELECT json_agg(x) FROM(
    SELECT * FROM aria_observations WHERE organization_id=$1 AND person_id=$2 ORDER BY detected_at DESC LIMIT 50

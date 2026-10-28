@@ -1,6 +1,7 @@
 import fs from'node:fs';
 import assert from'node:assert/strict';
 import { normalizePhoneList, primaryPhone } from '../lib/phoneUtils.js';
+import { candidatesRequiringEditIdentityReview } from '../lib/aria/identityEditPolicy.js';
 import { normalizeDisplayName } from '../lib/scanValidation.js';
 
 const read=p=>fs.readFileSync(p,'utf8');
@@ -31,7 +32,14 @@ assert.ok(peopleApi.includes('display_name,phone,phone_numbers,email,type') && p
 assert.ok(mutation.includes("source:'aria_direct_create',index:1") && mutation.includes("source:'aria_roster_import',index:1") && mutation.includes('phone,phone_numbers,type'), 'ARIA-created and roster-imported people must also write their primary phone to both storage fields.');
 assert.ok(read('pages/api/people/bulk-create.js').includes('phone,phone_numbers,email,type,birthday') && read('pages/api/people/bulk-create.js').includes("source:'manual',index:1"), 'Bulk People creation must write a synchronized primary phone for each newly created person.');
 assert.ok(read('pages/api/identity/resolve.js').includes('phone,phone_numbers,type,status,confidence') && read('pages/api/identity/resolve.js').includes('normalizePhone(rawPhone)'), 'Human scan identity resolution must normalize the phone and persist both primary and JSON phone fields.');
-assert.ok(mutation.includes("const identityFieldsChanged=updatedFields.some(field=>['first_name','last_name','display_name'].includes(field))||userPrimaryPhoneChanged") && mutation.includes('if(!userPrimaryPhoneChanged)identityCandidates=identityCandidates.filter(candidate=>candidate.name_match||candidate.similar_name)'), 'A storage-only phone repair must not be mistaken for a user phone change or create a false shared-phone conflict.');
+assert.ok(mutation.includes("const nameFieldsChanged=updatedFields.some(field=>['first_name','last_name','display_name'].includes(field))") && mutation.includes("candidatesRequiringEditIdentityReview(identityCandidates,{nameChanged:nameFieldsChanged,phoneChanged:userPrimaryPhoneChanged})"), 'Existing-person identity review must distinguish name changes from phone-only changes.');
+const archivedSameName={id:'archived-name-only',name_match:true,similar_name:true,phone_match:false};
+const sharedPhoneDifferentName={id:'shared-phone-different-name',name_match:false,similar_name:false,phone_match:true};
+assert.deepEqual(candidatesRequiringEditIdentityReview([archivedSameName],{nameChanged:false,phoneChanged:true}),[], 'A phone-only edit must not be blocked by an archived same-name candidate when the number is not shared.');
+assert.deepEqual(candidatesRequiringEditIdentityReview([sharedPhoneDifferentName],{nameChanged:false,phoneChanged:true}),[sharedPhoneDifferentName], 'A phone-only edit must still review a number already used by a same-organization person.');
+assert.deepEqual(candidatesRequiringEditIdentityReview([archivedSameName],{nameChanged:true,phoneChanged:false}),[archivedSameName], 'Name edits must still review same/similar-name candidates.');
+assert.deepEqual(candidatesRequiringEditIdentityReview([archivedSameName,sharedPhoneDifferentName],{nameChanged:true,phoneChanged:true}),[archivedSameName,sharedPhoneDifferentName], 'Combined name and phone edits must retain both identity checks.');
+assert.deepEqual(candidatesRequiringEditIdentityReview([archivedSameName,sharedPhoneDifferentName],{nameChanged:false,phoneChanged:false}),[], 'Fields unrelated to identity must not trigger identity review.');
 const reviewCenter=read('components/ReviewCenterTab.js');
 const duplicateAction=read('pages/api/review/duplicate-action.js');
 const reviewResolve=read('pages/api/review/resolve.js');

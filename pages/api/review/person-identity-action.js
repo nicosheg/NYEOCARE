@@ -247,7 +247,7 @@ export default withOrg(async function handler(req,res){
       finalId=String(person.id);
     }
     const evidence=identityEvidence(found,candidates,proposal,req.user.id,action,action==='merge'?canonicalId:null);
-    await upsertCreateRequest(db,{orgId:req.org.id,requestId:found.client_request_id,payloadHash,personId:finalId,actorId:req.user.id});
+    await upsertCreateRequest(db,{orgId:req.org.id,requestId:found.client_request_id,payloadHash:found.request_payload_hash||found.payload_hash,personId:finalId,actorId:req.user.id});
     await resolveReview(db,{row:found,orgId:req.org.id,actorId:req.user.id,personId:finalId,action,evidence});
     await db.query('COMMIT');finished=true;
     eventData={organizationId:req.org.id,personId:finalId,actorId:req.user.id,action,reviewId:String(found.id)};

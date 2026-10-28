@@ -2856,3 +2856,14 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 - Message, Note, and More stay in the Journey row. Conversation import remains available inside Journey's More sheet.
 - Cards resolve phone display from the canonical primary `phone` column and fall back to ordered `phone_numbers` JSON. If both are empty, report that no phone is stored; do not invent or copy a phone from another organization.
 - Regression coverage verifies the cards do not render action buttons, the Journey row exposes all four actions, canonical edits update the profile, and primary/ordered JSON phone resolution works.
+
+---
+
+## Cross-organization People identity isolation — 28 October 2026
+
+- A person's name or phone number is allowed to appear in more than one organization. A match in another organization is never a duplicate warning, save blocker, identity-review candidate, shared-contact relationship, merge target, or source of updates.
+- The trusted tenant is derived from the authenticated operator's `users.organization_id` through `withOrg`. Client-supplied organization IDs must not override that tenant.
+- Every identity candidate query, People read/write, transaction lock key, identity decision, and shared-contact record must remain scoped to that tenant. Never create a global unique index on `people.phone`, normalized phone, name, or name-plus-phone.
+- `findIdentityCandidates` in `lib/aria/peopleMutationEngine.js` is the canonical candidate matcher for People creation, edits, bulk entry, and attendance visitor entry. It filters returned candidate rows by `organization_id` as a second safety boundary. Do not reintroduce a separate People API matcher.
+- Preserve identity review for records within the same organization. Tenant isolation is not a reason to disable valid same-organization duplicate checks or shared-contact review.
+- The tenant-isolation regression simulates a matching row from a different organization and verifies it cannot be returned as a candidate or block a save, while a matching row in the current organization remains reviewable. Production verification must include both cases and confirm that the deployed Vercel SHA matches the tested main-branch commit.

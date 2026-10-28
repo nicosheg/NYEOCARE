@@ -91,7 +91,7 @@ export default withOrg(async function handler(req,res){
       const candidates=await findIdentityCandidates(orgId,incomingNameKey,phone,client);
       const exactIdentity=candidates.find(candidate=>candidate.name_match&&candidate.phone_match);
       const candidatePayload=candidates.map(candidate=>({
-        id:String(candidate.id),display_name:candidate.display_name||[candidate.first_name,candidate.last_name].filter(Boolean).join(' ')||'Unnamed person',
+        id:String(candidate.id),organization_id:String(candidate.organization_id),organization_name:req.org.name||null,display_name:candidate.display_name||[candidate.first_name,candidate.last_name].filter(Boolean).join(' ')||'Unnamed person',
         first_name:candidate.first_name||'',last_name:candidate.last_name||'',phone:candidate.phone||null,
         type:candidate.type||null,status:candidate.status||null,
         name_match:candidate.name_match===true,phone_match:candidate.phone_match===true,similar_name:candidate.similar_name===true
@@ -100,7 +100,7 @@ export default withOrg(async function handler(req,res){
         await client.query('ROLLBACK');
         return res.status(409).json({
           error:'A person with this same name and phone number already exists. Use the existing person rather than creating a second identical identity.',
-          code:'DUPLICATE_IDENTITY_NOT_DISTINCT',candidates:candidatePayload.filter(candidate=>candidate.id===exactIdentity.id)
+          code:'DUPLICATE_IDENTITY_NOT_DISTINCT',request_id:req.nyeoRequestId||null,candidates:candidatePayload.filter(candidate=>candidate.id===exactIdentity.id)
         });
       }
       const reviewedIds=Array.isArray(identityReview?.candidate_ids)?[...new Set(identityReview.candidate_ids.map(value=>String(value)))].sort():[];
@@ -109,14 +109,14 @@ export default withOrg(async function handler(req,res){
         await client.query('ROLLBACK');
         return res.status(409).json({
           error:'ARIA found possible matches. Compare the existing records and confirm whether this is a separate visitor before saving.',
-          code:'PERSON_IDENTITY_REVIEW_REQUIRED',candidates:candidatePayload
+          code:'PERSON_IDENTITY_REVIEW_REQUIRED',request_id:req.nyeoRequestId||null,candidates:candidatePayload
         });
       }
       if((candidates.length&&(reviewedIds.length!==currentIds.length||reviewedIds.some((value,index)=>value!==currentIds[index])))||(!candidates.length&&identityReview?.confirmed===true&&reviewedIds.length)){
         await client.query('ROLLBACK');
         return res.status(409).json({
           error:'The possible matches changed while you were reviewing. Review the refreshed candidates before saving.',
-          code:'PERSON_IDENTITY_REVIEW_STALE',candidates:candidatePayload
+          code:'PERSON_IDENTITY_REVIEW_STALE',request_id:req.nyeoRequestId||null,candidates:candidatePayload
         });
       }
 

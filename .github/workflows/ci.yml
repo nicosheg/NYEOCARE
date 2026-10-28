@@ -39,6 +39,7 @@ jobs:
       - run: npm run test:attendance-access
       - run: npm run test:person-create-idempotency
       - run: npm run test:identity-review
+      - run: npm run test:tenant-isolation
       - run: npm run test:daily-briefing
       - run: npm run test:follow-up-policy
       - run: npm run test:identity-evidence

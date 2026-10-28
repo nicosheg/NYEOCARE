@@ -3,47 +3,29 @@ import pool from'../../lib/db';
 import{normalizePhone,primaryPhone}from'../../lib/phoneUtils';
 import{normalizeDisplayName}from'../../lib/scanValidation';
 import{withOrg}from'../../lib/apiHelpers';
-import{updatePersonRecord}from'../../lib/aria/peopleMutationEngine';
+import{identityNameKey,findIdentityCandidates,updatePersonRecord}from'../../lib/aria/peopleMutationEngine';
+import{filterRowsToOrganization}from'../../lib/aria/tenantScope';
 import{emitAriaEvent}from'../../lib/aria/eventEmitter';
 import{directAriaEvent}from'../../lib/aria/director';
 import{hashPersonCreatePayload,isValidPersonCreateRequestId}from'../../lib/peopleCreateIdempotency';
 const splitName=value=>{const n=normalizeDisplayName(value),parts=n.core.split(/\s+/).filter(Boolean);return{first_name:parts.shift()||'',last_name:parts.join(' '),display_name:n.display}}
-const identityNameKey=value=>normalizeDisplayName(value).core.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
-async function findIdentityCandidates(orgId,nameKey,phone,db=pool,excludePersonId=null){
- const digits=String(phone||'').replace(/\D/g,'');
- const localDigits=digits.startsWith('234')?'0'+digits.slice(3):digits;
- const phoneVariants=[...new Set([digits,localDigits].filter(Boolean))];
- const phoneMatchExpr="($2::text IS NOT NULL AND (p.phone=$2 OR regexp_replace(COALESCE(p.phone,''), '[^0-9]', '', 'g')=ANY($4::text[]) OR EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(p.phone_numbers,'[]'::jsonb)) v WHERE v->>'normalized'=$2 OR regexp_replace(COALESCE(v->>'normalized',''), '[^0-9]', '', 'g')=ANY($4::text[]) OR regexp_replace(COALESCE(v->>'raw',''), '[^0-9]', '', 'g')=ANY($4::text[]))))";
- const nameExpr="lower(regexp_replace(trim(COALESCE(NULLIF(CONCAT_WS(' ',p.first_name,p.last_name),''),p.display_name,'')), '[^a-zA-Z0-9]+', ' ', 'g'))";
- const displayExpr="COALESCE(NULLIF(p.display_name, ''::text), ((COALESCE(p.first_name, ''::text) || ' '::text) || COALESCE(p.last_name, ''::text)))";
- const result=await db.query(
-  "WITH matches AS ("+
-  " SELECT p.id,p.first_name,p.last_name,p.display_name,p.phone,p.phone_numbers,p.email,p.type,p.status,p.created_at,"+
-  " CASE WHEN "+phoneMatchExpr+" THEN TRUE ELSE FALSE END AS phone_match,"+
-  " CASE WHEN "+displayExpr+" % $5::text THEN TRUE ELSE FALSE END AS similar_name "+
-  " FROM people p WHERE p.organization_id=$1 AND p.status='active' AND p.id<>$6::uuid "+
-  " AND (("+phoneMatchExpr+") OR ("+nameExpr+"=$3) OR ("+displayExpr+" % $5::text)) "+
-  " UNION ALL "+
-  " SELECT p.id,p.first_name,p.last_name,p.display_name,p.phone,p.phone_numbers,p.email,p.type,p.status,p.created_at,"+
-  " CASE WHEN "+phoneMatchExpr+" THEN TRUE ELSE FALSE END AS phone_match,"+
-  " CASE WHEN "+displayExpr+" % $5::text THEN TRUE ELSE FALSE END AS similar_name "+
-  " FROM people p WHERE p.organization_id=$1 AND p.status IN ('inactive','archived') AND p.id<>$6::uuid "+
-  " AND (("+phoneMatchExpr+") OR ("+nameExpr+"=$3) OR ("+displayExpr+" % $5::text)) "+
-  ") SELECT * FROM matches ORDER BY CASE WHEN phone_match THEN 0 WHEN similar_name THEN 1 ELSE 2 END,created_at ASC LIMIT 20",
-  [orgId,phone||null,nameKey||'',phoneVariants,nameKey||'',excludePersonId||'00000000-0000-0000-0000-000000000000']
+async function duplicatePhone(orgId,phone,excludeId=null,db=pool){
+ if(!phone)return null;
+ const q=await db.query(
+  `SELECT id,organization_id,display_name,phone FROM people
+   WHERE organization_id=$1 AND status='active'
+     AND living_truth->>'status' NOT IN ('needs_decision','conflict')
+     AND id<>COALESCE($2::uuid,'00000000-0000-0000-0000-000000000000')
+     AND (phone=$3 OR EXISTS(
+       SELECT 1 FROM jsonb_array_elements(COALESCE(phone_numbers,'[]'::jsonb)) v
+       WHERE v->>'normalized'=$3
+     ))
+   LIMIT 1`,
+  [orgId,excludeId,phone]
  );
- return result.rows.map(row=>{
-  const displayName=row.display_name||[row.first_name,row.last_name].filter(Boolean).join(' ')||row.first_name||'Unnamed person';
-  return {
-   id:String(row.id),first_name:row.first_name||'',last_name:row.last_name||'',
-   display_name:displayName,phone:primaryPhone(row),email:row.email||null,
-   type:row.type||null,status:row.status||null,
-   name_match:identityNameKey(displayName)===nameKey,
-   phone_match:row.phone_match===true,
-   similar_name:row.similar_name===true
-  };
- });
+ return filterRowsToOrganization(q.rows,orgId)[0]||null;
 }
+
 async function handler(req,res){const orgId=req.org.id;const role=String(req.user?.role||'').trim().toLowerCase();const adminRoles=['owner','admin'];const personCreatorRoles=['owner','admin','leader','worker','user'];const personEditorRoles=['owner','admin','leader','worker','user'];if(req.method==='GET'&&!personCreatorRoles.includes(role))return res.status(403).json({error:'People records and private contact details are limited to authorized organization operators.'});if(req.method==='POST'&&!personCreatorRoles.includes(role))return res.status(403).json({error:'You do not have permission to add people to this organization.'});if(req.method==='PUT'&&!personEditorRoles.includes(role))return res.status(403).json({error:'Authorized organization operator permissions required.'});
 if(req.method==='GET'){
  try{
@@ -154,9 +136,7 @@ if(req.method==='GET'){
    const ordered=stored.map((entry,index)=>({entry,index,order:Number.isFinite(Number(entry?.index))&&Number(entry?.index)>0?Number(entry.index):index+1}))
     .sort((a,b)=>a.order-b.order||a.index-b.index)
     .map(item=>item.entry);
-   const candidates=[row.phone,...ordered.flatMap(entry=>typeof entry==='string'?[entry]:[entry?.normalized,entry?.raw,entry?.phone])].map(value=>String(value||'').trim()).filter(Boolean);
-   const primary=candidates.map(value=>normalizePhone(value)).find(Boolean)||candidates[0]||null;
-   return {...row,phone:primary,phone_numbers:ordered};
+   return {...row,phone:primaryPhone({...row,phone_numbers:ordered}),phone_numbers:ordered};
   });
   const last=items[items.length-1];
   let total_count=null;

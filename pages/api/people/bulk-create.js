@@ -8,7 +8,7 @@ import { withOrg } from '../../../lib/apiHelpers';
 import { emitAriaEvent } from '../../../lib/aria/eventEmitter';
 import { directAriaEvent } from '../../../lib/aria/director';
 import { identityNameKey, findIdentityCandidates, recordIdentityReview } from '../../../lib/aria/peopleMutationEngine';
-import { persistPersonIdentityReview, stableIdentityReviewRequestId, personIdentityPayloadHash } from '../../../lib/personIdentityReviewQueue';
+import { persistPersonIdentityReview, resolvePersonIdentityReviewByRequest, stableIdentityReviewRequestId, personIdentityPayloadHash } from '../../../lib/personIdentityReviewQueue';
 
 const MAX_ROWS = 200;
 
@@ -212,6 +212,19 @@ export default withOrg(async function handler(req, res) {
       item.outcome.proposed_payload=payload;
       item.outcome.payload_hash=payloadHash;
       item.outcome.review_request_id=reviewRequestId;
+      const pendingReview=(await client.query(
+        `SELECT id,payload_hash FROM public.person_identity_review_items
+         WHERE organization_id=$1 AND client_request_id=$2 AND status='pending' LIMIT 1 FOR UPDATE`,
+        [organizationId,reviewRequestId]
+      )).rows[0];
+      if(pendingReview&&pendingReview.payload_hash!==payloadHash){
+        item.outcome.status='needs_review';
+        item.outcome.review_id=pendingReview.id;
+        item.outcome.identity_review_required=true;
+        item.outcome.reason='This row has already been edited in Review Center. Return to that pending review so its corrected details are not overwritten.';
+        item.candidate=null;
+        continue;
+      }
       const priorRequest=(await client.query(
         `SELECT r.payload_hash,r.person_id FROM public.person_create_requests r
          WHERE r.organization_id=$1 AND r.client_request_id=$2 LIMIT 1 FOR UPDATE`,
@@ -272,6 +285,10 @@ export default withOrg(async function handler(req, res) {
              VALUES($1,$2,$3,$4,$5)`,
             [organizationId,input.review_request_id,input.payload_hash,person.id,req.user.id]
           );
+          if(input.identity_review?.confirmed===true)await resolvePersonIdentityReviewByRequest(client,{
+            organizationId,clientRequestId:input.review_request_id,payloadHash:input.payload_hash,actorId:req.user.id,personId:person.id,
+            action:'keep_separate',metadata:{source:'bulk_create_confirmation',candidate_ids:(input.identity_candidates||[]).map(candidate=>String(candidate.id))}
+          });
         }
       }
       for (const candidate of accepted) results[candidate.index].outcome.status = 'created';

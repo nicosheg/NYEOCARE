@@ -197,17 +197,23 @@ export default withOrg(async function handler(req,res){
         return existing&&typeof existing==='object'?{...existing,normalized:phone,raw:existing.raw||phone,index:index+1}:{raw:phone,normalized:phone,source:'identity_review_merge',index:index+1};
       });
       const meta={review_id:String(found.id),actor_id:req.user.id,proposed_name:proposal.display_name,merged_at:new Date().toISOString(),source:found.source||'manual_create'};
+      const requestContext=proposal.request_context&&typeof proposal.request_context==='object'?proposal.request_context:null;
+      const attendanceMetadata=requestContext?.kind==='attendance_add_visitor'?{
+        attendance_add_visitor_request_id:String(requestContext.request_id||''),
+        attendance_add_visitor_session_id:String(requestContext.session_id||''),
+        ...(proposedPhones.length?{contact_consent:{phone:true,status:requestContext.contact_consent===true?'granted':'unknown',source:'attendance_add_visitor',recorded_by:req.user.id,recorded_at:new Date().toISOString()}}:{})
+      }:{};
       const saved=(await db.query(
         `UPDATE people SET phone=$3,phone_numbers=$4::jsonb,
           email=COALESCE(NULLIF(email,''),$5),birthday=COALESCE(birthday,$6::date),
           type=CASE WHEN type='visitor' AND $7='member' THEN 'member' ELSE type END,
           identity_verification_status='verified',identity_verified_at=NOW(),
           identity_verified_by=$8,identity_verification_source='human_identity_review',
-          metadata=COALESCE(metadata,'{}'::jsonb)||jsonb_build_object('last_identity_merge',$9::jsonb),
+          metadata=COALESCE(metadata,'{}'::jsonb)||jsonb_build_object('last_identity_merge',$9::jsonb)||$10::jsonb,
           updated_at=NOW()
          WHERE id=$1 AND organization_id=$2 AND status='active'
          RETURNING id,organization_id,first_name,last_name,display_name,phone,phone_numbers,email,birthday,type,status,identity_verification_status`,
-        [person.id,req.org.id,primary,JSON.stringify(orderedPhones),proposal.email,proposal.birthday,proposal.type,req.user.id,JSON.stringify(meta)]
+        [person.id,req.org.id,primary,JSON.stringify(orderedPhones),proposal.email,proposal.birthday,proposal.type,req.user.id,JSON.stringify(meta),JSON.stringify(attendanceMetadata)]
       )).rows[0];
       if(!saved||String(saved.id)!==String(person.id)||saved.status!=='active')throw Object.assign(new Error('NYEOCARE could not verify the main person record after merge. The review remains pending.'),{status:409,code:'IDENTITY_MERGE_VERIFICATION_FAILED'});
       const savedPhones=normalizePhoneList(saved,{limit:4});

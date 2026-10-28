@@ -1,6 +1,6 @@
 // pages/api/people.js
 import pool from'../../lib/db';
-import{normalizePhone}from'../../lib/phoneUtils';
+import{normalizePhone,primaryPhone}from'../../lib/phoneUtils';
 import{normalizeDisplayName}from'../../lib/scanValidation';
 import{withOrg}from'../../lib/apiHelpers';
 import{identityNameKey,findIdentityCandidates,updatePersonRecord}from'../../lib/aria/peopleMutationEngine';
@@ -118,9 +118,7 @@ if(req.method==='GET'){
    const ordered=stored.map((entry,index)=>({entry,index,order:Number.isFinite(Number(entry?.index))&&Number(entry?.index)>0?Number(entry.index):index+1}))
     .sort((a,b)=>a.order-b.order||a.index-b.index)
     .map(item=>item.entry);
-   const candidates=[row.phone,...ordered.flatMap(entry=>typeof entry==='string'?[entry]:[entry?.normalized,entry?.raw,entry?.phone])].map(value=>String(value||'').trim()).filter(Boolean);
-   const primary=candidates.map(value=>normalizePhone(value)).find(Boolean)||candidates[0]||null;
-   return {...row,phone:primary,phone_numbers:ordered};
+   return {...row,phone:primaryPhone({...row,phone_numbers:ordered}),phone_numbers:ordered};
   });
   const last=items[items.length-1];
   let total_count=null;

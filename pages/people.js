@@ -205,9 +205,19 @@ const addPerson=async(e,identityReview=null)=>{
  }catch(err){flash(err.message||'Error adding person','error')}
 };
 const saveEdit=async(id,identityReview=null)=>{
- if(!editName.trim()||!accessToken||savingEditId===String(id))return;
+ if(savingEditId===String(id))return;
+ if(!editName.trim()){flash('Enter a name before saving this person.','error');return}
  const current=people.find(p=>String(p.id)===String(id));
  if(!current){flash('This person is no longer in the loaded list. Refresh People and try again.','error');return}
+ // The Save button can remain visible while session hydration is finishing.
+ // Recover the existing session instead of silently returning without a request.
+ let activeToken=accessToken;
+ if(!activeToken){
+  const session=await getClientSession().catch(()=>null);
+  activeToken=session?.access_token||null;
+  if(activeToken)setAccessToken(activeToken);
+ }
+ if(!activeToken){flash('Your session is not ready or has expired. Sign in again before saving. No changes were sent.','error');return}
  const body={id};
  const originalName=personDisplayName(current),nextName=editName.trim();
  const originalPhone=String(current.phone||'').trim(),nextPhone=String(editPhone||'').trim();
@@ -228,7 +238,6 @@ const saveEdit=async(id,identityReview=null)=>{
  if(identityReview)body.identity_review=identityReview;
  setSavingEditId(String(id));
  try{
-  let activeToken=accessToken;
   const sendUpdate=token=>fetch('/api/people',{method:'PUT',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify(body),cache:'no-store'});
   let res=await sendUpdate(activeToken);
   if(res.status===401){

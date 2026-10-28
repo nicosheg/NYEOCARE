@@ -52,6 +52,9 @@ assert.match(peopleApi, /return filterRowsToOrganization\(q\.rows,orgId\)\[0\]\|
 assert.match(mutationEngine, /FROM people p WHERE p\.organization_id=\$1 AND p\.status='active'/);
 assert.match(mutationEngine, /FROM people p WHERE p\.organization_id=\$1 AND p\.status IN \('inactive','archived'\)/);
 assert.match(mutationEngine, /const scopedRows=filterRowsToOrganization\(result\.rows,organizationId\)/);
+assert.ok(mutationEngine.includes("organization_id:String(row.organization_id)"), 'Every identity candidate must preserve its source organization ID.');
+assert.ok(peopleApi.includes('filterRowsToOrganization(rawCandidates,orgId)'), 'The People API must reject foreign-tenant candidates again at its response boundary.');
+assert.ok(peopleApi.includes('discarded_foreign_candidate_count'), 'If a foreign candidate is ever returned, production logs must identify the request without logging contact details.');
 assert.ok(mutationEngine.includes('WHERE id=$"+idIndex+"::uuid AND organization_id=$"+organizationIndex'), 'person updates must bind both the target UUID and trusted organization ID');
 
 console.log('Tenant identity isolation regression checks passed.');

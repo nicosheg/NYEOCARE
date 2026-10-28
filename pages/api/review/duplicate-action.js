@@ -393,8 +393,10 @@ async function mergePeople(db,org,canonicalId,duplicateId,actorId,evidence){
  // Repoint it before the duplicate person is archived so Review Center never strands resolved work on an archived identity.
  await db.query('UPDATE scan_review_items SET proposed_person_id=$1,updated_at=NOW() WHERE organization_id=$2 AND proposed_person_id=$3',[canonicalId,org,duplicateId]);
 
+ // Repoint relationship/history rows only inside the authenticated tenant.
+ // These tables have their own organization key; person UUIDs alone are not an
+ // authorization boundary when old or corrupted rows exist.
  for(const spec of [
-  ['timeline_events','people_id'],
   ['aria_conversations','person_id'],
   ['aria_care_contexts','person_id'],
   ['care_feedback','person_id'],
@@ -406,9 +408,25 @@ async function mergePeople(db,org,canonicalId,duplicateId,actorId,evidence){
   ['person_communications','person_id'],
   ['aria_daily_queue_items','person_id'],
  ]) {
-  const[i,col]=spec;
-  await db.query(`UPDATE ${i} SET ${col}=$1 WHERE ${col}=$2`,[canonicalId,duplicateId]);
+  const[table,column]=spec;
+  await db.query(
+   `UPDATE ${table} SET ${column}=$1 WHERE organization_id=$3 AND ${column}=$2`,
+   [canonicalId,duplicateId,org]
+  );
  }
+ // timeline_events predates its own organization_id column, so derive tenant
+ // scope through the source person's row instead of updating by UUID alone.
+ await db.query(
+  `UPDATE timeline_events te
+   SET people_id=$1
+   WHERE te.people_id=$2
+     AND EXISTS(
+       SELECT 1 FROM people source_person
+       WHERE source_person.id=te.people_id
+         AND source_person.organization_id=$3
+     )`,
+  [canonicalId,duplicateId,org]
+ );
  for(const [table,col] of [['relationship_scores','person_id'],['engagement_metrics','person_id'],['people_intelligence','person_id']]){
    await db.query(`DELETE FROM ${table} WHERE organization_id=$1 AND ${col}=$2 AND EXISTS(SELECT 1 FROM ${table} c WHERE c.organization_id=$1 AND c.${col}=$3)`,[org,duplicateId,canonicalId]);
    await db.query(`UPDATE ${table} SET ${col}=$1 WHERE organization_id=$2 AND ${col}=$3`,[canonicalId,org,duplicateId]);

@@ -2877,3 +2877,12 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 - An identity-conflict response must include the request ID and the organization owning every returned candidate. The create form, People card editor, and Person Journey editor must display a visible “not saved” explanation, show the owning organization, and bring the review panel into view. A 409 identity-review response must never be handled as a silent return.
 - A same-organization match can still require review or prevent creation of a second identical identity. This is intentional; tenant isolation must not disable duplicate protection or household/shared-contact review within the same organization.
 - CI covers fail-closed candidate filtering, organization IDs on returned candidates, API-boundary filtering, and visible conflict feedback in all People editing surfaces. Production is verified only when the merged commit is READY on Vercel and its production SHA matches the commit under test.
+
+---
+
+## Existing-person phone-only edits — 28 October 2026
+
+- When editing an existing person, adding or correcting a phone number must not be blocked only because another same-organization record has the same normalized name. Honorific normalization can make names such as “Bro Nicholas” and “Nicholas” equivalent, including when the other record is archived; that name-only signal is not a phone collision.
+- A phone-only edit must still trigger identity review when the proposed phone is already attached to another person in the same organization. A combined name-and-phone edit retains both name and phone checks. Name-only edits retain same/similar-name review.
+- If the People-card editor lacks a hydrated session token, it attempts to recover the current client session and otherwise displays a visible “nothing was sent” explanation rather than silently returning.
+- Regression coverage explicitly exercises archived/name-only false positives, same-organization shared-phone conflicts, name-only edits, and combined edits.

@@ -48,7 +48,7 @@ function parseProposed(row,body){
   return {
     ...parsed,full_name:parsed.display_name,
     phone:phoneEntries[0]?.normalized||null,
-    phone_numbers:phoneEntries,email,birthday,type
+    phone_numbers:phoneEntries,email,birthday,type,request_context:old.request_context||null
   };
 }
 function candidatePayload(candidate){
@@ -225,13 +225,22 @@ export default withOrg(async function handler(req,res){
       const parts=splitName(proposal.display_name);
       const now=new Date().toISOString();
       const phoneNumbers=proposedPhones.map((phone,index)=>({raw:phone,normalized:phone,source:'person_identity_review',index:index+1}));
+      const requestContext=proposal.request_context&&typeof proposal.request_context==='object'?proposal.request_context:null;
+      const personMetadata={
+        ...(requestContext?.kind==='attendance_add_visitor'?{
+          attendance_add_visitor_request_id:String(requestContext.request_id||''),
+          attendance_add_visitor_session_id:String(requestContext.session_id||''),
+          ...(proposedPhones.length?{contact_consent:{phone:true,status:requestContext.contact_consent===true?'granted':'unknown',source:'attendance_add_visitor',recorded_by:req.user.id,recorded_at:now}}:{})
+        }:{}),
+        identity_review:{review_id:String(found.id),source:found.source||'manual_create',action:'keep_separate',decided_by:req.user.id,decided_at:now}
+      };
       person=(await db.query(
         `INSERT INTO people(
           organization_id,first_name,last_name,display_name,phone,phone_numbers,email,type,birthday,
-          created_by,living_truth,status,source,identity_verification_status,identity_verified_at,identity_verified_by,identity_verification_source
-        ) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9::date,$10,$11::jsonb,'active','manual','verified',NOW(),$10,'human_identity_review')
+          created_by,metadata,living_truth,status,source,identity_verification_status,identity_verified_at,identity_verified_by,identity_verification_source
+        ) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9::date,$10,$11::jsonb,$12::jsonb,'active','manual','verified',NOW(),$10,'human_identity_review')
         RETURNING id,organization_id,first_name,last_name,display_name,phone,phone_numbers,email,type,birthday,status,identity_verification_status`,
-        [req.org.id,parts.first_name,parts.last_name,proposal.display_name||null,proposedPhones[0]||null,JSON.stringify(phoneNumbers),proposal.email,proposal.type,proposal.birthday,req.user.id,JSON.stringify({status:'alive',confidence:100,source:'human_identity_review',updated_at:now})]
+        [req.org.id,parts.first_name,parts.last_name,proposal.display_name||null,proposedPhones[0]||null,JSON.stringify(phoneNumbers),proposal.email,proposal.type,proposal.birthday,req.user.id,JSON.stringify(personMetadata),JSON.stringify({status:'alive',confidence:100,source:'human_identity_review',updated_at:now})]
       )).rows[0];
       if(!person||person.status!=='active'||person.identity_verification_status!=='verified')throw Object.assign(new Error('NYEOCARE could not verify the newly created person record. The review remains pending.'),{status:409,code:'IDENTITY_CREATE_VERIFICATION_FAILED'});
       await recordSeparatePair(db,{orgId:req.org.id,actorId:req.user.id,person,candidates,proposedPhones,reviewId:found.id});

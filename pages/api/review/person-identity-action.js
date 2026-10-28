@@ -221,7 +221,7 @@ export default withOrg(async function handler(req,res){
         );
       }
       person=saved;finalId=String(saved.id);
-    }else{
+    }else if(action==='keep_separate'){
       const parts=splitName(proposal.display_name);
       const now=new Date().toISOString();
       const phoneNumbers=proposedPhones.map((phone,index)=>({raw:phone,normalized:phone,source:'person_identity_review',index:index+1}));

@@ -4,10 +4,28 @@ import{normalizePhone,primaryPhone}from'../../lib/phoneUtils';
 import{normalizeDisplayName}from'../../lib/scanValidation';
 import{withOrg}from'../../lib/apiHelpers';
 import{identityNameKey,findIdentityCandidates,updatePersonRecord}from'../../lib/aria/peopleMutationEngine';
+import{filterRowsToOrganization}from'../../lib/aria/tenantScope';
 import{emitAriaEvent}from'../../lib/aria/eventEmitter';
 import{directAriaEvent}from'../../lib/aria/director';
 import{hashPersonCreatePayload,isValidPersonCreateRequestId}from'../../lib/peopleCreateIdempotency';
 const splitName=value=>{const n=normalizeDisplayName(value),parts=n.core.split(/\s+/).filter(Boolean);return{first_name:parts.shift()||'',last_name:parts.join(' '),display_name:n.display}}
+async function duplicatePhone(orgId,phone,excludeId=null,db=pool){
+ if(!phone)return null;
+ const q=await db.query(
+  `SELECT id,organization_id,display_name,phone FROM people
+   WHERE organization_id=$1 AND status='active'
+     AND living_truth->>'status' NOT IN ('needs_decision','conflict')
+     AND id<>COALESCE($2::uuid,'00000000-0000-0000-0000-000000000000')
+     AND (phone=$3 OR EXISTS(
+       SELECT 1 FROM jsonb_array_elements(COALESCE(phone_numbers,'[]'::jsonb)) v
+       WHERE v->>'normalized'=$3
+     ))
+   LIMIT 1`,
+  [orgId,excludeId,phone]
+ );
+ return filterRowsToOrganization(q.rows,orgId)[0]||null;
+}
+
 async function handler(req,res){const orgId=req.org.id;const role=String(req.user?.role||'').trim().toLowerCase();const adminRoles=['owner','admin'];const personCreatorRoles=['owner','admin','leader','worker','user'];const personEditorRoles=['owner','admin','leader','worker','user'];if(req.method==='GET'&&!personCreatorRoles.includes(role))return res.status(403).json({error:'People records and private contact details are limited to authorized organization operators.'});if(req.method==='POST'&&!personCreatorRoles.includes(role))return res.status(403).json({error:'You do not have permission to add people to this organization.'});if(req.method==='PUT'&&!personEditorRoles.includes(role))return res.status(403).json({error:'Authorized organization operator permissions required.'});
 if(req.method==='GET'){
  try{

@@ -8,6 +8,7 @@ import { normalizePhone } from '../../../lib/phoneUtils';
 import { normalizeDisplayName } from '../../../lib/scanValidation';
 import { emitAriaEvent } from '../../../lib/aria/eventEmitter';
 import { directAriaEvent } from '../../../lib/aria/director';
+import { persistPersonIdentityReview, resolvePersonIdentityReviewByRequest, stableIdentityReviewRequestId, personIdentityPayloadHash } from '../../../lib/personIdentityReviewQueue';
 import { identityNameKey, findIdentityCandidates, recordIdentityReview } from '../../../lib/aria/peopleMutationEngine';
 
 const UUID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -52,17 +53,41 @@ export default withOrg(async function handler(req,res){
     // This lookup deliberately precedes session validation. A retry after the
     // original commit must return the same person even if the service was closed
     // before the phone could receive the first response.
-    const prior=(await client.query(
+    const durableRequestKey=`attendance-create:${orgId}:${userId}:${requestId}`;
+    const durableRequestId=stableIdentityReviewRequestId(durableRequestKey);
+    const proposal={
+      first_name:firstName,last_name:lastName,display_name:normalizedName.display||rawName,full_name:normalizedName.display||rawName,
+      phone:phone||null,phone_numbers:phone?[{raw:rawPhone,normalized:phone,source:'attendance_add_visitor',index:1}]:[],
+      email:null,birthday:null,type:'visitor',
+      request_context:{kind:'attendance_add_visitor',request_id:requestId,session_id:sessionId,contact_consent:contactConsent}
+    };
+    const proposalHash=personIdentityPayloadHash(proposal);
+    const priorRequest=(await client.query(
+      `SELECT r.payload_hash,r.person_id,p.id,p.first_name,p.last_name,p.display_name,p.phone,p.phone_numbers,p.type,p.status,p.created_at,p.metadata
+       FROM public.person_create_requests r
+       JOIN public.people p ON p.id=r.person_id AND p.organization_id=r.organization_id
+       WHERE r.organization_id=$1 AND r.client_request_id=$2
+       LIMIT 1 FOR UPDATE OF r,p`,
+      [orgId,durableRequestId]
+    )).rows[0];
+    if(priorRequest&&priorRequest.payload_hash!==proposalHash){
+      await client.query('ROLLBACK');
+      return res.status(409).json({error:'This visitor request was already resolved with different reviewed details. Search People and continue from the existing record.',code:'PERSON_CREATE_REQUEST_ID_REUSED',request_id:req.nyeoRequestId||null});
+    }
+    const prior=priorRequest?null:(await client.query(
       `SELECT id,first_name,last_name,display_name,phone,phone_numbers,type,status,created_at,metadata
        FROM people
        WHERE organization_id=$1 AND created_by=$3
          AND metadata->>'attendance_add_visitor_request_id'=$2
-       LIMIT 1
-       FOR UPDATE`,
+       LIMIT 1 FOR UPDATE`,
       [orgId,requestId,userId]
     )).rows[0];
 
-    if(prior){
+    if(priorRequest){
+      person=priorRequest;
+      alreadyCreated=true;
+      effectiveSessionId=sessionId;
+    }else if(prior){
       person=prior;
       alreadyCreated=true;
       effectiveSessionId=String(prior.metadata?.attendance_add_visitor_session_id||sessionId);
@@ -96,30 +121,23 @@ export default withOrg(async function handler(req,res){
         type:candidate.type||null,status:candidate.status||null,
         name_match:candidate.name_match===true,phone_match:candidate.phone_match===true,similar_name:candidate.similar_name===true
       }));
-      if(exactIdentity){
-        await client.query('ROLLBACK');
-        return res.status(409).json({
-          error:'A person with this same name and phone number already exists. Use the existing person rather than creating a second identical identity.',
-          code:'DUPLICATE_IDENTITY_NOT_DISTINCT',request_id:req.nyeoRequestId||null,candidates:candidatePayload.filter(candidate=>candidate.id===exactIdentity.id)
-        });
-      }
       const reviewedIds=Array.isArray(identityReview?.candidate_ids)?[...new Set(identityReview.candidate_ids.map(value=>String(value)))].sort():[];
       const currentIds=candidatePayload.map(candidate=>candidate.id).sort();
-      if(candidates.length&&identityReview?.confirmed!==true){
-        await client.query('ROLLBACK');
+      const changed=reviewedIds.length!==currentIds.length||reviewedIds.some((value,index)=>value!==currentIds[index]);
+      if((candidates.length&&(identityReview?.confirmed!==true||changed))||(!candidates.length&&identityReview?.confirmed===true&&reviewedIds.length)){
+        const code=identityReview?.confirmed===true?'PERSON_IDENTITY_REVIEW_STALE':exactIdentity?'DUPLICATE_IDENTITY_NOT_DISTINCT':'PERSON_IDENTITY_REVIEW_REQUIRED';
+        const review=await persistPersonIdentityReview(client,{
+          organizationId:orgId,actorId:userId,clientRequestId:durableRequestKey,payloadHash:proposalHash,
+          proposedPayload:proposal,candidates:candidatePayload,
+          evidence:{code,request_id:req.nyeoRequestId||null,review_reasons:candidatePayload.map(candidate=>candidate.phone_match?'phone_already_used':candidate.name_match?'same_normalized_name':'similar_name'),session_id:sessionId},
+          source:'manual_create'
+        });
+        await client.query('COMMIT');
         return res.status(409).json({
-          error:'ARIA found possible matches. Compare the existing records and confirm whether this is a separate visitor before saving.',
-          code:'PERSON_IDENTITY_REVIEW_REQUIRED',request_id:req.nyeoRequestId||null,candidates:candidatePayload
+          error:exactIdentity?'A person with this same name and phone number already exists. Review the records and explicitly merge or keep the visitor separate.':'ARIA found possible matches. Review the existing records before saving this visitor.',
+          code,review_id:review.id,review_status:review.status,request_id:req.nyeoRequestId||null,candidates:candidatePayload
         });
       }
-      if((candidates.length&&(reviewedIds.length!==currentIds.length||reviewedIds.some((value,index)=>value!==currentIds[index])))||(!candidates.length&&identityReview?.confirmed===true&&reviewedIds.length)){
-        await client.query('ROLLBACK');
-        return res.status(409).json({
-          error:'The possible matches changed while you were reviewing. Review the refreshed candidates before saving.',
-          code:'PERSON_IDENTITY_REVIEW_STALE',request_id:req.nyeoRequestId||null,candidates:candidatePayload
-        });
-      }
-
       const now=new Date().toISOString();
       const metadata={
         attendance_add_visitor_request_id:requestId,
@@ -149,6 +167,15 @@ export default withOrg(async function handler(req,res){
         ]
       )).rows[0];
       if(candidates.length)await recordIdentityReview(client,{organizationId:orgId,actorId:userId,actorRole:req.user.role,person,candidates,phone,source:'attendance_add_visitor_identity_review'});
+      await client.query(
+        `INSERT INTO public.person_create_requests(organization_id,client_request_id,payload_hash,person_id,created_by)
+         VALUES($1,$2,$3,$4,$5)`,
+        [orgId,durableRequestId,proposalHash,person.id,userId]
+      );
+      if(identityReview?.confirmed===true)await resolvePersonIdentityReviewByRequest(client,{
+        organizationId:orgId,clientRequestId:durableRequestKey,payloadHash:proposalHash,actorId:userId,personId:person.id,
+        action:'keep_separate',metadata:{source:'attendance_add_visitor_confirmation',session_id:sessionId,candidate_ids:currentIds}
+      });
     }
 
     await client.query('COMMIT');

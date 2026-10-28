@@ -207,8 +207,8 @@ export default function CommunityTab() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.id) {
-        if (res.status === 409 && ['PERSON_IDENTITY_REVIEW_REQUIRED', 'PERSON_IDENTITY_REVIEW_STALE', 'DUPLICATE_IDENTITY_NOT_DISTINCT'].includes(data.code)) {
-          setDuplicateReview({ code: data.code, message: data.error || 'Review possible identity matches before saving.', candidates: Array.isArray(data.candidates) ? data.candidates : [] });
+        if (res.status === 409 && ['PERSON_IDENTITY_REVIEW_REQUIRED', 'PERSON_IDENTITY_REVIEW_STALE', 'DUPLICATE_IDENTITY_NOT_DISTINCT', 'PERSON_IDENTITY_REVIEW_IN_PROGRESS'].includes(data.code)) {
+          setDuplicateReview({ code: data.code, message: data.error || 'Review possible identity matches before saving.', candidates: Array.isArray(data.candidates) ? data.candidates : [], review_id: data.review_id || null });
           return;
         }
         throw new Error(data.error || 'Could not add person.');
@@ -245,7 +245,7 @@ export default function CommunityTab() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.id) {
-        if (res.status === 409 && ['PERSON_IDENTITY_REVIEW_REQUIRED', 'PERSON_IDENTITY_REVIEW_STALE', 'DUPLICATE_IDENTITY_NOT_DISTINCT'].includes(data.code)) {
+        if (res.status === 409 && ['PERSON_IDENTITY_REVIEW_REQUIRED', 'PERSON_IDENTITY_REVIEW_STALE', 'DUPLICATE_IDENTITY_NOT_DISTINCT', 'PERSON_IDENTITY_REVIEW_IN_PROGRESS'].includes(data.code)) {
           setEditIdentityReview({ code: data.code, message: data.error || 'Review possible identity matches before saving.', candidates: Array.isArray(data.candidates) ? data.candidates : [] });
           return;
         }
@@ -511,7 +511,7 @@ export default function CommunityTab() {
               {form.birthday && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>Next birthday in {getNextBirthday(form.birthday)} days</div>}
             </div>
             <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })} style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(20,25,40,0.6)', color: '#fff', outline: 'none' }}><option value="visitor">Visitor</option><option value="member">Member</option></select>
-            {duplicateReview && <div role="alert" className="fiducia-card" style={{ padding: 12, display: 'grid', gap: 8, border: '1px solid rgba(212,175,55,.35)' }}><strong>{duplicateReview.code === 'DUPLICATE_IDENTITY_NOT_DISTINCT' ? 'Same identity already exists' : 'Review possible matches'}</strong><p style={{ margin: 0, fontSize: 12 }}>{duplicateReview.message}</p>{duplicateReview.candidates.map(candidate => <div key={candidate.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}><div><strong>{candidate.display_name || [candidate.first_name, candidate.last_name].filter(Boolean).join(' ')}</strong><div style={{ fontSize: 12, opacity: .65 }}>{candidate.phone || 'No phone recorded'}</div><div style={{ fontSize: 11, opacity: .55 }}>{candidate.name_match ? 'Same normalized name · ' : candidate.similar_name ? 'Similar name · ' : ''}{candidate.phone_match ? 'Same phone number' : ''}</div></div><Link href={`/person/${candidate.id}`} onClick={e => e.stopPropagation()} style={{ color: '#D4AF37', fontSize: 12 }}>Open record</Link></div>)}{duplicateReview.code !== 'DUPLICATE_IDENTITY_NOT_DISTINCT' && <button type="button" className="fiducia-button fiducia-button-primary" onClick={() => addPerson(null, { confirmed: true, candidate_ids: duplicateReview.candidates.map(candidate => candidate.id) })}>Verified: these are separate people</button>}<button type="button" className="fiducia-button fiducia-button-ghost" onClick={() => setDuplicateReview(null)}>Close review</button></div>}
+            {duplicateReview && <div role="alert" className="fiducia-card" style={{ padding: 12, display: 'grid', gap: 8, border: '1px solid rgba(212,175,55,.35)' }}><strong>{duplicateReview.code === 'DUPLICATE_IDENTITY_NOT_DISTINCT' ? 'Same identity already exists' : 'Review possible matches'}</strong><p style={{ margin: 0, fontSize: 12 }}>{duplicateReview.message}</p>{duplicateReview.candidates.map(candidate => <div key={candidate.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}><div><strong>{candidate.display_name || [candidate.first_name, candidate.last_name].filter(Boolean).join(' ')}</strong><div style={{ fontSize: 12, opacity: .65 }}>{candidate.phone || 'No phone recorded'}</div><div style={{ fontSize: 11, opacity: .55 }}>{candidate.name_match ? 'Same normalized name · ' : candidate.similar_name ? 'Similar name · ' : ''}{candidate.phone_match ? 'Same phone number' : ''}</div></div><Link href={`/person/${candidate.id}`} onClick={e => e.stopPropagation()} style={{ color: '#D4AF37', fontSize: 12 }}>Open record</Link></div>)}<button type="button" className="fiducia-button fiducia-button-primary" disabled={duplicateReview.code === 'PERSON_IDENTITY_REVIEW_IN_PROGRESS'} onClick={() => addPerson(null, { confirmed: true, candidate_ids: duplicateReview.candidates.map(candidate => candidate.id) })}>I verified these are separate people</button><Link href="/people?review=1" className="fiducia-button fiducia-button-ghost">Open Review Center</Link><button type="button" className="fiducia-button fiducia-button-ghost" onClick={() => setDuplicateReview(null)}>Close review</button></div>}
             <button type="submit" className="fiducia-button fiducia-button-primary">Save</button>
           </form>
         )}

@@ -8,6 +8,7 @@ import { withOrg } from '../../../lib/apiHelpers';
 import { emitAriaEvent } from '../../../lib/aria/eventEmitter';
 import { directAriaEvent } from '../../../lib/aria/director';
 import { identityNameKey, findIdentityCandidates, recordIdentityReview } from '../../../lib/aria/peopleMutationEngine';
+import { persistPersonIdentityReview, resolvePersonIdentityReviewByRequest, stableIdentityReviewRequestId, personIdentityPayloadHash } from '../../../lib/personIdentityReviewQueue';
 
 const MAX_ROWS = 200;
 
@@ -18,6 +19,16 @@ function splitName(value) {
     first_name: parts.shift() || '',
     last_name: parts.join(' '),
     display_name: normalized.display
+  };
+}
+
+function proposedPayload(candidate) {
+  return {
+    first_name: candidate.first_name, last_name: candidate.last_name,
+    display_name: candidate.display_name, full_name: candidate.display_name,
+    phone: candidate.phone || null,
+    phone_numbers: candidate.phone ? [{raw:candidate.phone,normalized:candidate.phone,source:'bulk_add',index:1}] : [],
+    email: candidate.email || null, birthday: candidate.birthday || null, type: candidate.type || 'visitor'
   };
 }
 
@@ -144,13 +155,23 @@ export default withOrg(async function handler(req, res) {
     const nameKey=identityNameKey(candidate.display_name||item.outcome.name);
     if (candidate.phone && seenPhones.has(candidate.phone)) {
       item.outcome.status='needs_review';
-      item.outcome.reason = `Phone number duplicates row ${seenPhones.get(candidate.phone)} in this list. Save the first row, then review this row's shared number.`;
+      item.outcome.reason = `Phone number duplicates row ${seenPhones.get(candidate.phone)} in this list. Review both records before deciding whether they are one person.`;
+      item.outcome.proposed_payload=proposedPayload(candidate);
+      item.outcome.payload_hash=personIdentityPayloadHash(item.outcome.proposed_payload);
+      item.outcome.duplicate_row=seenPhones.get(candidate.phone);
+      item.outcome.identity_review_required=true;
+      item.outcome.review_request_id=stableIdentityReviewRequestId(`bulk-create:${req.org.id}:${req.user?.id||''}:${item.outcome.row}:${item.outcome.payload_hash}`);
       item.candidate = null;
       continue;
     }
     if (nameKey && seenNames.has(nameKey)) {
       item.outcome.status='needs_review';
-      item.outcome.reason = `Name is similar to row ${seenNames.get(nameKey)} in this list. Save the first row, then review this row before adding it.`;
+      item.outcome.reason = `Name is similar to row ${seenNames.get(nameKey)} in this list. Review both records before deciding whether they are one person.`;
+      item.outcome.proposed_payload=proposedPayload(candidate);
+      item.outcome.payload_hash=personIdentityPayloadHash(item.outcome.proposed_payload);
+      item.outcome.duplicate_row=seenNames.get(nameKey);
+      item.outcome.identity_review_required=true;
+      item.outcome.review_request_id=stableIdentityReviewRequestId(`bulk-create:${req.org.id}:${req.user?.id||''}:${item.outcome.row}:${item.outcome.payload_hash}`);
       item.candidate = null;
       continue;
     }
@@ -182,31 +203,53 @@ export default withOrg(async function handler(req, res) {
         name_match:match.name_match===true,phone_match:match.phone_match===true,similar_name:match.similar_name===true
       }));
       const exact=matches.find(match=>match.name_match&&match.phone_match);
-      if(exact){
-        item.outcome.reason='The same normalized name and phone number already exist. Open the existing record instead of creating a duplicate.';
-        item.outcome.candidates=candidatePayload.filter(match=>match.id===exact.id);
-        item.candidate=null;
-        continue;
-      }
       const review=candidate.identity_review;
       const expectedIds=Array.isArray(review?.candidate_ids)?[...new Set(review.candidate_ids.map(value=>String(value)))].sort():[];
       const currentIds=candidatePayload.map(match=>match.id).sort();
-      if(matches.length&&review?.confirmed!==true){
+      const payload=proposedPayload(candidate);
+      const payloadHash=personIdentityPayloadHash(payload);
+      const reviewRequestId=stableIdentityReviewRequestId(`bulk-create:${organizationId}:${req.user.id}:${item.outcome.row}:${payloadHash}`);
+      item.outcome.proposed_payload=payload;
+      item.outcome.payload_hash=payloadHash;
+      item.outcome.review_request_id=reviewRequestId;
+      const pendingReview=(await client.query(
+        `SELECT id,payload_hash FROM public.person_identity_review_items
+         WHERE organization_id=$1 AND client_request_id=$2 AND status='pending' LIMIT 1 FOR UPDATE`,
+        [organizationId,reviewRequestId]
+      )).rows[0];
+      if(pendingReview&&pendingReview.payload_hash!==payloadHash){
         item.outcome.status='needs_review';
-        item.outcome.reason='Possible identity matches require human review before this row can be saved.';
-        item.outcome.candidates=candidatePayload;
+        item.outcome.review_id=pendingReview.id;
+        item.outcome.identity_review_required=true;
+        item.outcome.reason='This row has already been edited in Review Center. Return to that pending review so its corrected details are not overwritten.';
         item.candidate=null;
         continue;
       }
-      if((matches.length&&(expectedIds.length!==currentIds.length||expectedIds.some((value,index)=>value!==currentIds[index])))||(!matches.length&&review?.confirmed===true&&expectedIds.length)){
+      const priorRequest=(await client.query(
+        `SELECT r.payload_hash,r.person_id FROM public.person_create_requests r
+         WHERE r.organization_id=$1 AND r.client_request_id=$2 LIMIT 1 FOR UPDATE`,
+        [organizationId,reviewRequestId]
+      )).rows[0];
+      if(priorRequest){
+        if(priorRequest.payload_hash!==payloadHash)throw Object.assign(new Error('A bulk-add retry key was reused for different details. Nothing from this batch was saved.'),{code:'PERSON_CREATE_REQUEST_ID_REUSED'});
+        item.outcome.status='already_saved';
+        item.outcome.reason='This row was already saved or resolved in Review Center. NYEOCARE did not create a second person.';
+        item.outcome.person_id=String(priorRequest.person_id);
+        item.candidate=null;
+        continue;
+      }
+      if((matches.length&&(review?.confirmed!==true||expectedIds.length!==currentIds.length||expectedIds.some((value,index)=>value!==currentIds[index])))||(!matches.length&&review?.confirmed===true&&expectedIds.length)){
         item.outcome.status='needs_review';
-        item.outcome.reason='Possible matches changed while this row was being reviewed. Review the refreshed candidates before saving.';
+        item.outcome.identity_review_required=true;
+        item.outcome.reason=review?.confirmed===true?'Possible matches changed while this row was being reviewed. Review the refreshed candidates before saving.':exact?'The same normalized name and phone already exist. Confirm whether this is the same person or a genuinely separate person.':'Possible identity matches require human review before this row can be saved.';
         item.outcome.candidates=candidatePayload;
         item.candidate=null;
         continue;
       }
       candidate.person_id=randomUUID();
       candidate.identity_candidates=matches.length?matches:[];
+      candidate.review_request_id=reviewRequestId;
+      candidate.payload_hash=payloadHash;
       accepted.push(candidate);
     }
 
@@ -236,8 +279,39 @@ export default withOrg(async function handler(req, res) {
           organizationId,actorId:req.user.id,actorRole:req.user.role,
           person,candidates:input.identity_candidates,phone:person.phone,source:'bulk_people_identity_review'
         });
+        if(input?.review_request_id&&input?.payload_hash){
+          await client.query(
+            `INSERT INTO public.person_create_requests(organization_id,client_request_id,payload_hash,person_id,created_by)
+             VALUES($1,$2,$3,$4,$5)`,
+            [organizationId,input.review_request_id,input.payload_hash,person.id,req.user.id]
+          );
+          if(input.identity_review?.confirmed===true)await resolvePersonIdentityReviewByRequest(client,{
+            organizationId,clientRequestId:input.review_request_id,payloadHash:input.payload_hash,actorId:req.user.id,personId:person.id,
+            action:'keep_separate',metadata:{source:'bulk_create_confirmation',candidate_ids:(input.identity_candidates||[]).map(candidate=>String(candidate.id))}
+          });
+        }
       }
       for (const candidate of accepted) results[candidate.index].outcome.status = 'created';
+    }
+
+    // Persist blocked rows before committing the batch; the proposal remains a review item, never a People row.
+    for(const item of results){
+      if(item.outcome.status!=='needs_review'||!item.outcome.proposed_payload)continue;
+      let candidates=Array.isArray(item.outcome.candidates)?item.outcome.candidates:[];
+      if(item.outcome.duplicate_row){
+        const owner=results.find(other=>Number(other.outcome.row)===Number(item.outcome.duplicate_row)&&other.candidate?.person_id);
+        const createdOwner=owner?.candidate?.person_id?insertedPeople.find(person=>String(person.id)===String(owner.candidate.person_id)):null;
+        if(createdOwner)candidates=[...candidates,{...createdOwner,organization_id:organizationId,status:'active'}];
+      }
+      const payloadHash=item.outcome.payload_hash||personIdentityPayloadHash(item.outcome.proposed_payload);
+      const reviewRequestId=item.outcome.review_request_id||stableIdentityReviewRequestId(`bulk-create:${organizationId}:${req.user.id}:${item.outcome.row}:${payloadHash}`);
+      const saved=await persistPersonIdentityReview(client,{
+        organizationId,actorId:req.user.id,clientRequestId:reviewRequestId,payloadHash,
+        proposedPayload:item.outcome.proposed_payload,candidates,
+        evidence:{code:'PERSON_IDENTITY_REVIEW_REQUIRED',reason:item.outcome.reason,row_number:item.outcome.row,review_reasons:[item.outcome.reason],source:'bulk_create'},
+        source:'bulk_create'
+      });
+      item.outcome.review_id=saved.id;
     }
 
     await client.query('COMMIT');

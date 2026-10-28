@@ -8,6 +8,8 @@ import{filterRowsToOrganization}from'../../lib/aria/tenantScope';
 import{emitAriaEvent}from'../../lib/aria/eventEmitter';
 import{directAriaEvent}from'../../lib/aria/director';
 import{hashPersonCreatePayload,isValidPersonCreateRequestId}from'../../lib/peopleCreateIdempotency';
+import{persistPersonIdentityReview,resolvePersonIdentityReviewByRequest}from'../../lib/personIdentityReviewQueue';
+import{randomUUID}from'node:crypto';
 const splitName=value=>{const n=normalizeDisplayName(value),parts=n.core.split(/\s+/).filter(Boolean);return{first_name:parts.shift()||'',last_name:parts.join(' '),display_name:n.display}}
 async function duplicatePhone(orgId,phone,excludeId=null,db=pool){
  if(!phone)return null;
@@ -184,6 +186,20 @@ if(req.method==='POST'){
     [orgId,requestId]
    )).rows[0]||null;
   }
+  if(!prior&&requestId){
+   const pendingReview=(await client.query(
+    `SELECT id,payload_hash FROM public.person_identity_review_items
+     WHERE organization_id=$1 AND client_request_id=$2 AND status='pending' LIMIT 1`,
+    [orgId,requestId]
+   )).rows[0];
+   if(pendingReview&&pendingReview.payload_hash!==payloadHash){
+    await client.query('ROLLBACK');
+    return res.status(409).json({
+     error:'This person is already awaiting an identity decision. Continue in Review Center so the reviewed details are not overwritten.',
+     code:'PERSON_IDENTITY_REVIEW_IN_PROGRESS',review_id:pendingReview.id,request_id:req.nyeoRequestId||null
+    });
+   }
+  }
   if(prior){
    if(prior.request_payload_hash!==payloadHash){
     await client.query('ROLLBACK');
@@ -206,39 +222,40 @@ if(req.method==='POST'){
     phone_match:row.phone_match===true,
     similar_name:row.similar_name===true
    }));
-   const exactIdentity=candidatePayload.find(row=>row.name_match&&row.phone_match);
-   if(exactIdentity){
-    console.warn('[PEOPLE_IDENTITY_REVIEW_BLOCK]',{request_id:req.nyeoRequestId||null,organization_id:orgId,code:'DUPLICATE_IDENTITY_NOT_DISTINCT',candidate_ids:[exactIdentity.id],candidate_organization_ids:[exactIdentity.organization_id]});
-    await client.query('ROLLBACK');
-    return res.status(409).json({
-     error:'A person with this same name and phone number already exists. Open the existing record or correct the name/number; NYEOCARE will not create a second person with the same identity.',
-     code:'DUPLICATE_IDENTITY_NOT_DISTINCT',request_id:req.nyeoRequestId||null,candidates:[exactIdentity]
-    });
-   }
    const review=body.identity_review&&typeof body.identity_review==='object'?body.identity_review:null;
    const reviewCandidateIds=Array.isArray(review?.candidate_ids)?[...new Set(review.candidate_ids.map(v=>String(v)))].sort():[];
    const currentCandidateIds=candidatePayload.map(row=>row.id).sort();
-   if(candidates.length){
-    if(review?.confirmed!==true){
-     console.warn('[PEOPLE_IDENTITY_REVIEW_BLOCK]',{request_id:req.nyeoRequestId||null,organization_id:orgId,code:'PERSON_IDENTITY_REVIEW_REQUIRED',candidate_ids:candidatePayload.map(candidate=>candidate.id),candidate_organization_ids:candidatePayload.map(candidate=>candidate.organization_id)});
-     await client.query('ROLLBACK');
-     return res.status(409).json({
-      error:'ARIA found possible matches. Review the records before deciding whether this is a separate person.',
-      code:'PERSON_IDENTITY_REVIEW_REQUIRED',request_id:req.nyeoRequestId||null,candidates:candidatePayload,
-      review_reasons:[...new Set(candidates.map(row=>row.phone_match?'phone_already_used':'similar_name'))]
+   const exactIdentity=candidatePayload.find(row=>row.name_match&&row.phone_match);
+   const candidatesChanged=reviewCandidateIds.length!==currentCandidateIds.length||reviewCandidateIds.some((value,index)=>value!==currentCandidateIds[index]);
+   const proposedPayload={
+    first_name,last_name,display_name,full_name:display_name,
+    phone:phone||null,
+    phone_numbers:phone?[{raw:phone,normalized:phone,source:'manual',index:1}]:[],
+    email,birthday,type
+   };
+   if((candidates.length&&(review?.confirmed!==true||candidatesChanged))||(!candidates.length&&review?.confirmed===true&&reviewCandidateIds.length)){
+    const code=review?.confirmed===true?'PERSON_IDENTITY_REVIEW_STALE':exactIdentity?'DUPLICATE_IDENTITY_NOT_DISTINCT':'PERSON_IDENTITY_REVIEW_REQUIRED';
+    let durable;
+    try{
+     durable=await persistPersonIdentityReview(client,{
+      organizationId:orgId,actorId:req.user.id,clientRequestId:requestId||randomUUID(),payloadHash,
+      proposedPayload,candidates:candidatePayload,
+      evidence:{code,request_id:req.nyeoRequestId||null,review_reasons:[...new Set(candidates.map(row=>row.phone_match?'phone_already_used':row.name_match?'same_normalized_name':'similar_name'))]},
+      source:'manual_create'
      });
-    }
-    if(reviewCandidateIds.length!==currentCandidateIds.length||reviewCandidateIds.some((value,index)=>value!==currentCandidateIds[index])){
-     console.warn('[PEOPLE_IDENTITY_REVIEW_BLOCK]',{request_id:req.nyeoRequestId||null,organization_id:orgId,code:'PERSON_IDENTITY_REVIEW_STALE',candidate_ids:currentCandidateIds,candidate_organization_ids:candidatePayload.map(candidate=>candidate.organization_id)});
+    }catch(reviewError){
      await client.query('ROLLBACK');
-     return res.status(409).json({
-      error:'The possible matches changed while you were reviewing. Review the refreshed candidate list before saving.',
-      code:'PERSON_IDENTITY_REVIEW_STALE',request_id:req.nyeoRequestId||null,candidates:candidatePayload
-     });
+     if(reviewError?.code==='PERSON_IDENTITY_REVIEW_IN_PROGRESS')return res.status(409).json({error:reviewError.message,code:reviewError.code,review_id:reviewError.review_id,request_id:req.nyeoRequestId||null});
+     throw reviewError;
     }
-   }else if(review?.confirmed===true&&reviewCandidateIds.length){
-    await client.query('ROLLBACK');
-    return res.status(409).json({error:'The records changed while you were reviewing. Refresh the People list and try again.',code:'PERSON_IDENTITY_REVIEW_STALE',request_id:req.nyeoRequestId||null,candidates:[]});
+    await client.query('COMMIT');
+    const exactMessage=exactIdentity?'A person with this same normalized name and phone number already exists. Review the proposed details and explicitly choose merge or keep separate.':'ARIA found possible matches. Review the records before deciding whether this is a separate person.';
+    return res.status(409).json({
+     error:exactIdentity?exactMessage:(review?.confirmed===true?'The possible matches changed while you were reviewing. Review the refreshed candidates before saving.':'ARIA found possible matches. Review the records before deciding whether this is a separate person.'),
+     code,review_id:durable.id,review_status:durable.status,
+     request_id:req.nyeoRequestId||null,candidates:candidatePayload,
+     review_reasons:[...new Set(candidates.map(row=>row.phone_match?'phone_already_used':row.name_match?'same_normalized_name':'similar_name'))]
+    });
    }
    person=(await client.query(
     `INSERT INTO people(organization_id,first_name,last_name,display_name,phone,phone_numbers,email,type,birthday,created_by,living_truth,status,source)
@@ -282,6 +299,12 @@ if(req.method==='POST'){
       VALUES($1,$2,$3,$4,$5)`,
      [orgId,requestId,payloadHash,person.id,req.user.id]
     );
+   }
+   if(review?.confirmed===true&&requestId){
+    await resolvePersonIdentityReviewByRequest(client,{
+     organizationId:orgId,clientRequestId:requestId,payloadHash,actorId:req.user.id,personId:person.id,
+     action:'keep_separate',metadata:{source:'people_create_confirmation',candidate_ids:currentCandidateIds}
+    });
    }
   }
   await client.query('COMMIT');

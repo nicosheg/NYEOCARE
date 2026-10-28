@@ -2886,3 +2886,17 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 - A phone-only edit must still trigger identity review when the proposed phone is already attached to another person in the same organization. A combined name-and-phone edit retains both name and phone checks. Name-only edits retain same/similar-name review.
 - If the People-card editor lacks a hydrated session token, it attempts to recover the current client session and otherwise displays a visible “nothing was sent” explanation rather than silently returning.
 - Regression coverage explicitly exercises archived/name-only false positives, same-organization shared-phone conflicts, name-only edits, and combined edits.
+
+
+---
+
+## Durable person-creation identity reviews — 28 October 2026
+
+- A blocked manual, bulk, attendance visitor, or ARIA person creation must create a durable `person_identity_review_items` row scoped to the authenticated organization before returning an identity conflict to the operator. A blocked proposal is not a People record and is never auto-merged, auto-archived, or silently treated as resolved.
+- The shared `GET /api/review` and existing Review Center must return pending identity proposals alongside scan identity reviews and existing database duplicate pairs. The home review count includes pending identity proposals.
+- Review Center actions for a pending proposal are explicit: **Merge into selected active person**, **Keep separate and add person**, or **Edit proposed details and keep pending**. Opening a review or saving draft edits must not resolve it.
+- The proposal remains pending across refreshes, device changes, navigation, and retries until a transactional action verifies the canonical People record and the queue's resolution state. Failed/stale actions keep the review visible.
+- `payload_hash` tracks the current editable proposal. `request_payload_hash` preserves the original create-request fingerprint, so editing the pending proposal cannot break idempotent retries or allow a stale client retry to overwrite the edited review.
+- Merge writes compatible proposal contact data and alias evidence into the selected active record, leaving one canonical People record. Keep separate creates a verified People record only after a human decision and records the pair decision (and confirmed shared-phone evidence when relevant). Neither action can cross an organization boundary.
+- Public client roles have no direct grants on the durable queue table; RLS remains enabled and the server API is the only application write/read path. The queue records actor, candidate IDs, proposed payload, decision, timestamps, and the final person ID.
+- Regression coverage must guard manual/ bulk/attendance/ARIA write paths, idempotent retries after editing, pending visibility, verified resolution, and non-reappearance of confirmed distinct pairs. Production readiness requires green CI and a READY Vercel deployment whose source SHA matches the reviewed/merged commit.

@@ -60,7 +60,8 @@ export default withOrg(async function handler(req,res){
     pool.query(`SELECT
      name,aria_instructions,settings,
      (SELECT COUNT(*)::int FROM people WHERE organization_id=$1 AND COALESCE(status,'active')='active') people_count,
-     (SELECT COUNT(*)::int FROM scan_review_items WHERE organization_id=$1 AND status='pending') review_count,
+     ((SELECT COUNT(*)::int FROM scan_review_items WHERE organization_id=$1 AND status='pending')+(SELECT COUNT(*)::int FROM public.person_identity_review_items WHERE organization_id=$1 AND status='pending')) review_count,
+     (SELECT COUNT(*)::int FROM public.person_identity_review_items WHERE organization_id=$1 AND status='pending') identity_review_count,
      (SELECT row_to_json(s) FROM(
        SELECT id,name,status,started_by,started_at,closed_at,aria_processing_status,
          aria_processing_attempts,aria_processing_started_at,aria_processing_completed_at,aria_processing_error,

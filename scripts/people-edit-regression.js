@@ -16,7 +16,7 @@ const command=read('lib/aria/commandEngine.js');
 const conversation=read('lib/aria/conversationEngine.js');
 const ariaPage=read('pages/aria.js');
 
-assert.ok(peopleApi.includes("import{updatePersonRecord}from'../../lib/aria/peopleMutationEngine';"),'The People API must use the canonical edit mutation.');
+assert.ok(peopleApi.includes("import{identityNameKey,findIdentityCandidates,updatePersonRecord}from'../../lib/aria/peopleMutationEngine';"),'The People API must use the canonical identity matcher and edit mutation.');
 assert.ok(peopleApi.includes("const personCreatorRoles=['owner','admin','leader','worker','user']")&&peopleApi.includes("req.method==='POST'&&!personCreatorRoles.includes(role)"),'Authorized organization operators, including the legacy user account role, must be able to create people; People type does not confer account permissions.');
 assert.ok(peopleApi.includes("req.method==='GET'&&!personCreatorRoles.includes(role)")&&peopleApi.includes('private contact details are limited to authorized organization operators'),'Members must not receive the organization-wide People directory or private contact details through the API.');
 assert.ok(peopleApi.includes("const personEditorRoles=['owner','admin','leader','worker','user']")&&peopleApi.includes("req.method==='PUT'&&!personEditorRoles.includes(role)"),'Only recognized organization operator account roles may edit People; People type must not grant operator permissions.');

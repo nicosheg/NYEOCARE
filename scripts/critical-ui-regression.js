@@ -345,7 +345,7 @@ const checks=[
   countString(journeyActionRow,'>••• More</button>')===1&&
   countString(journeyActionRow,'>Edit</button>')===1&&
   journeyActionRow.includes('aria-label="More options"')&&
-  journeyActionRow.includes('aria-label="Edit details"')],,
+  journeyActionRow.includes('aria-label="Edit details"')],
  ['People page exposes fast bulk add with a row preview and skipped-row feedback',
   /Bulk add/.test(peoplePage)&&/parseBulkPeopleRows/.test(peoplePage)&&/phoneOnly=line\.match/.test(peoplePage)&&/source_line_numbers/.test(peoplePage)&&/Add many people at once/.test(peoplePage)&&/bulkPreviewRows\.length>200/.test(peoplePage)&&/only skipped rows remain in the box/.test(peoplePage)],
  ['Bulk person creation is bounded, authorized, and duplicate-safe',

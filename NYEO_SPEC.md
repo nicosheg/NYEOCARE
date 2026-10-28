@@ -2840,18 +2840,19 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 
 ## People card editing and Review Center refresh reliability — 27 October 2026
 
-- Every visible People card must expose an explicit, accessible **Edit details** action. The editor must be reachable without relying on a hidden gesture; button/input interactions must not activate card navigation or long-press selection.
+- People cards should remain uncluttered and show identity/contact/participation summary only, without Message, Note, More, or Edit action buttons. Tapping a card opens its Person Journey.
 - Editing a person must continue through the shared `/api/people` → `updatePersonRecord` transaction. The save response and a fresh no-cache People read must both feed the visible roster; the card must render the canonical `display_name` (including meaningful honorifics) and the persisted contact fields.
 - Every successful Review Center identity decision that persists a person (scan review edit/approve/separate, duplicate merge, or keep-separate) must refresh the People surface after the API verifies persistence and the intended identity outcome. Emit the standard People data-change signal and app refresh event; a failed or stale decision must leave the review open.
-- Regression gates cover the reachable card editor, card gesture isolation, canonical mutation path, selected-survivor merge invariants, and cross-surface refresh. Production is not considered verified until tests/build pass and Vercel's production deployment SHA matches the merged commit.
+- Regression gates cover the reachable Journey editor, compact People-card rendering, card gesture isolation, canonical mutation path, selected-survivor merge invariants, and cross-surface refresh. Production is not considered verified until tests/build pass and Vercel's production deployment SHA matches the merged commit.
 
 
 ---
 
 ## People card editing and phone fidelity — 27 October 2026
 
-- The canonical Edit action lives in each People card's action row alongside Message, Note, and More—not beside the person's name and not below/outside the card. It opens that card's existing editor; do not add a second visible Edit action to the person detail action row.
-- The card editor submits only changed fields. In particular, never resend an unchanged phone number when only a name, email, birthday, type, or status changed. An unchanged shared phone must not block a non-phone edit; a genuinely changed phone still uses identity-collision review.
-- A successful card save applies the canonical row returned by the committed mutation to the visible list using string-normalized IDs, then reloads People data. Save controls prevent repeated submissions while a write is in flight.
-- Cards resolve phone display from the canonical primary `phone` column and fall back to the ordered `phone_numbers` JSON list. If both are empty, the card must report that no phone is stored; do not fabricate or copy a phone from another organization.
-- Regression coverage verifies the card editor remains reachable, no outside-card duplicate Edit action appears, the canonical response is reflected, and primary/ordered JSON phone resolution works.
+- The Person Journey action row is the single home for **Message**, **Note**, **More**, and **Edit**; keep these controls together in the row directly beneath the person's identity, as in the approved Journey layout. People cards must not duplicate those actions and should remain compact.
+- Journey edits use the canonical `/api/people` → `updatePersonRecord` mutation. Submit only changed fields; an unchanged phone must not be resent when another field changes. Shared-phone collisions remain on the existing identity-review path.
+- A successful Journey save applies the canonical row to the visible profile, verifies the returned person ID, and reloads the record. The Edit action is accessible from the Journey action row, without a hidden gesture.
+- Message, Note, and More stay in the Journey row. Conversation import remains available inside Journey's More sheet.
+- Cards resolve phone display from the canonical primary `phone` column and fall back to ordered `phone_numbers` JSON. If both are empty, report that no phone is stored; do not invent or copy a phone from another organization.
+- Regression coverage verifies the cards do not render action buttons, the Journey row exposes all four actions, canonical edits update the profile, and primary/ordered JSON phone resolution works.

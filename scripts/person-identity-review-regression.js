@@ -29,7 +29,7 @@ const exactGuardIndex = mutation.indexOf('const exactIdentity=identityCandidates
 const reviewGuardIndex = mutation.indexOf('if(identityCandidates.length&&review?.confirmed!==true)', exactGuardIndex);
 assert.ok(exactGuardIndex >= 0 && reviewGuardIndex > exactGuardIndex, 'Relevant candidates must be filtered before the duplicate and human-review guards.');
 assert.ok(mutation.includes("p.status IN ('inactive','archived')"), 'Possible identity matches must include archived records so a former person cannot be re-created as a duplicate.');
-assert.ok(page.includes('Verified: these are separate people') && page.includes('DUPLICATE_IDENTITY_NOT_DISTINCT') && page.includes('Open record'), 'The People screen must expose human review and block a second record for an identical name+phone pair.');
+assert.ok(page.includes('I verified these are separate people') && page.includes('Open Review Center') && page.includes('DUPLICATE_IDENTITY_NOT_DISTINCT') && page.includes('Open record'), 'The People screen must expose human review and block a second record for an identical name+phone pair.');
 assert.ok(page.includes('Your edit has not been saved yet.') && page.includes('Confirm separate identities & save changes'), 'Direct People edits must clearly explain and require the explicit identity-review confirmation before saving.');
 assert.ok(mutation.includes("if(existingName.honorific&&!incomingName.honorific)incoming=existingName.honorific+' '+incoming"), 'A direct numeric-name edit must preserve existing honorifics while retaining the edited name text.');
 assert.ok(mutation.includes("replace(/[^a-z0-9]+/g,' ').trim()"), 'Identity comparison for direct edits must preserve digits within names.');
@@ -56,5 +56,19 @@ assert.ok(read('lib/aria/commandEngine.js').includes('PERSON_IDENTITY_REVIEW_REQ
 assert.ok(read('pages/person/[id].js').includes('editIdentityReview') && read('pages/person/[id].js').includes('PERSON_IDENTITY_REVIEW_REQUIRED'), 'The person profile editor must also offer human identity review rather than fail closed with a generic error.');
 assert.ok(read('pages/person/[id].js').includes('Records in other organizations are excluded from this check.') && read('pages/person/[id].js').includes('data-person-journey-identity-review'), 'Person Journey identity conflicts must visibly name the tenant scope and focus the review panel instead of silently returning.');
 assert.ok(api.includes('discarded_foreign_candidate_count') && api.includes('request_id:req.nyeoRequestId||null'), 'Identity conflicts must be traceable without logging or exposing contact PII.');
+const identityReviewApi = read('pages/api/review/index.js');
+const identityReviewAction = read('pages/api/review/person-identity-action.js');
+const identityReviewQueue = read('lib/personIdentityReviewQueue.js');
+const bulkCreateApi = read('pages/api/people/bulk-create.js');
+const attendanceVisitorApi = read('pages/api/attendance/add-visitor.js');
+const manualIdentityGate = read('pages/api/people.js');
+const duplicateDetector = read('lib/duplicateDetector.js');
+assert.ok(manualIdentityGate.includes('persistPersonIdentityReview') && manualIdentityGate.includes('PERSON_IDENTITY_REVIEW_IN_PROGRESS'), 'A blocked manual create must persist its draft and candidate IDs durably before returning a conflict.');
+assert.ok(identityReviewApi.includes('person_identity_review_items') && identityReviewApi.includes("kind:'person_identity_review'") && identityReviewApi.includes('identityItems.length'), 'Review Center must include every pending manual-create identity review in its normal queue.');
+assert.ok(identityReviewAction.includes("action==='merge'") && identityReviewAction.includes("action==='edit'") && identityReviewAction.includes("action==='keep_separate'") && identityReviewAction.includes("status='resolved'"), 'Durable identity reviews must support merge, keep-separate, edit-pending, and explicit resolution.');
+assert.ok(identityReviewAction.includes('upsertCreateRequest') && identityReviewAction.includes('IDENTITY_REVIEW_RESOLUTION_VERIFICATION_FAILED'), 'Review actions must be idempotent and verify the durable decision before closing.');
+assert.ok(identityReviewQueue.includes('person_identity_review_items') && identityReviewQueue.includes("status='pending'") && identityReviewQueue.includes('PERSON_IDENTITY_REVIEW_IN_PROGRESS'), 'Queue persistence must preserve pending work and refuse to overwrite a review edited elsewhere.');
+assert.ok(bulkCreateApi.includes('persistPersonIdentityReview') && attendanceVisitorApi.includes('persistPersonIdentityReview') && mutation.includes('persistPersonIdentityReview'), 'Bulk add, attendance visitor creation, and ARIA direct creation must use durable review persistence too.');
+assert.ok(duplicateDetector.includes("['keep_separate','not_duplicate'].includes(x.decision)"), 'Human-confirmed not-duplicate decisions must stop repeat duplicate suggestions.');
 console.log('[PERSON IDENTITY REVIEW REGRESSION]');
 console.log('PASS: honorific normalization, strict identity uniqueness, human review, shared contact evidence, edit review, account access, and profile-name synchronization.');

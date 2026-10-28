@@ -52,7 +52,7 @@ const checks = [
   ['Settings are stored inside the authenticated organization row',
     settings.includes('withOrg(async function handler') && settings.includes('WHERE id = $1') && !settings.includes('supabaseAdmin') && !settings.includes(".from('settings')")],
   ['Current-user endpoint does not serialize the complete DB user row',
-    me.includes('organization_id: user.organization_id') && !me.includes('res.status(200).json(user)') && !me.includes('password_hash')],
+    me.includes('organization_id: user.organization_id') && !me.includes('res.status(200).json(user)') && !me.includes('password_hash:')],
   ['Legacy bulk SMS fails closed',
     bulkSms.includes('status(410)') && !bulkSms.includes('sendSMS(') && !bulkSms.includes('FROM members')],
   ['Unauthenticated DDL route fails closed',

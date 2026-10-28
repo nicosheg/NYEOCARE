@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { findIdentityCandidates, identityNameKey } from '../lib/aria/peopleMutationEngine.js';
 
 const currentOrganization = 'org-havilah-test';
@@ -68,7 +67,6 @@ assert.equal(sameTenantCandidates[0].phone_match, true);
 
 // Keep the primary People API on the one canonical tenant-scoped matcher so its
 // create flow cannot drift into a second, differently scoped implementation.
-const here = fileURLToPath(new URL('.', import.meta.url));
 const peopleApi = fs.readFileSync(new URL('../pages/api/people.js', import.meta.url), 'utf8');
 const mutationEngine = fs.readFileSync(new URL('../lib/aria/peopleMutationEngine.js', import.meta.url), 'utf8');
 assert.ok(

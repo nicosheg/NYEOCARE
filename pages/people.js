@@ -284,8 +284,8 @@ const generateDraft=async person=>{
   if(!res.ok||!data.message)throw new Error(data.error||'Could not prepare a message');
   const phone=primaryPhone(person);
   if(!phone)throw new Error('No phone number is saved for this person.');
-  if(!window.confirm(data.message+'\\n\\nOpen WhatsApp to review and send it?'))return;
-  const waPhone=phone.replace(/\\D/g,'');
+  if(!window.confirm(data.message+'\n\nOpen WhatsApp to review and send it?'))return;
+  const waPhone=phone.replace(/\D/g,'');
   window.open('https://wa.me/'+waPhone+'?text='+encodeURIComponent(data.message),'_blank','noopener,noreferrer');
   try{await fetch('/api/timeline',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+accessToken},body:JSON.stringify({person_id:person.id,event_type:'message_prepared',title:'WhatsApp message prepared',description:data.message.substring(0,1000),source:'human',metadata:{channel:'whatsapp',type:'manual_send'}})})}catch{}
   flash('WhatsApp opened. Review the draft and send it yourself.');

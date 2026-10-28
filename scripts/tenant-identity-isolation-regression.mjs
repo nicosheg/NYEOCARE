@@ -34,12 +34,12 @@ function fakeDb(rows, expectedOrganization) {
       calls.push({ sql, params });
       assert.equal(params[0], expectedOrganization, 'the tenant ID must be the first bound query parameter');
       assert.equal(
-        (sql.match(/p\\.organization_id=\\$1/g) || []).length,
+        (sql.match(/p\.organization_id=\$1/g) || []).length,
         2,
         'both active and inactive/archived identity searches must be organization-scoped'
       );
-      assert.match(sql, /FROM people p WHERE p\\.organization_id=\\$1 AND p\\.status='active'/);
-      assert.match(sql, /FROM people p WHERE p\\.organization_id=\\$1 AND p\\.status IN \\('inactive','archived'\\)/);
+      assert.match(sql, /FROM people p WHERE p\.organization_id=\$1 AND p\.status='active'/);
+      assert.match(sql, /FROM people p WHERE p\.organization_id=\$1 AND p\.status IN \('inactive','archived'\)/);
       return { rows };
     }
   };
@@ -74,8 +74,8 @@ assert.ok(
   'People API must import the shared identity matcher'
 );
 assert.doesNotMatch(peopleApi, /async function findIdentityCandidates/, 'People API must not retain a duplicate candidate matcher');
-assert.match(peopleApi, /findIdentityCandidates\\(orgId,incomingNameKey,phone,client\\)/);
-assert.match(mutationEngine, /const scopedRows=result\\.rows\\.filter\\(row=>String\\(row\\.organization_id\\|\\|''\\)===String\\(organizationId\\)\\)/);
-assert.match(mutationEngine, /WHERE id=\\$1::uuid AND organization_id=\\$2/);
+assert.match(peopleApi, /findIdentityCandidates\(orgId,incomingNameKey,phone,client\)/);
+assert.match(mutationEngine, /const scopedRows=result\.rows\.filter\(row=>String\(row\.organization_id\|\|''\)===String\(organizationId\)\)/);
+assert.match(mutationEngine, /WHERE id=\$1::uuid AND organization_id=\$2/);
 
 console.log('Tenant identity isolation regression checks passed.');

@@ -2850,7 +2850,7 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 
 ## People card editing and phone fidelity — 27 October 2026
 
-- The canonical Edit action lives inside each People card and opens that card's existing editor. Keep it there; do not add a second Edit action below/outside the cards or on the person detail action row.
+- The canonical Edit action lives in each People card's action row alongside Message, Note, and More—not beside the person's name and not below/outside the card. It opens that card's existing editor; do not add a second visible Edit action to the person detail action row.
 - The card editor submits only changed fields. In particular, never resend an unchanged phone number when only a name, email, birthday, type, or status changed. An unchanged shared phone must not block a non-phone edit; a genuinely changed phone still uses identity-collision review.
 - A successful card save applies the canonical row returned by the committed mutation to the visible list using string-normalized IDs, then reloads People data. Save controls prevent repeated submissions while a write is in flight.
 - Cards resolve phone display from the canonical primary `phone` column and fall back to the ordered `phone_numbers` JSON list. If both are empty, the card must report that no phone is stored; do not fabricate or copy a phone from another organization.

@@ -16,7 +16,7 @@ const journeyActionRow=journeyActionsStart>=0&&journeyActionsEnd>journeyActionsS
 const journeyHeroStart=personPage.indexOf('<section style={S.hero}>');
 const journeyHeroEnd=personPage.indexOf('</section>',journeyHeroStart);
 const journeyContextStart=personPage.indexOf('<section className="fiducia-card" style={S.chat}>');
-const countMatches=(source,pattern)=>(source.match(pattern)||[]).length;
+const countString=(source,needle)=>source.split(needle).length-1;
 const peopleApi=read('pages/api/people.js');
 const peopleMutation=read('lib/aria/peopleMutationEngine.js');
 const bulkPeopleApi=read('pages/api/people/bulk-create.js');
@@ -328,16 +328,24 @@ const checks=[
   !peoplePage.includes("onClick={()=>setNote(true)}")&&
   !peoplePage.includes("onClick={()=>setMore(v=>!v)}")&&
   !peoplePage.includes("onClick={openEdit}")&&
-  countMatches(personPage,/<div style={S\\.actions}>/g)===1&&
+  !peoplePage.includes('>Message</button>')&&
+  !peoplePage.includes('>Note</button>')&&
+  !peoplePage.includes('>••• More</button>')&&
+  !peoplePage.includes('>Edit</button>')&&
+  countString(personPage,'<div style={S.actions}>')===1&&
   journeyActionRow.length>0&&
   journeyActionsStart>journeyHeroEnd&&
   journeyActionsStart<journeyContextStart&&
-  countMatches(personPage,/>Message<\\/button>/g)===1&&
-  countMatches(personPage,/>Note<\\/button>/g)===1&&
-  countMatches(personPage,/>••• More<\\/button>/g)===1&&
-  countMatches(personPage,/>Edit<\\/button>/g)===1&&
+  countString(personPage,'>Message</button>')===1&&
+  countString(personPage,'>Note</button>')===1&&
+  countString(personPage,'>••• More</button>')===1&&
+  countString(personPage,'>Edit</button>')===1&&
+  countString(journeyActionRow,'>Message</button>')===1&&
+  countString(journeyActionRow,'>Note</button>')===1&&
+  countString(journeyActionRow,'>••• More</button>')===1&&
+  countString(journeyActionRow,'>Edit</button>')===1&&
   journeyActionRow.includes('aria-label="More options"')&&
-  journeyActionRow.includes('aria-label="Edit details"')],
+  journeyActionRow.includes('aria-label="Edit details"')],,
  ['People page exposes fast bulk add with a row preview and skipped-row feedback',
   /Bulk add/.test(peoplePage)&&/parseBulkPeopleRows/.test(peoplePage)&&/phoneOnly=line\.match/.test(peoplePage)&&/source_line_numbers/.test(peoplePage)&&/Add many people at once/.test(peoplePage)&&/bulkPreviewRows\.length>200/.test(peoplePage)&&/only skipped rows remain in the box/.test(peoplePage)],
  ['Bulk person creation is bounded, authorized, and duplicate-safe',

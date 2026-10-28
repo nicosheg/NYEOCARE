@@ -62,6 +62,18 @@ export default withOrg(async function handler(req,res){
       request_context:{kind:'attendance_add_visitor',request_id:requestId,session_id:sessionId,contact_consent:contactConsent}
     };
     const proposalHash=personIdentityPayloadHash(proposal);
+    const pendingReview=(await client.query(
+      `SELECT id,payload_hash FROM public.person_identity_review_items
+       WHERE organization_id=$1 AND client_request_id=$2 AND status='pending' LIMIT 1 FOR UPDATE`,
+      [orgId,durableRequestId]
+    )).rows[0];
+    if(pendingReview&&pendingReview.payload_hash!==proposalHash){
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        error:'This visitor is already awaiting a decision in Review Center. Continue that review so the corrected details are not overwritten.',
+        code:'PERSON_IDENTITY_REVIEW_IN_PROGRESS',review_id:pendingReview.id,request_id:req.nyeoRequestId||null
+      });
+    }
     const priorRequest=(await client.query(
       `SELECT r.payload_hash,r.person_id,p.id,p.first_name,p.last_name,p.display_name,p.phone,p.phone_numbers,p.type,p.status,p.created_at,p.metadata
        FROM public.person_create_requests r

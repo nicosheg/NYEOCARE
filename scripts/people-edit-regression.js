@@ -40,6 +40,7 @@ assert.deepEqual(candidatesRequiringEditIdentityReview([sharedPhoneDifferentName
 assert.deepEqual(candidatesRequiringEditIdentityReview([archivedSameName],{nameChanged:true,phoneChanged:false}),[archivedSameName], 'Name edits must still review same/similar-name candidates.');
 assert.deepEqual(candidatesRequiringEditIdentityReview([archivedSameName,sharedPhoneDifferentName],{nameChanged:true,phoneChanged:true}),[archivedSameName,sharedPhoneDifferentName], 'Combined name and phone edits must retain both identity checks.');
 assert.deepEqual(candidatesRequiringEditIdentityReview([archivedSameName,sharedPhoneDifferentName],{nameChanged:false,phoneChanged:false}),[], 'Fields unrelated to identity must not trigger identity review.');
+assert.ok(mutation.includes("p.metadata->>'identity_merged_into'")&&mutation.includes("p.living_truth->>'merged_into'")&&mutation.includes('AS alias_name_match')&&mutation.includes('row.alias_name_match===true'), 'Merged archive rows must not reappear as independent identity candidates; their aliases must resolve to the canonical survivor.');
 const reviewCenter=read('components/ReviewCenterTab.js');
 const duplicateAction=read('pages/api/review/duplicate-action.js');
 const reviewResolve=read('pages/api/review/resolve.js');

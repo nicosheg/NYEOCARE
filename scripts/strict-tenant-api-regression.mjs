@@ -28,6 +28,10 @@ const engagement = read('pages/api/engagement/update-metrics.js');
 const members = read('pages/api/members.js');
 const settings = read('pages/api/settings.js');
 const me = read('pages/api/users/me.js');
+const personJourney = read('pages/api/person/journey.js');
+const duplicateAction = read('pages/api/review/duplicate-action.js');
+const pairingApi = read('pages/api/proxy-pairing-code.js');
+const pairingPage = read('pages/link-whatsapp.js');
 const bulkSms = read('pages/api/send-whatsapp-bulk.js');
 const migrationRoute = read('pages/api/admin/migrate-to-people.js');
 const mergeRoute = read('pages/api/admin/merge-and-drop-members.js');
@@ -54,6 +58,12 @@ const checks = [
     settings.includes('withOrg(async function handler') && settings.includes('WHERE id = $1') && !settings.includes('supabaseAdmin') && !settings.includes(".from('settings')")],
   ['Current-user endpoint does not serialize the complete DB user row',
     me.includes('organization_id: user.organization_id') && !me.includes('res.status(200).json(user)') && !me.includes('password_hash:')],
+  ['Person Journey timeline is explicitly scoped through the tenant-owned person row',
+    personJourney.includes('JOIN people timeline_person') && personJourney.includes('timeline_person.organization_id=$1')],
+  ['Duplicate merge history repointing is tenant-scoped',
+    duplicateAction.includes('WHERE organization_id=$3 AND ${column}=$2') && duplicateAction.includes('source_person.organization_id=$3') && !duplicateAction.includes('UPDATE ${i} SET ${col}=$1 WHERE ${col}=$2')],
+  ['Shared WhatsApp pairing bridge cannot be queried for arbitrary phones',
+    pairingApi.includes('status(410)') && pairingApi.includes('WHATSAPP_PAIRING_TENANT_SCOPE_REQUIRED') && !pairingApi.includes('fetch(') && !pairingPage.includes('pairingCode') && !pairingPage.includes('<input')],
   ['Legacy bulk SMS fails closed',
     bulkSms.includes('status(410)') && !bulkSms.includes('sendSMS(') && !bulkSms.includes('FROM members')],
   ['Unauthenticated DDL route fails closed',

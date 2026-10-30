@@ -25,6 +25,8 @@ assert.ok(closeApi.includes("import { finalizeAttendanceSession } from '../../..
   'the normal Attendance API must import the canonical finalizer');
 assert.ok(closeApi.includes('await finalizeAttendanceSession({')&&!closeApi.includes('UPDATE sessions SET status='),
   'the normal Attendance API must delegate finalization rather than duplicate the database finalizer');
+assert.ok(closeApi.indexOf('pg_advisory_xact_lock')>=0&&closeApi.indexOf('pg_advisory_xact_lock')<closeApi.indexOf('FOR UPDATE'),
+  'the normal Attendance API must acquire the organization lifecycle lock before locking the session row to avoid create/close deadlocks');
 assert.ok(closeApi.includes('isOrganizationOperator')&&closeApi.includes('session_users'),
   'the normal Attendance API must preserve operator and active-session membership authorization');
 

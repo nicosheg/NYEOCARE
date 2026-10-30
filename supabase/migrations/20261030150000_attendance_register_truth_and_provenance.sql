@@ -52,7 +52,7 @@ END $$;
 CREATE TABLE IF NOT EXISTS public.attendance_register_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id text NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
-  session_id uuid NOT NULL REFERENCES public.sessions(id) ON DELETE CASCADE,
+  session_id uuid NOT NULL REFERENCES public.sessions(id) ON DELETE RESTRICT,
   register_completeness text NOT NULL
     CHECK (register_completeness IN ('unconfirmed','incomplete','complete')),
   register_source text
@@ -83,6 +83,12 @@ DROP TRIGGER IF EXISTS attendance_register_events_append_only ON public.attendan
 CREATE TRIGGER attendance_register_events_append_only
   BEFORE UPDATE OR DELETE ON public.attendance_register_events
   FOR EACH ROW EXECUTE FUNCTION public.prevent_attendance_register_event_mutation();
+DROP TRIGGER IF EXISTS attendance_register_events_no_truncate ON public.attendance_register_events;
+CREATE TRIGGER attendance_register_events_no_truncate
+  BEFORE TRUNCATE ON public.attendance_register_events
+  FOR EACH STATEMENT EXECUTE FUNCTION public.prevent_attendance_register_event_mutation();
+REVOKE ALL ON FUNCTION public.prevent_attendance_register_event_mutation() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.prevent_attendance_register_event_mutation() TO service_role;
 
 
 -- Retire legacy absence records produced without a register-completeness declaration.
@@ -106,8 +112,8 @@ WHERE type='RETURNED_AFTER_ABSENCE' AND status='active';
 -- Register declarations are written by authenticated server paths only.
 ALTER TABLE public.attendance_register_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.attendance_register_events FORCE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE public.attendance_register_events FROM PUBLIC, anon, authenticated;
-GRANT ALL ON TABLE public.attendance_register_events TO service_role;
+REVOKE ALL ON TABLE public.attendance_register_events FROM PUBLIC, anon, authenticated, service_role;
+GRANT SELECT, INSERT ON TABLE public.attendance_register_events TO service_role;
 
 COMMENT ON COLUMN public.sessions.register_completeness IS
   'Whether the event register was explicitly reconciled: unconfirmed, incomplete, or complete. Session closure alone never means complete.';

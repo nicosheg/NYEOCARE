@@ -27,7 +27,9 @@ assert.ok(files.migration.includes("register_completeness text NOT NULL DEFAULT 
   'new and historical sessions must start as unconfirmed, not complete');
 assert.ok(files.migration.includes("CHECK (register_completeness IN ('unconfirmed','incomplete','complete'))"),
   'register completeness must be constrained to explicit states');
-assert.ok(files.migration.includes("register_source IS NOT NULL AND register_reviewed_at IS NOT NULL AND register_reviewed_by IS NOT NULL"),
+assert.ok(files.migration.includes('register_source IS NOT NULL')&&
+  files.migration.includes('register_reviewed_at IS NOT NULL')&&
+  files.migration.includes('register_reviewed_by IS NOT NULL'),
   'a complete register must carry source and accountable operator provenance');
 assert.ok(files.migration.includes('attendance_register_events')&&files.migration.includes('FORCE ROW LEVEL SECURITY'),
   'register declarations need a server-owned audit trail');

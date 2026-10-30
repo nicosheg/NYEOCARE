@@ -8,8 +8,9 @@ const clean=(v,max=1000)=>String(v??'').trim().slice(0,max);
 
 export default withAdmin(async function handler(req,res){
  if(req.method!=='POST')return res.status(405).json({error:'Method not allowed'});
- const{session_id,people_id,present,note='',action_id=null,observation_id=null}=req.body||{};
+ const{session_id,people_id,present,note='',action_id=null,observation_id=null,verified=false}=req.body||{};
  if(!session_id||!people_id||typeof present!=='boolean')return res.status(400).json({error:'session_id, people_id and present are required.'});
+ if(verified!==true)return res.status(400).json({error:'An administrator must explicitly verify this attendance correction first.'});
  const orgId=req.org.id,userId=req.user.id,db=await pool.connect();
  try{
   await db.query('BEGIN');

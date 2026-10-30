@@ -1,10 +1,9 @@
 // pages/api/attendance/create-session.js
-// Starting a new attendance session never waits for ARIA.
-// session_sections is the canonical section table.
+// Normal Attendance and ARIA share the same server-owned session lifecycle.
 
 import pool from '../../../lib/db';
 import { withAdmin } from '../../../lib/apiHelpers';
-import { emitAriaEvent } from '../../../lib/aria/eventEmitter';
+import { createAttendanceSession } from '../../../lib/attendance/sessionLifecycle';
 
 export default withAdmin(async function handler(req,res){
   if(req.method!=='POST'){
@@ -12,15 +11,10 @@ export default withAdmin(async function handler(req,res){
     return res.status(405).json({error:'Method not allowed'});
   }
 
-  const{name,sections,service_type=null,event_kind='service',event_scope='organization',group_id=null,event_semantics={},expected_population_rule={},attendance_interpretation='neutral',participation_expected=true,optional=false}=req.body||{};
-  if(typeof name!=='string'||!name.trim()){
+  const parameters=req.body||{};
+  if(typeof parameters.name!=='string'||!parameters.name.trim()){
     return res.status(400).json({error:'Event name is required.'});
   }
-
-  const normalizedSections=Array.isArray(sections)
-    ? [...new Set(sections.filter(s=>typeof s==='string').map(s=>s.trim()).filter(Boolean))]
-    : [];
-  if(!normalizedSections.length)normalizedSections.push('All');
 
   const orgId=req.org.id;
   const userId=req.user.id;
@@ -28,128 +22,38 @@ export default withAdmin(async function handler(req,res){
 
   try{
     await client.query('BEGIN');
-    await client.query("SELECT pg_advisory_xact_lock(hashtext($1::text))",[orgId]);
+    const created=await createAttendanceSession({
+      db:client,
+      organizationId:orgId,
+      actorId:userId,
+      actorRole:req.user.role,
+      parameters
+    });
+    await client.query('COMMIT');
 
-    // Attendance is deliberately separate from care-follow-up decisions for now.
-    // No new session may enable attendance-derived care signals.
-    const absenceMeaningful=false;
-
-    const active=await client.query(
-      `SELECT id,name,status,started_by,started_at,auto_close_at,auto_close_reason
-       FROM sessions
-       WHERE organization_id=$1 AND status='active'
-       LIMIT 1
-       FOR UPDATE`,
-      [orgId]
-    );
-
-    if(active.rows.length){
-      await client.query('ROLLBACK');
+    return res.status(201).json({
+      success:true,
+      id:created.session.id,
+      session:created.session,
+      sections:created.sections,
+      joined:true,
+      can_discard:['owner','admin'].includes(req.user.role),
+      background_processing_not_blocking:true
+    });
+  }catch(err){
+    await client.query('ROLLBACK').catch(()=>{});
+    if(err.code==='ATTENDANCE_SESSION_ACTIVE'||err.code==='23505'){
       return res.status(409).json({
         success:false,
         blocked:true,
         can_discard:['owner','admin'].includes(req.user.role),
         reason:'active',
         error:'An attendance session is already active.',
-        session:active.rows[0]
-      });
-    }
-
-    const timing=(await client.query(
-      `WITH configured AS (
-         SELECT CASE
-           WHEN EXISTS(
-             SELECT 1 FROM pg_timezone_names z
-             WHERE z.name=COALESCE(NULLIF(o.settings->>'timezone',''),'Africa/Lagos')
-           ) THEN COALESCE(NULLIF(o.settings->>'timezone',''),'Africa/Lagos')
-           ELSE 'Africa/Lagos'
-         END AS time_zone
-         FROM organizations o WHERE o.id=$1
-       ), started AS (
-         SELECT clock_timestamp() AS started_at,time_zone FROM configured
-       ), deadlines AS (
-         SELECT started_at,time_zone,
-                ((started_at AT TIME ZONE time_zone)::date + TIME '23:59') AT TIME ZONE time_zone AS end_of_day
-         FROM started
-       )
-       SELECT started_at,time_zone AS organization_timezone,
-              CASE WHEN end_of_day>started_at
-                   THEN LEAST(started_at+INTERVAL '24 hours',end_of_day)
-                   ELSE started_at+INTERVAL '24 hours' END AS auto_close_at,
-              CASE WHEN end_of_day>started_at AND end_of_day<=started_at+INTERVAL '24 hours'
-                   THEN 'end_of_day' ELSE '24h' END AS auto_close_reason
-       FROM deadlines`,
-      [orgId]
-    )).rows[0];
-    if(!timing)throw new Error('Organization attendance time zone is unavailable.');
-
-    const created=await client.query(
-      `INSERT INTO sessions(
-         organization_id,name,status,service_type,started_by,started_at,auto_close_at,auto_close_reason,
-         event_kind,event_scope,group_id,event_semantics,expected_population_rule,attendance_interpretation,participation_expected,optional,absence_meaningful,
-         aria_processing_status,aria_processing_stage,aria_processing_progress,
-         aria_processing_processed,aria_processing_total
-       )
-       VALUES($1,$2,'active',$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb,$13,$14,$15,$16,'idle','idle',0,0,0)
-       RETURNING id,name,status,service_type,started_by,started_at,auto_close_at,auto_close_reason,event_kind,event_scope,group_id,event_semantics,expected_population_rule,attendance_interpretation,participation_expected,optional,absence_meaningful,
-                 aria_processing_status,aria_processing_stage,aria_processing_progress,
-                 aria_processing_processed,aria_processing_total`,
-      [orgId,name.trim(),service_type||null,userId,timing.started_at,timing.auto_close_at,timing.auto_close_reason,event_kind||'service',event_scope||'organization',group_id||null,JSON.stringify(event_semantics||{}),JSON.stringify(expected_population_rule||{}),attendance_interpretation||'neutral',participation_expected!==false,optional===true,absenceMeaningful]
-    );
-
-    const session=created.rows[0];
-
-    await client.query(
-      `INSERT INTO session_users(session_id,user_id)
-       VALUES($1,$2)
-       ON CONFLICT DO NOTHING`,
-      [session.id,userId]
-    );
-
-    await client.query(
-      `INSERT INTO session_sections(session_id,name,organization_id)
-       SELECT $1,x,$2
-       FROM unnest($3::text[]) AS t(x)
-       ON CONFLICT DO NOTHING`,
-      [session.id,orgId,normalizedSections]
-    );
-
-    // Snapshot the expected directory at session start. People added later
-    // during this event are added explicitly by the attendance visitor flow.
-    await client.query(
-      `INSERT INTO attendance_session_roster(organization_id,session_id,person_id,source)
-       SELECT p.organization_id,$2,p.id,'session_start'
-       FROM people p
-       WHERE p.organization_id=$1 AND COALESCE(p.status,'active')='active'
-       ON CONFLICT DO NOTHING`,
-      [orgId,session.id]
-    );
-    session.organization_timezone=timing.organization_timezone;
-
-    const event=await emitAriaEvent({organizationId:orgId,type:'SERVICE_CREATED',source:'attendance',actorId:userId,actorRole:req.user.role,evidenceKind:'fact',verificationStatus:'verified',confidence:1,metadata:{session_id:session.id,name:session.name,service_type:session.service_type,event_kind:session.event_kind,event_scope:session.event_scope,group_id:session.group_id,event_semantics:session.event_semantics,expected_population_rule:session.expected_population_rule,attendance_interpretation:session.attendance_interpretation,participation_expected:session.participation_expected,optional:session.optional,absence_meaningful:session.absence_meaningful,auto_close_at:session.auto_close_at,auto_close_reason:session.auto_close_reason,memory:{type:'event_semantics',key:'session:'+session.id,value:{session_id:session.id,name:session.name,service_type:session.service_type,event_kind:session.event_kind,event_scope:session.event_scope,group_id:session.group_id,event_semantics:session.event_semantics,expected_population_rule:session.expected_population_rule,attendance_interpretation:session.attendance_interpretation,participation_expected:session.participation_expected,optional:session.optional,absence_meaningful:session.absence_meaningful},importance:'important'}},eventKey:'service:'+session.id+':created'},client);
-    await client.query('COMMIT');
-
-    return res.status(201).json({
-      success:true,
-      id:session.id,
-      session,
-      sections:normalizedSections,
-      joined:true,
-      can_discard:['owner','admin'].includes(req.user.role),
-      background_processing_not_blocking:true
-    });
-  }catch(err){
-    try{await client.query('ROLLBACK')}catch{}
-    if(err.code==='23505'){
-      return res.status(409).json({
-        success:false,blocked:true,
-        can_discard:['owner','admin'].includes(req.user.role),
-        reason:'active',
-        error:'An attendance session is already active.'
+        session:err.session||null
       });
     }
     console.error('[ATTENDANCE] Create session error:',err);
-    return res.status(500).json({error:'Could not start attendance.'});
+    return res.status(err.status||500).json({error:err.status?err.message:'Could not start attendance.'});
   }finally{
     client.release();
   }

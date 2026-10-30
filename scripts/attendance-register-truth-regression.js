@@ -23,6 +23,11 @@ const absenceProcessor=files.attendanceProcessor.slice(
   files.attendanceProcessor.indexOf('async function createReturnSignals')
 );
 
+const returnSignals=files.attendanceProcessor.slice(
+  files.attendanceProcessor.indexOf('async function createReturnSignals'),
+  files.attendanceProcessor.indexOf('async function createFirstVisitFollowUps')
+);
+
 assert.ok(files.migration.includes("register_completeness text NOT NULL DEFAULT 'unconfirmed'"),
   'new and historical sessions must start as unconfirmed, not complete');
 assert.ok(files.migration.includes("CHECK (register_completeness IN ('unconfirmed','incomplete','complete'))"),
@@ -98,6 +103,9 @@ assert.ok(files.cohort.includes("attendance_population:'not_inferred'")&&
 assert.ok(files.eventProcessor.includes("o.type IN('UNUSUAL_ABSENCE','ATTENDANCE_NOT_OBSERVED')")&&
   files.eventProcessor.includes('attendance_register_review'),
   'later confirmed participation must resolve the new register-review signal and action');
+assert.ok(!returnSignals.includes('ATTENDANCE_NOT_OBSERVED')&&
+  !returnSignals.includes('attendance_register_review'),
+  'a later attendance record must resolve a register review without generating a return-from-absence follow-up message');
 assert.ok(files.organizationPolicyUi.includes('not an automatic absence detector')&&
   files.organizationPolicyUi.includes('register complete'),
   'organization settings must explain the limited role of the attendance review permission');

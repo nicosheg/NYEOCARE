@@ -307,9 +307,9 @@ export default function ChurchProfileTab() {
             style={{ marginTop: 4, accentColor: '#D4AF37' }}
           />
           <span>
-            <strong>Notice meaningful changes in attendance patterns</strong>
+            <strong>Allow register-based attendance reviews</strong>
             <span style={{ display: 'block', color: 'rgba(255,255,255,.46)', fontSize: 12, marginTop: 3 }}>
-              ARIA checks the same recurring service over time—not just the weekday. It only suggests a human check-in after repeated, recent participation, and respects contact cooldowns, no-response pauses and do-not-contact requests. Optional gatherings are not treated as expected attendance.
+              This is an organization-level permission, not an automatic absence detector. ARIA can raise a human register-review item only when an operator explicitly enables non-observation for that event and later declares its register complete with a recorded source. It never invents a reason or sends a message from this signal.
             </span>
           </span>
         </label>

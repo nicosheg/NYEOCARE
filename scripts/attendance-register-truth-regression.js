@@ -39,7 +39,8 @@ assert.ok(files.migration.includes('register_source IS NOT NULL')&&
 assert.ok(files.migration.includes('attendance_register_events')&&files.migration.includes('FORCE ROW LEVEL SECURITY'),
   'register declarations need a server-owned audit trail');
 assert.ok(files.migration.includes("WHERE type='UNUSUAL_ABSENCE' AND status='active'")&&
-  files.migration.includes("action_metadata->>'kind' IN('care_first_check_in','attendance_absence_check_in','returned_after_absence')"),
+  files.migration.includes("action_metadata->>'kind' IN('attendance_absence_check_in','returned_after_absence')")&&
+  !files.migration.includes("action_metadata->>'kind' IN('care_first_check_in'"),
   'unverified historical absence signals must be retired rather than carried forward');
 
 assert.ok(files.createSession.includes('const absenceMeaningful=absence_meaningful===true')&&

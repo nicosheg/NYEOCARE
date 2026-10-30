@@ -21,7 +21,7 @@ const files={
  attendanceClose:read('pages/api/attendance/close-session.js'),
  createSession:read('pages/api/attendance/create-session.js'),
  attendanceProcessor:read('lib/aria/attendanceProcessor.js'),
- registerMigration:read('supabase/migrations/20261030150000_attendance_register_truth_and_provenance.sql'),
+ registerMigration:read('supabase/migrations/20261030144541_attendance_register_truth_and_provenance.sql'),
  spec:read('NYEO_SPEC.md'),
  workflow:read('.github/workflows/ci.yml')
 };

@@ -36,14 +36,9 @@ export default withOrg(async function handler(req, res) {
     if (typeof operation.present !== 'boolean') {
       return res.status(400).json({ error: 'Attendance changes need boolean present values.' });
     }
-    const timestamp=operation.client_updated_at==null?null:String(operation.client_updated_at);
-    if(timestamp!==null&&!Number.isFinite(Date.parse(timestamp))){
-      return res.status(400).json({error:'An offline attendance mark has an invalid save time.'});
-    }
     deduped.set(String(operation.people_id), {
       people_id: String(operation.people_id),
-      present: operation.present,
-      client_updated_at: timestamp
+      present: operation.present
     });
   }
   if (!deduped.size) {
@@ -71,7 +66,16 @@ export default withOrg(async function handler(req, res) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Attendance session not found.' });
     }
-    if (!['active', 'closed'].includes(session.status)) {
+    if (session.status === 'closed') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        error: 'Attendance has already been saved. An owner or admin must verify any later attendance correction through ARIA.',
+        attendance_closed: true,
+        requires_admin_verification: true,
+        pending_people_ids: ids
+      });
+    }
+    if (session.status !== 'active') {
       await client.query('ROLLBACK');
       return res.status(409).json({ error: 'This attendance session is no longer available.' });
     }
@@ -96,21 +100,7 @@ export default withOrg(async function handler(req, res) {
     const validSet = new Set(valid);
     const ignored = ids.filter(id => !validSet.has(id));
     const ops = [...deduped.values()].filter(operation => validSet.has(operation.people_id));
-    const startedAtMs=Date.parse(session.started_at);
-    const deadlineMs=Date.parse(session.auto_close_at||'');
-    const normalizedOps=ops.map(operation=>{
-      const markMs=operation.client_updated_at?Date.parse(operation.client_updated_at):NaN;
-      const autoReconcile=session.status==='closed'&&!isAdmin
-        &&['auto_24h','auto_23_59'].includes(String(session.closure_reason||''))
-        &&operation.present===true
-        &&Number.isFinite(markMs)
-        &&Number.isFinite(startedAtMs)
-        &&Number.isFinite(deadlineMs)
-        &&markMs>=startedAtMs-120000
-        &&markMs<=deadlineMs+120000;
-      return {...operation,auto_reconcile:autoReconcile};
-    });
-    const payload = JSON.stringify(normalizedOps);
+    const payload = JSON.stringify(ops);
     const date = eventAttendanceDate(session.started_at, session.organization_timezone);
     const confirmed = session.status === 'closed' && isAdmin;
     let writes = [];
@@ -122,48 +112,21 @@ export default withOrg(async function handler(req, res) {
            status, confirmed, reviewed_by, reviewed_at, organization_id, source
          )
          SELECT
-           o.people_id, $4::date, o.present, $2, $3,
-           CASE WHEN o.auto_reconcile THEN o.client_updated_at ELSE NOW() END,
+           o.people_id, $4::date, o.present, $2, $3, NOW(),
            CASE WHEN o.present THEN 'present' ELSE 'not_present' END,
-           ($5 OR o.auto_reconcile),
-           CASE WHEN $5 THEN $3::uuid ELSE NULL END,
-           CASE WHEN $5 THEN NOW() ELSE NULL END,
-           $1,
-           CASE WHEN o.auto_reconcile THEN 'offline_sync_reconciled'
-                WHEN $5 THEN 'admin_correction' ELSE 'operator' END
-         FROM jsonb_to_recordset($6::jsonb) AS o(
-           people_id uuid,present boolean,client_updated_at timestamptz,auto_reconcile boolean
-         )
+           false, NULL, NULL, $1, 'operator'
+         FROM jsonb_to_recordset($6::jsonb) AS o(people_id uuid, present boolean)
          ON CONFLICT (organization_id, people_id, session_id) WHERE session_id IS NOT NULL
          DO UPDATE SET
            present = EXCLUDED.present,
            marked_by = EXCLUDED.marked_by,
-           marked_at = EXCLUDED.marked_at,
+           marked_at = NOW(),
            status = EXCLUDED.status,
-           confirmed = attendance_records.confirmed OR EXCLUDED.confirmed,
-           reviewed_by = COALESCE(attendance_records.reviewed_by, EXCLUDED.reviewed_by),
-           reviewed_at = COALESCE(attendance_records.reviewed_at, EXCLUDED.reviewed_at),
-           source = EXCLUDED.source
-         WHERE (
-           attendance_records.confirmed = false
-           OR (
-             EXCLUDED.confirmed = true
-             AND (
-               $5
-               OR (
-                 EXCLUDED.source='offline_sync_reconciled'
-                 AND attendance_records.source='auto_close'
-                 AND EXCLUDED.present=true
-               )
-             )
-           )
-         )
-         AND (
-           attendance_records.present IS DISTINCT FROM EXCLUDED.present
-           OR (EXCLUDED.confirmed = true AND attendance_records.confirmed = false)
-         )
+           source = 'operator'
+         WHERE attendance_records.confirmed = false
+           AND attendance_records.present IS DISTINCT FROM EXCLUDED.present
          RETURNING people_id, present, confirmed, source`,
-        [orgId, session_id, userId, date, confirmed, payload]
+        [orgId, session_id, userId, date, false, payload]
       );
       writes = result.rows;
     }
@@ -186,60 +149,12 @@ export default withOrg(async function handler(req, res) {
       .filter(operation => !appliedSet.has(operation.people_id))
       .map(operation => operation.people_id);
 
-    const pendingConfirmation = session.status === 'closed' && !isAdmin
-      ? normalizedOps.filter(operation => {
-          const actual = actualById.get(operation.people_id);
-          return operation.present && (
-            actual?.present === true && actual.confirmed === false
-            || actual?.source === 'auto_close' && actual?.present !== true && !operation.auto_reconcile
-          );
-        }).map(operation => operation.people_id)
-      : [];
-
-    let reprocessingQueued = false;
-    if (session.status === 'closed' && writes.length && (confirmed || writes.some(row=>row.source==='offline_sync_reconciled'))) {
-      const total = (await client.query(
-        `SELECT COUNT(*)::int AS count FROM people
-         WHERE organization_id = $1 AND COALESCE(status,'active') = 'active'`,
-        [orgId]
-      )).rows[0]?.count || 0;
-      const reset = (await client.query(
-        `UPDATE sessions
-         SET aria_processing_status = 'pending',
-             aria_processing_stage = 'persist',
-             aria_processing_progress = 0,
-             aria_processing_processed = 0,
-             aria_processing_total = $2,
-             aria_processing_attempts = 0,
-             aria_processing_started_at = NULL,
-             aria_processing_completed_at = NULL,
-             aria_processing_error = NULL,
-             aria_processing_heartbeat_at = NULL
-         WHERE id = $1 AND organization_id = $3 AND status = 'closed'
-           AND aria_processing_status <> 'pending'
-         RETURNING id`,
-        [session_id, Number(total) || 0, orgId]
-      )).rows;
-      if (reset.length) {
-        await enqueueAttendanceProcessing({
-          organizationId: orgId,
-          sessionId: session_id,
-          actorId: userId,
-          stage: 'persist',
-          db: client
-        });
-        reprocessingQueued = true;
-      }
-    }
-
     await client.query('COMMIT');
     return res.status(200).json({
       success: true,
       applied_people_ids: applied,
       ignored_people_ids: ignored,
-      conflicted_people_ids: conflicted,
-      pending_confirmation_people_ids: pendingConfirmation,
-      reprocessing_queued: reprocessingQueued
+      conflicted_people_ids: conflicted
     });
   } catch (error) {
     try { await client.query('ROLLBACK'); } catch {}

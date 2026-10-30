@@ -1,7 +1,7 @@
 // scripts/foreign-key-index-regression.js
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
-const source=fs.readFileSync('supabase/migrations/20261030234500_cover_public_foreign_keys.sql','utf8');
+const source=fs.readFileSync('supabase/migrations/20261030234620_cover_public_foreign_keys.sql','utf8');
 const expected=[
   {
     "name": "ixfk_aria_actions_4b98157d",

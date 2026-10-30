@@ -14,7 +14,7 @@ export default withAdmin(async function handler(req,res){
  const orgId=req.org.id,userId=req.user.id,db=await pool.connect();
  try{
   await db.query('BEGIN');
-  const session=(await db.query(`SELECT s.id,s.name,s.status,s.started_at,s.service_type,COALESCE(NULLIF(o.settings->>'timezone',''),'Africa/Lagos') AS organization_timezone FROM sessions s JOIN organizations o ON o.id=s.organization_id WHERE s.id=$1 AND s.organization_id=$2 LIMIT 1`,[session_id,orgId])).rows[0];
+  const session=(await db.query(`SELECT s.id,s.name,s.status,s.started_at,s.service_type,s.register_completeness,s.register_source,COALESCE(NULLIF(o.settings->>'timezone',''),'Africa/Lagos') AS organization_timezone FROM sessions s JOIN organizations o ON o.id=s.organization_id WHERE s.id=$1 AND s.organization_id=$2 LIMIT 1`,[session_id,orgId])).rows[0];
   if(!session){await db.query('ROLLBACK');return res.status(404).json({error:'Attendance session not found.'})}
   if(session.status!=='closed'){await db.query('ROLLBACK');return res.status(409).json({error:'Only a saved attendance session can be corrected from here.'})}
   const person=(await db.query(`SELECT id,first_name,last_name,display_name FROM people WHERE id=$1 AND organization_id=$2 AND status='active' LIMIT 1`,[people_id,orgId])).rows[0];
@@ -37,6 +37,17 @@ export default withAdmin(async function handler(req,res){
       orgId
    ]);
   }
+
+  await db.query(`
+    INSERT INTO attendance_register_events(
+      organization_id,session_id,register_completeness,register_source,note,actor_id,recorded_at
+    )
+    VALUES($1,$2,$3,$4,$5,$6,NOW())
+  `,[
+    orgId,session_id,session.register_completeness||'unconfirmed',session.register_source||null,
+    `Admin verified attendance correction for person ${people_id}: marked ${present?'present':'not present'}.`,
+    userId
+  ]);
 
   if(present){
    await db.query(`INSERT INTO participation_records(organization_id,person_id,session_id,participation_type,value,occurred_at)

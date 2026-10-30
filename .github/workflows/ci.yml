@@ -35,6 +35,7 @@ jobs:
       - run: npm run test:review-surface
       - run: npm run test:scan
       - run: npm run test:attendance-service-pattern
+      - run: npm run test:attendance-register-truth
       - run: npm run test:event-date
       - run: npm run test:attendance-access
       - run: npm run test:person-create-idempotency

@@ -42,9 +42,9 @@ assert.ok(files.attendanceUi.includes('const[absenceMeaningful,setAbsenceMeaning
   files.attendanceUi.includes('absence_meaningful:absenceMeaningful===true'),
   'event-level non-observation must be an explicit opt-in that defaults off');
 
-assert.ok(files.attendanceUi.includes("value='unconfirmed'")&&
-  files.attendanceUi.includes("value='incomplete'")&&
-  files.attendanceUi.includes("value='complete'")&&
+assert.ok(files.attendanceUi.includes('value="unconfirmed"')&&
+  files.attendanceUi.includes('value="incomplete"')&&
+  files.attendanceUi.includes('value="complete"')&&
   files.attendanceUi.includes('register_completeness:registerCompleteness'),
   'the operator must explicitly declare the register state when saving');
 assert.ok(files.attendanceUi.includes('registerSource===\'digital_roster\'&&!rosterSnapshotComplete')&&

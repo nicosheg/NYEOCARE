@@ -86,7 +86,8 @@ assert.ok(files.sync.includes("session.status === 'closed'")&&
   'offline sync must never silently rewrite an auto-finalized attendance record');
 assert.ok(files.correction.includes('withAdmin')&&
   files.correction.includes('verified!==true')&&
-  files.correction.includes("source='admin_correction'"),
+  files.correction.includes("source='admin_correction'")&&
+  files.correction.includes('attendance_register_events'),
   'later attendance corrections must require an admin and an explicit human verification');
 assert.ok(files.home.includes('attendanceDecision!==null')&&
   files.home.includes('Please verify this against what you know')&&

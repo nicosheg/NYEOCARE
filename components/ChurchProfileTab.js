@@ -309,7 +309,7 @@ export default function ChurchProfileTab() {
           <span>
             <strong>Allow register-based attendance reviews</strong>
             <span style={{ display: 'block', color: 'rgba(255,255,255,.46)', fontSize: 12, marginTop: 3 }}>
-              This is an organization-level permission, not an automatic absence detector. ARIA can raise a human register-review item only when an operator explicitly enables non-observation for that event and later declares its register complete with a recorded source. It never invents a reason or sends a message from this signal.
+              Off by default. This is an organization-level permission, not an automatic absence detector. ARIA can raise a human register-review item only when an owner/admin enables this policy, an operator explicitly enables non-observation for that event, and the register is later declared complete with a recorded source. It never invents a reason or sends a message from this signal.
             </span>
           </span>
         </label>

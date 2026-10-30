@@ -64,7 +64,7 @@ assert.doesNotMatch(attendanceMark, /LIMIT 1 FOR UPDATE OF s/,
 
 assert.ok(createSession.includes("import { createAttendanceSession } from '../../../lib/attendance/sessionLifecycle'") &&
   createSession.includes('await createAttendanceSession({') &&
-  attendanceLifecycle.includes('[organizationId,name,serviceType,actorId,timing.started_at,timing.auto_close_at,timing.auto_close_reason') &&
+  attendanceLifecycle.includes('organizationId,name,serviceType,actorId,timing.started_at,timing.auto_close_at,timing.auto_close_reason') &&
   attendanceLifecycle.includes("eventKind,eventScope,groupId,JSON.stringify(eventSemantics),JSON.stringify(expectedPopulationRule)"),
   'attendance session creation must use the canonical session lifecycle with correctly ordered service, actor, deadline and event parameters');
 

@@ -69,6 +69,24 @@ CREATE TABLE IF NOT EXISTS public.attendance_register_events (
 CREATE INDEX IF NOT EXISTS attendance_register_events_org_session_idx
   ON public.attendance_register_events (organization_id,session_id,recorded_at DESC);
 
+-- Retire legacy absence records produced without a register-completeness declaration.
+-- New verified non-observations use ATTENDANCE_NOT_OBSERVED instead.
+UPDATE public.aria_observations
+SET status='resolved',resolved_at=COALESCE(resolved_at,NOW()),updated_at=NOW()
+WHERE type='UNUSUAL_ABSENCE' AND status='active';
+
+UPDATE public.aria_actions
+SET status='cancelled',
+    failure_reason='Legacy attendance follow-up retired because its source register was not verified complete.',
+    updated_at=NOW()
+WHERE status IN('proposed','approved')
+  AND action_metadata->>'kind' IN('care_first_check_in','attendance_absence_check_in','returned_after_absence');
+
+UPDATE public.aria_observations
+SET status='resolved',resolved_at=COALESCE(resolved_at,NOW()),updated_at=NOW()
+WHERE type='RETURNED_AFTER_ABSENCE' AND status='active';
+
+
 -- Register declarations are written by authenticated server paths only.
 ALTER TABLE public.attendance_register_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.attendance_register_events FORCE ROW LEVEL SECURITY;

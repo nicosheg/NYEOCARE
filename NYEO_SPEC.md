@@ -2928,7 +2928,7 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 
 ### Rollout and verification
 
-- Apply `supabase/migrations/20261030150000_attendance_register_truth_and_provenance.sql` and `supabase/migrations/20261030150000_attendance_register_provenance_fk_indexes.sql` before deploying the application commit that reads the new session columns and audit table.
+- Apply `supabase/migrations/20261030144541_attendance_register_truth_and_provenance.sql` and `supabase/migrations/20261030144837_attendance_register_provenance_fk_indexes.sql` before deploying the application commit that reads the new session columns and audit table.
 - Run the new attendance-register-truth regression, existing attendance/service-pattern tests, ARIA V2 and final architecture regressions, the full CI suite, and the Next.js production build.
 - Verify Havilah's historical events remain unconfirmed and do not generate absence actions. Verify a new event remains neutral by default; an incomplete register generates no non-observation; and a complete, sourced, operator-reviewed register with explicit event opt-in can generate only a human register-review item.
 - Do not call the absentee cohort or absence inference generally production-complete until an event-specific expected-population model is designed, persisted, and tested for organization, group, private, optional, and special-event scopes.

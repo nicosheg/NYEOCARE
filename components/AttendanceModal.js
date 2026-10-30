@@ -62,10 +62,7 @@ export default function AttendanceModal({isOpen,onClose}){
   const[notice,setNotice]=useState('');
   const[query,setQuery]=useState('');
   const[sessionName,setSessionName]=useState('');
-  const[absenceMeaningful,setAbsenceMeaningful]=useState(false);
-  const[registerCompleteness,setRegisterCompleteness]=useState('unconfirmed');
-  const[registerSource,setRegisterSource]=useState('digital_roster');
-  const[registerReviewNote,setRegisterReviewNote]=useState('');
+  const[showFinishConfirm,setShowFinishConfirm]=useState(false);
   const[showAddVisitor,setShowAddVisitor]=useState(false);
   const[visitorName,setVisitorName]=useState('');
   const[visitorPhone,setVisitorPhone]=useState('');
@@ -490,11 +487,17 @@ export default function AttendanceModal({isOpen,onClose}){
           await syncFieldMode().catch(()=>false);
           const pending=await getFieldPendingCount(fieldCached.sessionId,s.user.id).catch(()=>1);
           const refreshed=await getFieldSession(s.user.id).catch(()=>null);
-          const serverConfirmsClosed=String(data.session_id||'')===String(fieldCached.sessionId)&&data.status==='closed';
+          const serverConfirmsClosed=(
+            String(data.last_closed_session_id||'')===String(fieldCached.sessionId)
+            ||String(data.session_id||'')===String(fieldCached.sessionId)&&data.status==='closed'
+          );
           if(pending>0||(refreshed?.closeRequested&&!serverConfirmsClosed)){
-            setSession({...fieldCached.session,user_id:s.user.id});
+            setSession({...fieldCached.session,status:serverConfirmsClosed?'closed':'active',user_id:s.user.id});
+            setCanDiscard(!serverConfirmsClosed&&fieldCached.session?.can_discard===true);
             applyCachedRoster(fieldCached);
-            setNotice(pending>0?'Saved attendance still has marks waiting to sync. NYEOCARE is preserving them on this device.':'Attendance close is still being reconciled; the saved session remains on this device.');
+            setNotice(serverConfirmsClosed
+              ? 'This attendance has already been saved. Some offline marks still need to sync or be checked by an owner or admin; no saved marks have been discarded.'
+              : pending>0?'Saved attendance still has marks waiting to sync. NYEOCARE is preserving them on this device.':'Attendance close is still being reconciled; the saved session remains on this device.');
             setLoading(false);return;
           }
           await clearFieldSession(s.user.id,fieldCached.sessionId).catch(()=>{});
@@ -526,10 +529,14 @@ export default function AttendanceModal({isOpen,onClose}){
         await syncFieldMode().catch(()=>false);
         const oldPending=await getFieldPendingCount(fieldCached.sessionId,s.user.id).catch(()=>1);
         if(oldPending>0){
-          setSession({...fieldCached.session,user_id:s.user.id});
+          const oldSessionClosed=String(data.last_closed_session_id||'')===String(fieldCached.sessionId);
+          setSession({...fieldCached.session,status:oldSessionClosed?'closed':'active',user_id:s.user.id});
+          setCanDiscard(!oldSessionClosed&&fieldCached.session?.can_discard===true);
           applyCachedRoster(fieldCached);
           lastSearchKey.current=attendanceSearchKey(fieldCached.sessionId,currentQuery);
-          setNotice('Your previous attendance session still has unsynced marks. NYEOCARE is preserving them on this device while synchronization retries.');
+          setNotice(oldSessionClosed
+            ? 'The previous attendance has already been saved. Some offline marks still need to sync or be checked by an owner or admin; nothing was discarded.'
+            : 'Your previous attendance session still has unsynced marks. NYEOCARE is preserving them on this device while synchronization retries.');
           setError('');
           setLoading(false);
           return;
@@ -613,9 +620,15 @@ export default function AttendanceModal({isOpen,onClose}){
       if(!data.active||String(data.session_id)!==String(session.session_id)){
         await syncFieldMode().catch(()=>false);
         const pending=await getFieldPendingCount(session.session_id,s.user.id).catch(()=>1);
+        const serverClosed=String(data.last_closed_session_id||'')===String(session.session_id)
+          ||String(data.session_id||'')===String(session.session_id)&&data.status==='closed';
         if(pending>0){
           setPendingCount(pending);
-          setNotice('This session is no longer active on the server, but unsynced attendance is still saved on this device. NYEOCARE is preserving it while synchronization retries.');
+          setSession(current=>current?{...current,status:serverClosed?'closed':'active'}:current);
+          if(serverClosed)setCanDiscard(false);
+          setNotice(serverClosed
+            ? 'This attendance has already been saved. Some offline marks still need to sync or be checked by an owner or admin; no saved marks have been discarded.'
+            : 'This session is no longer active on the server, but unsynced attendance is still saved on this device. NYEOCARE is preserving it while synchronization retries.');
           setError('');
           return;
         }
@@ -787,7 +800,7 @@ export default function AttendanceModal({isOpen,onClose}){
           'Content-Type':'application/json',
           Authorization:`Bearer ${s.access_token}`
         },
-        body:JSON.stringify({name,absence_meaningful:absenceMeaningful===true})
+        body:JSON.stringify({name})
       });
       const data=await read(response);
       if(!response.ok||!data.success)throw Error(data.error||'Could not start attendance.');
@@ -807,10 +820,7 @@ export default function AttendanceModal({isOpen,onClose}){
       setFieldRoster([]);setFieldReady(false);setPendingCount(0);fieldWarmAt.current=0;
       setBackground(null);
       setSessionName('');
-      setAbsenceMeaningful(false);
-      setRegisterCompleteness('unconfirmed');
-      setRegisterSource('digital_roster');
-      setRegisterReviewNote('');
+      setShowFinishConfirm(false);
       setCursor(null);
       setHasMore(false);
       setLoading(true);
@@ -987,28 +997,36 @@ export default function AttendanceModal({isOpen,onClose}){
 
   const keep=async()=>{
     if(!session||session.status!=='active'||closing)return;
-    const perf=measurePerformance('attendance_save',{network:networkOnline?'online':'offline'});setClosing(true);setError('');
+    setShowFinishConfirm(false);
+    const perf=measurePerformance('attendance_save',{network:networkOnline?'online':'offline'});
+    setClosing(true);setError('');
     try{
       const s=networkOnline?await getClientSession():null;
       if(!networkOnline){
         await saveFieldSession(session.user_id||s?.user?.id,session,{closeRequested:true});
-        setNotice(registerCompleteness==='complete'
-          ? 'Attendance is saved on this device, but an offline save cannot certify the register as complete. This event will remain unconfirmed and will not generate a non-observation review.'
-          : 'Attendance saved on this device. The register remains unconfirmed, so ARIA will not generate a non-observation review from this event.');
-        setClosing(false);perf('queued');onClose();return
+        setNotice('Your confirmation is saved on this device. Attendance will finish syncing when the connection returns; the shared session remains available until the server saves it.');
+        setClosing(false);perf('queued');onClose();return;
       }
-      if(registerCompleteness==='complete'){
-        if(pendingCount>0||legacyPendingCount>0)throw Error('Wait for every offline attendance change to sync before confirming a complete register.');
-        if(registerSource==='digital_roster'&&!rosterSnapshotComplete)throw Error('The full digital roster has not been verified on this device. Refresh and reconcile the register before confirming it as complete.');
-        if(registerSource==='other'&&!registerReviewNote.trim())throw Error('Describe the other register source before confirming completeness.');
+      if(pendingCount>0||legacyPendingCount>0){
+        throw Error('Some attendance changes are still syncing. Wait for them to finish before saving attendance.');
       }
-      const response=await fetchAttendanceWithTimeout('/api/attendance/close-session',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.access_token},body:JSON.stringify({session_id:session.session_id,register_completeness:registerCompleteness,register_source:registerSource,register_note:registerReviewNote.trim()||null})});
-      const data=await read(response);if(!response.ok||!data.success)throw Object.assign(Error(data.error||'Attendance could not be saved yet.'),{transient:response.status>=500||response.status===0});
-      await clearFieldSession(s.user.id,session.session_id);clearCached('attendance:'+s.user.id);publishDataChange('attendance');perf('ok');onClose();
+      const response=await fetchAttendanceWithTimeout('/api/attendance/close-session',{
+        method:'POST',
+        headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.access_token},
+        body:JSON.stringify({session_id:session.session_id})
+      });
+      const data=await read(response);
+      if(!response.ok||!data.success)throw Object.assign(Error(data.error||'Attendance could not be saved yet.'),{transient:response.status>=500||response.status===0});
+      await clearFieldSession(s.user.id,session.session_id);
+      clearCached('attendance:'+s.user.id);
+      publishDataChange('attendance');perf('ok');onClose();
     }catch(e){
       const transient=e?.transient||e instanceof TypeError||typeof navigator!=='undefined'&&!navigator.onLine;
-      if(transient){await saveFieldSession(session.user_id||((await getClientSession().catch(()=>null))?.user?.id),session,{closeRequested:true}).catch(()=>{});setNotice('Attendance saved on this device. It will finish syncing automatically when the connection returns.');perf('queued');onClose()}
-      else if(mounted.current)setError(e.message||'Attendance could not be saved yet.');
+      if(transient){
+        await saveFieldSession(session.user_id||((await getClientSession().catch(()=>null))?.user?.id),session,{closeRequested:true}).catch(()=>{});
+        setNotice('Your confirmation is saved on this device. It will finish syncing automatically when the connection returns.');
+        perf('queued');onClose();
+      }else if(mounted.current)setError(e.message||'Attendance could not be saved yet.');
     }finally{if(mounted.current)setClosing(false)}
   };
 
@@ -1044,7 +1062,16 @@ export default function AttendanceModal({isOpen,onClose}){
   if(!isOpen||typeof document==='undefined')return null;
 
   const percent=total?Math.round((present/total)*100):0;
-  const fieldStatus=networkOnline?(pendingCount?`Syncing ${pendingCount} change${pendingCount===1?'':'s'}`:'Online'):`Offline${pendingCount?' · '+pendingCount+' pending':''}`;
+  const fieldStatus=session?.status==='closed'?'Saved':networkOnline?(pendingCount?`Syncing ${pendingCount} change${pendingCount===1?'':'s'}`:'Online'):`Offline${pendingCount?' · '+pendingCount+' pending':''}`;
+  const autoCloseLabel=(()=>{
+    if(!session?.auto_close_at)return null;
+    try{
+      return new Intl.DateTimeFormat('en-NG',{
+        weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',
+        timeZone:session.organization_timezone||'Africa/Lagos'
+      }).format(new Date(session.auto_close_at));
+    }catch{return null}
+  })();
   const backgroundLabel=background
     ? background.progress>=100?'ARIA updated'
       : background.processing_status==='needs_attention'?'ARIA needs attention'
@@ -1064,6 +1091,7 @@ export default function AttendanceModal({isOpen,onClose}){
                 ? `${backgroundLabel}. You can start the next attendance now.`
                 : 'Create a session to begin taking attendance.'}
           </p>
+          {session?.status==='active'&&autoCloseLabel&&<span style={autoCloseHint}>You can leave this screen. Attendance stays live for everyone and saves automatically by {autoCloseLabel}.</span>}
         </div>
         <button style={close} onClick={onClose} aria-label="Close attendance">×</button>
       </header>
@@ -1096,12 +1124,8 @@ export default function AttendanceModal({isOpen,onClose}){
           autoFocus
         />
         <span style={{...sub,fontSize:12,textAlign:"center"}}>
-          Use a clear event name. NYEOCARE does not assume a Sunday or weekly schedule; comparisons require the same named event and verified register history.
+          Give the session a clear name. You can close this screen at any time; attendance stays open for everyone until it is saved automatically or you choose to save it.
         </span>
-        <label style={{display:'flex',alignItems:'flex-start',gap:9,width:'100%',maxWidth:480,padding:'12px 14px',borderRadius:14,border:'1px solid rgba(212,175,55,.25)',background:'rgba(212,175,55,.06)',fontSize:12,lineHeight:1.5,color:'rgba(255,255,255,.84)'}}>
-          <input type="checkbox" checked={absenceMeaningful} onChange={e=>setAbsenceMeaningful(e.target.checked)} style={{marginTop:2,accentColor:'#D4AF37'}} />
-          <span><strong style={{display:'block',color:'#E9D28A',marginBottom:2}}>Use verified non-observation for a care review in this event</strong>Off by default. This does not mean anyone is absent or explain why; it only allows ARIA to consider a cautious signal after the register is explicitly confirmed complete.</span>
-        </label>
         <button
           style={{...primary,opacity:saving||!sessionName.trim()?0.55:1}}
           disabled={saving||!sessionName.trim()}
@@ -1175,8 +1199,8 @@ export default function AttendanceModal({isOpen,onClose}){
                             <small style={firstVisitWelcomeHint}>First recorded attendance · welcome warmly if appropriate</small>
                             <button
                               type="button"
-                              style={{...firstVisitWelcomeButton,...((!networkOnline||pendingCount>0||closing||welcomeSavingIds.includes(String(p.id)))?firstVisitWelcomeButtonDisabled:{})}}
-                              disabled={!networkOnline||pendingCount>0||closing||welcomeSavingIds.includes(String(p.id))}
+                              style={{...firstVisitWelcomeButton,...((!networkOnline||pendingCount>0||closing||session.status!=='active'||welcomeSavingIds.includes(String(p.id)))?firstVisitWelcomeButtonDisabled:{})}}
+                              disabled={!networkOnline||pendingCount>0||closing||session.status!=='active'||welcomeSavingIds.includes(String(p.id))}
                               onClick={()=>recordFirstVisitWelcome(p)}
                               aria-label={`Record in-person welcome for ${p.first_name||'this visitor'}`}
                             >
@@ -1190,7 +1214,7 @@ export default function AttendanceModal({isOpen,onClose}){
               </div>
               <button
                 style={{...markButton,...(p.marked?doneButton:{})}}
-                disabled={closing}
+                disabled={closing||session.status!=='active'}
                 onClick={()=>mark(p.id,Boolean(p.marked))}
               >
                 {p.marked?'✓ Present':'Mark present'}
@@ -1208,43 +1232,39 @@ export default function AttendanceModal({isOpen,onClose}){
           </button>}
         </div>
 
-        <div style={{margin:'0 18px 10px',padding:'11px 12px',borderRadius:14,border:'1px solid rgba(255,255,255,.12)',background:'rgba(0,0,0,.13)',display:'grid',gap:7}}>
-          <label style={{display:'grid',gap:5,fontSize:11,color:'rgba(255,255,255,.78)'}}>
-            Register completeness
-            <select value={registerCompleteness} onChange={e=>setRegisterCompleteness(e.target.value)} disabled={closing} style={{...input,width:'100%',fontSize:12,padding:'9px 10px'}}>
-              <option value="unconfirmed">Not verified — do not infer non-attendance</option>
-              <option value="incomplete">Incomplete — more entries still need checking</option>
-              <option value="complete">Complete — I reconciled the full event register</option>
-            </select>
-          </label>
-          <label style={{display:'grid',gap:5,fontSize:11,color:'rgba(255,255,255,.78)'}}>
-            Register source
-            <select value={registerSource} onChange={e=>setRegisterSource(e.target.value)} disabled={closing} style={{...input,width:'100%',fontSize:12,padding:'9px 10px'}}>
-              <option value="digital_roster">NYEOCARE digital roster</option>
-              <option value="paper_sheet">Paper register reconciled into NYEOCARE</option>
-              <option value="manual_reconciliation">Manual reconciliation against verified records</option>
-              <option value="other">Other verified source</option>
-            </select>
-          </label>
-          {(registerSource==='other'||registerCompleteness==='incomplete')&&<input value={registerReviewNote} onChange={e=>setRegisterReviewNote(e.target.value)} maxLength={500} placeholder={registerSource==='other'?'Describe the register source':'What still needs checking or correcting?'} style={{...input,width:'100%',fontSize:12,padding:'9px 10px'}} disabled={closing}/>}
-          <span style={{fontSize:10,lineHeight:1.45,color:'rgba(255,255,255,.58)'}}>Saving closes the event; it does not declare the register complete. Only choose Complete after every expected entry has been checked and reconciled. Offline or unsynced marks always remain unconfirmed.</span>
-        </div>
+
         <footer style={footer}>
           <div style={live}><i/>Live attendance <span style={fieldState}>{fieldStatus}</span></div>
           <div style={footerActions}>
             {canDiscard&&<button style={discardButton} disabled={closing} onClick={discard}>Discard</button>}
-            <button style={keepButton} disabled={closing||loading} onClick={keep}>
+            <button style={keepButton} disabled={closing||loading||session.status!=='active'} onClick={()=>setShowFinishConfirm(true)}>
               {closing?'Saving…':'Save attendance'}
             </button>
           </div>
         </footer>
       </div>}
     </div>
+    {showFinishConfirm&&<div style={finishConfirmOverlay} role="alertdialog" aria-modal="true" aria-labelledby="attendance-finish-title" aria-describedby="attendance-finish-description">
+      <div style={finishConfirmCard}>
+        <strong id="attendance-finish-title" style={{fontSize:18}}>Save attendance?</strong>
+        <p id="attendance-finish-description" style={{margin:'8px 0 16px',fontSize:13,lineHeight:1.55,color:'rgba(255,255,255,.78)'}}>
+          Have you finished marking everyone who attended? Anyone not marked Present will be saved as Not present for this event. An owner or admin can correct a mark later.
+        </p>
+        <div style={{display:'flex',justifyContent:'flex-end',gap:8,flexWrap:'wrap'}}>
+          <button type="button" style={discardButton} disabled={closing} onClick={()=>setShowFinishConfirm(false)}>Cancel</button>
+          <button type="button" style={keepButton} disabled={closing||pendingCount>0||legacyPendingCount>0} onClick={keep}>{closing?'Saving…':'Yes, save attendance'}</button>
+        </div>
+        {(pendingCount>0||legacyPendingCount>0)&&<span style={{marginTop:10,fontSize:11,color:'rgba(255,210,140,.9)'}}>Wait for the pending attendance changes to sync before saving.</span>}
+      </div>
+    </div>}
   </div>;
 
   return createPortal(content,document.body);
 }
 
+const autoCloseHint={display:'block',marginTop:5,fontSize:11,color:'rgba(214,184,106,.82)',lineHeight:1.4};
+const finishConfirmOverlay={position:'fixed',inset:0,zIndex:2147483001,display:'grid',placeItems:'center',padding:18,background:'rgba(2,5,12,.76)',backdropFilter:'blur(12px)'};
+const finishConfirmCard={width:'min(440px,100%)',padding:20,borderRadius:20,border:'1px solid rgba(255,255,255,.16)',background:'linear-gradient(145deg,#26364d,#0b1425)',boxShadow:'0 24px 70px rgba(0,0,0,.55)',color:'#f5f7fb'};
 const overlay={
   position:'fixed',inset:0,zIndex:2147483000,
   background:'rgba(2,5,12,.72)',backdropFilter:'blur(18px)',

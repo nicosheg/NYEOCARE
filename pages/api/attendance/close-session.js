@@ -14,6 +14,7 @@ export default withOrg(async function handler(req,res){
 
   try{
     await client.query('BEGIN');
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1::text))",[orgId]);
     const isAdmin=['owner','admin'].includes(String(req.user.role||'').toLowerCase());
     const current=(await client.query(
       `SELECT id,status FROM sessions

@@ -12,7 +12,7 @@ export default withAdmin(async function handler(req,res){
     return res.status(405).json({error:'Method not allowed'});
   }
 
-  const{name,sections,service_type=null,event_kind='service',event_scope='organization',group_id=null,event_semantics={},expected_population_rule={},attendance_interpretation='neutral',participation_expected=true,optional=false}=req.body||{};
+  const{name,sections,service_type=null,event_kind='service',event_scope='organization',group_id=null,event_semantics={},expected_population_rule={},attendance_interpretation='neutral',participation_expected=true,optional=false,absence_meaningful=false}=req.body||{};
   if(typeof name!=='string'||!name.trim()){
     return res.status(400).json({error:'Event name is required.'});
   }
@@ -30,9 +30,9 @@ export default withAdmin(async function handler(req,res){
     await client.query('BEGIN');
     await client.query("SELECT pg_advisory_xact_lock(hashtext($1::text))",[orgId]);
 
-    // Attendance is deliberately separate from care-follow-up decisions for now.
-    // No new session may enable attendance-derived care signals.
-    const absenceMeaningful=false;
+    // This event-level preference is recorded explicitly. The attendance
+    // care processor remains paused until its separate follow-up policy ships.
+    const absenceMeaningful=absence_meaningful===true;
 
     const active=await client.query(
       `SELECT id,name,status,started_by,started_at,auto_close_at,auto_close_reason

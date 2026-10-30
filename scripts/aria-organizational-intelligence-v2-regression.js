@@ -3,6 +3,7 @@ import{readFileSync}from'node:fs';
 const read=p=>readFileSync(p,'utf8');
 const files={
  createSession:read('pages/api/attendance/create-session.js'),
+ attendanceLifecycle:read('lib/attendance/sessionLifecycle.js'),
  attendanceProcessor:read('lib/aria/attendanceProcessor.js'),
  closeSession:read('pages/api/attendance/close-session.js'),
  registerMigration:read('supabase/migrations/20261030144541_attendance_register_truth_and_provenance.sql'),
@@ -22,9 +23,9 @@ const files={
 };
 const organizationExpression='\$'+'{organizationId}';
 const checks=[
- ['New sessions remain care-neutral and use a server-owned deadline',files.createSession.includes('const absenceMeaningful=absence_meaningful===true')&&files.createSession.includes('auto_close_at')&&files.attendanceProcessor.includes('ATTENDANCE_CARE_FOLLOW_UP_ENABLED = false')&&files.createSession.includes('attendance_session_roster')&&!files.createSession.includes('normalizeFollowUpPolicy')],
+ ['New sessions persist the optional event preference but remain care-neutral and use a server-owned deadline',files.createSession.includes('createAttendanceSession({')&&files.attendanceLifecycle.includes('const absenceMeaningful = parameters.absence_meaningful === true;')&&files.attendanceLifecycle.includes('auto_close_at')&&files.attendanceProcessor.includes('ATTENDANCE_CARE_FOLLOW_UP_ENABLED = false')&&files.attendanceLifecycle.includes('attendance_session_roster')&&!files.createSession.includes('normalizeFollowUpPolicy')],
  ['Attendance-based care follow-up remains disabled until a separate policy is approved',files.attendanceProcessor.includes('ATTENDANCE_CARE_FOLLOW_UP_ENABLED = false')&&files.attendanceProcessor.includes("skipped:'attendance_care_follow_up_paused'" )],
- ['Session finalization retains an append-only register audit event',files.closeSession.includes('nyeocare_finalize_attendance_session')&&files.registerMigration.includes('attendance_register_events')&&files.registerMigration.includes('register_completeness')&&files.registerMigration.includes('FORCE ROW LEVEL SECURITY')],
+ ['Session finalization retains an append-only register audit event',files.closeSession.includes('finalizeAttendanceSession({')&&files.attendanceLifecycle.includes('nyeocare_finalize_attendance_session')&&files.registerMigration.includes('attendance_register_events')&&files.registerMigration.includes('register_completeness')&&files.registerMigration.includes('FORCE ROW LEVEL SECURITY')],
  ['Attendance participation processing remains available while attendance-care signals are paused',files.attendanceProcessor.includes('ATTENDANCE_CARE_FOLLOW_UP_ENABLED = false')&&files.attendanceProcessor.includes('insertParticipationAndEvents')],
  ['Group-scoped events restrict absence candidates to active group members',files.attendanceProcessor.includes("latest.event_scope='group'")&&files.attendanceProcessor.includes('person_memberships')],
  ['Temporal memory stores importance and validity',files.memory.includes("importance='temporary'")&&files.memory.includes('validUntil')&&files.memory.includes('valid_until')],

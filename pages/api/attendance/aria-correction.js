@@ -22,11 +22,11 @@ export default withAdmin(async function handler(req,res){
   const existing=(await db.query(`SELECT id FROM attendance_records WHERE organization_id=$1 AND session_id=$2 AND people_id=$3 LIMIT 1 FOR UPDATE`,[orgId,session_id,people_id])).rows[0];
   if(existing){
    await db.query(`UPDATE attendance_records
-     SET present=$1,status=$2,confirmed=true,marked_by=$3,marked_at=NOW(),reviewed_by=$3,reviewed_at=NOW()
+     SET present=$1,status=$2,confirmed=true,marked_by=$3,marked_at=NOW(),reviewed_by=$3,reviewed_at=NOW(),source='admin_correction'
      WHERE id=$4 AND organization_id=$5`,[present,present?'present':'not_present',userId,existing.id,orgId]);
   }else{
-   await db.query(`INSERT INTO attendance_records(people_id,attendance_date,present,session_id,marked_by,marked_at,status,confirmed,reviewed_by,reviewed_at,organization_id)
-     VALUES($1,$2,$3,$4,$5,NOW(),$6,true,$5,NOW(),$7)`,[
+   await db.query(`INSERT INTO attendance_records(people_id,attendance_date,present,session_id,marked_by,marked_at,status,confirmed,reviewed_by,reviewed_at,organization_id,source)
+     VALUES($1,$2,$3,$4,$5,NOW(),$6,true,$5,NOW(),$7,'admin_correction')`,[
       people_id,
       eventAttendanceDate(session.started_at,session.organization_timezone),
       present,

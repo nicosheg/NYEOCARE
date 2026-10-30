@@ -36,8 +36,12 @@ assert.ok(files.migration.includes('register_source IS NOT NULL')&&
   files.migration.includes('register_reviewed_at IS NOT NULL')&&
   files.migration.includes('register_reviewed_by IS NOT NULL'),
   'a complete register must carry source and accountable operator provenance');
-assert.ok(files.migration.includes('attendance_register_events')&&files.migration.includes('FORCE ROW LEVEL SECURITY'),
-  'register declarations need a server-owned audit trail');
+assert.ok(files.migration.includes('attendance_register_events')&&
+  files.migration.includes('FORCE ROW LEVEL SECURITY')&&
+  files.migration.includes('BEFORE TRUNCATE ON public.attendance_register_events')&&
+  files.migration.includes('GRANT SELECT, INSERT ON TABLE public.attendance_register_events TO service_role')&&
+  !files.migration.includes('GRANT ALL ON TABLE public.attendance_register_events'),
+  'register declarations need a server-owned, append-only audit trail with least-privilege access');
 assert.ok(files.migration.includes("WHERE type='UNUSUAL_ABSENCE' AND status='active'")&&
   files.migration.includes("action_metadata->>'kind' IN('attendance_absence_check_in','returned_after_absence')")&&
   !files.migration.includes("action_metadata->>'kind' IN('care_first_check_in'"),
@@ -104,9 +108,10 @@ assert.ok(files.cohort.includes("attendance_population:'not_inferred'")&&
   !files.cohort.includes('ar.confirmed=true AND ar.present=false'),
   'an absentee cohort must not be derived until event-specific expected population is resolvable');
 
-assert.ok(files.eventProcessor.includes("o.type IN('UNUSUAL_ABSENCE','ATTENDANCE_NOT_OBSERVED')")&&
-  files.eventProcessor.includes('attendance_register_review'),
-  'later confirmed participation must resolve the new register-review signal and action');
+assert.ok(files.eventProcessor.includes("o.type='UNUSUAL_ABSENCE'")&&
+  !files.eventProcessor.includes("o.type IN('UNUSUAL_ABSENCE','ATTENDANCE_NOT_OBSERVED')")&&
+  !files.eventProcessor.includes("'attendance_register_review','returned_after_absence'"),
+  'generic participation events must not clear a register review from another service');
 const returnerQuery=returnSignals.slice(returnSignals.indexOf('const returners=await client.query('),returnSignals.indexOf('if(returners.rows.length)'));
 assert.ok(!returnerQuery.includes('ATTENDANCE_NOT_OBSERVED')&&
   !returnerQuery.includes('attendance_register_review'),
@@ -114,6 +119,8 @@ assert.ok(!returnerQuery.includes('ATTENDANCE_NOT_OBSERVED')&&
 assert.ok(returnSignals.includes("o.type='ATTENDANCE_NOT_OBSERVED'")&&
   returnSignals.includes("prior.id::text=(o.evidence->>'session_id')")&&
   returnSignals.includes("${serviceKeySql('prior')}=cs.service_key")&&
+  returnSignals.includes("COALESCE(prior.event_scope,'organization')=COALESCE(cs.event_scope,'organization')")&&
+  returnSignals.includes("COALESCE(prior.group_id::text,'')=COALESCE(cs.group_id::text,'')")&&
   returnSignals.includes("action_metadata->>'kind'='attendance_register_review'")&&
   returnSignals.includes("status='cancelled'"),
   'later confirmed same-service participation must resolve the register review and cancel its review action without adding a message');

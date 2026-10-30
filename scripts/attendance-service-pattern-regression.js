@@ -91,15 +91,16 @@ assert.ok(processor.includes("a.action_metadata->>'service_key'=(SELECT ${servic
 assert.ok(processor.includes("AND ac.session_id IN (SELECT ps.id FROM sessions ps"),
   'attendance contexts should only resolve after a return to the matching service');
 
-assert.ok(createSession.includes('normalizeFollowUpPolicy') &&
-  createSession.includes('attendancePatternFollowUpEnabled') &&
-  createSession.includes("typeof absence_meaningful==='boolean'") &&
-  createSession.includes("followUpPolicy.attendancePatternFollowUpEnabled && event_kind==='service' && optional!==true"),
-  'attendance follow-up should use a safe organization default while allowing explicit per-session and organization opt-outs');
-assert.ok(createSession.includes("typeof absence_meaningful==='boolean'"),
-  'an explicit true or false from an operator must override the organization default');
-assert.ok(attendanceUi.includes('ARIA compares service patterns by date and service name'),
-  'attendance UI should teach consistent naming for recurring services');
+assert.ok(createSession.includes('const absenceMeaningful=absence_meaningful===true') &&
+  !createSession.includes('normalizeFollowUpPolicy') &&
+  !createSession.includes('attendancePatternFollowUpEnabled'),
+  'new sessions must never inherit an organization-wide attendance expectation; event-level non-observation requires an explicit opt-in');
+assert.ok(processor.includes("register_completeness==='complete'") &&
+  processor.includes('register_reviewed_at') && processor.includes('register_reviewed_by') &&
+  processor.includes("organization_policy_disabled") && processor.includes("'REQUEST_REVIEW'"),
+  'non-observation review must require a complete register, source provenance, and the organization policy; it must create a review, not a message');
+assert.ok(attendanceUi.includes('same named event') && attendanceUi.includes('verified register history'),
+  'attendance UI must explain service identity and verified register history rather than assumed weekly patterns');
 
 assert.ok(processor.includes("pc.direction='inbound' AND pc.status IN('received','completed','sent','delivered')") &&
   processor.includes("te.source IN('human','conversation_import')") &&

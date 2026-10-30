@@ -36,9 +36,14 @@ export default withOrg(async function handler(req, res) {
     if (typeof operation.present !== 'boolean') {
       return res.status(400).json({ error: 'Attendance changes need boolean present values.' });
     }
+    const timestamp=operation.client_updated_at==null?null:String(operation.client_updated_at);
+    if(timestamp!==null&&!Number.isFinite(Date.parse(timestamp))){
+      return res.status(400).json({error:'An offline attendance mark has an invalid save time.'});
+    }
     deduped.set(String(operation.people_id), {
       people_id: String(operation.people_id),
-      present: operation.present
+      present: operation.present,
+      client_updated_at: timestamp
     });
   }
   if (!deduped.size) {
@@ -53,7 +58,7 @@ export default withOrg(async function handler(req, res) {
   try {
     await client.query('BEGIN');
     const session = (await client.query(
-      `SELECT s.id, s.started_at, s.status, s.aria_processing_status, s.closed_by,
+      `SELECT s.id, s.started_at, s.status, s.closed_by,s.closed_at,s.auto_close_at,s.closure_reason,s.aria_processing_status,
               COALESCE(NULLIF(o.settings->>'timezone',''),'Africa/Lagos') AS organization_timezone
        FROM sessions s
        JOIN organizations o ON o.id = s.organization_id
@@ -91,7 +96,21 @@ export default withOrg(async function handler(req, res) {
     const validSet = new Set(valid);
     const ignored = ids.filter(id => !validSet.has(id));
     const ops = [...deduped.values()].filter(operation => validSet.has(operation.people_id));
-    const payload = JSON.stringify(ops);
+    const startedAtMs=Date.parse(session.started_at);
+    const deadlineMs=Date.parse(session.auto_close_at||'');
+    const normalizedOps=ops.map(operation=>{
+      const markMs=operation.client_updated_at?Date.parse(operation.client_updated_at):NaN;
+      const autoReconcile=session.status==='closed'&&!isAdmin
+        &&['auto_24h','auto_23_59'].includes(String(session.closure_reason||''))
+        &&operation.present===true
+        &&Number.isFinite(markMs)
+        &&Number.isFinite(startedAtMs)
+        &&Number.isFinite(deadlineMs)
+        &&markMs>=startedAtMs-120000
+        &&markMs<=deadlineMs+120000;
+      return {...operation,auto_reconcile:autoReconcile};
+    });
+    const payload = JSON.stringify(normalizedOps);
     const date = eventAttendanceDate(session.started_at, session.organization_timezone);
     const confirmed = session.status === 'closed' && isAdmin;
     let writes = [];
@@ -100,31 +119,50 @@ export default withOrg(async function handler(req, res) {
       const result = await client.query(
         `INSERT INTO attendance_records(
            people_id, attendance_date, present, session_id, marked_by, marked_at,
-           status, confirmed, reviewed_by, reviewed_at, organization_id
+           status, confirmed, reviewed_by, reviewed_at, organization_id, source
          )
          SELECT
-           o.people_id, $4::date, o.present, $2, $3, NOW(),
+           o.people_id, $4::date, o.present, $2, $3,
+           CASE WHEN o.auto_reconcile THEN o.client_updated_at ELSE NOW() END,
            CASE WHEN o.present THEN 'present' ELSE 'not_present' END,
-           $5,
+           ($5 OR o.auto_reconcile),
            CASE WHEN $5 THEN $3::uuid ELSE NULL END,
            CASE WHEN $5 THEN NOW() ELSE NULL END,
-           $1
-         FROM jsonb_to_recordset($6::jsonb) AS o(people_id uuid, present boolean)
+           $1,
+           CASE WHEN o.auto_reconcile THEN 'offline_sync_reconciled'
+                WHEN $5 THEN 'admin_correction' ELSE 'operator' END
+         FROM jsonb_to_recordset($6::jsonb) AS o(
+           people_id uuid,present boolean,client_updated_at timestamptz,auto_reconcile boolean
+         )
          ON CONFLICT (organization_id, people_id, session_id) WHERE session_id IS NOT NULL
          DO UPDATE SET
            present = EXCLUDED.present,
            marked_by = EXCLUDED.marked_by,
-           marked_at = NOW(),
+           marked_at = EXCLUDED.marked_at,
            status = EXCLUDED.status,
            confirmed = attendance_records.confirmed OR EXCLUDED.confirmed,
            reviewed_by = COALESCE(attendance_records.reviewed_by, EXCLUDED.reviewed_by),
-           reviewed_at = COALESCE(attendance_records.reviewed_at, EXCLUDED.reviewed_at)
-         WHERE (attendance_records.confirmed = false OR EXCLUDED.confirmed = true)
-           AND (
-             attendance_records.present IS DISTINCT FROM EXCLUDED.present
-             OR (EXCLUDED.confirmed = true AND attendance_records.confirmed = false)
+           reviewed_at = COALESCE(attendance_records.reviewed_at, EXCLUDED.reviewed_at),
+           source = EXCLUDED.source
+         WHERE (
+           attendance_records.confirmed = false
+           OR (
+             EXCLUDED.confirmed = true
+             AND (
+               $5
+               OR (
+                 EXCLUDED.source='offline_sync_reconciled'
+                 AND attendance_records.source='auto_close'
+                 AND EXCLUDED.present=true
+               )
+             )
            )
-         RETURNING people_id, present, confirmed`,
+         )
+         AND (
+           attendance_records.present IS DISTINCT FROM EXCLUDED.present
+           OR (EXCLUDED.confirmed = true AND attendance_records.confirmed = false)
+         )
+         RETURNING people_id, present, confirmed, source`,
         [orgId, session_id, userId, date, confirmed, payload]
       );
       writes = result.rows;
@@ -149,14 +187,17 @@ export default withOrg(async function handler(req, res) {
       .map(operation => operation.people_id);
 
     const pendingConfirmation = session.status === 'closed' && !isAdmin
-      ? ops.filter(operation => {
+      ? normalizedOps.filter(operation => {
           const actual = actualById.get(operation.people_id);
-          return operation.present && actual?.present === true && actual.confirmed === false;
+          return operation.present && (
+            actual?.present === true && actual.confirmed === false
+            || actual?.source === 'auto_close' && actual?.present !== true && !operation.auto_reconcile
+          );
         }).map(operation => operation.people_id)
       : [];
 
     let reprocessingQueued = false;
-    if (session.status === 'closed' && confirmed && writes.length) {
+    if (session.status === 'closed' && writes.length && (confirmed || writes.some(row=>row.source==='offline_sync_reconciled'))) {
       const total = (await client.query(
         `SELECT COUNT(*)::int AS count FROM people
          WHERE organization_id = $1 AND COALESCE(status,'active') = 'active'`,

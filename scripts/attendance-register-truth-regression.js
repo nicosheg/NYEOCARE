@@ -89,8 +89,11 @@ assert.ok(absenceProcessor.includes('does not prove why the person was not recor
 assert.ok(!files.priorityQueue.includes("WHEN inactivity_streak>=4 THEN'extended_absence'")&&
   !files.priorityQueue.includes("WHEN trend<=-.25 OR deviation<=-.25 THEN'emerging_attendance_decline'"),
   'calendar gaps and trend changes alone must not create an absence/decline care signal');
-assert.ok(!files.attendanceIntelligence.includes("WHEN trend<-.45 THEN 'thoughtful_check_in'"),
-  'attendance-only trend must not independently create a care recommendation');
+assert.ok(!files.attendanceIntelligence.includes('GREATEST(0,-trend)*20')&&
+  !files.attendanceIntelligence.includes('COALESCE(em.trend,0)*5')&&
+  !files.attendanceIntelligence.includes("WHEN trend<-.45 THEN")&&
+  files.attendanceIntelligence.includes("'prior_frequency',prior_frequency,'trend',trend"),
+  'attendance trends remain available for analysis but cannot increase care risk or generate relationship/absence claims by themselves');
 assert.ok(!files.careQueue.includes('consecutive_misses')&&
   !files.careQueue.includes('attendance_items AS')&&
   !files.careQueue.includes('was not recorded at'),

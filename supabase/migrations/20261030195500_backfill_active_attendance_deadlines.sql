@@ -1,52 +1,51 @@
--- Source-controlled reconstruction of the migration recorded in production as
--- 20261030195500_backfill_active_attendance_deadlines.
--- It is idempotent and only fills missing deadlines on active sessions.
--- Production already records this migration as applied; do not apply it again there.
+-- Production migration version alignment: Supabase records this backfill as
+-- 20261030195500_backfill_active_attendance_deadlines. The SQL body below is
+-- preserved from the repository's 20261030162000 source and is already applied
+-- in production. Do not blindly re-apply or repair the live migration ledger.
 
-WITH configured AS (
-  SELECT
-    s.id,
-    s.started_at,
-    CASE
-      WHEN EXISTS (
-        SELECT 1
-        FROM pg_catalog.pg_timezone_names z
-        WHERE z.name=COALESCE(NULLIF(o.settings->>'timezone',''),'Africa/Lagos')
-      ) THEN COALESCE(NULLIF(o.settings->>'timezone',''),'Africa/Lagos')
-      ELSE 'Africa/Lagos'
-    END AS time_zone
+-- NYEOCARE: backfill deadlines for sessions that were already live when auto-save shipped.
+-- The current Havilah rollout has no active sessions, but this makes the migration
+-- safe for organizations that still have an open event at deployment time.
+
+WITH timezone_config AS (
+  SELECT o.id organization_id,
+         CASE
+           WHEN EXISTS (
+             SELECT 1 FROM pg_catalog.pg_timezone_names z
+             WHERE z.name=COALESCE(NULLIF(o.settings->>'timezone',''),'Africa/Lagos')
+           ) THEN COALESCE(NULLIF(o.settings->>'timezone',''),'Africa/Lagos')
+           ELSE 'Africa/Lagos'
+         END AS time_zone
+  FROM public.organizations o
+), deadlines AS (
+  SELECT s.id,
+         CASE
+           WHEN local_day_end > s.started_at
+             THEN LEAST(s.started_at + INTERVAL '24 hours',local_day_end)
+           ELSE s.started_at + INTERVAL '24 hours'
+         END AS auto_close_at,
+         CASE
+           WHEN local_day_end > s.started_at
+            AND local_day_end <= s.started_at + INTERVAL '24 hours'
+             THEN 'end_of_day'
+           ELSE '24h'
+         END AS auto_close_reason
   FROM public.sessions s
-  JOIN public.organizations o ON o.id=s.organization_id
+  JOIN timezone_config t ON t.organization_id=s.organization_id
+  CROSS JOIN LATERAL (
+    SELECT ((s.started_at AT TIME ZONE t.time_zone)::date + TIME '23:59')
+      AT TIME ZONE t.time_zone AS local_day_end
+  ) local_deadline
   WHERE s.status='active'
-    AND s.started_at IS NOT NULL
     AND s.auto_close_at IS NULL
-),
-deadlines AS (
-  SELECT
-    id,
-    CASE
-      WHEN end_of_day>started_at
-        THEN LEAST(started_at+INTERVAL '24 hours',end_of_day)
-      ELSE started_at+INTERVAL '24 hours'
-    END AS auto_close_at,
-    CASE
-      WHEN end_of_day>started_at
-       AND end_of_day<=started_at+INTERVAL '24 hours'
-        THEN 'end_of_day'
-      ELSE '24h'
-    END AS auto_close_reason
-  FROM (
-    SELECT
-      id,
-      started_at,
-      ((started_at AT TIME ZONE time_zone)::date + TIME '23:59') AT TIME ZONE time_zone AS end_of_day
-    FROM configured
-  ) local_deadlines
+    AND s.started_at IS NOT NULL
 )
 UPDATE public.sessions s
 SET auto_close_at=d.auto_close_at,
     auto_close_reason=d.auto_close_reason
 FROM deadlines d
-WHERE s.id=d.id
-  AND s.status='active'
-  AND s.auto_close_at IS NULL;
+WHERE s.id=d.id;
+
+CREATE INDEX IF NOT EXISTS sessions_auto_close_due_idx
+  ON public.sessions(auto_close_at,id)
+  WHERE status='active' AND auto_close_at IS NOT NULL;

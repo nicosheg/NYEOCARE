@@ -73,8 +73,9 @@ export default withAdmin(async function handler(req,res){
 
   if(action_id){
    await db.query(`UPDATE aria_actions SET status='cancelled',failure_reason=$1,updated_at=NOW()
-     WHERE id=$2 AND organization_id=$3 AND person_id=$4 AND status IN('proposed','approved')`,[
-      present?'Resolved by human confirmation: person attended.':'Resolved by human confirmation: person did not attend; follow-up moved to person draft.',action_id,orgId,people_id
+     WHERE id=$2 AND organization_id=$3 AND person_id=$4 AND status IN('proposed','approved')
+       AND ($5::boolean=false OR (COALESCE(action_metadata->>'kind','')<>'first_session_check_in' AND COALESCE(action_metadata->>'first_visit_required','false')<>'true'))`,[
+      present?'Resolved by human confirmation: person attended.':'Resolved by human confirmation: person did not attend; follow-up moved to person draft.',action_id,orgId,people_id,present
    ]);
   }
   await db.query(`UPDATE aria_actions SET status='cancelled',failure_reason=$1,updated_at=NOW()
@@ -86,7 +87,7 @@ export default withAdmin(async function handler(req,res){
       )`,[
        present?'Resolved by human attendance correction.':'Attendance context corrected by a human; review action no longer applies.',orgId,people_id,session_id
   ]);
-  await resolveCareWorkInTransaction({db,organizationId:orgId,actorId:userId,personId:people_id,actionId:action_id,observationId:observation_id,reason:present?'Human confirmed attendance.':'Human corrected the attendance and context.',source:'attendance_correction'});
+  await resolveCareWorkInTransaction({db,organizationId:orgId,actorId:userId,personId:people_id,actionId:action_id,observationId:observation_id,reason:present?'Human confirmed attendance.':'Human corrected the attendance and context.',source:'attendance_correction',onlyLinkedQueueItems:true});
 
   await db.query(`INSERT INTO timeline_events(people_id,event_type,title,description,metadata,source,occurred_at,created_at)
     VALUES($1,'attendance_correction','Attendance corrected',$2,$3,'human',COALESCE($4::timestamptz,NOW()),NOW())`,[

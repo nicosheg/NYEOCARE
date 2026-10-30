@@ -993,8 +993,8 @@ export default function AttendanceModal({isOpen,onClose}){
       if(!networkOnline){
         await saveFieldSession(session.user_id||s?.user?.id,session,{closeRequested:true});
         setNotice(registerCompleteness==='complete'
-          ? 'Attendance is saved on this device, but an offline save cannot certify the register as complete. ARIA will keep it unconfirmed until an operator reconciles it online.'
-          : 'Attendance saved on this device. The register declaration cannot sync offline and will remain unconfirmed until an operator reconciles it online.');
+          ? 'Attendance is saved on this device, but an offline save cannot certify the register as complete. This event will remain unconfirmed and will not generate a non-observation review.'
+          : 'Attendance saved on this device. The register remains unconfirmed, so ARIA will not generate a non-observation review from this event.');
         setClosing(false);perf('queued');onClose();return
       }
       if(registerCompleteness==='complete'){

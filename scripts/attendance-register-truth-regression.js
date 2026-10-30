@@ -4,8 +4,8 @@ const fs=require('node:fs');
 
 const read=path=>fs.readFileSync(path,'utf8');
 const files={
- migration:read('supabase/migrations/20261030150000_attendance_register_truth_and_provenance.sql'),
- registerIndexes:read('supabase/migrations/20261030150000_attendance_register_provenance_fk_indexes.sql'),
+ migration:read('supabase/migrations/20261030144541_attendance_register_truth_and_provenance.sql'),
+ registerIndexes:read('supabase/migrations/20261030144837_attendance_register_provenance_fk_indexes.sql'),
  createSession:read('pages/api/attendance/create-session.js'),
  closeSession:read('pages/api/attendance/close-session.js'),
  attendanceUi:read('components/AttendanceModal.js'),

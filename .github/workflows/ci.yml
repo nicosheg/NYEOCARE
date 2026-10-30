@@ -37,6 +37,7 @@ jobs:
       - run: npm run test:attendance-service-pattern
       - run: npm run test:attendance-register-truth
       - run: npm run test:aria-attendance-workspace
+      - run: npm run test:foreign-key-indexes
       - run: npm run test:event-date
       - run: npm run test:attendance-access
       - run: npm run test:person-create-idempotency

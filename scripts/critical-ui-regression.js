@@ -62,6 +62,7 @@ const attendanceCorrectionApi=read('pages/api/attendance/aria-correction.js');
 const attendancePeopleApi=read('pages/api/attendance/people.js');
 const closeApi=read('pages/api/attendance/close-session.js');
 const createApi=read('pages/api/attendance/create-session.js');
+const autoCloseMigration=read('supabase/migrations/20261030160000_attendance_session_auto_close.sql');
 const queueLib=read('lib/aria/attendanceQueue.js');
 const intelligence=read('lib/aria/attendanceIntelligence.js');
 const director=read('lib/aria/director.js');
@@ -87,8 +88,8 @@ const checks=[
   !closeApi.includes('waitUntil')&&!closeApi.includes('processAttendanceSession')],
  ['New attendance does not wait for previous ARIA processing',
   /INSERT INTO sessions\(/.test(createApi)&&/event_kind/.test(createApi)&&/event_semantics/.test(createApi)&&/background_processing_not_blocking:true/.test(createApi)],
- ['Attendance close resets processing state',
-  /aria_processing_attempts=0/.test(closeApi)&&/aria_processing_stage='persist'/.test(closeApi)],
+ ['Attendance close resets processing state inside the atomic database finalizer',
+  /nyeocare_finalize_attendance_session/.test(closeApi)&&/aria_processing_attempts=0/.test(autoCloseMigration)&&/aria_processing_stage='persist'/.test(autoCloseMigration)],
  ['Attendance roster is bounded and cursor-paginated',
   /limit=Math\.min/.test(attendancePeopleApi)&&/next_cursor/.test(attendancePeopleApi)&&/base64url/.test(attendancePeopleApi)],
  ['Attendance roster search stays server-side',

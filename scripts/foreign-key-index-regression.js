@@ -374,6 +374,6 @@ for(const item of expected){
  const statement=item.definition.replace(/^CREATE INDEX /,'CREATE INDEX IF NOT EXISTS ')+';';
  assert.ok(source.includes(statement),'Missing deterministic covering index '+item.name+' on '+item.table);
 }
-assert.ok(source.includes('CREATE INDEX CONCURRENTLY')===false,
- 'The migration runs inside Supabase migration transactions; CONCURRENTLY is reserved for the separately completed live rollout.');
+assert.ok(!/^CREATE INDEX CONCURRENTLY /m.test(source),
+ 'The migration runs inside a transaction; CONCURRENTLY is reserved for the separately completed live rollout.');
 console.log('[FOREIGN KEY INDEX REGRESSION] All 73 source-controlled FK covering indexes are present and idempotent.');

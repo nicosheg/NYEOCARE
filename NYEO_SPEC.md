@@ -2928,7 +2928,7 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 
 ### Care separation
 
-- Attendance is not currently a care trigger. Session creation always writes `absence_meaningful=false`, and `ATTENDANCE_CARE_FOLLOW_UP_ENABLED` remains false in the attendance processor.
+- Attendance is not currently a care trigger. Session creation records the optional event-level `absence_meaningful` preference (off by default) from the final setup checkbox. `ATTENDANCE_CARE_FOLLOW_UP_ENABLED` remains false in the attendance processor, so this preference is stored but does not currently create attendance-based follow-up.
 - No missed-service threshold, Sunday streak, or attendance-based care follow-up is activated by manual or automatic session closure. The organization-level register-review control is removed from the interface until the care policy is designed separately.
 - First-visit welcome and other non-attendance care workflows remain available. A later care policy must be specified and reviewed separately; do not infer that one or two missing marks are sufficient grounds for contact.
 

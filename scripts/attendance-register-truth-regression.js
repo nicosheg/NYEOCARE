@@ -5,7 +5,7 @@ const read=path=>fs.readFileSync(path,'utf8');
 
 const files={
  registerMigration:read('supabase/migrations/20261030144541_attendance_register_truth_and_provenance.sql'),
- autoCloseMigration:read('supabase/migrations/20261030160000_attendance_session_auto_close.sql'),
+ autoCloseMigration:read('supabase/migrations/20261030192018_attendance_session_auto_close.sql'),
  createSession:read('pages/api/attendance/create-session.js'),
  closeSession:read('pages/api/attendance/close-session.js'),
  activeSession:read('pages/api/attendance/active-session.js'),

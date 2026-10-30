@@ -91,7 +91,7 @@ assert.ok(processor.includes("a.action_metadata->>'service_key'=(SELECT ${servic
 assert.ok(processor.includes("AND ac.session_id IN (SELECT ps.id FROM sessions ps"),
   'attendance contexts should only resolve after a return to the matching service');
 
-assert.ok(createSession.includes('const absenceMeaningful=false') &&
+assert.ok(createSession.includes('const absenceMeaningful=absence_meaningful===true') &&
   createSession.includes('auto_close_at') &&
   createSession.includes("TIME '23:59'") &&
   !createSession.includes('attendancePatternFollowUpEnabled'),
@@ -102,7 +102,7 @@ assert.ok(processor.includes('ATTENDANCE_CARE_FOLLOW_UP_ENABLED = false') &&
   'attendance-based care follow-up must remain paused without disabling first-visit care');
 assert.ok(!attendanceUi.includes('same named event') &&
   !attendanceUi.includes('verified register history') &&
-  !attendanceUi.includes('Use verified non-observation') &&
+  attendanceUi.includes('Use verified non-observation for a care review in this event') &&
   attendanceUi.includes('Have you finished marking everyone who attended?'),
   'attendance must not expose care policy or technical register language to operators');
 

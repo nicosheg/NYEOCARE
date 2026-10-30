@@ -61,7 +61,7 @@ assert.ok(attendanceMark.includes('pg_advisory_xact_lock(hashtextextended($1,0))
 assert.doesNotMatch(attendanceMark, /LIMIT 1 FOR UPDATE OF s/,
   'independent live marks must not contend on an exclusive session-row lock');
 
-assert.ok(createSession.includes("[orgId,name.trim(),service_type||null,userId,event_kind||'service'"),
+assert.ok(createSession.includes("[orgId,name.trim(),service_type||null,userId,timing.started_at,timing.auto_close_at,timing.auto_close_reason,event_kind||'service'"),
   'attendance session creation must persist service_type and started_by in their correct positions instead of grouping services by creator UUID');
 
 assert.match(serviceIdentity, /REGEXP_REPLACE/,
@@ -91,16 +91,20 @@ assert.ok(processor.includes("a.action_metadata->>'service_key'=(SELECT ${servic
 assert.ok(processor.includes("AND ac.session_id IN (SELECT ps.id FROM sessions ps"),
   'attendance contexts should only resolve after a return to the matching service');
 
-assert.ok(createSession.includes('const absenceMeaningful=absence_meaningful===true') &&
-  !createSession.includes('normalizeFollowUpPolicy') &&
+assert.ok(createSession.includes('const absenceMeaningful=false') &&
+  createSession.includes('auto_close_at') &&
+  createSession.includes("TIME '23:59'") &&
   !createSession.includes('attendancePatternFollowUpEnabled'),
-  'new sessions must never inherit an organization-wide attendance expectation; event-level non-observation requires an explicit opt-in');
-assert.ok(processor.includes("register_completeness==='complete'") &&
-  processor.includes('register_reviewed_at') && processor.includes('register_reviewed_by') &&
-  processor.includes("organization_policy_disabled") && processor.includes("'REQUEST_REVIEW'"),
-  'non-observation review must require a complete register, source provenance, and the organization policy; it must create a review, not a message');
-assert.ok(attendanceUi.includes('same named event') && attendanceUi.includes('verified register history'),
-  'attendance UI must explain service identity and verified register history rather than assumed weekly patterns');
+  'attendance sessions must remain care-neutral and receive a server-owned local auto-save deadline');
+assert.ok(processor.includes('ATTENDANCE_CARE_FOLLOW_UP_ENABLED = false') &&
+  processor.includes("skipped:'attendance_care_follow_up_paused'") &&
+  processor.includes('async function createFirstVisitFollowUps'),
+  'attendance-based care follow-up must remain paused without disabling first-visit care');
+assert.ok(!attendanceUi.includes('same named event') &&
+  !attendanceUi.includes('verified register history') &&
+  !attendanceUi.includes('Use verified non-observation') &&
+  attendanceUi.includes('Have you finished marking everyone who attended?'),
+  'attendance must not expose care policy or technical register language to operators');
 
 assert.ok(processor.includes("pc.direction='inbound' AND pc.status IN('received','completed','sent','delivered')") &&
   processor.includes("te.source IN('human','conversation_import')") &&

@@ -22,10 +22,10 @@ const files={
 };
 const organizationExpression='\$'+'{organizationId}';
 const checks=[
- ['New sessions require an explicit event-level non-observation opt-in',files.createSession.includes('const absenceMeaningful=absence_meaningful===true')&&!files.createSession.includes('normalizeFollowUpPolicy')],
- ['Absence-like review requires an operator-confirmed complete register and source provenance',files.attendanceProcessor.includes("register_completeness==='complete'")&&files.attendanceProcessor.includes('register_reviewed_by')&&files.attendanceProcessor.includes('register_not_confirmed_complete')],
- ['Register completeness is stored with an append-only audit event',files.closeSession.includes('register_completeness=$5')&&files.closeSession.includes('attendance_register_events')&&files.registerMigration.includes('register_completeness')&&files.registerMigration.includes('FORCE ROW LEVEL SECURITY')],
- ['Attendance absence logic respects event semantics',files.attendanceProcessor.includes('latest.absence_meaningful=true')&&files.attendanceProcessor.includes('latest.participation_expected=true')&&files.attendanceProcessor.includes('latest.optional=false')],
+ ['New sessions remain care-neutral and use a server-owned deadline',files.createSession.includes('const absenceMeaningful=false')&&files.createSession.includes('auto_close_at')&&files.createSession.includes('attendance_session_roster')&&!files.createSession.includes('normalizeFollowUpPolicy')],
+ ['Attendance-based care follow-up remains disabled until a separate policy is approved',files.attendanceProcessor.includes('ATTENDANCE_CARE_FOLLOW_UP_ENABLED = false')&&files.attendanceProcessor.includes("skipped:'attendance_care_follow_up_paused'" )],
+ ['Session finalization retains an append-only register audit event',files.closeSession.includes('nyeocare_finalize_attendance_session')&&files.registerMigration.includes('attendance_register_events')&&files.registerMigration.includes('register_completeness')&&files.registerMigration.includes('FORCE ROW LEVEL SECURITY')],
+ ['Attendance participation processing remains available while attendance-care signals are paused',files.attendanceProcessor.includes('ATTENDANCE_CARE_FOLLOW_UP_ENABLED = false')&&files.attendanceProcessor.includes('insertParticipationAndEvents')],
  ['Group-scoped events restrict absence candidates to active group members',files.attendanceProcessor.includes("latest.event_scope='group'")&&files.attendanceProcessor.includes('person_memberships')],
  ['Temporal memory stores importance and validity',files.memory.includes("importance='temporary'")&&files.memory.includes('validUntil')&&files.memory.includes('valid_until')],
  ['Conflicting memory reports are explicit',files.memory.includes("conflicts=Boolean")&&files.memory.includes("'conflicted'")&&files.truth.includes("verification_status==='conflicted'")],

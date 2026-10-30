@@ -199,12 +199,13 @@ The application must not have a fast path that sends small JPEG/PNG/WebP files r
 
 A source may still differ in the **photograph itself** — lighting, focus, framing, perspective and camera quality are physical differences — but once the browser prepares it, the transformation policy must be identical. Any future change to client image preparation must be benchmarked with the same physical register captured once by camera and once through file selection.
 
-### Human attendance correction from ARIA
-When a user reviews an attendance-derived care signal, ARIA can accept an explicit human correction:
-1. **They attended** → write/update a confirmed attendance record, create/update the attendance participation fact, refresh engagement/relationship/intelligence state, resolve related attendance context, and clear the stale follow-up action.
-2. **They did not attend** → write/update a confirmed absence record, remove any attendance participation fact for that session, preserve optional human context, refresh intelligence, clear the stale follow-up action, and prepare a short unsent follow-up draft.
-3. The correction is a human historical attendance change and uses the same administrative permission boundary as other historical attendance corrections.
-4. A WhatsApp open is never treated as a sent message. Click-to-chat may open WhatsApp with the draft pre-filled, where the user remains responsible for editing and sending it.
+### Admin-verified attendance correction from ARIA
+When a saved attendance record is later questioned, only an owner/admin may correct it:
+1. The authorized person selects whether the person attended or did not attend.
+2. ARIA asks the administrator to verify the decision before saving it. The UI sends an explicit `verified=true`, and the endpoint rejects corrections without it.
+3. The server uses the `withAdmin` permission boundary, writes a confirmed `attendance_records` row with `source='admin_correction'`, and updates the related participation and ARIA context transactionally.
+4. A normal operator or worker cannot correct a saved session through the attendance sync endpoint. Late offline marks stay on the originating device and require an owner/admin to verify them through ARIA; a client timestamp is never trusted to overwrite a finalized register.
+5. This correction is a human decision, not automatic attendance inference. ARIA does not send a message automatically.
 
 ### Review queue clearing
 Review Center distinguishes evidence that still needs a human decision from evidence the operator intentionally dismisses. Scan review items may be selected individually, including by a mobile long-press gesture, and dismissed in bulk. Bulk dismissal changes the review item to `rejected` with an auditable decision record; it must not delete the original scan evidence, scan job, or person records. Database duplicate groups are never part of scan-review bulk dismissal and retain their dedicated merge/keep-separate workflow.
@@ -2904,31 +2905,36 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 
 ---
 
-## 59. OCTOBER 30, 2026 — ATTENDANCE TRUTH AND REGISTER COMPLETENESS
+## 59. OCTOBER 30, 2026 — SIMPLE LIVE ATTENDANCE AND SERVER AUTO-SAVE
 
-### Product rule
+### Product behavior
 
-- An attendance session is not a complete register merely because an operator saved or closed it. New and historical sessions default to `register_completeness='unconfirmed'`.
-- Register states are explicit: `unconfirmed`, `incomplete`, and `complete`. A complete declaration must record its source, timestamp, and accountable operator. Every declaration is appended to `attendance_register_events`.
-- A register source is one of: NYEOCARE digital roster, reconciled paper register, manual reconciliation, or another described source. The operator may also record a note about an incomplete register or corrections.
-- A new event has `absence_meaningful=false` unless an operator explicitly enables non-observation for that particular event. The organization-level `attendancePatternFollowUpEnabled` policy also defaults to `false`; an owner/admin must explicitly enable it before an event-level opt-in can be effective.
-- A verified complete register and an explicit event-level opt-in are both required before ARIA can consider a non-observation. Historical comparison sessions must independently have complete-register provenance and matching event/service identity.
-- The signal is named `ATTENDANCE_NOT_OBSERVED`, not an absence diagnosis. It records that a confirmed present mark was not found in the operator-reconciled register. It does not assert physical absence, invent a reason, or identify a personal circumstance.
-- The resulting action is `attendance_register_review` with type `REQUEST_REVIEW`. It asks an operator to review the register and corrections. It is not a message draft and does not enter the outbound follow-up lane.
-- Offline saves cannot certify register completeness. Their server-side close path remains unconfirmed until an operator reconciles the register online. A digital roster declaration is blocked on the client while roster pages or attendance changes remain unsynchronized.
-- Legacy `UNUSUAL_ABSENCE` observations and their routine attendance follow-up actions are retired because their source registers were never verified complete. New processing uses the explicit non-observation event and audit trail.
+- Attendance is intentionally simple and separate from attendance-based care follow-up.
+- Starting a session snapshots the organization's active People roster into `attendance_session_roster`. A first-time visitor added during the live session is added to the same snapshot.
+- The session remains active on the server even when every operator closes the Attendance screen, locks a phone, loses the app in the background, or turns a device off. A browser does not own the session lifetime.
+- Every session receives a server-calculated `auto_close_at`: the earlier of 24 hours after `started_at` or 23:59 on the same calendar day in the organization's validated timezone (Havilah uses `Africa/Lagos`). If the same-day 23:59 cutoff has already passed when a session starts, the 24-hour deadline applies.
+- Supabase `pg_cron` runs `nyeocare_auto_close_attendance_sessions` every second. It closes due sessions with row locking and skip-locked batching; the job does not depend on any phone or browser remaining open.
+- The Attendance UI exposes one **Save attendance** action. It asks one plain-language confirmation: **Have you finished marking everyone who attended?** **Cancel** dismisses the confirmation and leaves the shared session live. **Yes, save attendance** closes the session.
+- On manual confirmation, all existing marks are finalized and every person in the session's expected roster who has not been marked Present receives a `present=false`, `status='not_present'` attendance row. This is the operator's explicit statement that attendance marking is finished.
+- At automatic deadline closure, existing marks are finalized and unmarked roster people are recorded as not present with `source='auto_close'`. The automatic closure has no human reviewer and the register remains `unconfirmed`; the system does not pretend a human checked it.
+- Both closure paths append a register audit event and enqueue the existing durable attendance processing pipeline. Positive attendance remains recorded as participation; an automatic not-present record is not a personal explanation or a care diagnosis.
 
-### Intelligence and interface changes
+### Correction and offline safety
 
-- Removed calendar-gap and attendance-trend-only rules from the priority queue that described people as having extended absence or declining attendance without an event-specific complete register.
-- Removed the separate recent-sessions/consecutive-misses inference from the Care Queue. The Care Queue now consumes recorded observations and human-approved actions rather than deriving its own absence claims.
-- The `last_event_absentees` cohort is deliberately unavailable until NYEOCARE has an explicit expected-population resolver. Knowing a register is complete does not, by itself, define who was expected at a scoped or optional event.
-- Confirmed attendees remain queryable from positive attendance records, including when a register is incomplete. Positive participation is evidence; missing marks are not.
-- Director inventory, event resolution, cohort explanations, and Daily Queue handling recognize the new review-only signal. A later confirmed attendance can resolve an earlier non-observation review without creating a story about why the earlier mark was missing.
+- Once a session is closed, the ordinary attendance sync endpoint rejects edits. A browser-provided timestamp cannot be used to silently backdate a mark over an auto-finalized row.
+- Offline attendance mutations remain in the originating device's outbox when a session closes before they can sync. They are reported as needing owner/admin review; they are not discarded or silently promoted into confirmed attendance.
+- Only the owner/admin correction path can update a saved record. ARIA must show a second, explicit verification step; the client sends `verified=true`, while the server independently enforces `withAdmin`. Corrected records carry `source='admin_correction'`.
+- Attendance marking, unmarking, live multi-device updates, visitor capture, first-visit welcome recording, discard permissions, and offline queuing remain separate from the deadline worker.
 
-### Rollout and verification
+### Care separation
 
-- Apply `supabase/migrations/20261030144541_attendance_register_truth_and_provenance.sql` and `supabase/migrations/20261030144837_attendance_register_provenance_fk_indexes.sql` before deploying the application commit that reads the new session columns and audit table.
-- Run the new attendance-register-truth regression, existing attendance/service-pattern tests, ARIA V2 and final architecture regressions, the full CI suite, and the Next.js production build.
-- Verify Havilah's historical events remain unconfirmed and do not generate absence actions. Verify a new event remains neutral by default; an incomplete register generates no non-observation; and a complete, sourced, operator-reviewed register with explicit event opt-in can generate only a human register-review item.
-- Do not call the absentee cohort or absence inference generally production-complete until an event-specific expected-population model is designed, persisted, and tested for organization, group, private, optional, and special-event scopes.
+- Attendance is not currently a care trigger. Session creation always writes `absence_meaningful=false`, and `ATTENDANCE_CARE_FOLLOW_UP_ENABLED` remains false in the attendance processor.
+- No missed-service threshold, Sunday streak, or attendance-based care follow-up is activated by manual or automatic session closure. The organization-level register-review control is removed from the interface until the care policy is designed separately.
+- First-visit welcome and other non-attendance care workflows remain available. A later care policy must be specified and reviewed separately; do not infer that one or two missing marks are sufficient grounds for contact.
+
+### Migration and verification
+
+- Apply `supabase/migrations/20261030160000_attendance_session_auto_close.sql` before deploying code that writes deadlines and roster snapshots.
+- Verify the scheduled cron job is active, auto-close runs against a due session, unmarked roster entries become `not_present` with `source='auto_close'`, an audit event is appended, and the SQL smoke test leaves no session residue.
+- Regression coverage must protect the plain-language confirmation/cancel behavior, session lifetime independence from browsers, time-zone deadline calculation, roster snapshot, offline post-close protection, admin verification, and the continued first-visit flow.
+- Production readiness requires green CI and a READY Vercel deployment whose source SHA matches the reviewed/merged commit. A real Havilah service test is still required to validate staff experience across phones.

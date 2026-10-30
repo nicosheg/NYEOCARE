@@ -190,6 +190,17 @@ export default withOrg(async function handler(req,res){
       });
     }
 
+    await client.query(
+      `INSERT INTO attendance_session_roster(organization_id,session_id,person_id,source)
+       SELECT $1,$2,$3,'attendance_visitor'
+       WHERE EXISTS(
+         SELECT 1 FROM sessions
+         WHERE id=$2 AND organization_id=$1 AND status='active'
+       )
+       ON CONFLICT DO NOTHING`,
+      [orgId,effectiveSessionId,person.id]
+    );
+
     await client.query('COMMIT');
   }catch(err){
     try{await client.query('ROLLBACK')}catch{}

@@ -8,12 +8,13 @@ const clean=(v,max=1000)=>String(v??'').trim().slice(0,max);
 
 export default withAdmin(async function handler(req,res){
  if(req.method!=='POST')return res.status(405).json({error:'Method not allowed'});
- const{session_id,people_id,present,note='',action_id=null,observation_id=null}=req.body||{};
+ const{session_id,people_id,present,note='',action_id=null,observation_id=null,verified=false}=req.body||{};
  if(!session_id||!people_id||typeof present!=='boolean')return res.status(400).json({error:'session_id, people_id and present are required.'});
+ if(verified!==true)return res.status(400).json({error:'An administrator must explicitly verify this attendance correction first.'});
  const orgId=req.org.id,userId=req.user.id,db=await pool.connect();
  try{
   await db.query('BEGIN');
-  const session=(await db.query(`SELECT s.id,s.name,s.status,s.started_at,s.service_type,COALESCE(NULLIF(o.settings->>'timezone',''),'Africa/Lagos') AS organization_timezone FROM sessions s JOIN organizations o ON o.id=s.organization_id WHERE s.id=$1 AND s.organization_id=$2 LIMIT 1`,[session_id,orgId])).rows[0];
+  const session=(await db.query(`SELECT s.id,s.name,s.status,s.started_at,s.service_type,s.register_completeness,s.register_source,COALESCE(NULLIF(o.settings->>'timezone',''),'Africa/Lagos') AS organization_timezone FROM sessions s JOIN organizations o ON o.id=s.organization_id WHERE s.id=$1 AND s.organization_id=$2 LIMIT 1`,[session_id,orgId])).rows[0];
   if(!session){await db.query('ROLLBACK');return res.status(404).json({error:'Attendance session not found.'})}
   if(session.status!=='closed'){await db.query('ROLLBACK');return res.status(409).json({error:'Only a saved attendance session can be corrected from here.'})}
   const person=(await db.query(`SELECT id,first_name,last_name,display_name FROM people WHERE id=$1 AND organization_id=$2 AND status='active' LIMIT 1`,[people_id,orgId])).rows[0];
@@ -22,11 +23,11 @@ export default withAdmin(async function handler(req,res){
   const existing=(await db.query(`SELECT id FROM attendance_records WHERE organization_id=$1 AND session_id=$2 AND people_id=$3 LIMIT 1 FOR UPDATE`,[orgId,session_id,people_id])).rows[0];
   if(existing){
    await db.query(`UPDATE attendance_records
-     SET present=$1,status=$2,confirmed=true,marked_by=$3,marked_at=NOW(),reviewed_by=$3,reviewed_at=NOW()
+     SET present=$1,status=$2,confirmed=true,marked_by=$3,marked_at=NOW(),reviewed_by=$3,reviewed_at=NOW(),source='admin_correction'
      WHERE id=$4 AND organization_id=$5`,[present,present?'present':'not_present',userId,existing.id,orgId]);
   }else{
-   await db.query(`INSERT INTO attendance_records(people_id,attendance_date,present,session_id,marked_by,marked_at,status,confirmed,reviewed_by,reviewed_at,organization_id)
-     VALUES($1,$2,$3,$4,$5,NOW(),$6,true,$5,NOW(),$7)`,[
+   await db.query(`INSERT INTO attendance_records(people_id,attendance_date,present,session_id,marked_by,marked_at,status,confirmed,reviewed_by,reviewed_at,organization_id,source)
+     VALUES($1,$2,$3,$4,$5,NOW(),$6,true,$5,NOW(),$7,'admin_correction')`,[
       people_id,
       eventAttendanceDate(session.started_at,session.organization_timezone),
       present,
@@ -36,6 +37,17 @@ export default withAdmin(async function handler(req,res){
       orgId
    ]);
   }
+
+  await db.query(`
+    INSERT INTO attendance_register_events(
+      organization_id,session_id,register_completeness,register_source,note,actor_id,recorded_at
+    )
+    VALUES($1,$2,$3,$4,$5,$6,NOW())
+  `,[
+    orgId,session_id,session.register_completeness||'unconfirmed',session.register_source||null,
+    `Admin verified attendance correction for person ${people_id}: marked ${present?'present':'not present'}.`,
+    userId
+  ]);
 
   if(present){
    await db.query(`INSERT INTO participation_records(organization_id,person_id,session_id,participation_type,value,occurred_at)
@@ -61,8 +73,9 @@ export default withAdmin(async function handler(req,res){
 
   if(action_id){
    await db.query(`UPDATE aria_actions SET status='cancelled',failure_reason=$1,updated_at=NOW()
-     WHERE id=$2 AND organization_id=$3 AND person_id=$4 AND status IN('proposed','approved')`,[
-      present?'Resolved by human confirmation: person attended.':'Resolved by human confirmation: person did not attend; follow-up moved to person draft.',action_id,orgId,people_id
+     WHERE id=$2 AND organization_id=$3 AND person_id=$4 AND status IN('proposed','approved')
+       AND ($5::boolean=false OR (COALESCE(action_metadata->>'kind','')<>'first_session_check_in' AND COALESCE(action_metadata->>'first_visit_required','false')<>'true'))`,[
+      present?'Resolved by human confirmation: person attended.':'Resolved by human confirmation: person did not attend; follow-up moved to person draft.',action_id,orgId,people_id,present
    ]);
   }
   await db.query(`UPDATE aria_actions SET status='cancelled',failure_reason=$1,updated_at=NOW()
@@ -71,10 +84,11 @@ export default withAdmin(async function handler(req,res){
         action_metadata->>'session_id'=$4
         OR action_metadata->>'care_session_id'=$4
         OR action_metadata->>'attendance_session_id'=$4
-      )`,[
-       present?'Resolved by human attendance correction.':'Attendance context corrected by a human; review action no longer applies.',orgId,people_id,session_id
+      )
+      AND ($5::boolean=false OR (COALESCE(action_metadata->>'kind','')<>'first_session_check_in' AND COALESCE(action_metadata->>'first_visit_required','false')<>'true'))`,[
+       present?'Resolved by human attendance correction.':'Attendance context corrected by a human; review action no longer applies.',orgId,people_id,session_id,present
   ]);
-  await resolveCareWorkInTransaction({db,organizationId:orgId,actorId:userId,personId:people_id,actionId:action_id,observationId:observation_id,reason:present?'Human confirmed attendance.':'Human corrected the attendance and context.',source:'attendance_correction'});
+  await resolveCareWorkInTransaction({db,organizationId:orgId,actorId:userId,personId:people_id,actionId:action_id,observationId:observation_id,reason:present?'Human confirmed attendance.':'Human corrected the attendance and context.',source:'attendance_correction',onlyLinkedQueueItems:true});
 
   await db.query(`INSERT INTO timeline_events(people_id,event_type,title,description,metadata,source,occurred_at,created_at)
     VALUES($1,'attendance_correction','Attendance corrected',$2,$3,'human',COALESCE($4::timestamptz,NOW()),NOW())`,[

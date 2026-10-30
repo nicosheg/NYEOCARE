@@ -4,7 +4,7 @@ ALTER TABLE public.sessions
   ADD COLUMN IF NOT EXISTS register_completeness text NOT NULL DEFAULT 'unconfirmed',
   ADD COLUMN IF NOT EXISTS register_source text,
   ADD COLUMN IF NOT EXISTS register_reviewed_at timestamptz,
-  ADD COLUMN IF NOT EXISTS register_reviewed_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS register_reviewed_by uuid REFERENCES public.users(id) ON DELETE RESTRICT,
   ADD COLUMN IF NOT EXISTS register_review_note text;
 
 -- The prior event-semantics migration opted neutral service events into absence
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS public.attendance_register_events (
   register_source text
     CHECK (register_source IS NULL OR register_source IN ('digital_roster','paper_sheet','manual_reconciliation','other')),
   note text,
-  actor_id uuid REFERENCES public.users(id) ON DELETE SET NULL,
+  actor_id uuid REFERENCES public.users(id) ON DELETE RESTRICT,
   recorded_at timestamptz NOT NULL DEFAULT now(),
   CHECK (
     register_completeness <> 'complete'

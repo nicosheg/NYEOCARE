@@ -166,6 +166,7 @@ export default function AttendanceModal({isOpen,onClose}){
   },[]);
 
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false}},[]);
+  useEffect(()=>{if(!isOpen)setShowFinishConfirm(false)},[isOpen]);
 
   useEffect(()=>{
     if(!isOpen)return;
@@ -493,10 +494,10 @@ export default function AttendanceModal({isOpen,onClose}){
           );
           if(pending>0||(refreshed?.closeRequested&&!serverConfirmsClosed)){
             setSession({...fieldCached.session,status:serverConfirmsClosed?'closed':'active',user_id:s.user.id});
-            setCanDiscard(!serverConfirmsClosed&&fieldCached.session?.can_discard===true);
             applyCachedRoster(fieldCached);
+            setCanDiscard(!serverConfirmsClosed&&fieldCached.session?.can_discard===true);
             setNotice(serverConfirmsClosed
-              ? 'This attendance has already been saved. Some offline marks still need to sync or be checked by an owner or admin; no saved marks have been discarded.'
+              ? 'Attendance has already been saved. Unsent marks are still on this phone and need an owner or admin to verify them through ARIA; nothing was deleted.'
               : pending>0?'Saved attendance still has marks waiting to sync. NYEOCARE is preserving them on this device.':'Attendance close is still being reconciled; the saved session remains on this device.');
             setLoading(false);return;
           }
@@ -531,11 +532,11 @@ export default function AttendanceModal({isOpen,onClose}){
         if(oldPending>0){
           const oldSessionClosed=String(data.last_closed_session_id||'')===String(fieldCached.sessionId);
           setSession({...fieldCached.session,status:oldSessionClosed?'closed':'active',user_id:s.user.id});
-          setCanDiscard(!oldSessionClosed&&fieldCached.session?.can_discard===true);
           applyCachedRoster(fieldCached);
+          setCanDiscard(!oldSessionClosed&&fieldCached.session?.can_discard===true);
           lastSearchKey.current=attendanceSearchKey(fieldCached.sessionId,currentQuery);
           setNotice(oldSessionClosed
-            ? 'The previous attendance has already been saved. Some offline marks still need to sync or be checked by an owner or admin; nothing was discarded.'
+            ? 'The previous attendance has already been saved. Unsent marks are still on this phone and need an owner or admin to verify them through ARIA; nothing was deleted.'
             : 'Your previous attendance session still has unsynced marks. NYEOCARE is preserving them on this device while synchronization retries.');
           setError('');
           setLoading(false);
@@ -1252,9 +1253,9 @@ export default function AttendanceModal({isOpen,onClose}){
         </p>
         <div style={{display:'flex',justifyContent:'flex-end',gap:8,flexWrap:'wrap'}}>
           <button type="button" style={discardButton} disabled={closing} onClick={()=>setShowFinishConfirm(false)}>Cancel</button>
-          <button type="button" style={keepButton} disabled={closing||pendingCount>0||legacyPendingCount>0} onClick={keep}>{closing?'Saving…':'Yes, save attendance'}</button>
+          <button type="button" style={keepButton} disabled={closing||legacyPendingCount>0||(networkOnline&&pendingCount>0)} onClick={keep}>{closing?'Saving…':'Yes, save attendance'}</button>
         </div>
-        {(pendingCount>0||legacyPendingCount>0)&&<span style={{marginTop:10,fontSize:11,color:'rgba(255,210,140,.9)'}}>Wait for the pending attendance changes to sync before saving.</span>}
+        {(networkOnline&&pendingCount>0||legacyPendingCount>0)&&<span style={{marginTop:10,fontSize:11,color:'rgba(255,210,140,.9)'}}>Wait for the pending attendance changes to sync before saving.</span>}
       </div>
     </div>}
   </div>;

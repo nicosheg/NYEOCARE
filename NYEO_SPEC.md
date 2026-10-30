@@ -2900,3 +2900,35 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 - Merge writes compatible proposal contact data and alias evidence into the selected active record, leaving one canonical People record. Keep separate creates a verified People record only after a human decision and records the pair decision (and confirmed shared-phone evidence when relevant). Neither action can cross an organization boundary.
 - Public client roles have no direct grants on the durable queue table; RLS remains enabled and the server API is the only application write/read path. The queue records actor, candidate IDs, proposed payload, decision, timestamps, and the final person ID.
 - Regression coverage must guard manual/ bulk/attendance/ARIA write paths, idempotent retries after editing, pending visibility, verified resolution, and non-reappearance of confirmed distinct pairs. Production readiness requires green CI and a READY Vercel deployment whose source SHA matches the reviewed/merged commit.
+
+
+---
+
+## 59. OCTOBER 30, 2026 — ATTENDANCE TRUTH AND REGISTER COMPLETENESS
+
+### Product rule
+
+- An attendance session is not a complete register merely because an operator saved or closed it. New and historical sessions default to `register_completeness='unconfirmed'`.
+- Register states are explicit: `unconfirmed`, `incomplete`, and `complete`. A complete declaration must record its source, timestamp, and accountable operator. Every declaration is appended to `attendance_register_events`.
+- A register source is one of: NYEOCARE digital roster, reconciled paper register, manual reconciliation, or another described source. The operator may also record a note about an incomplete register or corrections.
+- A new event has `absence_meaningful=false` unless an operator explicitly enables non-observation for that particular event. The organization-level `attendancePatternFollowUpEnabled` policy also defaults to `false`; an owner/admin must explicitly enable it before an event-level opt-in can be effective.
+- A verified complete register and an explicit event-level opt-in are both required before ARIA can consider a non-observation. Historical comparison sessions must independently have complete-register provenance and matching event/service identity.
+- The signal is named `ATTENDANCE_NOT_OBSERVED`, not an absence diagnosis. It records that a confirmed present mark was not found in the operator-reconciled register. It does not assert physical absence, invent a reason, or identify a personal circumstance.
+- The resulting action is `attendance_register_review` with type `REQUEST_REVIEW`. It asks an operator to review the register and corrections. It is not a message draft and does not enter the outbound follow-up lane.
+- Offline saves cannot certify register completeness. Their server-side close path remains unconfirmed until an operator reconciles the register online. A digital roster declaration is blocked on the client while roster pages or attendance changes remain unsynchronized.
+- Legacy `UNUSUAL_ABSENCE` observations and their routine attendance follow-up actions are retired because their source registers were never verified complete. New processing uses the explicit non-observation event and audit trail.
+
+### Intelligence and interface changes
+
+- Removed calendar-gap and attendance-trend-only rules from the priority queue that described people as having extended absence or declining attendance without an event-specific complete register.
+- Removed the separate recent-sessions/consecutive-misses inference from the Care Queue. The Care Queue now consumes recorded observations and human-approved actions rather than deriving its own absence claims.
+- The `last_event_absentees` cohort is deliberately unavailable until NYEOCARE has an explicit expected-population resolver. Knowing a register is complete does not, by itself, define who was expected at a scoped or optional event.
+- Confirmed attendees remain queryable from positive attendance records, including when a register is incomplete. Positive participation is evidence; missing marks are not.
+- Director inventory, event resolution, cohort explanations, and Daily Queue handling recognize the new review-only signal. A later confirmed attendance can resolve an earlier non-observation review without creating a story about why the earlier mark was missing.
+
+### Rollout and verification
+
+- Apply `supabase/migrations/20261030144541_attendance_register_truth_and_provenance.sql` and `supabase/migrations/20261030144837_attendance_register_provenance_fk_indexes.sql` before deploying the application commit that reads the new session columns and audit table.
+- Run the new attendance-register-truth regression, existing attendance/service-pattern tests, ARIA V2 and final architecture regressions, the full CI suite, and the Next.js production build.
+- Verify Havilah's historical events remain unconfirmed and do not generate absence actions. Verify a new event remains neutral by default; an incomplete register generates no non-observation; and a complete, sourced, operator-reviewed register with explicit event opt-in can generate only a human register-review item.
+- Do not call the absentee cohort or absence inference generally production-complete until an event-specific expected-population model is designed, persisted, and tested for organization, group, private, optional, and special-event scopes.

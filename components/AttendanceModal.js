@@ -62,6 +62,10 @@ export default function AttendanceModal({isOpen,onClose}){
   const[notice,setNotice]=useState('');
   const[query,setQuery]=useState('');
   const[sessionName,setSessionName]=useState('');
+  const[absenceMeaningful,setAbsenceMeaningful]=useState(false);
+  const[registerCompleteness,setRegisterCompleteness]=useState('unconfirmed');
+  const[registerSource,setRegisterSource]=useState('digital_roster');
+  const[registerReviewNote,setRegisterReviewNote]=useState('');
   const[showAddVisitor,setShowAddVisitor]=useState(false);
   const[visitorName,setVisitorName]=useState('');
   const[visitorPhone,setVisitorPhone]=useState('');
@@ -783,7 +787,7 @@ export default function AttendanceModal({isOpen,onClose}){
           'Content-Type':'application/json',
           Authorization:`Bearer ${s.access_token}`
         },
-        body:JSON.stringify({name})
+        body:JSON.stringify({name,absence_meaningful:absenceMeaningful===true})
       });
       const data=await read(response);
       if(!response.ok||!data.success)throw Error(data.error||'Could not start attendance.');
@@ -803,6 +807,10 @@ export default function AttendanceModal({isOpen,onClose}){
       setFieldRoster([]);setFieldReady(false);setPendingCount(0);fieldWarmAt.current=0;
       setBackground(null);
       setSessionName('');
+      setAbsenceMeaningful(false);
+      setRegisterCompleteness('unconfirmed');
+      setRegisterSource('digital_roster');
+      setRegisterReviewNote('');
       setCursor(null);
       setHasMore(false);
       setLoading(true);
@@ -982,8 +990,19 @@ export default function AttendanceModal({isOpen,onClose}){
     const perf=measurePerformance('attendance_save',{network:networkOnline?'online':'offline'});setClosing(true);setError('');
     try{
       const s=networkOnline?await getClientSession():null;
-      if(!networkOnline){await saveFieldSession(session.user_id||s?.user?.id,session,{closeRequested:true});setNotice('Attendance saved on this device. It will finish syncing automatically when the connection returns.');setClosing(false);perf('queued');onClose();return}
-      const response=await fetchAttendanceWithTimeout('/api/attendance/close-session',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.access_token},body:JSON.stringify({session_id:session.session_id})});
+      if(!networkOnline){
+        await saveFieldSession(session.user_id||s?.user?.id,session,{closeRequested:true});
+        setNotice(registerCompleteness==='complete'
+          ? 'Attendance is saved on this device, but an offline save cannot certify the register as complete. This event will remain unconfirmed and will not generate a non-observation review.'
+          : 'Attendance saved on this device. The register remains unconfirmed, so ARIA will not generate a non-observation review from this event.');
+        setClosing(false);perf('queued');onClose();return
+      }
+      if(registerCompleteness==='complete'){
+        if(pendingCount>0||legacyPendingCount>0)throw Error('Wait for every offline attendance change to sync before confirming a complete register.');
+        if(registerSource==='digital_roster'&&!rosterSnapshotComplete)throw Error('The full digital roster has not been verified on this device. Refresh and reconcile the register before confirming it as complete.');
+        if(registerSource==='other'&&!registerReviewNote.trim())throw Error('Describe the other register source before confirming completeness.');
+      }
+      const response=await fetchAttendanceWithTimeout('/api/attendance/close-session',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.access_token},body:JSON.stringify({session_id:session.session_id,register_completeness:registerCompleteness,register_source:registerSource,register_note:registerReviewNote.trim()||null})});
       const data=await read(response);if(!response.ok||!data.success)throw Object.assign(Error(data.error||'Attendance could not be saved yet.'),{transient:response.status>=500||response.status===0});
       await clearFieldSession(s.user.id,session.session_id);clearCached('attendance:'+s.user.id);publishDataChange('attendance');perf('ok');onClose();
     }catch(e){
@@ -1077,8 +1096,12 @@ export default function AttendanceModal({isOpen,onClose}){
           autoFocus
         />
         <span style={{...sub,fontSize:12,textAlign:"center"}}>
-          Reuse the same specific name for a recurring service each time, for example Main Sunday Service or Wednesday Bible Study. ARIA compares service patterns by date and service name, not only by weekday.
+          Use a clear event name. NYEOCARE does not assume a Sunday or weekly schedule; comparisons require the same named event and verified register history.
         </span>
+        <label style={{display:'flex',alignItems:'flex-start',gap:9,width:'100%',maxWidth:480,padding:'12px 14px',borderRadius:14,border:'1px solid rgba(212,175,55,.25)',background:'rgba(212,175,55,.06)',fontSize:12,lineHeight:1.5,color:'rgba(255,255,255,.84)'}}>
+          <input type="checkbox" checked={absenceMeaningful} onChange={e=>setAbsenceMeaningful(e.target.checked)} style={{marginTop:2,accentColor:'#D4AF37'}} />
+          <span><strong style={{display:'block',color:'#E9D28A',marginBottom:2}}>Use verified non-observation for a care review in this event</strong>Off by default. This does not mean anyone is absent or explain why; it only allows ARIA to consider a cautious signal after the register is explicitly confirmed complete.</span>
+        </label>
         <button
           style={{...primary,opacity:saving||!sessionName.trim()?0.55:1}}
           disabled={saving||!sessionName.trim()}
@@ -1185,6 +1208,27 @@ export default function AttendanceModal({isOpen,onClose}){
           </button>}
         </div>
 
+        <div style={{margin:'0 18px 10px',padding:'11px 12px',borderRadius:14,border:'1px solid rgba(255,255,255,.12)',background:'rgba(0,0,0,.13)',display:'grid',gap:7}}>
+          <label style={{display:'grid',gap:5,fontSize:11,color:'rgba(255,255,255,.78)'}}>
+            Register completeness
+            <select value={registerCompleteness} onChange={e=>setRegisterCompleteness(e.target.value)} disabled={closing} style={{...input,width:'100%',fontSize:12,padding:'9px 10px'}}>
+              <option value="unconfirmed">Not verified — do not infer non-attendance</option>
+              <option value="incomplete">Incomplete — more entries still need checking</option>
+              <option value="complete">Complete — I reconciled the full event register</option>
+            </select>
+          </label>
+          <label style={{display:'grid',gap:5,fontSize:11,color:'rgba(255,255,255,.78)'}}>
+            Register source
+            <select value={registerSource} onChange={e=>setRegisterSource(e.target.value)} disabled={closing} style={{...input,width:'100%',fontSize:12,padding:'9px 10px'}}>
+              <option value="digital_roster">NYEOCARE digital roster</option>
+              <option value="paper_sheet">Paper register reconciled into NYEOCARE</option>
+              <option value="manual_reconciliation">Manual reconciliation against verified records</option>
+              <option value="other">Other verified source</option>
+            </select>
+          </label>
+          {(registerSource==='other'||registerCompleteness==='incomplete')&&<input value={registerReviewNote} onChange={e=>setRegisterReviewNote(e.target.value)} maxLength={500} placeholder={registerSource==='other'?'Describe the register source':'What still needs checking or correcting?'} style={{...input,width:'100%',fontSize:12,padding:'9px 10px'}} disabled={closing}/>}
+          <span style={{fontSize:10,lineHeight:1.45,color:'rgba(255,255,255,.58)'}}>Saving closes the event; it does not declare the register complete. Only choose Complete after every expected entry has been checked and reconciled. Offline or unsynced marks always remain unconfirmed.</span>
+        </div>
         <footer style={footer}>
           <div style={live}><i/>Live attendance <span style={fieldState}>{fieldStatus}</span></div>
           <div style={footerActions}>

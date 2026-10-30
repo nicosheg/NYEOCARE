@@ -19,7 +19,7 @@ const checks=[
  ['Person journey has bounded collections',has('pages/api/person/journey.js','LIMIT 100')&&has('pages/api/person/journey.js','LIMIT 50')],
  ['ARIA daily has no people×sessions cross join',!daily.includes('CROSS JOIN sessions')],
  ['Care Queue has no people×all-session cross join',!care.includes('CROSS JOIN recent_sessions')&&!care.includes('CROSS JOIN sessions')],
- ['Care Queue current attendance check is bounded and set-based',has('pages/api/care-queue.js','current_attended')&&has('pages/api/care-queue.js','attendance_records')&&!care.includes('CROSS JOIN people')],
+ ['Care Queue is bounded and reads recorded observations/actions rather than deriving absence from session history',has('pages/api/care-queue.js','latest_obs')&&has('pages/api/care-queue.js','pending_action')&&has('pages/api/care-queue.js','LIMIT 100')&&!care.includes('attendance_records')&&!care.includes('current_attended')&&!care.includes('consecutive_misses')&&!care.includes('CROSS JOIN people')],
  ['Duplicate detection avoids quadratic phone scan',!duplicate.includes('for(const q of rows)')&&has('lib/duplicateDetector.js','phoneIndex')],
  ['AI token ceiling follows model registry',has('lib/aiGateway.js','config.max_completion_tokens')&&has('lib/modelRegistry.js','max_completion_tokens')],
  ['Review transaction releases connection before post-commit work',has('pages/api/review/resolve.js',"db.release();released=true;await learn(pool")&&has('pages/api/review/resolve.js',"finally{if(!released)db.release()}")],

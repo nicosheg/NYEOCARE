@@ -4,6 +4,8 @@ const read=p=>readFileSync(p,'utf8');
 const files={
  createSession:read('pages/api/attendance/create-session.js'),
  attendanceProcessor:read('lib/aria/attendanceProcessor.js'),
+ closeSession:read('pages/api/attendance/close-session.js'),
+ registerMigration:read('supabase/migrations/20261030144541_attendance_register_truth_and_provenance.sql'),
  memory:read('lib/aria/memoryEngine.js'),
  truth:read('lib/aria/truthEngine.js'),
  careContacts:read('lib/aria/careContacts.js'),
@@ -20,7 +22,9 @@ const files={
 };
 const organizationExpression='\$'+'{organizationId}';
 const checks=[
- ['New attendance events use an organization-controlled attendance-follow-up policy with per-session opt-outs',files.createSession.includes('normalizeFollowUpPolicy')&&files.createSession.includes('followUpPolicy.attendancePatternFollowUpEnabled')&&files.createSession.includes("typeof absence_meaningful==='boolean'")&&files.createSession.includes("absenceMeaningful===true")],
+ ['New sessions require an explicit event-level non-observation opt-in',files.createSession.includes('const absenceMeaningful=absence_meaningful===true')&&!files.createSession.includes('normalizeFollowUpPolicy')],
+ ['Absence-like review requires an operator-confirmed complete register and source provenance',files.attendanceProcessor.includes("register_completeness==='complete'")&&files.attendanceProcessor.includes('register_reviewed_by')&&files.attendanceProcessor.includes('register_not_confirmed_complete')],
+ ['Register completeness is stored with an append-only audit event',files.closeSession.includes('register_completeness=$5')&&files.closeSession.includes('attendance_register_events')&&files.registerMigration.includes('register_completeness')&&files.registerMigration.includes('FORCE ROW LEVEL SECURITY')],
  ['Attendance absence logic respects event semantics',files.attendanceProcessor.includes('latest.absence_meaningful=true')&&files.attendanceProcessor.includes('latest.participation_expected=true')&&files.attendanceProcessor.includes('latest.optional=false')],
  ['Group-scoped events restrict absence candidates to active group members',files.attendanceProcessor.includes("latest.event_scope='group'")&&files.attendanceProcessor.includes('person_memberships')],
  ['Temporal memory stores importance and validity',files.memory.includes("importance='temporary'")&&files.memory.includes('validUntil')&&files.memory.includes('valid_until')],

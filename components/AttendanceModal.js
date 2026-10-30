@@ -999,7 +999,7 @@ export default function AttendanceModal({isOpen,onClose}){
       }
       if(registerCompleteness==='complete'){
         if(pendingCount>0||legacyPendingCount>0)throw Error('Wait for every offline attendance change to sync before confirming a complete register.');
-        if(!rosterSnapshotComplete)throw Error('The full digital roster has not been verified on this device. Refresh and reconcile the register before confirming it as complete.');
+        if(registerSource==='digital_roster'&&!rosterSnapshotComplete)throw Error('The full digital roster has not been verified on this device. Refresh and reconcile the register before confirming it as complete.');
         if(registerSource==='other'&&!registerReviewNote.trim())throw Error('Describe the other register source before confirming completeness.');
       }
       const response=await fetchAttendanceWithTimeout('/api/attendance/close-session',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.access_token},body:JSON.stringify({session_id:session.session_id,register_completeness:registerCompleteness,register_source:registerSource,register_note:registerReviewNote.trim()||null})});
@@ -1210,7 +1210,7 @@ export default function AttendanceModal({isOpen,onClose}){
 
         <div style={{margin:'0 18px 10px',padding:'11px 12px',borderRadius:14,border:'1px solid rgba(255,255,255,.12)',background:'rgba(0,0,0,.13)',display:'grid',gap:7}}>
           <label style={{display:'grid',gap:5,fontSize:11,color:'rgba(255,255,255,.78)'}}>
-            **Register completeness**
+            Register completeness
             <select value={registerCompleteness} onChange={e=>setRegisterCompleteness(e.target.value)} disabled={closing} style={{...input,width:'100%',fontSize:12,padding:'9px 10px'}}>
               <option value="unconfirmed">Not verified — do not infer non-attendance</option>
               <option value="incomplete">Incomplete — more entries still need checking</option>
@@ -1218,7 +1218,7 @@ export default function AttendanceModal({isOpen,onClose}){
             </select>
           </label>
           <label style={{display:'grid',gap:5,fontSize:11,color:'rgba(255,255,255,.78)'}}>
-            **Register source**
+            Register source
             <select value={registerSource} onChange={e=>setRegisterSource(e.target.value)} disabled={closing} style={{...input,width:'100%',fontSize:12,padding:'9px 10px'}}>
               <option value="digital_roster">NYEOCARE digital roster</option>
               <option value="paper_sheet">Paper register reconciled into NYEOCARE</option>

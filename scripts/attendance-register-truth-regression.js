@@ -103,9 +103,9 @@ assert.ok(files.cohort.includes("attendance_population:'not_inferred'")&&
 assert.ok(files.eventProcessor.includes("o.type IN('UNUSUAL_ABSENCE','ATTENDANCE_NOT_OBSERVED')")&&
   files.eventProcessor.includes('attendance_register_review'),
   'later confirmed participation must resolve the new register-review signal and action');
-const returnerDetection=returnSignals.slice(0,returnSignals.indexOf('if(returners.rows.length)'));
-assert.ok(!returnerDetection.includes('ATTENDANCE_NOT_OBSERVED')&&
-  !returnerDetection.includes('attendance_register_review'),
+const returnerQuery=returnSignals.slice(returnSignals.indexOf('const returners=await client.query('),returnSignals.indexOf('if(returners.rows.length)'));
+assert.ok(!returnerQuery.includes('ATTENDANCE_NOT_OBSERVED')&&
+  !returnerQuery.includes('attendance_register_review'),
   'a register review must not trigger return-from-absence follow-up generation');
 assert.ok(returnSignals.includes("o.type='ATTENDANCE_NOT_OBSERVED'")&&
   returnSignals.includes("prior.id::text=(o.evidence->>'session_id')")&&

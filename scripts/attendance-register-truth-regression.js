@@ -124,8 +124,9 @@ assert.ok(returnSignals.includes("o.type='ATTENDANCE_NOT_OBSERVED'")&&
   returnSignals.includes("action_metadata->>'kind'='attendance_register_review'")&&
   returnSignals.includes("status='cancelled'"),
   'later confirmed same-service participation must resolve the register review and cancel its review action without adding a message');
-assert.ok(files.organizationPolicyUi.includes('not an automatic absence detector')&&
-  files.organizationPolicyUi.includes('register complete'),
+assert.ok(files.organizationPolicyUi.includes('Off by default')&&
+  files.organizationPolicyUi.includes('not an automatic absence detector')&&
+  files.organizationPolicyUi.includes('declared complete'),
   'organization settings must explain the limited role of the attendance review permission');
 assert.ok(!files.dailyQueue.includes("m?.kind==='attendance_register_review'"),
   'register-review work must remain a review/action item, not enter the message follow-up lane');

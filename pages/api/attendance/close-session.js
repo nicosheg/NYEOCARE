@@ -7,8 +7,14 @@ import { isOrganizationOperator } from '../../../lib/attendance/access';
 export default withOrg(async function handler(req,res){
   if(req.method!=='POST')return res.status(405).json({error:'Method not allowed'});
   if(!isOrganizationOperator(req.user?.role))return res.status(403).json({error:'Only authorized organization operators can save attendance.'});
-  const{session_id}=req.body||{};
+  const{session_id,register_completeness='unconfirmed',register_source='digital_roster',register_note=null}=req.body||{};
   if(!session_id)return res.status(400).json({error:'session_id is required.'});
+  if(!['unconfirmed','incomplete','complete'].includes(register_completeness))return res.status(400).json({error:'register_completeness must be unconfirmed, incomplete, or complete.'});
+  if(register_source!==null&&!['digital_roster','paper_sheet','manual_reconciliation','other'].includes(register_source))return res.status(400).json({error:'Unsupported register source.'});
+  const registerNote=typeof register_note==='string'?register_note.trim().slice(0,500):null;
+  const verifiedRegisterSource=register_completeness==='unconfirmed'?null:register_source;
+  if(register_completeness==='complete'&&!verifiedRegisterSource)return res.status(400).json({error:'A complete register requires a recorded source.'});
+  if(register_completeness==='complete'&&verifiedRegisterSource==='other'&&!registerNote)return res.status(400).json({error:'Describe the other register source before confirming completeness.'});
 
   const orgId=req.org.id,userId=req.user.id,client=await pool.connect();
 
@@ -17,7 +23,7 @@ export default withOrg(async function handler(req,res){
     await client.query("SELECT pg_advisory_xact_lock(hashtext($1::text))",[orgId]);
 
     const q=await client.query(
-      `SELECT id,name,status,started_at,closed_at,aria_processing_status,aria_processing_attempts,
+      `SELECT id,name,status,started_at,closed_at,register_completeness,register_source,register_reviewed_at,register_reviewed_by,register_review_note,aria_processing_status,aria_processing_attempts,
           aria_processing_started_at,aria_processing_completed_at,aria_processing_error,
           aria_processing_stage,aria_processing_progress,aria_processing_processed,aria_processing_total
        FROM sessions
@@ -77,6 +83,11 @@ export default withOrg(async function handler(req,res){
        SET status='closed',
            closed_by=$1,
            closed_at=NOW(),
+           register_completeness=$5,
+           register_source=$6,
+           register_reviewed_at=NOW(),
+           register_reviewed_by=$1,
+           register_review_note=$7,
            aria_processing_status='pending',
            aria_processing_attempts=0,
            aria_processing_stage='persist',
@@ -88,16 +99,23 @@ export default withOrg(async function handler(req,res){
            aria_processing_started_at=NULL,
            aria_processing_heartbeat_at=NULL
        WHERE id=$2 AND organization_id=$3 AND status='active'
-       RETURNING id,name,status,started_at,closed_at,aria_processing_status,aria_processing_attempts,
+       RETURNING id,name,status,started_at,closed_at,register_completeness,register_source,register_reviewed_at,register_reviewed_by,register_review_note,aria_processing_status,aria_processing_attempts,
                  aria_processing_started_at,aria_processing_completed_at,aria_processing_error,
                  aria_processing_stage,aria_processing_progress,aria_processing_processed,aria_processing_total`,
-      [userId,session_id,orgId,Number(total.rows[0]?.count)||0]
+      [userId,session_id,orgId,Number(total.rows[0]?.count)||0,register_completeness,verifiedRegisterSource,registerNote]
     );
 
     if(!closed.rows.length){
       await client.query('ROLLBACK');
       return res.status(409).json({error:'This attendance session changed before it could be saved.'});
     }
+
+    await client.query(
+      `INSERT INTO attendance_register_events(
+         organization_id,session_id,register_completeness,register_source,note,actor_id,recorded_at
+       ) VALUES($1,$2,$3,$4,$5,$6,NOW())`,
+      [orgId,session_id,register_completeness,verifiedRegisterSource,registerNote,userId]
+    );
 
     const queued=await enqueueAttendanceProcessing({
       organizationId:orgId,

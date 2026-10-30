@@ -2950,3 +2950,14 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 - The canonical finalizer calls `public.nyeocare_finalize_attendance_session` and enqueues durable ARIA processing in the same caller transaction. Caller-specific permissions remain at the API/workspace boundary.
 - The explicit owner/admin historical attendance correction path remains intentionally supported. It must not be removed as part of canonical session creation/finalization work.
 - Before creating a release commit, test both the normal Attendance API and ARIA workspace paths against the same create/finalize invariants. CI must gate both.
+
+
+---
+
+## 61. OCTOBER 31, 2026 — COMPLETE FOREIGN-KEY INDEX COVERAGE
+
+- A fresh production catalog audit counted 167 public-schema foreign-key constraints. Before remediation, 73 had no valid, non-partial B-tree index whose leading key columns matched the FK columns.
+- The 73 missing covering indexes were built in production with `CREATE INDEX CONCURRENTLY`, sequentially per table. The process did not rewrite data or alter foreign-key constraints; it added read-side indexes while allowing normal writes to continue.
+- A post-build catalog audit verified all 167 foreign keys are covered by valid B-tree indexes. The Supabase `unindexed_foreign_keys` advisor finding is expected to disappear after its next refresh.
+- The idempotent source migration is `supabase/migrations/20261030234620_cover_public_foreign_keys.sql`, matching the migration ledger. It uses `CREATE INDEX IF NOT EXISTS` because the indexes are already built before the migration is recorded; it must not rebuild them.
+- CI includes a regression that checks all 73 source-controlled index definitions. When adding future foreign keys, check for an appropriate leading-column index before adding another one; do not blindly index duplicates.

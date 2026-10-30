@@ -5,7 +5,7 @@ const files={
  createSession:read('pages/api/attendance/create-session.js'),
  attendanceProcessor:read('lib/aria/attendanceProcessor.js'),
  closeSession:read('pages/api/attendance/close-session.js'),
- registerMigration:read('supabase/migrations/20261030150000_attendance_register_truth_and_provenance.sql'),
+ registerMigration:read('supabase/migrations/20261030144541_attendance_register_truth_and_provenance.sql'),
  memory:read('lib/aria/memoryEngine.js'),
  truth:read('lib/aria/truthEngine.js'),
  careContacts:read('lib/aria/careContacts.js'),

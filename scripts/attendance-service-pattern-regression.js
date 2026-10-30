@@ -98,6 +98,7 @@ assert.ok(createSession.includes('const absenceMeaningful=absence_meaningful===t
   'attendance sessions must remain care-neutral and receive a server-owned local auto-save deadline');
 assert.ok(processor.includes('ATTENDANCE_CARE_FOLLOW_UP_ENABLED = false') &&
   processor.includes("skipped:'attendance_care_follow_up_paused'") &&
+  processor.includes('async function createReturnSignals(sessionId,orgId)') &&
   processor.includes('async function createFirstVisitFollowUps'),
   'attendance-based care follow-up must remain paused without disabling first-visit care');
 assert.ok(!attendanceUi.includes('same named event') &&

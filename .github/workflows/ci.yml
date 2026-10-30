@@ -36,6 +36,8 @@ jobs:
       - run: npm run test:scan
       - run: npm run test:attendance-service-pattern
       - run: npm run test:attendance-register-truth
+      - run: npm run test:aria-attendance-workspace
+      - run: npm run test:foreign-key-indexes
       - run: npm run test:event-date
       - run: npm run test:attendance-access
       - run: npm run test:person-create-idempotency
@@ -69,10 +71,14 @@ jobs:
         run: npm install --global vercel@59.23.1
       - name: Pull Vercel production configuration
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
+        run: vercel pull --yes --environment=production
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       - name: Build Vercel prebuilt artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: vercel build --prod --token="${{ secrets.VERCEL_TOKEN }}"
+        run: vercel build --prod
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       - name: Verify Vercel prebuilt artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
@@ -89,7 +95,9 @@ jobs:
           retention-days: 7
       - name: Deploy Vercel prebuilt artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: vercel deploy --prebuilt --prod --archive=tgz --token="${{ secrets.VERCEL_TOKEN }}"
+        run: vercel deploy --prebuilt --prod --archive=tgz
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       - name: Verify production health after deploy
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: curl --fail --silent --show-error --retry 6 --retry-delay 3 --retry-all-errors --max-time 15 https://nyeocare.vercel.app/api/health

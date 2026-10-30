@@ -5,6 +5,7 @@ const fs=require('node:fs');
 const read=path=>fs.readFileSync(path,'utf8');
 const files={
  migration:read('supabase/migrations/20261030150000_attendance_register_truth_and_provenance.sql'),
+ registerIndexes:read('supabase/migrations/20261030150000_attendance_register_provenance_fk_indexes.sql'),
  createSession:read('pages/api/attendance/create-session.js'),
  closeSession:read('pages/api/attendance/close-session.js'),
  attendanceUi:read('components/AttendanceModal.js'),
@@ -42,6 +43,10 @@ assert.ok(files.migration.includes('attendance_register_events')&&
   files.migration.includes('GRANT SELECT, INSERT ON TABLE public.attendance_register_events TO service_role')&&
   !files.migration.includes('GRANT ALL ON TABLE public.attendance_register_events'),
   'register declarations need a server-owned, append-only audit trail with least-privilege access');
+assert.ok(files.registerIndexes.includes('attendance_register_events_session_idx')&&
+  files.registerIndexes.includes('attendance_register_events_actor_idx')&&
+  files.registerIndexes.includes('sessions_register_reviewed_by_idx'),
+  'the new register-audit and reviewer foreign keys must have supporting indexes');
 assert.ok(files.migration.includes("WHERE type='UNUSUAL_ABSENCE' AND status='active'")&&
   files.migration.includes("action_metadata->>'kind' IN('attendance_absence_check_in','returned_after_absence')")&&
   !files.migration.includes("action_metadata->>'kind' IN('care_first_check_in'"),

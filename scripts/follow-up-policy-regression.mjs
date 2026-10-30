@@ -37,7 +37,7 @@ const daysAgo = days => new Date(now.getTime() - days * 86400000);
 
 assert.deepEqual(DEFAULT_FOLLOW_UP_POLICY, {
   firstVisitFollowUpRequired: true,
-  attendancePatternFollowUpEnabled: true,
+  attendancePatternFollowUpEnabled: false,
   firstVisitDueHours: 24,
   routineCooldownDays: 7,
   noResponseCooldownDays: 14,
@@ -53,7 +53,7 @@ assert.deepEqual(normalizeFollowUpPolicy({
   workerDailyCapacity: -4
 }), {
   firstVisitFollowUpRequired: true,
-  attendancePatternFollowUpEnabled: true,
+  attendancePatternFollowUpEnabled: false,
   firstVisitDueHours: 72,
   routineCooldownDays: 3,
   noResponseCooldownDays: 7,
@@ -61,6 +61,8 @@ assert.deepEqual(normalizeFollowUpPolicy({
   workerDailyCapacity: 1
 }, 'policy values must be bounded before storage or scheduling');
 
+assert.equal(normalizeFollowUpPolicy({}).attendancePatternFollowUpEnabled, false, 'attendance-pattern reviews must be opt-in by default');
+assert.equal(normalizeFollowUpPolicy({ attendancePatternFollowUpEnabled: true }).attendancePatternFollowUpEnabled, true, 'an owner/admin can explicitly enable register-based reviews');
 assert.equal(normalizeFollowUpPolicy({ attendancePatternFollowUpEnabled: false }).attendancePatternFollowUpEnabled, false, 'an organization must be able to opt out of attendance-pattern follow-up');
 assert.equal(isRoutineFollowUpEligible({ now }).allowed, true, 'no prior outreach should be eligible');
 assert.equal(isRoutineFollowUpEligible({ now, lastOutboundAt: daysAgo(3) }).reason, 'routine_cooldown');

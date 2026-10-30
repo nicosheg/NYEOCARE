@@ -62,6 +62,7 @@ const attendanceCorrectionApi=read('pages/api/attendance/aria-correction.js');
 const attendancePeopleApi=read('pages/api/attendance/people.js');
 const closeApi=read('pages/api/attendance/close-session.js');
 const createApi=read('pages/api/attendance/create-session.js');
+const attendanceLifecycle=read('lib/attendance/sessionLifecycle.js');
 const autoCloseMigration=read('supabase/migrations/20261030192018_attendance_session_auto_close.sql');
 const queueLib=read('lib/aria/attendanceQueue.js');
 const intelligence=read('lib/aria/attendanceIntelligence.js');
@@ -83,13 +84,13 @@ const checks=[
  ['Attendance session state separates live work from background ARIA',
   /s\.status='active'/.test(activeApi)&&/background_processing/.test(activeApi)&&/can_start_new_session:\['owner','admin'\]\.includes\(String\(req\.user\.role\|\|''\)\.toLowerCase\(\)\)/.test(activeApi)],
  ['Attendance close is atomic with durable queue publication',
-  /BEGIN/.test(closeApi)&&/COMMIT/.test(closeApi)&&/enqueueAttendanceProcessing/.test(closeApi)&&/db:client/.test(closeApi)],
+  /BEGIN/.test(closeApi)&&/COMMIT/.test(closeApi)&&/finalizeAttendanceSession\\(\\{/.test(closeApi)&&/db:client/.test(closeApi)&&/enqueueAttendanceProcessing/.test(attendanceLifecycle)],
  ['Attendance close never waits for ARIA',
   !closeApi.includes('waitUntil')&&!closeApi.includes('processAttendanceSession')],
  ['New attendance does not wait for previous ARIA processing',
   /INSERT INTO sessions\(/.test(createApi)&&/event_kind/.test(createApi)&&/event_semantics/.test(createApi)&&/background_processing_not_blocking:true/.test(createApi)],
  ['Attendance close resets processing state inside the atomic database finalizer',
-  /nyeocare_finalize_attendance_session/.test(closeApi)&&/aria_processing_attempts=0/.test(autoCloseMigration)&&/aria_processing_stage='persist'/.test(autoCloseMigration)],
+  /finalizeAttendanceSession\\(\\{/.test(closeApi)&&/nyeocare_finalize_attendance_session/.test(attendanceLifecycle)&&/aria_processing_attempts=0/.test(autoCloseMigration)&&/aria_processing_stage='persist'/.test(autoCloseMigration)],
  ['Attendance roster is bounded and cursor-paginated',
   /limit=Math\.min/.test(attendancePeopleApi)&&/next_cursor/.test(attendancePeopleApi)&&/base64url/.test(attendancePeopleApi)],
  ['Attendance roster search stays server-side',

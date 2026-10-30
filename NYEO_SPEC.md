@@ -2934,7 +2934,17 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 
 ### Migration and verification
 
-- Apply `supabase/migrations/20261030160000_attendance_session_auto_close.sql` before deploying code that writes deadlines and roster snapshots.
+- The production migration ledger records `20261030192018_attendance_session_auto_close` and `20261030195500_backfill_active_attendance_deadlines`; keep both source files under those exact versions. The auto-close source was renumbered to match the already-applied production version, and the missing backfill source was reconstructed idempotently from the production schema and the canonical deadline calculation.
+- Do not run migration repair or `supabase db push` until `supabase migration list` confirms the local and remote versions are aligned. Both migrations are already recorded as applied in production.
 - Verify the scheduled cron job is active, auto-close runs against a due session, unmarked roster entries become `not_present` with `source='auto_close'`, an audit event is appended, and the SQL smoke test leaves no session residue.
 - Regression coverage must protect the plain-language confirmation/cancel behavior, session lifetime independence from browsers, time-zone deadline calculation, roster snapshot, offline post-close protection, admin verification, and the continued first-visit flow.
 - Production readiness requires green CI and a READY Vercel deployment whose source SHA matches the reviewed/merged commit. A real Havilah service test is still required to validate staff experience across phones.
+
+
+### 60. OCTOBER 31, 2026 — ATTENDANCE LIFECYCLE AND MIGRATION CONSISTENCY
+
+- The normal Attendance API and ARIA workspace must call `lib/attendance/sessionLifecycle.js` for session creation and manual finalization. Do not create or close sessions through separate SQL implementations.
+- The canonical creator owns the organization-local deadline, active-session guard, session operator membership, sections, event semantics, initial active-People roster snapshot, and `SERVICE_CREATED` memory event.
+- The canonical finalizer calls `public.nyeocare_finalize_attendance_session` and enqueues durable ARIA processing using the same transaction. Caller-specific authorization remains at the API boundary.
+- Keep the explicit owner/admin historical attendance correction path intact unless a separate product/security review changes that requirement.
+- Keep migration source filenames aligned with the versions recorded by Supabase production. Never mark a version applied or push migrations based only on matching names; inspect the live schema and migration ledger first.

@@ -127,8 +127,9 @@ assert.ok(profile.includes('Follow-up policy') &&
   profile.includes('workerDailyCapacity'),
   'organization admins need accessible policy controls');
 
-assert.ok(queue.includes("m?.kind==='care_first_check_in'") && queue.includes("REQUIRED_FOLLOW_UP_CANNOT_DEFER"),
-  'attendance absence actions must enter the follow-up lane and only required first-visit tasks must resist deferral');
+assert.ok(queue.includes("m?.kind==='first_session_check_in'") && queue.includes("REQUIRED_FOLLOW_UP_CANNOT_DEFER") &&
+  !queue.includes("m?.kind==='attendance_register_review'"),
+  'required first-visit care remains in the follow-up lane, while attendance register review stays a separate human decision');
 assert.ok(queue.includes("isRequiredFirstVisit(item)") &&
   queue.includes("mustBeVisibleToday") &&
   queue.includes("pickTodayOperator") &&

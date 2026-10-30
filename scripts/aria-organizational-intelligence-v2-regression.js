@@ -22,7 +22,7 @@ const files={
 };
 const organizationExpression='\$'+'{organizationId}';
 const checks=[
- ['New sessions remain care-neutral and use a server-owned deadline',files.createSession.includes('const absenceMeaningful=false')&&files.createSession.includes('auto_close_at')&&files.createSession.includes('attendance_session_roster')&&!files.createSession.includes('normalizeFollowUpPolicy')],
+ ['New sessions remain care-neutral and use a server-owned deadline',files.createSession.includes('const absenceMeaningful=absence_meaningful===true')&&files.createSession.includes('auto_close_at')&&files.attendanceProcessor.includes('ATTENDANCE_CARE_FOLLOW_UP_ENABLED = false')&&files.createSession.includes('attendance_session_roster')&&!files.createSession.includes('normalizeFollowUpPolicy')],
  ['Attendance-based care follow-up remains disabled until a separate policy is approved',files.attendanceProcessor.includes('ATTENDANCE_CARE_FOLLOW_UP_ENABLED = false')&&files.attendanceProcessor.includes("skipped:'attendance_care_follow_up_paused'" )],
  ['Session finalization retains an append-only register audit event',files.closeSession.includes('nyeocare_finalize_attendance_session')&&files.registerMigration.includes('attendance_register_events')&&files.registerMigration.includes('register_completeness')&&files.registerMigration.includes('FORCE ROW LEVEL SECURITY')],
  ['Attendance participation processing remains available while attendance-care signals are paused',files.attendanceProcessor.includes('ATTENDANCE_CARE_FOLLOW_UP_ENABLED = false')&&files.attendanceProcessor.includes('insertParticipationAndEvents')],

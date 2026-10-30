@@ -7,6 +7,7 @@ const files={
  registerMigration:read('supabase/migrations/20261030144541_attendance_register_truth_and_provenance.sql'),
  autoCloseMigration:read('supabase/migrations/20261030192018_attendance_session_auto_close.sql'),
  createSession:read('pages/api/attendance/create-session.js'),
+ attendanceLifecycle:read('lib/attendance/sessionLifecycle.js'),
  closeSession:read('pages/api/attendance/close-session.js'),
  activeSession:read('pages/api/attendance/active-session.js'),
  sync:read('pages/api/attendance/sync.js'),
@@ -36,15 +37,17 @@ assert.ok(files.autoCloseMigration.includes('auto_close_at timestamptz')&&
   files.autoCloseMigration.includes("pgmq.send(\n        'nyeocare-attendance'"),
   'server-side deadline finalization must snapshot people, mark unmarked people not present, audit the closure, and enqueue normal processing');
 
-assert.ok(files.createSession.includes('const absenceMeaningful=false')&&
-  files.createSession.includes('auto_close_at')&&
-  files.createSession.includes("TIME '23:59'")&&
-  files.createSession.includes('attendance_session_roster')&&
-  files.createSession.includes("'session_start'"),
-  'new attendance sessions must use the organization-local deadline and capture the expected roster at the start');
-assert.ok(files.createSession.includes("ELSE started_at+INTERVAL '24 hours'")&&
-  files.createSession.includes("LEAST(started_at+INTERVAL '24 hours',end_of_day)"),
-  'the deadline must be the earlier of 24 hours after the start or 23:59 on the same local day');
+assert.ok(files.createSession.includes("import { createAttendanceSession } from '../../../lib/attendance/sessionLifecycle'")&&
+  files.createSession.includes('await createAttendanceSession({')&&
+  files.attendanceLifecycle.includes('const absenceMeaningful = parameters.absence_meaningful === true;')&&
+  files.attendanceLifecycle.includes('auto_close_at')&&
+  files.attendanceLifecycle.includes("TIME '23:59'")&&
+  files.attendanceLifecycle.includes('attendance_session_roster')&&
+  files.attendanceLifecycle.includes("'session_start'"),
+  'normal attendance and ARIA must use the canonical creator, persisting the optional care preference and roster deadline');
+assert.ok(files.attendanceLifecycle.includes("ELSE started_at+INTERVAL '24 hours'")&&
+  files.attendanceLifecycle.includes("LEAST(started_at+INTERVAL '24 hours',end_of_day)"),
+  'the canonical creator must use the earlier of 24 hours after the start or 23:59 on the organization-local day');
 
 assert.ok(files.closeSession.includes('nyeocare_finalize_attendance_session')&&
   files.closeSession.includes('manual_confirmation')&&
@@ -56,7 +59,10 @@ assert.ok(files.activeSession.includes('auto_close_at')&&
   files.activeSession.includes('organization_timezone'),
   'the active-session API must expose the deadline and identify a just-closed local session');
 
-assert.ok(!files.attendanceUi.includes('Use verified non-observation for a care review in this event')&&
+assert.ok(files.attendanceUi.includes('Use verified non-observation for a care review in this event')&&
+  files.attendanceUi.includes('const[absenceMeaningful,setAbsenceMeaningful]=useState(false)')&&
+  files.attendanceUi.includes('absence_meaningful:absenceMeaningful===true')&&
+  files.attendanceUi.includes('Attendance-based care suggestions are paused')&&
   !files.attendanceUi.includes('Register completeness')&&
   !files.attendanceUi.includes('registerCompleteness')&&
   !files.attendanceUi.includes('registerSource')&&

@@ -171,7 +171,7 @@ export default withOrg(async function handler(req, res) {
     // Only acknowledge local outbox items when the canonical server state matches
     // the requested value. Confirmed attendance is not silently overwritten.
     const actualRows = ops.length ? (await client.query(
-      `SELECT people_id, present, confirmed
+      `SELECT people_id, present, confirmed, source
        FROM attendance_records
        WHERE organization_id = $1 AND session_id = $2
          AND people_id = ANY($3::uuid[])`,

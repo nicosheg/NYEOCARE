@@ -73,11 +73,11 @@ CREATE OR REPLACE FUNCTION public.prevent_attendance_register_event_mutation()
 RETURNS trigger
 LANGUAGE plpgsql
 SET search_path=public
-AS $
+AS $$
 BEGIN
   RAISE EXCEPTION 'attendance_register_events is append-only; write a new declaration instead';
 END;
-$;
+$$;
 
 DROP TRIGGER IF EXISTS attendance_register_events_append_only ON public.attendance_register_events;
 CREATE TRIGGER attendance_register_events_append_only

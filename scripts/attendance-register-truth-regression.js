@@ -96,8 +96,9 @@ assert.ok(files.home.includes('attendanceDecision!==null')&&
 
 assert.ok(files.attendanceProcessor.includes('ATTENDANCE_CARE_FOLLOW_UP_ENABLED = false')&&
   files.attendanceProcessor.includes("skipped:'attendance_care_follow_up_paused'")&&
-  files.attendanceProcessor.includes('async function createFirstVisitFollowUps'),
-  'attendance-derived care follow-up must stay paused while first-visit care processing remains in place');
+  files.attendanceProcessor.includes('async function createFirstVisitFollowUps')&&
+  files.attendanceProcessor.includes('async function createReturnSignals(sessionId,orgId) {\\n  if(!ATTENDANCE_CARE_FOLLOW_UP_ENABLED)'),
+  'attendance-derived absence and return follow-ups must stay paused while first-visit care processing remains in place');
 assert.ok(!files.churchProfile.includes('Allow register-based attendance reviews')&&
   files.churchProfile.includes('Require first-visit follow-up'),
   'the obsolete attendance-care toggle must be removed without removing first-visit care settings');

@@ -1,3 +1,8 @@
+-- Production migration version alignment: Supabase records this backfill as
+-- 20261030195500_backfill_active_attendance_deadlines. The SQL body below is
+-- preserved from the repository's 20261030162000 source and is already applied
+-- in production. Do not blindly re-apply or repair the live migration ledger.
+
 -- NYEOCARE: backfill deadlines for sessions that were already live when auto-save shipped.
 -- The current Havilah rollout has no active sessions, but this makes the migration
 -- safe for organizations that still have an open event at deployment time.

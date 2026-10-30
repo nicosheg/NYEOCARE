@@ -2934,7 +2934,30 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 
 ### Migration and verification
 
-- Apply `supabase/migrations/20261030160000_attendance_session_auto_close.sql` before deploying code that writes deadlines and roster snapshots.
-- Verify the scheduled cron job is active, auto-close runs against a due session, unmarked roster entries become `not_present` with `source='auto_close'`, an audit event is appended, and the SQL smoke test leaves no session residue.
+- Production records the applied migrations `20261030192018_attendance_session_auto_close` and `20261030195500_backfill_active_attendance_deadlines`; keep GitHub source filenames aligned with those exact versions. These two migrations are already recorded as applied in production.
+- Do not run migration repair or a blind `supabase db push`. First compare `supabase_migrations.schema_migrations` with the source files and live schema. Verify the scheduled cron job is active, auto-close runs against a due session, unmarked roster entries become `not_present` with `source='auto_close'`, an audit event is appended, and the SQL smoke test leaves no session residue.
 - Regression coverage must protect the plain-language confirmation/cancel behavior, session lifetime independence from browsers, time-zone deadline calculation, roster snapshot, offline post-close protection, admin verification, and the continued first-visit flow.
 - Production readiness requires green CI and a READY Vercel deployment whose source SHA matches the reviewed/merged commit. A real Havilah service test is still required to validate staff experience across phones.
+
+
+---
+
+## 60. OCTOBER 31, 2026 — CANONICAL ATTENDANCE LIFECYCLE AND RELEASE INTEGRITY
+
+- The normal Attendance API and ARIA workspace use `lib/attendance/sessionLifecycle.js` for session creation and manual finalization. Neither entry point is permitted to insert or close sessions through a parallel SQL implementation.
+- The canonical creator owns the organization-local deadline, active-session serialization, session operator membership, sections, event semantics, initial active-People roster snapshot, and `SERVICE_CREATED` ARIA memory event.
+- The event-level `absence_meaningful` preference remains optional and off by default. It is persisted as an event property only; `ATTENDANCE_CARE_FOLLOW_UP_ENABLED` remains false until a separately reviewed care policy is approved.
+- The canonical finalizer calls `public.nyeocare_finalize_attendance_session` and enqueues durable ARIA processing in the same caller transaction. Caller-specific permissions remain at the API/workspace boundary.
+- The explicit owner/admin historical attendance correction path remains intentionally supported. It must not be removed as part of canonical session creation/finalization work.
+- Before creating a release commit, test both the normal Attendance API and ARIA workspace paths against the same create/finalize invariants. CI must gate both.
+
+
+---
+
+## 61. OCTOBER 31, 2026 — COMPLETE FOREIGN-KEY INDEX COVERAGE
+
+- A fresh production catalog audit counted 167 public-schema foreign-key constraints. Before remediation, 73 had no valid, non-partial B-tree index whose leading key columns matched the FK columns.
+- The 73 missing covering indexes were built in production with `CREATE INDEX CONCURRENTLY`, sequentially per table. The process did not rewrite data or alter foreign-key constraints; it added read-side indexes while allowing normal writes to continue.
+- A post-build catalog audit verified all 167 foreign keys are covered by valid B-tree indexes. The Supabase `unindexed_foreign_keys` advisor finding is expected to disappear after its next refresh.
+- The idempotent source migration is `supabase/migrations/20261030234620_cover_public_foreign_keys.sql`, matching the migration ledger. It uses `CREATE INDEX IF NOT EXISTS` because the indexes are already built before the migration is recorded; it must not rebuild them.
+- CI includes a regression that checks all 73 source-controlled index definitions. When adding future foreign keys, check for an appropriate leading-column index before adding another one; do not blindly index duplicates.

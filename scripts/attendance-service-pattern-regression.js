@@ -7,6 +7,7 @@ const serviceIdentity = read('lib/aria/serviceIdentity.js');
 const processor = read('lib/aria/attendanceProcessor.js');
 const intelligence = read('lib/aria/attendanceIntelligence.js');
 const createSession = read('pages/api/attendance/create-session.js');
+const attendanceLifecycle = read('lib/attendance/sessionLifecycle.js');
 const temporal = read('lib/aria/temporalEngine.js');
 const organizationContext = read('lib/aria/organizationContext.js');
 const director = read('lib/aria/directorEngine.js');
@@ -61,8 +62,11 @@ assert.ok(attendanceMark.includes('pg_advisory_xact_lock(hashtextextended($1,0))
 assert.doesNotMatch(attendanceMark, /LIMIT 1 FOR UPDATE OF s/,
   'independent live marks must not contend on an exclusive session-row lock');
 
-assert.ok(createSession.includes("[orgId,name.trim(),service_type||null,userId,timing.started_at,timing.auto_close_at,timing.auto_close_reason,event_kind||'service'"),
-  'attendance session creation must persist service_type and started_by in their correct positions instead of grouping services by creator UUID');
+assert.ok(createSession.includes("import { createAttendanceSession } from '../../../lib/attendance/sessionLifecycle'") &&
+  createSession.includes('await createAttendanceSession({') &&
+  attendanceLifecycle.includes('organizationId,name,serviceType,actorId,timing.started_at,timing.auto_close_at,timing.auto_close_reason') &&
+  attendanceLifecycle.includes("eventKind,eventScope,groupId,JSON.stringify(eventSemantics),JSON.stringify(expectedPopulationRule)"),
+  'attendance session creation must use the canonical session lifecycle with correctly ordered service, actor, deadline and event parameters');
 
 assert.match(serviceIdentity, /REGEXP_REPLACE/,
   'dated session names should be normalized rather than treated as different services');
@@ -91,11 +95,11 @@ assert.ok(processor.includes("a.action_metadata->>'service_key'=(SELECT ${servic
 assert.ok(processor.includes("AND ac.session_id IN (SELECT ps.id FROM sessions ps"),
   'attendance contexts should only resolve after a return to the matching service');
 
-assert.ok(createSession.includes('const absenceMeaningful=absence_meaningful===true') &&
-  createSession.includes('auto_close_at') &&
-  createSession.includes("TIME '23:59'") &&
-  !createSession.includes('attendancePatternFollowUpEnabled'),
-  'attendance sessions must remain care-neutral and receive a server-owned local auto-save deadline');
+assert.ok(attendanceLifecycle.includes('const absenceMeaningful = parameters.absence_meaningful === true;') &&
+  attendanceLifecycle.includes('auto_close_at') &&
+  attendanceLifecycle.includes("TIME '23:59'") &&
+  !attendanceLifecycle.includes('attendancePatternFollowUpEnabled'),
+  'attendance sessions must persist the optional preference while retaining a server-owned local deadline and separate care policy');
 assert.ok(processor.includes('ATTENDANCE_CARE_FOLLOW_UP_ENABLED = false') &&
   processor.includes("skipped:'attendance_care_follow_up_paused'") &&
   processor.includes('async function createReturnSignals(sessionId,orgId)') &&

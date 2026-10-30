@@ -1,3 +1,6 @@
+-- Production migration version alignment: Supabase records this exact logical migration as
+-- 20261030192018_attendance_session_auto_close. Keep this source filename aligned with
+-- the already-applied production history; do not re-apply or repair the live database blindly.
 -- NYEOCARE: simple attendance finalization with a server-owned deadline.
 -- A session stays live when every browser closes. The database finalizes it at
 -- the earlier of 24 hours from start or 23:59 in the organization's local day.

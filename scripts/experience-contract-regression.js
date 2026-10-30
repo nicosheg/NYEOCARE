@@ -28,13 +28,14 @@ for(const file of apiFiles){
 const correction=read('pages/api/attendance/aria-correction.js');
 const home=read('pages/index.js');
 const close=read('pages/api/attendance/close-session.js');
+const lifecycle=read('lib/attendance/sessionLifecycle.js');
 const queue=read('lib/aria/attendanceQueue.js');
 
 const checks=[
  ['No transactional API keeps a serverless DB connection while doing post-commit database/AI work',hazards.length===0],
  ['Tell ARIA attendance correction commits the human fact and queues derived work',/enqueueAttendanceProcessing/.test(correction)&&/await db\.query\('COMMIT'\)/.test(correction)&&/processing_pending:true/.test(correction)],
  ['Tell ARIA attendance correction does not call slow intelligence in the request path',!/createCareDraft/.test(correction)&&!/generateText/.test(correction)&&!/updateEngagementMetricsForPerson/.test(correction)&&!/computeRelationshipScore/.test(correction)&&!/updatePeopleIntelligence/.test(correction)&&!/updatePersonState/.test(correction)],
- ['Attendance close uses the same durable queue boundary',/enqueueAttendanceProcessing/.test(close)&&/processing_pending:true/.test(close)&&/db:client/.test(close)],
+ ['Attendance close uses the canonical lifecycle and durable queue boundary',/finalizeAttendanceSession/.test(close)&&/processing_pending:true/.test(close)&&/db:client/.test(close)&&/enqueueAttendanceProcessing/.test(lifecycle)],
  ['Attendance queue is the canonical background boundary',/nyeocare-attendance/.test(queue)&&/pgmq\.send/.test(queue)],
  ['Home handles background correction state without waiting for a draft',/\/api\/attendance\/aria-correction/.test(home)&&/d\.processing_pending/.test(home)]
 ];

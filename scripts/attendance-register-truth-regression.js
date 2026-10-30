@@ -29,7 +29,7 @@ assert.ok(files.autoCloseMigration.includes('auto_close_at timestamptz')&&
   files.autoCloseMigration.includes('attendance_session_roster')&&
   files.autoCloseMigration.includes('public.nyeocare_finalize_attendance_session')&&
   files.autoCloseMigration.includes('FOR UPDATE SKIP LOCKED')&&
-  files.autoCloseMigration.includes("source='auto_close'")&&
+  files.autoCloseMigration.includes("THEN 'auto_close'")&&
   files.autoCloseMigration.includes("'not_present'")&&
   files.autoCloseMigration.includes("cron.schedule(\n  'nyeocare-attendance-auto-close',\n  '1 second'")&&
   files.autoCloseMigration.includes("pgmq.send(\n        'nyeocare-attendance'"),

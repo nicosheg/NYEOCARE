@@ -125,9 +125,10 @@ assert.ok(onboarding.includes("action==='save_follow_up_policy'") &&
   'organization follow-up policy must be persisted under owner/admin control');
 assert.ok(profile.includes('Follow-up policy') &&
   profile.includes('firstVisitDueHours') &&
-  profile.includes('attendancePatternFollowUpEnabled') && profile.includes('routineCooldownDays') &&
+  !profile.includes('attendancePatternFollowUpEnabled') &&
+  profile.includes('routineCooldownDays') &&
   profile.includes('workerDailyCapacity'),
-  'organization admins need accessible policy controls');
+  'organization admins retain care policy controls, while the attendance-specific care switch stays out of the interface');
 
 assert.ok(queue.includes("m?.kind==='first_session_check_in'") && queue.includes("REQUIRED_FOLLOW_UP_CANNOT_DEFER") &&
   !queue.includes("m?.kind==='attendance_register_review'"),

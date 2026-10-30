@@ -112,7 +112,7 @@ export default withOrg(async function handler(req, res) {
            o.people_id, $4::date, o.present, $2, $3, NOW(),
            CASE WHEN o.present THEN 'present' ELSE 'not_present' END,
            false, NULL, NULL, $1, 'operator'
-         FROM jsonb_to_recordset($6::jsonb) AS o(people_id uuid, present boolean)
+         FROM jsonb_to_recordset($5::jsonb) AS o(people_id uuid, present boolean)
          ON CONFLICT (organization_id, people_id, session_id) WHERE session_id IS NOT NULL
          DO UPDATE SET
            present = EXCLUDED.present,
@@ -123,7 +123,7 @@ export default withOrg(async function handler(req, res) {
          WHERE attendance_records.confirmed = false
            AND attendance_records.present IS DISTINCT FROM EXCLUDED.present
          RETURNING people_id, present, confirmed, source`,
-        [orgId, session_id, userId, date, false, payload]
+        [orgId, session_id, userId, date, payload]
       );
       writes = result.rows;
     }

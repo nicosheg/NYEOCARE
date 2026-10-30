@@ -3,7 +3,6 @@ import pool from '../../../lib/db';
 import { withOrg } from '../../../lib/apiHelpers';
 import { eventAttendanceDate } from '../../../lib/attendance/eventDate';
 import { isOrganizationOperator } from '../../../lib/attendance/access';
-import { enqueueAttendanceProcessing } from '../../../lib/aria/attendanceQueue';
 
 const MAX_OPERATIONS = 100;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -47,7 +46,7 @@ export default withOrg(async function handler(req, res) {
 
   const orgId = req.org.id;
   const userId = req.user.id;
-  const isAdmin = ['owner', 'admin'].includes(String(req.user.role || '').toLowerCase());
+  const ids = [...deduped.keys()];
   const client = await pool.connect();
 
   try {
@@ -89,7 +88,6 @@ export default withOrg(async function handler(req, res) {
       return res.status(403).json({ error: 'Join this attendance session before syncing attendance.' });
     }
 
-    const ids = [...deduped.keys()];
     const valid = (await client.query(
       `SELECT id FROM people
        WHERE organization_id = $1
@@ -102,7 +100,6 @@ export default withOrg(async function handler(req, res) {
     const ops = [...deduped.values()].filter(operation => validSet.has(operation.people_id));
     const payload = JSON.stringify(ops);
     const date = eventAttendanceDate(session.started_at, session.organization_timezone);
-    const confirmed = session.status === 'closed' && isAdmin;
     let writes = [];
 
     if (ops.length) {

@@ -61,7 +61,7 @@ assert.ok(!files.attendanceUi.includes('Use verified non-observation for a care 
   !files.attendanceUi.includes('registerCompleteness')&&
   !files.attendanceUi.includes('registerSource')&&
   files.attendanceUi.includes('Save attendance?')&&
-  files.attendanceUi.includes('Have you finished marking everyone who attended?')&&
+  files.attendanceUi.includes('Have you finished marking everyone who attended? Anyone not marked Present will be marked absent for this event.')&&
   files.attendanceUi.includes('Yes, save attendance')&&
   files.attendanceUi.includes('onClick={()=>setShowFinishConfirm(false)}')&&
   files.attendanceUi.includes('Attendance stays live for everyone')&&

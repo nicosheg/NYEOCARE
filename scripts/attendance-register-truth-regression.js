@@ -36,7 +36,7 @@ assert.ok(files.autoCloseMigration.includes('auto_close_at timestamptz')&&
   files.autoCloseMigration.includes("pgmq.send(\n        'nyeocare-attendance'"),
   'server-side deadline finalization must snapshot people, mark unmarked people not present, audit the closure, and enqueue normal processing');
 
-assert.ok(files.createSession.includes('const absenceMeaningful=false')&&
+assert.ok(files.createSession.includes('const absenceMeaningful=absence_meaningful===true')&&
   files.createSession.includes('auto_close_at')&&
   files.createSession.includes("TIME '23:59'")&&
   files.createSession.includes('attendance_session_roster')&&
@@ -56,7 +56,10 @@ assert.ok(files.activeSession.includes('auto_close_at')&&
   files.activeSession.includes('organization_timezone'),
   'the active-session API must expose the deadline and identify a just-closed local session');
 
-assert.ok(!files.attendanceUi.includes('Use verified non-observation for a care review in this event')&&
+assert.ok(files.attendanceUi.includes('Use verified non-observation for a care review in this event')&&
+  files.attendanceUi.includes('const[absenceMeaningful,setAbsenceMeaningful]=useState(false)')&&
+  files.attendanceUi.includes('absence_meaningful:absenceMeaningful===true')&&
+  files.attendanceUi.includes('Attendance-based care suggestions are paused')&&
   !files.attendanceUi.includes('Register completeness')&&
   !files.attendanceUi.includes('registerCompleteness')&&
   !files.attendanceUi.includes('registerSource')&&

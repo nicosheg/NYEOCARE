@@ -669,7 +669,7 @@ export default function AttendanceModal({isOpen,onClose}){
       refreshFieldPending(session.session_id).catch(()=>{});
       const kind=e?.detail?.kind,detail=e?.detail||{};
       if(kind==='conflict'&&String(detail.sessionId||'')===String(session.session_id)){
-        setNotice('Some offline attendance marks conflict with a confirmed record or a person no longer in the active directory. Those changes remain saved on this device and were not discarded. Please reconcile them against the paper sheet with an owner or admin.');
+        setNotice(detail.needsAdminVerification===true?'Attendance has already been saved. These offline marks are still stored on this phone. Ask an owner or admin to verify them and correct the saved attendance through ARIA. Nothing was deleted.':'Some offline attendance marks conflict with a confirmed record or a person no longer in the active directory. Those changes remain saved on this device and were not discarded. Please reconcile them with an owner or admin.');
       }else if(kind==='sync'&&String(detail.sessionId||'')===String(session.session_id)&&Number(detail.needsAdminConfirmationCount)>0){
         setNotice('Some attendance marks arrived after this session closed. They are saved but need an owner or admin to confirm them before ARIA can rely on them.');
       }

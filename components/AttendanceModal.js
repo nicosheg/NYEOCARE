@@ -1249,7 +1249,7 @@ export default function AttendanceModal({isOpen,onClose}){
       <div style={finishConfirmCard}>
         <strong id="attendance-finish-title" style={{fontSize:18}}>Save attendance?</strong>
         <p id="attendance-finish-description" style={{margin:'8px 0 16px',fontSize:13,lineHeight:1.55,color:'rgba(255,255,255,.78)'}}>
-          Have you finished marking everyone who attended? Anyone not marked Present will be saved as Not present for this event. An owner or admin can correct a mark later.
+          Have you finished marking everyone who attended? Anyone not marked Present will be marked absent for this event. An owner or admin can correct it later.
         </p>
         <div style={{display:'flex',justifyContent:'flex-end',gap:8,flexWrap:'wrap'}}>
           <button type="button" style={discardButton} disabled={closing} onClick={()=>setShowFinishConfirm(false)}>Cancel</button>

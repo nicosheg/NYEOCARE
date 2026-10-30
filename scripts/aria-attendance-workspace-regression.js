@@ -7,6 +7,7 @@ const lifecycle=read('lib/attendance/sessionLifecycle.js');
 const createApi=read('pages/api/attendance/create-session.js');
 const closeApi=read('pages/api/attendance/close-session.js');
 const workspace=read('lib/aria/universalWorkspace.js');
+const processor=read('lib/aria/attendanceProcessor.js');
 
 assert.ok(createApi.includes("import { createAttendanceSession } from '../../../lib/attendance/sessionLifecycle';"),
   'the normal Attendance API must import the canonical session creator');
@@ -44,8 +45,9 @@ assert.ok(lifecycle.includes('attendance_session_roster')&&lifecycle.includes("'
   'the canonical creator must snapshot the active organization roster at session start');
 assert.ok(lifecycle.includes('emitAriaEvent')&&lifecycle.includes("eventKey: 'service:' + session.id + ':created'"),
   'the canonical creator must persist the same organization event and memory evidence for both entry points');
-assert.ok(lifecycle.includes('const absenceMeaningful = false'),
-  'attendance creation must remain care-neutral until attendance-care policy is separately approved');
+assert.ok(lifecycle.includes('const absenceMeaningful = parameters.absence_meaningful === true;')&&
+  processor.includes('ATTENDANCE_CARE_FOLLOW_UP_ENABLED = false'),
+  'the optional event-level preference must persist while attendance-derived care follow-up remains separately disabled');
 
 assert.ok(lifecycle.includes('nyeocare_finalize_attendance_session')&&
   lifecycle.includes('manual_confirmation')&&

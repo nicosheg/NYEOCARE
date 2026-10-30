@@ -52,7 +52,7 @@ export default withOrg(async function handler(req, res) {
   try {
     await client.query('BEGIN');
     const session = (await client.query(
-      `SELECT s.id, s.started_at, s.status, s.closed_by,s.closed_at,s.auto_close_at,s.closure_reason,s.aria_processing_status,
+      `SELECT s.id, s.started_at, s.status,
               COALESCE(NULLIF(o.settings->>'timezone',''),'Africa/Lagos') AS organization_timezone
        FROM sessions s
        JOIN organizations o ON o.id = s.organization_id
@@ -100,8 +100,6 @@ export default withOrg(async function handler(req, res) {
     const ops = [...deduped.values()].filter(operation => validSet.has(operation.people_id));
     const payload = JSON.stringify(ops);
     const date = eventAttendanceDate(session.started_at, session.organization_timezone);
-    let writes = [];
-
     if (ops.length) {
       const result = await client.query(
         `INSERT INTO attendance_records(
@@ -121,17 +119,15 @@ export default withOrg(async function handler(req, res) {
            status = EXCLUDED.status,
            source = 'operator'
          WHERE attendance_records.confirmed = false
-           AND attendance_records.present IS DISTINCT FROM EXCLUDED.present
-         RETURNING people_id, present, confirmed, source`,
+           AND attendance_records.present IS DISTINCT FROM EXCLUDED.present`,
         [orgId, session_id, userId, date, payload]
       );
-      writes = result.rows;
     }
 
     // Only acknowledge local outbox items when the canonical server state matches
     // the requested value. Confirmed attendance is not silently overwritten.
     const actualRows = ops.length ? (await client.query(
-      `SELECT people_id, present, confirmed, source
+      `SELECT people_id, present, confirmed
        FROM attendance_records
        WHERE organization_id = $1 AND session_id = $2
          AND people_id = ANY($3::uuid[])`,

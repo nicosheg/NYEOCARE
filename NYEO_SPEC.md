@@ -2928,23 +2928,25 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 
 ### Care separation
 
-- Attendance is not currently a care trigger. Session creation always writes `absence_meaningful=false`, and `ATTENDANCE_CARE_FOLLOW_UP_ENABLED` remains false in the attendance processor.
+- Attendance is not currently a care trigger. Session creation records the optional event-level `absence_meaningful` preference (off by default) from the final setup checkbox. `ATTENDANCE_CARE_FOLLOW_UP_ENABLED` remains false in the attendance processor, so this preference is stored but does not currently create attendance-based follow-up.
 - No missed-service threshold, Sunday streak, or attendance-based care follow-up is activated by manual or automatic session closure. The organization-level register-review control is removed from the interface until the care policy is designed separately.
 - First-visit welcome and other non-attendance care workflows remain available. A later care policy must be specified and reviewed separately; do not infer that one or two missing marks are sufficient grounds for contact.
 
 ### Migration and verification
 
-- The production migration ledger records `20261030192018_attendance_session_auto_close` and `20261030195500_backfill_active_attendance_deadlines`; keep both source files under those exact versions. The auto-close source was renumbered to match the already-applied production version, and the missing backfill source was reconstructed idempotently from the production schema and the canonical deadline calculation.
-- Do not run migration repair or `supabase db push` until `supabase migration list` confirms the local and remote versions are aligned. Both migrations are already recorded as applied in production.
-- Verify the scheduled cron job is active, auto-close runs against a due session, unmarked roster entries become `not_present` with `source='auto_close'`, an audit event is appended, and the SQL smoke test leaves no session residue.
+- Production records the applied migrations `20261030192018_attendance_session_auto_close` and `20261030195500_backfill_active_attendance_deadlines`; keep GitHub source filenames aligned with those exact versions. These two migrations are already recorded as applied in production.
+- Do not run migration repair or a blind `supabase db push`. First compare `supabase_migrations.schema_migrations` with the source files and live schema. Verify the scheduled cron job is active, auto-close runs against a due session, unmarked roster entries become `not_present` with `source='auto_close'`, an audit event is appended, and the SQL smoke test leaves no session residue.
 - Regression coverage must protect the plain-language confirmation/cancel behavior, session lifetime independence from browsers, time-zone deadline calculation, roster snapshot, offline post-close protection, admin verification, and the continued first-visit flow.
 - Production readiness requires green CI and a READY Vercel deployment whose source SHA matches the reviewed/merged commit. A real Havilah service test is still required to validate staff experience across phones.
 
 
-### 60. OCTOBER 31, 2026 — ATTENDANCE LIFECYCLE AND MIGRATION CONSISTENCY
+---
 
-- The normal Attendance API and ARIA workspace must call `lib/attendance/sessionLifecycle.js` for session creation and manual finalization. Do not create or close sessions through separate SQL implementations.
-- The canonical creator owns the organization-local deadline, active-session guard, session operator membership, sections, event semantics, initial active-People roster snapshot, and `SERVICE_CREATED` memory event.
-- The canonical finalizer calls `public.nyeocare_finalize_attendance_session` and enqueues durable ARIA processing using the same transaction. Caller-specific authorization remains at the API boundary.
-- Keep the explicit owner/admin historical attendance correction path intact unless a separate product/security review changes that requirement.
-- Keep migration source filenames aligned with the versions recorded by Supabase production. Never mark a version applied or push migrations based only on matching names; inspect the live schema and migration ledger first.
+## 60. OCTOBER 31, 2026 — CANONICAL ATTENDANCE LIFECYCLE AND RELEASE INTEGRITY
+
+- The normal Attendance API and ARIA workspace use `lib/attendance/sessionLifecycle.js` for session creation and manual finalization. Neither entry point is permitted to insert or close sessions through a parallel SQL implementation.
+- The canonical creator owns the organization-local deadline, active-session serialization, session operator membership, sections, event semantics, initial active-People roster snapshot, and `SERVICE_CREATED` ARIA memory event.
+- The event-level `absence_meaningful` preference remains optional and off by default. It is persisted as an event property only; `ATTENDANCE_CARE_FOLLOW_UP_ENABLED` remains false until a separately reviewed care policy is approved.
+- The canonical finalizer calls `public.nyeocare_finalize_attendance_session` and enqueues durable ARIA processing in the same caller transaction. Caller-specific permissions remain at the API/workspace boundary.
+- The explicit owner/admin historical attendance correction path remains intentionally supported. It must not be removed as part of canonical session creation/finalization work.
+- Before creating a release commit, test both the normal Attendance API and ARIA workspace paths against the same create/finalize invariants. CI must gate both.

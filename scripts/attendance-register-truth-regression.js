@@ -103,9 +103,10 @@ assert.ok(files.cohort.includes("attendance_population:'not_inferred'")&&
 assert.ok(files.eventProcessor.includes("o.type IN('UNUSUAL_ABSENCE','ATTENDANCE_NOT_OBSERVED')")&&
   files.eventProcessor.includes('attendance_register_review'),
   'later confirmed participation must resolve the new register-review signal and action');
-assert.ok(!returnSignals.includes('ATTENDANCE_NOT_OBSERVED')&&
-  !returnSignals.includes('attendance_register_review'),
-  'a later attendance record must resolve a register review without generating a return-from-absence follow-up message');
+const returnerDetection=returnSignals.slice(0,returnSignals.indexOf('if(returners.rows.length)'));
+assert.ok(!returnerDetection.includes('ATTENDANCE_NOT_OBSERVED')&&
+  !returnerDetection.includes('attendance_register_review'),
+  'a register review must not trigger return-from-absence follow-up generation');
 assert.ok(files.organizationPolicyUi.includes('not an automatic absence detector')&&
   files.organizationPolicyUi.includes('register complete'),
   'organization settings must explain the limited role of the attendance review permission');

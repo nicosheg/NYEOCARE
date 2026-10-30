@@ -84,8 +84,9 @@ export default withAdmin(async function handler(req,res){
         action_metadata->>'session_id'=$4
         OR action_metadata->>'care_session_id'=$4
         OR action_metadata->>'attendance_session_id'=$4
-      )`,[
-       present?'Resolved by human attendance correction.':'Attendance context corrected by a human; review action no longer applies.',orgId,people_id,session_id
+      )
+      AND ($5::boolean=false OR (COALESCE(action_metadata->>'kind','')<>'first_session_check_in' AND COALESCE(action_metadata->>'first_visit_required','false')<>'true'))`,[
+       present?'Resolved by human attendance correction.':'Attendance context corrected by a human; review action no longer applies.',orgId,people_id,session_id,present
   ]);
   await resolveCareWorkInTransaction({db,organizationId:orgId,actorId:userId,personId:people_id,actionId:action_id,observationId:observation_id,reason:present?'Human confirmed attendance.':'Human corrected the attendance and context.',source:'attendance_correction',onlyLinkedQueueItems:true});
 

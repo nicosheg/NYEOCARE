@@ -61,7 +61,7 @@ assert.ok(attendanceMark.includes('pg_advisory_xact_lock(hashtextextended($1,0))
 assert.doesNotMatch(attendanceMark, /LIMIT 1 FOR UPDATE OF s/,
   'independent live marks must not contend on an exclusive session-row lock');
 
-assert.ok(createSession.includes("[orgId,name.trim(),service_type||null,userId,event_kind||'service'"),
+assert.ok(createSession.includes("[orgId,name.trim(),service_type||null,userId,timing.started_at,timing.auto_close_at,timing.auto_close_reason,event_kind||'service'"),
   'attendance session creation must persist service_type and started_by in their correct positions instead of grouping services by creator UUID');
 
 assert.match(serviceIdentity, /REGEXP_REPLACE/,

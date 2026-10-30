@@ -69,6 +69,22 @@ CREATE TABLE IF NOT EXISTS public.attendance_register_events (
 CREATE INDEX IF NOT EXISTS attendance_register_events_org_session_idx
   ON public.attendance_register_events (organization_id,session_id,recorded_at DESC);
 
+CREATE OR REPLACE FUNCTION public.prevent_attendance_register_event_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path=public
+AS $
+BEGIN
+  RAISE EXCEPTION 'attendance_register_events is append-only; write a new declaration instead';
+END;
+$;
+
+DROP TRIGGER IF EXISTS attendance_register_events_append_only ON public.attendance_register_events;
+CREATE TRIGGER attendance_register_events_append_only
+  BEFORE UPDATE OR DELETE ON public.attendance_register_events
+  FOR EACH ROW EXECUTE FUNCTION public.prevent_attendance_register_event_mutation();
+
+
 -- Retire legacy absence records produced without a register-completeness declaration.
 -- New verified non-observations use ATTENDANCE_NOT_OBSERVED instead.
 UPDATE public.aria_observations

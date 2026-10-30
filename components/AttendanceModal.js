@@ -1226,7 +1226,7 @@ export default function AttendanceModal({isOpen,onClose}){
               <option value="other">Other verified source</option>
             </select>
           </label>
-          {registerSource==='other'&&<input value={registerReviewNote} onChange={e=>setRegisterReviewNote(e.target.value)} maxLength={500} placeholder="Describe the register source" style={{...input,width:'100%',fontSize:12,padding:'9px 10px'}} disabled={closing}/>}
+          {(registerSource==='other'||registerCompleteness==='incomplete')&&<input value={registerReviewNote} onChange={e=>setRegisterReviewNote(e.target.value)} maxLength={500} placeholder={registerSource==='other'?'Describe the register source':'What still needs checking or correcting?'} style={{...input,width:'100%',fontSize:12,padding:'9px 10px'}} disabled={closing}/>}
           <span style={{fontSize:10,lineHeight:1.45,color:'rgba(255,255,255,.58)'}}>Saving closes the event; it does not declare the register complete. Only choose Complete after every expected entry has been checked and reconciled. Offline or unsynced marks always remain unconfirmed.</span>
         </div>
         <footer style={footer}>

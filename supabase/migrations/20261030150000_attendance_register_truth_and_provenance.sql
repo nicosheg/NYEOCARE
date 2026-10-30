@@ -51,7 +51,7 @@ END $$;
 
 CREATE TABLE IF NOT EXISTS public.attendance_register_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id text NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  organization_id text NOT NULL REFERENCES public.organizations(id) ON DELETE RESTRICT,
   session_id uuid NOT NULL REFERENCES public.sessions(id) ON DELETE RESTRICT,
   register_completeness text NOT NULL
     CHECK (register_completeness IN ('unconfirmed','incomplete','complete')),
@@ -102,7 +102,7 @@ SET status='cancelled',
     failure_reason='Legacy attendance follow-up retired because its source register was not verified complete.',
     updated_at=NOW()
 WHERE status IN('proposed','approved')
-  AND action_metadata->>'kind' IN('care_first_check_in','attendance_absence_check_in','returned_after_absence');
+  AND action_metadata->>'kind' IN('attendance_absence_check_in','returned_after_absence');
 
 UPDATE public.aria_observations
 SET status='resolved',resolved_at=COALESCE(resolved_at,NOW()),updated_at=NOW()

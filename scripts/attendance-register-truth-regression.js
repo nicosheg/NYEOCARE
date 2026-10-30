@@ -49,11 +49,12 @@ assert.ok(files.attendanceLifecycle.includes("ELSE started_at+INTERVAL '24 hours
   files.attendanceLifecycle.includes("LEAST(started_at+INTERVAL '24 hours',end_of_day)"),
   'the canonical creator must use the earlier of 24 hours after the start or 23:59 on the organization-local day');
 
-assert.ok(files.closeSession.includes('nyeocare_finalize_attendance_session')&&
-  files.closeSession.includes('manual_confirmation')&&
-  files.closeSession.includes('enqueueAttendanceProcessing')&&
+assert.ok(files.closeSession.includes('finalizeAttendanceSession({')&&
+  files.attendanceLifecycle.includes('nyeocare_finalize_attendance_session')&&
+  files.attendanceLifecycle.includes('manual_confirmation')&&
+  files.attendanceLifecycle.includes('enqueueAttendanceProcessing')&&
   files.closeSession.includes("await client.query('COMMIT')"),
-  'manual confirmation must finalize attendance and enqueue background processing atomically');
+  'manual confirmation must use the canonical transactional finalizer and durable queue publication');
 assert.ok(files.activeSession.includes('auto_close_at')&&
   files.activeSession.includes('last_closed_session_id')&&
   files.activeSession.includes('organization_timezone'),

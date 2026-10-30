@@ -12,6 +12,7 @@ const files={
  sync:read('pages/api/attendance/sync.js'),
  visitor:read('pages/api/attendance/add-visitor.js'),
  correction:read('pages/api/attendance/aria-correction.js'),
+ canonicalCare:read('lib/aria/canonicalCare.js'),
  attendanceUi:read('components/AttendanceModal.js'),
  fieldMode:read('lib/attendanceFieldMode.js'),
  attendanceProcessor:read('lib/aria/attendanceProcessor.js'),
@@ -94,6 +95,12 @@ assert.ok(files.home.includes('attendanceDecision!==null')&&
   files.home.includes('verified:true')&&
   files.home.includes('Yes, I verify they attended'),
   'ARIA must ask an administrator to verify before changing a saved attendance record');
+
+assert.ok(files.correction.includes("COALESCE(action_metadata->>'first_visit_required','false')<>'true'")&&
+  files.correction.includes('onlyLinkedQueueItems:true')&&
+  files.canonicalCare.includes('if(onlyLinkedQueueItems)')&&
+  files.canonicalCare.includes('source_id=ANY($2::text[])'),
+  'correcting attendance must not dismiss an unrelated first-visit care task');
 
 assert.ok(files.attendanceProcessor.includes('ATTENDANCE_CARE_FOLLOW_UP_ENABLED = false')&&
   files.attendanceProcessor.includes("skipped:'attendance_care_follow_up_paused'")&&

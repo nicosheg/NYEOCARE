@@ -97,7 +97,7 @@ assert.ok(peopleApi.includes("regexp_replace(COALESCE(p.phone,''), '[^0-9]', '',
 assert.ok(peoplePage.includes('aria-label="Search people by name, phone, or email"')&&peoplePage.includes('aria-label="Clear search"'),'People search must remain accessible and provide a one-tap clear action.');
 assert.ok(peoplePage.includes('aria-controls="people-filter-panel"')&&peoplePage.includes('Reset filters')&&peoplePage.includes('aria-pressed={showLivingTruthOnly}'),'People filters must be consolidated into an accessible expandable panel with reset support.');
 assert.ok(peoplePage.includes('Add multiple people')&&peoplePage.includes('Bulk add from a list')&&!peoplePage.includes('Bulk add</button>'),'Single and bulk person creation must share one Add people action rather than competing toolbar buttons.');
-assert.ok(peoplePage.includes("search||activeFilterCount>0?'No people found':'No people yet'"),'An empty People result caused by any active filter must not be described as an empty organization.');
+assert.ok(peoplePage.includes("attendanceGroupFilter!=='all'")&&peoplePage.includes("'No people found':'No people yet'"),'An empty People result caused by a search, person filter, or attendance section must not be described as an empty organization.');
 assert.equal(primaryPhone({phone:null,phone_numbers:[{normalized:'unreadable',raw:'08012345678',index:1}]}),'+2348012345678','Primary-phone resolution must fall back to a valid raw phone when the normalized field is corrupt.');
 assert.deepEqual(normalizePhoneList({phone:'+2348098765432',phone_numbers:[{normalized:'invalid',raw:'08012345678',index:1}] }),['+2348098765432','+2348012345678'],'Phone-list resolution must prefer the canonical primary and then recover valid raw alternates.');
 

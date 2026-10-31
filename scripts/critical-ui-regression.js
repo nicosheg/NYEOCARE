@@ -83,16 +83,22 @@ const pkg=JSON.parse(read('package.json'));
 const vercel=JSON.parse(read('vercel.json'));
 
 const checks=[
- ['Attendance route mounts the canonical modal directly after client hydration',
-  attendancePage.includes("import AttendanceModal from '../components/AttendanceModal'")&&
+ ['Attendance route loads the canonical modal only in the browser and reports chunk failures',
+  !attendancePage.includes("import AttendanceModal from '../components/AttendanceModal'")&&
   !attendancePage.includes("import dynamic from 'next/dynamic'")&&
-  attendancePage.includes('const [clientReady, setClientReady] = useState(false)')&&
-  attendancePage.includes('setClientReady(true)')&&
+  attendancePage.includes("import('../components/AttendanceModal)")&&
+  attendancePage.includes('useState(null)')&&
+  attendancePage.includes('setAttendanceModal(() => module.default)')&&
+  attendancePage.includes("catch(error => {")&&
+  attendancePage.includes('Your saved attendance is untouched.')&&
+  attendancePage.includes('Reload Attendance')&&
   attendancePage.includes('<AttendanceModal isOpen={true} onClose={goHome} />')&&
   attendancePage.includes('ClientErrorBoundary')&&
-  !attendancePage.includes('Attendance is taking too long to load')&&
   !attendancePage.includes("router.replace('/session')")&&
   !nextConfig.includes("destination: '/people?tab=attendance'")],
+ ['Attendance cache version changes with the repaired client-chunk lifecycle',
+  /const CACHE='nyeocare-static-v7'/.test(serviceWorker)],
+
  ['Attendance route does not add a second global back button over the modal',
   navigationBack.includes("path==='/attendance'")&&attendancePage.includes('onClose={goHome}')],
  ['The obsolete standalone session route forwards to canonical Attendance',

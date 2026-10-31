@@ -1103,7 +1103,7 @@ export default function AttendanceModal({isOpen,onClose}){
       <header style={compactViewport?mobileHeader:header}>
         <div>
           <div style={headingRow}>
-            <h2 style={session?compactViewport?sessionMobileH2:sessionH2:compactViewport?mobileH2:h2}
+            <h2 style={session?compactViewport?sessionMobileH2:sessionH2:compactViewport?mobileCreationH2:creationH2}
               title={session?(session.name||'Live session'):'ATTENDANCE'}>{session?(session.name||'Live session'):'ATTENDANCE'}</h2>
             {session?.status==='active'&&<span style={liveTag}>LIVE</span>}
           </div>
@@ -1111,7 +1111,7 @@ export default function AttendanceModal({isOpen,onClose}){
             ? <p style={compactViewport?mobileSub:sub}>Tap to mark present. Saves instantly.</p>
             : background
               ? <p style={compactViewport?mobileSub:sub}>{backgroundLabel}. You can start the next attendance now.</p>
-              : null}
+              : <p style={compactViewport?mobileCreationIntro:creationIntro}>Create a session to begin taking attendance.</p>}
           {session?.status==='active'&&autoCloseLabel&&<span style={compactViewport?mobileAutoCloseHint:autoCloseHint}>Live for everyone · Auto-saves by {autoCloseLabel}.</span>}
         </div>
         <button style={close} onClick={onClose} aria-label="Close attendance">×</button>
@@ -1293,6 +1293,10 @@ const header={display:'flex',justifyContent:'space-between',gap:14,padding:'18px
 const mobileHeader={...header,padding:'10px 12px 8px',gap:8};
 const h2={margin:0,fontSize:'clamp(30px,3.5vw,38px)',lineHeight:1,fontWeight:850,letterSpacing:.5};
 const mobileH2={...h2,fontSize:29,lineHeight:1};
+const creationH2={...h2,fontWeight:500,letterSpacing:.35};
+const mobileCreationH2={...mobileH2,fontWeight:500,letterSpacing:.3};
+const creationIntro={...sub,margin:'7px 0 0',fontSize:14,lineHeight:1.4,color:'rgba(255,255,255,.62)'};
+const mobileCreationIntro={...creationIntro,margin:'4px 0 0',fontSize:12.5,lineHeight:1.3};
 const sessionH2={...h2,fontSize:'clamp(27px,3vw,34px)',maxWidth:'min(70vw,620px)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'};
 const sessionMobileH2={...mobileH2,fontSize:'clamp(19px,5.5vw,24px)',maxWidth:'calc(100vw - 125px)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'};
 const sub={margin:'5px 0 0',color:'rgba(255,255,255,.46)',fontSize:12,lineHeight:1.45};

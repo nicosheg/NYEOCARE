@@ -67,6 +67,13 @@ assert.ok(!files.attendanceUi.includes('Use verified non-observation for a care 
   !files.attendanceUi.includes('ARIA works independently after you save')&&
   files.attendanceUi.includes('Give the session a clear name. You can close this screen at any time; attendance stays open for everyone until it is saved automatically or you choose to save it.')&&
   files.attendanceUi.includes("title={session?(session.name||'Live session'):'ATTENDANCE'}>{session?(session.name||'Live session'):'ATTENDANCE'}</h2>")&&
+  files.attendanceUi.includes('session?compactViewport?sessionMobileH2:sessionH2:compactViewport?mobileCreationH2:creationH2')&&
+  files.attendanceUi.includes('const creationH2=')&&
+  files.attendanceUi.includes('const mobileCreationH2=')&&
+  files.attendanceUi.includes('fontWeight:500')&&
+  files.attendanceUi.includes('Create a session to begin taking attendance.')&&
+  files.attendanceUi.includes('const creationIntro=')&&
+  files.attendanceUi.includes('const mobileCreationIntro=')&&
   files.attendanceUi.includes('const sessionH2=')&&
   files.attendanceUi.includes('const sessionMobileH2=')&&
   !files.attendanceUi.includes('sessionNameText')&&

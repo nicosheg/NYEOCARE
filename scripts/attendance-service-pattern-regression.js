@@ -107,9 +107,12 @@ assert.ok(processor.includes('ATTENDANCE_CARE_FOLLOW_UP_ENABLED = false') &&
   'attendance-based care follow-up must remain paused without disabling first-visit care');
 assert.ok(!attendanceUi.includes('same named event') &&
   !attendanceUi.includes('verified register history') &&
-  attendanceUi.includes('Use verified non-observation for a care review in this event') &&
+  !attendanceUi.includes('Use verified non-observation for a care review in this event') &&
+  !attendanceUi.includes('Attendance-based care suggestions are paused') &&
+  !attendanceUi.includes('ARIA works independently after you save') &&
+  attendanceUi.includes('absence_meaningful:absenceMeaningful===true') &&
   attendanceUi.includes('Have you finished marking everyone who attended?'),
-  'attendance must not expose care policy or technical register language to operators');
+  'attendance must keep internal care preference handling while hiding care-policy and ARIA-internals copy from operators');
 
 assert.ok(processor.includes("pc.direction='inbound' AND pc.status IN('received','completed','sent','delivered')") &&
   processor.includes("te.source IN('human','conversation_import')") &&

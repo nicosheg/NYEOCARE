@@ -200,7 +200,7 @@ const checks=[
  ['ARIA auto-sync is not startup-critical',
   /IDLE_DELAY=30000/.test(autoSync)&&/COOLDOWN=60000/.test(autoSync)&&/document\.visibilityState/.test(autoSync)],
  ['Home keeps Scan, Attendance and Review client-only and lazy-loaded',/const ScanModal=dynamic/.test(home)&&/const AttendanceModal=dynamic/.test(home)&&/const ReviewCenterTab=dynamic/.test(home)],
- ['Attendance modal warm-up is scoped to Home and avoids a separate route prefetch',home.includes("import('../components/AttendanceModal')")&&!/r\.prefetch\('\\/attendance'\)/.test(layout)],
+ ['Attendance modal warm-up is scoped to Home and avoids a separate route prefetch',home.includes("import('../components/AttendanceModal')")&&!layout.includes("r.prefetch('/attendance')")],
  ['Navigation prefetches routes centrally during idle time',/requestIdleCallback/.test(layout)&&/r\.prefetch\('\/'\)/.test(layout)&&/r\.prefetch\('\/people'\)/.test(layout)&&/r\.prefetch\('\/profile'\)/.test(layout)&&!/router\.prefetch\('\/people'\)/.test(home)],
  ['People enhancer is not globally mounted',
   !/PeopleSurfaceEnhancer/.test(app)],

@@ -26,6 +26,7 @@ function proposedPayload(candidate) {
   return {
     first_name: candidate.first_name, last_name: candidate.last_name,
     display_name: candidate.display_name, full_name: candidate.display_name,
+    ...(candidate.attendance_group?{attendance_group:candidate.attendance_group}:{}),
     phone: candidate.phone || null,
     phone_numbers: candidate.phone ? [{raw:candidate.phone,normalized:candidate.phone,source:'bulk_add',index:1}] : [],
     email: candidate.email || null, birthday: candidate.birthday || null, type: candidate.type || 'visitor'
@@ -80,6 +81,9 @@ export default withOrg(async function handler(req, res) {
   if (!['member', 'visitor'].includes(defaultType)) {
     return res.status(400).json({ error: 'Default type must be member or visitor.' });
   }
+  const attendanceGroupRaw=String(body.default_attendance_group||'').trim().toLowerCase();
+  const attendanceGroup=attendanceGroupRaw||null;
+  if(attendanceGroup&&!['men','women','youth'].includes(attendanceGroup))return res.status(400).json({error:'Default attendance section must be Men, Women, Youth, or Unassigned.',code:'INVALID_ATTENDANCE_GROUP'});
   if (!Array.isArray(rawRows) || rawRows.length === 0) {
     return res.status(400).json({ error: 'Paste at least one person row.' });
   }
@@ -134,6 +138,7 @@ export default withOrg(async function handler(req, res) {
         phone,
         email: email || null,
         type,
+        attendance_group: attendanceGroup,
         birthday: null,
         living_truth: JSON.stringify({
           status: 'alive',
@@ -260,15 +265,15 @@ export default withOrg(async function handler(req, res) {
         values.push(
           row.person_id, row.first_name, row.last_name, row.display_name || null,
           row.phone, JSON.stringify(row.phone ? [{raw:row.phone,normalized:row.phone,source:'manual',index:1}] : []),
-          row.email, row.type, row.birthday, req.user.id, row.living_truth
+          row.email, row.type, row.attendance_group, row.birthday, req.user.id, row.living_truth
         );
-        return `($${first},$1,$${first + 1},$${first + 2},$${first + 3},$${first + 4},$${first + 5},$${first + 6},$${first + 7},$${first + 8},$${first + 9},$${first + 10}::jsonb,'active','manual')`;
+        return `(${first},$1,${first + 1},${first + 2},${first + 3},${first + 4},${first + 5},${first + 6},${first + 7},${first + 8},${first + 9},${first + 10},${first + 11}::jsonb,'active','manual')`;
       });
       const created = await client.query(
         `INSERT INTO people
-          (id,organization_id,first_name,last_name,display_name,phone,phone_numbers,email,type,birthday,created_by,living_truth,status,source)
+          (id,organization_id,first_name,last_name,display_name,phone,phone_numbers,email,type,attendance_group,birthday,created_by,living_truth,status,source)
          VALUES ${groups.join(',')}
-         RETURNING id,first_name,last_name,display_name,phone,phone_numbers,email,type,birthday,created_at`,
+         RETURNING id,first_name,last_name,display_name,phone,phone_numbers,email,type,attendance_group,birthday,created_at`,
         values
       );
       insertedPeople = created.rows;

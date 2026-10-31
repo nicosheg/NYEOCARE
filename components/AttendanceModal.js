@@ -1086,7 +1086,7 @@ export default function AttendanceModal({isOpen,onClose}){
       <header style={header}>
         <div>
           <div style={eyebrow}>{session?'LIVE ATTENDANCE':'ATTENDANCE'}</div>
-          <h2 style={h2}>{session?.name||'Attendance'}</h2>
+          {session?.name&&<h2 style={h2}>{session.name}</h2>}
           <p style={sub}>
             {session
               ? 'Mark people as you see them. Your changes are saved immediately.'
@@ -1116,7 +1116,6 @@ export default function AttendanceModal({isOpen,onClose}){
       :!session?canStartSession?<div style={createBox}>
         <div style={plus}>＋</div>
         <strong style={{fontSize:20}}>Start attendance</strong>
-        <span style={sub}>ARIA works independently after you save. It never holds the next session hostage.</span>
         <input
           style={input}
           value={sessionName}
@@ -1129,14 +1128,6 @@ export default function AttendanceModal({isOpen,onClose}){
         <span style={{...sub,fontSize:12,textAlign:"center"}}>
           Give the session a clear name. You can close this screen at any time; attendance stays open for everyone until it is saved automatically or you choose to save it.
         </span>
-        <label style={nonObservationOption}>
-          <input type="checkbox" checked={absenceMeaningful} onChange={event=>setAbsenceMeaningful(event.target.checked)} disabled={saving}/>
-          <span>
-            <strong>Use verified non-observation for a care review in this event</strong>
-            <small>Off by default. This does not mean anyone is absent or explain why; it only allows ARIA to consider a cautious signal after the register is explicitly confirmed complete.</small>
-          </span>
-        </label>
-        <small style={carePauseHint}>Attendance-based care suggestions are paused while the care follow-up policy is being designed. This choice is saved with the event but does not start follow-up.</small>
         <button
           style={{...primary,opacity:saving||!sessionName.trim()?0.55:1}}
           disabled={saving||!sessionName.trim()}
@@ -1273,8 +1264,6 @@ export default function AttendanceModal({isOpen,onClose}){
   return createPortal(content,document.body);
 }
 
-const nonObservationOption={display:'flex',alignItems:'flex-start',gap:10,width:'100%',maxWidth:480,padding:'12px 13px',borderRadius:14,border:'1px solid rgba(212,175,55,.22)',background:'rgba(212,175,55,.045)',fontSize:12,lineHeight:1.5,color:'rgba(255,255,255,.82)',textAlign:'left'};
-const carePauseHint={maxWidth:480,textAlign:'center',fontSize:10,lineHeight:1.45,color:'rgba(255,255,255,.42)',marginTop:-6};
 const autoCloseHint={display:'block',marginTop:5,fontSize:11,color:'rgba(214,184,106,.82)',lineHeight:1.4};
 const finishConfirmOverlay={position:'fixed',inset:0,zIndex:2147483001,display:'grid',placeItems:'center',padding:18,background:'rgba(2,5,12,.76)',backdropFilter:'blur(12px)'};
 const finishConfirmCard={width:'min(440px,100%)',padding:20,borderRadius:20,border:'1px solid rgba(255,255,255,.16)',background:'linear-gradient(145deg,#26364d,#0b1425)',boxShadow:'0 24px 70px rgba(0,0,0,.55)',color:'#f5f7fb'};

@@ -8,9 +8,6 @@ const nextConfig = {
       // Scan remains a full page – redirect old /scan to Home (which has a Scan Register button)
       { source: '/scan', destination: '/', permanent: false },
 
-      // Attendance → People → Attendance tab
-      { source: '/attendance', destination: '/people?tab=attendance', permanent: false },
-
       // Care Queue → Home (integrated)
       { source: '/care-queue', destination: '/', permanent: false },
 

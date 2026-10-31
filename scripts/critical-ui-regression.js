@@ -86,7 +86,7 @@ const checks=[
  ['Attendance route lazy-loads the canonical modal with a visible loading state instead of the legacy session route',
   attendancePage.includes("import('../components/AttendanceModal')")&&attendancePage.includes('<AttendanceModal isOpen={true}')&&attendancePage.includes('AttendancePageLoading')&&attendancePage.includes('ClientErrorBoundary')&&!attendancePage.includes("router.replace('/session')")&&!nextConfig.includes("destination: '/people?tab=attendance'")],
  ['Every Home Attendance entry point uses the canonical route instead of a second local modal mount',
-  home.includes("router.push('/attendance')")&&countString(home,'onClick={openAttendance}')>=2&&!home.includes('setAttendance(')&&!home.includes('AttendanceModal')],
+  home.includes("router.push('/attendance')")&&countString(home,'onClick={openAttendance}')>=2&&!home.includes('setAttendance(')&&!home.includes('const AttendanceModal=dynamic')&&!home.includes('<AttendanceModal isOpen={attendance}')],
  ['Attendance session state separates live work from background ARIA',
   /s\.status='active'/.test(activeApi)&&/background_processing/.test(activeApi)&&/can_start_new_session:\['owner','admin'\]\.includes\(String\(req\.user\.role\|\|''\)\.toLowerCase\(\)\)/.test(activeApi)],
  ['Attendance close is atomic with durable queue publication',

@@ -1,25 +1,8 @@
 // pages/attendance.js
-import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
+import AttendanceModal from '../components/AttendanceModal';
 import Layout from '../components/Layout';
 import ClientErrorBoundary from '../components/ClientErrorBoundary';
-
-function AttendancePageLoading() {
-  return (
-    <main style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', padding: 24, color: 'var(--ny-text-muted)' }}>
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ width: 30, height: 30, margin: '0 auto 12px', borderRadius: '50%', border: '2px solid rgba(214,184,106,.2)', borderTopColor: '#D6B86A', animation: 'attendanceRouteSpin .8s linear infinite' }} />
-        <p style={{ margin: 0, fontSize: 13 }}>Opening Attendance…</p>
-        <style jsx>{`@keyframes attendanceRouteSpin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    </main>
-  );
-}
-
-const AttendanceModal = dynamic(
-  () => import('../components/AttendanceModal'),
-  { ssr: false, loading: () => <AttendancePageLoading /> }
-);
 
 function AttendanceRecovery({ onClose }) {
   return (

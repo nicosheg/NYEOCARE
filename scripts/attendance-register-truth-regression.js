@@ -77,7 +77,9 @@ assert.ok(!files.attendanceUi.includes('Use verified non-observation for a care 
   files.attendanceUi.includes('prefers-reduced-motion:reduce')&&
   files.attendanceUi.includes('Live for everyone · Auto-saves by')&&
   files.attendanceUi.includes("window.matchMedia('(max-width: 680px)')")&&
-  files.attendanceUi.includes("height:'98dvh'")&&
+  files.attendanceUi.includes("height:'min(88dvh,820px)'")&&
+  files.attendanceUi.includes("width:'min(1120px,94vw)'")&&
+  files.attendanceUi.includes("borderRadius:30")&&
   files.attendanceUi.includes("padding:'2px 0'")&&
   files.attendanceUi.includes('const mobileMarkButton=')&&
   files.attendanceUi.includes('minHeight:36')&&

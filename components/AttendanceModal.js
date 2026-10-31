@@ -1131,7 +1131,7 @@ export default function AttendanceModal({isOpen,onClose}){
       {loading?<div style={loadingBox}>Preparing attendance…</div>
       :!session?canStartSession?<div style={createBox}>
         <div style={plus}>＋</div>
-        <strong style={{fontSize:20}}>Start attendance</strong>
+        <strong style={{fontSize:20}}>Create a session</strong>
         <input
           style={input}
           value={sessionName}

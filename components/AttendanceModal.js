@@ -1288,7 +1288,7 @@ const modal={
   display:'flex',flexDirection:'column',color:'#f5f7fb',
   boxShadow:'0 35px 110px rgba(0,0,0,.7)'
 };
-const mobileModal={...modal,width:'100%',height:'98dvh',maxHeight:'98dvh',minHeight:0,borderRadius:18};
+const mobileModal={...modal,width:'min(1120px,94vw)',height:'min(88dvh,820px)',maxHeight:'88dvh',minHeight:0,borderRadius:30};
 const header={display:'flex',justifyContent:'space-between',gap:14,padding:'18px 22px 14px',borderBottom:'1px solid rgba(255,255,255,.08)',flexShrink:0};
 const mobileHeader={...header,padding:'10px 12px 8px',gap:8};
 const h2={margin:0,fontSize:'clamp(30px,3.5vw,38px)',lineHeight:1,fontWeight:850,letterSpacing:.5};

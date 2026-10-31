@@ -83,16 +83,13 @@ const pkg=JSON.parse(read('package.json'));
 const vercel=JSON.parse(read('vercel.json'));
 
 const checks=[
- ['Attendance opens as the original Home-mounted modal with an observable client import',
-  home.includes("import('../components/AttendanceModal')")&&
-  home.includes('const ensureAttendanceModal=useCallback')&&
-  home.includes("setAttendance(true);void ensureAttendanceModal(true)")&&
-  home.includes('attendanceModal?<AttendanceModal')&&
-  home.includes('<AttendanceOpening loading={attendanceLoading}')&&
-  home.includes('attendance_module_load_error')&&
-  home.includes("surface:'attendance-loader'")&&
-  /height:'min\(88dvh,820px\)'/.test(home)&&
-  /width:'min\(1120px,94vw\)'/.test(attendance)&&
+ ['Home Attendance opens the canonical component using the known-good client dynamic import',
+  home.includes("const AttendanceModal=dynamic(()=>import('../components/AttendanceModal'),{ssr:false})")&&
+  home.includes('const openAttendance=()=>setAttendance(true)')&&
+  home.includes('<AttendanceModal isOpen={attendance}')&&
+  countString(home,'onClick={openAttendance}')>=2&&
+  !home.includes('ensureAttendanceModal')&&
+  !home.includes('AttendanceOpening')&&
   !home.includes("router.push('/attendance')")],
  ['Legacy Attendance links return to Home and open the original modal',
   attendancePage.includes("router.replace('/?attendance=1')")&&
@@ -109,8 +106,9 @@ const checks=[
  ['The unused AttendanceTab legacy compatibility wrapper is removed',
   !existsSync('components/AttendanceTab.js')],
  ['Every Home Attendance entry point opens the same Home-mounted modal',
-  countString(home,'onClick={openAttendance}')>=2&&home.includes('const openAttendance=()=>{setAttendance(true);void ensureAttendanceModal(true).catch(()=>{})}')&&
-  home.includes('<AttendanceModal isOpen={attendance}')&&!home.includes("router.push('/attendance')")],
+  countString(home,'onClick={openAttendance}')>=2&&home.includes('const openAttendance=()=>setAttendance(true)')&&
+  home.includes("const AttendanceModal=dynamic(()=>import('../components/AttendanceModal'),{ssr:false})")&&
+  home.includes('<AttendanceModal isOpen={attendance}')&&!home.includes('AttendanceOpening')&&!home.includes("router.push('/attendance')")],
  ['Attendance session state separates live work from background ARIA',
   /s\.status='active'/.test(activeApi)&&/background_processing/.test(activeApi)&&/can_start_new_session:\['owner','admin'\]\.includes\(String\(req\.user\.role\|\|''\)\.toLowerCase\(\)\)/.test(activeApi)],
  ['Attendance close is atomic with durable queue publication',
@@ -203,8 +201,8 @@ const checks=[
   /stage!==\'processing\'/.test(scanRecovery)&&!/latest=1/.test(scanRecovery)],
  ['ARIA auto-sync is not startup-critical',
   /IDLE_DELAY=30000/.test(autoSync)&&/COOLDOWN=60000/.test(autoSync)&&/document\.visibilityState/.test(autoSync)],
- ['Home keeps Scan and Review lazy-loaded and Attendance explicitly client-loaded',/const ScanModal=dynamic/.test(home)&&/const ReviewCenterTab=dynamic/.test(home)&&/const ensureAttendanceModal=useCallback/.test(home)&&!home.includes('const AttendanceModal=dynamic')],
- ['Attendance modal warm-up uses the same deduplicated importer as the Home button',home.includes("ensureAttendanceModal(false).catch")&&home.includes("setAttendanceModal(()=>module.default)")&&!layout.includes("r.prefetch('/attendance')")],
+ ['Home keeps Scan, Attendance and Review on explicit client-only dynamic imports',/const ScanModal=dynamic/.test(home)&&/const AttendanceModal=dynamic/.test(home)&&/const ReviewCenterTab=dynamic/.test(home)&&/ssr:false/.test(home)&&!home.includes('ensureAttendanceModal')],
+ ['Attendance has one canonical Home-mounted component and no substitute opening screen',countString(home,"const AttendanceModal=dynamic(()=>import('../components/AttendanceModal')")===1&&countString(home,'<AttendanceModal isOpen={attendance}')===1&&!home.includes('AttendanceOpening')&&!home.includes('attendanceLoadError')],
  ['Navigation prefetches routes centrally during idle time',/requestIdleCallback/.test(layout)&&/r\.prefetch\('\/'\)/.test(layout)&&/r\.prefetch\('\/people'\)/.test(layout)&&/r\.prefetch\('\/profile'\)/.test(layout)&&!/router\.prefetch\('\/people'\)/.test(home)],
  ['People enhancer is not globally mounted',
   !/PeopleSurfaceEnhancer/.test(app)],

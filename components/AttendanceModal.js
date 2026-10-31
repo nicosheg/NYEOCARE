@@ -1095,21 +1095,23 @@ export default function AttendanceModal({isOpen,onClose}){
     : null;
 
   const content=<div style={compactViewport?mobileOverlay:overlay} onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}>
+    <style jsx global>{`
+      @keyframes nyeoAttendanceBreath {0%,100%{transform:scale(1);opacity:.78}50%{transform:scale(1.045);opacity:1}}
+      @media(prefers-reduced-motion:reduce){.ny-attendance-create-aura{animation:none!important}}
+    `}</style>
     <div style={compactViewport?mobileModal:modal} role="dialog" aria-modal="true" aria-label="Attendance">
       <header style={compactViewport?mobileHeader:header}>
         <div>
           <div style={headingRow}>
-            <h2 style={compactViewport?mobileH2:h2}>ATTENDANCE</h2>
+            <h2 style={session?compactViewport?sessionMobileH2:sessionH2:compactViewport?mobileH2:h2}
+              title={session?(session.name||'Live session'):'ATTENDANCE'}>{session?(session.name||'Live session'):'ATTENDANCE'}</h2>
             {session?.status==='active'&&<span style={liveTag}>LIVE</span>}
           </div>
-          {session?.name&&<div style={sessionNameText} title={session.name}>{session.name}</div>}
-          <p style={compactViewport?mobileSub:sub}>
-            {session
-              ? 'Tap to mark present. Saves instantly.'
-              : background
-                ? `${backgroundLabel}. You can start the next attendance now.`
-                : 'Create a session to begin taking attendance.'}
-          </p>
+          {session
+            ? <p style={compactViewport?mobileSub:sub}>Tap to mark present. Saves instantly.</p>
+            : background
+              ? <p style={compactViewport?mobileSub:sub}>{backgroundLabel}. You can start the next attendance now.</p>
+              : null}
           {session?.status==='active'&&autoCloseLabel&&<span style={compactViewport?mobileAutoCloseHint:autoCloseHint}>Live for everyone · Auto-saves by {autoCloseLabel}.</span>}
         </div>
         <button style={close} onClick={onClose} aria-label="Close attendance">×</button>
@@ -1129,30 +1131,15 @@ export default function AttendanceModal({isOpen,onClose}){
       {error&&<div style={errorBox}>{error}</div>}
 
       {loading?<div style={loadingBox}>Preparing attendance…</div>
-      :!session?canStartSession?<div style={createBox}>
-        <div style={plus}>＋</div>
-        <strong style={{fontSize:20}}>Create a session</strong>
-        <input
-          style={input}
-          value={sessionName}
-          onChange={e=>setSessionName(e.target.value)}
-          onKeyDown={e=>{if(e.key==='Enter'&&!saving)createSession()}}
-          placeholder="Session name"
-          maxLength={120}
-          autoFocus
-        />
-        <span style={{...sub,fontSize:12,textAlign:"center"}}>
-          Give the session a clear name. You can close this screen at any time; attendance stays open for everyone until it is saved automatically or you choose to save it.
-        </span>
-        <button
-          style={{...primary,opacity:saving||!sessionName.trim()?0.55:1}}
-          disabled={saving||!sessionName.trim()}
-          onClick={createSession}
-        >
-          {saving?'Starting…':'Start attendance'}
-        </button>
-      </div>
-      :<div style={createBox}>
+      :!session?canStartSession?<div style={compactViewport?mobileSessionCreateBox:sessionCreateBox}>
+         <div className="ny-attendance-create-aura" style={createAura} aria-hidden="true"><div style={createPlus}>＋</div></div>
+         <strong style={compactViewport?mobileCreateTitle:createTitle}>Create a session</strong>
+         <div style={createAccent} aria-hidden="true"/>
+         <input style={compactViewport?mobileCreateInput:createInput} value={sessionName} onChange={e=>setSessionName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!saving)createSession()}} placeholder="Session name" maxLength={120} autoFocus/>
+         <span style={compactViewport?mobileCreateExplanation:createExplanation}>Give the session a clear name. You can close this screen at any time; attendance stays open for everyone until it is saved automatically or you choose to save it.</span>
+         <button style={{...createPrimary,opacity:saving||!sessionName.trim()?0.55:1}} disabled={saving||!sessionName.trim()} onClick={createSession}>{saving?'Starting…':'Start attendance'}</button>
+       </div>
+:<div style={createBox}>
         <div style={plus}>＋</div>
         <strong style={{fontSize:20}}>An owner or admin must start attendance</strong>
         <span style={sub}>Ask an owner or admin to start the service. Once it is active, reopen Attendance to join and mark people present.</span>
@@ -1282,9 +1269,8 @@ export default function AttendanceModal({isOpen,onClose}){
   return createPortal(content,document.body);
 }
 
-const headingRow={display:'flex',alignItems:'center',gap:9};
-const liveTag={padding:'3px 7px',borderRadius:999,border:'1px solid rgba(74,222,128,.24)',background:'rgba(74,222,128,.08)',color:'rgba(134,239,172,.9)',fontSize:9,fontWeight:800,letterSpacing:1.1,lineHeight:1};
-const sessionNameText={marginTop:3,maxWidth:'min(70vw,620px)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontSize:14,fontWeight:600,color:'rgba(245,247,251,.78)',lineHeight:1.2};
+const headingRow={display:'flex',alignItems:'center',gap:9,minWidth:0};
+const liveTag={padding:'3px 7px',borderRadius:999,border:'1px solid rgba(74,222,128,.24)',background:'rgba(74,222,128,.08)',color:'rgba(134,239,172,.9)',fontSize:9,fontWeight:800,letterSpacing:1.1,lineHeight:1,flexShrink:0};
 const autoCloseHint={display:'block',marginTop:5,fontSize:11,color:'rgba(214,184,106,.82)',lineHeight:1.4};
 const finishConfirmOverlay={position:'fixed',inset:0,zIndex:2147483001,display:'grid',placeItems:'center',padding:18,background:'rgba(2,5,12,.76)',backdropFilter:'blur(12px)'};
 const finishConfirmCard={width:'min(440px,100%)',padding:20,borderRadius:20,border:'1px solid rgba(255,255,255,.16)',background:'linear-gradient(145deg,#26364d,#0b1425)',boxShadow:'0 24px 70px rgba(0,0,0,.55)',color:'#f5f7fb'};
@@ -1305,8 +1291,10 @@ const modal={
 const mobileModal={...modal,width:'100%',height:'98dvh',maxHeight:'98dvh',minHeight:0,borderRadius:18};
 const header={display:'flex',justifyContent:'space-between',gap:14,padding:'18px 22px 14px',borderBottom:'1px solid rgba(255,255,255,.08)',flexShrink:0};
 const mobileHeader={...header,padding:'10px 12px 8px',gap:8};
-const h2={margin:0,fontSize:'clamp(27px,3vw,34px)',lineHeight:1,fontWeight:800,letterSpacing:.45};
-const mobileH2={...h2,fontSize:26,lineHeight:1};
+const h2={margin:0,fontSize:'clamp(30px,3.5vw,38px)',lineHeight:1,fontWeight:850,letterSpacing:.5};
+const mobileH2={...h2,fontSize:29,lineHeight:1};
+const sessionH2={...h2,fontSize:'clamp(27px,3vw,34px)',maxWidth:'min(70vw,620px)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'};
+const sessionMobileH2={...mobileH2,fontSize:'clamp(19px,5.5vw,24px)',maxWidth:'calc(100vw - 125px)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'};
 const sub={margin:'5px 0 0',color:'rgba(255,255,255,.46)',fontSize:12,lineHeight:1.45};
 const mobileSub={...sub,margin:'3px 0 0',fontSize:11.5,lineHeight:1.25};
 const mobileAutoCloseHint={...autoCloseHint,marginTop:3,fontSize:10,lineHeight:1.25};
@@ -1324,6 +1312,18 @@ const createBox={flex:1,display:'flex',flexDirection:'column',alignItems:'center
 const plus={width:52,height:52,borderRadius:'50%',display:'grid',placeItems:'center',background:'rgba(255,255,255,.08)',fontSize:26};
 const input={width:'min(440px,100%)',padding:'13px 15px',borderRadius:13,border:'1px solid rgba(255,255,255,.12)',background:'rgba(0,0,0,.2)',color:'#fff',outline:0,fontSize:15};
 const primary={padding:'12px 20px',border:0,borderRadius:999,background:'#fff',color:'#08101e',fontWeight:700,cursor:'pointer'};
+const mobileCreateTitle={fontSize:23,fontWeight:750,letterSpacing:.1,lineHeight:1.15,color:'#F7F4ED'};
+const createTitle={fontSize:25,fontWeight:750,letterSpacing:.1,lineHeight:1.15,color:'#F7F4ED'};
+const sessionCreateBox={...createBox,padding:'clamp(22px,5vw,38px)',gap:18,position:'relative',overflow:'hidden',isolation:'isolate',background:'radial-gradient(ellipse at 50% 18%,rgba(214,184,106,.13),transparent 46%),radial-gradient(ellipse at 14% 82%,rgba(143,175,214,.085),transparent 44%),linear-gradient(155deg,rgba(25,37,57,.22),rgba(7,14,27,.04))'};
+const mobileSessionCreateBox={...sessionCreateBox,padding:'20px 16px',gap:16};
+const createAura={width:78,height:78,borderRadius:'50%',display:'grid',placeItems:'center',background:'radial-gradient(circle,rgba(214,184,106,.19) 0%,rgba(214,184,106,.08) 52%,rgba(214,184,106,0) 76%)',border:'1px solid rgba(214,184,106,.18)',boxShadow:'0 0 54px rgba(214,184,106,.10)',animation:'nyeoAttendanceBreath 8s ease-in-out infinite'};
+const createPlus={width:48,height:48,borderRadius:'50%',display:'grid',placeItems:'center',border:'1px solid rgba(232,212,154,.3)',background:'linear-gradient(145deg,rgba(214,184,106,.22),rgba(214,184,106,.07))',boxShadow:'inset 0 1px 0 rgba(255,255,255,.12),0 7px 24px rgba(0,0,0,.16)',color:'#F0D99A',fontSize:30,fontWeight:400,lineHeight:1};
+const createAccent={width:46,height:2,borderRadius:99,background:'linear-gradient(90deg,rgba(214,184,106,0),rgba(232,212,154,.88),rgba(214,184,106,0))',boxShadow:'0 0 14px rgba(214,184,106,.24)'};
+const createInput={...input,width:'min(440px,100%)',padding:'15px 16px',minHeight:52,fontSize:16,borderColor:'rgba(214,184,106,.25)',background:'rgba(5,12,24,.42)',boxShadow:'0 10px 30px rgba(0,0,0,.12)'};
+const mobileCreateInput={...createInput,padding:'13px 14px',minHeight:50,fontSize:15.5};
+const createExplanation={...sub,maxWidth:430,margin:0,fontSize:14,lineHeight:1.55,color:'rgba(245,247,251,.66)',textAlign:'center'};
+const mobileCreateExplanation={...createExplanation,fontSize:13,lineHeight:1.5};
+const createPrimary={...primary,width:'min(440px,100%)',minHeight:49,padding:'13px 22px',fontSize:15,fontWeight:750,letterSpacing:.1,boxShadow:'0 8px 25px rgba(0,0,0,.18)'};
 const stats={display:'flex',alignItems:'center',gap:14,padding:'12px 20px',borderBottom:'1px solid rgba(255,255,255,.06)',flexShrink:0};
 const mobileStats={...stats,gap:10,padding:'5px 12px'};
 const big={fontSize:28};

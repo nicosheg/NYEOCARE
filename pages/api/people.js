@@ -34,6 +34,8 @@ if(req.method==='GET'){
   const limit=Math.min(Math.max(Number.parseInt(req.query?.limit,10)||50,1),80);
   const search=String(req.query?.search||'').trim().slice(0,80);
   const type=String(req.query?.type||'').trim().toLowerCase();
+  const attendanceGroup=String(req.query?.attendance_group||'').trim().toLowerCase();
+  if(attendanceGroup&&!['men','women','youth','unassigned'].includes(attendanceGroup))return res.status(400).json({error:'Invalid attendance section filter.'});
   const living=String(req.query?.living_truth||'').trim();
   const includeTotal=!req.query?.cursor;
   const rawCursor=String(req.query?.cursor||'').trim();
@@ -51,6 +53,8 @@ if(req.method==='GET'){
   let n=2;
   if(includeInactive&&['active','inactive'].includes(requestedPersonStatus)){where.push(`p.status=$${n++}::text`);values.push(requestedPersonStatus)}
   if(type&&['member','visitor'].includes(type)){where.push(`p.type=$${n++}::text`);values.push(type)}
+  if(attendanceGroup==='unassigned')where.push('p.attendance_group IS NULL');
+  else if(attendanceGroup){where.push(`p.attendance_group=$${n++}::text`);values.push(attendanceGroup)}
   if(living==='1')where.push(`COALESCE(p.living_truth->>'status','alive') IN ('needs_decision','conflict')`);
   if(search){
    const term=`%${search.replace(/[\\%_]/g,'\\$&')}%`;
@@ -83,7 +87,7 @@ if(req.method==='GET'){
    ),
    ranked AS(
      SELECT
-       p.id,p.organization_id,p.first_name,p.last_name,p.display_name,p.phone,p.phone_numbers,p.email,p.type,p.birthday,
+       p.id,p.organization_id,p.first_name,p.last_name,p.display_name,p.phone,p.phone_numbers,p.email,p.type,p.attendance_group,p.birthday,
        p.living_truth,p.status,p.source,p.created_at,p.updated_at,p.last_scan_job_id,
        COALESCE(em.last_seen,(
          SELECT MAX(pr.occurred_at)
@@ -123,7 +127,7 @@ if(req.method==='GET'){
      LEFT JOIN latest_scan ls ON TRUE
      WHERE ${where.join(' AND ')}
    )
-   SELECT r.id,r.first_name,r.last_name,r.display_name,r.phone,r.phone_numbers,r.email,r.type,r.status,r.birthday,r.living_truth,r.last_seen,r.last_attended_date,r.new_from_latest_scan,r.new_rank,r.truth_rank,r.sort_name
+   SELECT r.id,r.first_name,r.last_name,r.display_name,r.phone,r.phone_numbers,r.email,r.type,r.attendance_group,r.status,r.birthday,r.living_truth,r.last_seen,r.last_attended_date,r.new_from_latest_scan,r.new_rank,r.truth_rank,r.sort_name
    FROM ranked r
    WHERE ${cursorClause||'TRUE'}
    ORDER BY r.new_rank,r.truth_rank,r.sort_name,r.id
@@ -147,7 +151,7 @@ if(req.method==='GET'){
    total_count=Number((await pool.query(countSql,values)).rows[0]?.count)||0;
   }
   const next_cursor=hasMore&&last?Buffer.from(JSON.stringify({new_rank:last.new_rank,truth_rank:last.truth_rank,sort_name:last.sort_name,id:last.id})).toString('base64url'):null;
-  return res.status(200).json({items,next_cursor,has_more:hasMore,total_count,limit,search,type,living_truth:living});
+  return res.status(200).json({items,next_cursor,has_more:hasMore,total_count,limit,search,type,attendance_group:attendanceGroup,living_truth:living});
  }catch(err){console.error('GET people error:',err);return res.status(500).json({error:'Unable to load people.'})}
 }
 if(req.method==='POST'){
@@ -165,10 +169,13 @@ if(req.method==='POST'){
  if(!['member','visitor'].includes(type))return res.status(400).json({error:'Type must be member or visitor'});
  const email=String(body.email||'').trim().toLowerCase()||null;
  const birthday=String(body.birthday||'').trim()||null;
+ const attendanceGroupRaw=String(body.attendance_group||'').trim().toLowerCase();
+ const attendanceGroup=attendanceGroupRaw||null;
+ if(attendanceGroup&&!['men','women','youth'].includes(attendanceGroup))return res.status(400).json({error:'Attendance section must be Men, Women, Youth, or Unassigned.',code:'INVALID_ATTENDANCE_GROUP'});
  const rawRequestId=String(body.client_request_id||'').trim().toLowerCase();
  if(rawRequestId&&!isValidPersonCreateRequestId(rawRequestId))return res.status(400).json({error:'Invalid person creation request ID.',code:'PERSON_CREATE_REQUEST_ID_INVALID'});
  const requestId=rawRequestId||null;
- const payloadHash=hashPersonCreatePayload({first_name,last_name,display_name,phone,email,type,birthday});
+ const payloadHash=hashPersonCreatePayload({first_name,last_name,display_name,phone,email,type,birthday,attendance_group:attendanceGroup});
  const client=await pool.connect();
  let person=null,wasReplay=false;
  try{
@@ -231,7 +238,8 @@ if(req.method==='POST'){
     first_name,last_name,display_name,full_name:display_name,
     phone:phone||null,
     phone_numbers:phone?[{raw:phone,normalized:phone,source:'manual',index:1}]:[],
-    email,birthday,type
+    email,birthday,type,
+    ...(attendanceGroup?{attendance_group:attendanceGroup}:{})
    };
    if((candidates.length&&(review?.confirmed!==true||candidatesChanged))||(!candidates.length&&review?.confirmed===true&&reviewCandidateIds.length)){
     const code=review?.confirmed===true?'PERSON_IDENTITY_REVIEW_STALE':exactIdentity?'DUPLICATE_IDENTITY_NOT_DISTINCT':'PERSON_IDENTITY_REVIEW_REQUIRED';
@@ -258,10 +266,10 @@ if(req.method==='POST'){
     });
    }
    person=(await client.query(
-    `INSERT INTO people(organization_id,first_name,last_name,display_name,phone,phone_numbers,email,type,birthday,created_by,living_truth,status,source)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'active','manual')
+    `INSERT INTO people(organization_id,first_name,last_name,display_name,phone,phone_numbers,email,type,attendance_group,birthday,created_by,living_truth,status,source)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'active','manual')
      RETURNING *`,
-    [orgId,first_name,last_name,display_name||null,phone,JSON.stringify(phone?[{raw:phone,normalized:phone,source:'manual',index:1}]:[]),email,type,birthday,req.user.id,
+    [orgId,first_name,last_name,display_name||null,phone,JSON.stringify(phone?[{raw:phone,normalized:phone,source:'manual',index:1}]:[]),email,type,attendanceGroup,birthday,req.user.id,
      JSON.stringify({status:'alive',confidence:90,source:'canonical_record',updated_at:new Date().toISOString()})]
    )).rows[0];
    if(candidates.length){

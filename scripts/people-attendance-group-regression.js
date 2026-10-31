@@ -1,0 +1,31 @@
+// scripts/people-attendance-group-regression.js
+const fs=require('fs');
+const assert=require('assert');
+const read=path=>fs.readFileSync(path,'utf8');
+const ui=read('pages/people.js');
+const peopleApi=read('pages/api/people.js');
+const assignmentApi=read('pages/api/people/attendance-group.js');
+const bulkApi=read('pages/api/people/bulk-create.js');
+const idempotency=read('lib/peopleCreateIdempotency.js');
+const migration=read('supabase/migrations/20261031160000_add_people_attendance_sections.sql');
+
+assert.ok(ui.includes("const[attendanceGroupFilter,setAttendanceGroupFilter]=useState('all')"),'People must default to All sections on each page visit.');
+assert.ok(ui.includes("{value:'all',label:'All'}")&&ui.includes("{value:'men',label:'Men'}")&&ui.includes("{value:'women',label:'Women'}")&&ui.includes("{value:'youth',label:'Youth'}")&&ui.includes("{value:'unassigned',label:'Unassigned'}"),'All default attendance sections must be available.');
+assert.ok(ui.includes("setAttendanceGroupFilter(group.value)")&&ui.includes("params.set('attendance_group',groupValue)"),'Section tabs must filter server-side.');
+assert.ok(ui.includes("Select all loaded (")&&ui.includes("Assign section")&&ui.includes("selectedIds.size"),'Bulk assignment must use a contextual selection bar.');
+assert.ok(ui.includes("attendance-group-dialog-title")&&ui.includes("Assign ${selectedIds.size} to"),'Assignment must confirm both count and target section.');
+assert.ok(ui.includes("default_attendance_group:bulkDefaultAttendanceGroup||null"),'Bulk add must accept an optional default section.');
+assert.ok(ui.includes("requestPayload.attendance_group?{attendance_group:requestPayload.attendance_group}:{}"),'Single add retry identity must include assigned sections without changing legacy unassigned request hashes.');
+assert.ok(ui.includes("person.attendance_group&&<span className=\"person-attendance-group\""),'Assigned sections should be visible on compact People cards.');
+assert.ok(peopleApi.includes("p.type=$")&&peopleApi.includes("p.attendance_group IS NULL")&&peopleApi.includes("p.attendance_group=$"),'Existing type and new attendance-section filters must keep valid PostgreSQL bind placeholders.');
+assert.ok(peopleApi.includes("p.attendance_group,p.birthday")&&peopleApi.includes("r.attendance_group"),'People API must return section values.');
+assert.ok(peopleApi.includes("hashPersonCreatePayload({first_name,last_name,display_name,phone,email,type,birthday,attendance_group:attendanceGroup})"),'Single create idempotency must include explicitly assigned sections.');
+assert.ok(assignmentApi.includes("const organizationId=req.org.id")&&assignmentApi.includes("organization_id=$1::text")&&assignmentApi.includes("organization_id=$2::text"),'Assignment must be tenant-scoped from authenticated organization context.');
+assert.ok(assignmentApi.includes("BEGIN")&&assignmentApi.includes("FOR UPDATE")&&assignmentApi.includes("ROLLBACK")&&assignmentApi.includes("COMMIT"),'Bulk assignment must be atomic.');
+assert.ok(assignmentApi.includes("ids.length>5000")&&assignmentApi.includes("IS DISTINCT FROM"),'Assignment must cap batches and avoid unnecessary writes.');
+assert.ok(bulkApi.includes("default_attendance_group")&&bulkApi.includes("row.attendance_group"),'Bulk create must persist the chosen section.');
+assert.ok(idempotency.includes("if(attendance_group)canonical.attendance_group"),'Unassigned retries must keep their original payload hash shape.');
+assert.ok(migration.includes("ADD COLUMN IF NOT EXISTS attendance_group text")&&migration.includes("attendance_group IS NULL OR attendance_group IN ('men','women','youth')"),'Migration must add a nullable constrained field.');
+assert.ok(migration.includes("people_org_status_attendance_group_idx"),'Migration must index organization/status/section filtering.');
+assert.ok(!/UPDATE public\.people\s+SET attendance_group/i.test(migration),'Existing records must remain unassigned instead of being inferred.');
+console.log('People attendance section regression checks passed.');

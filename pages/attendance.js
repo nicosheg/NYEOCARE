@@ -1,9 +1,8 @@
 // pages/attendance.js
-import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 import Layout from '../components/Layout';
 import ClientErrorBoundary from '../components/ClientErrorBoundary';
-import AttendanceModal from '../components/AttendanceModal';
 
 function AttendancePageLoading() {
   return (
@@ -16,6 +15,11 @@ function AttendancePageLoading() {
     </main>
   );
 }
+
+const AttendanceModal = dynamic(
+  () => import('../components/AttendanceModal'),
+  { ssr: false, loading: () => <AttendancePageLoading /> }
+);
 
 function AttendanceRecovery({ onClose }) {
   return (
@@ -32,19 +36,12 @@ function AttendanceRecovery({ onClose }) {
 
 export default function AttendancePage() {
   const router = useRouter();
-  const [hydrated, setHydrated] = useState(false);
   const goHome = () => router.replace('/');
-
-  useEffect(() => {
-    setHydrated(true);
-  }, []);
 
   return (
     <Layout>
       <ClientErrorBoundary surface="attendance-page" resetKey={router.asPath} fallback={<AttendanceRecovery onClose={goHome} />}>
-        {hydrated
-          ? <AttendanceModal isOpen={true} onClose={goHome} />
-          : <AttendancePageLoading />}
+        <AttendanceModal isOpen={true} onClose={goHome} />
       </ClientErrorBoundary>
     </Layout>
   );

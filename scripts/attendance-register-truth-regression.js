@@ -71,9 +71,10 @@ assert.ok(!files.attendanceUi.includes('Use verified non-observation for a care 
   files.attendanceUi.includes('<strong style={{fontSize:20}}>Create a session</strong>')&&
   files.attendanceUi.includes('Live for everyone · Auto-saves by')&&
   files.attendanceUi.includes("window.matchMedia('(max-width: 680px)')")&&
-  files.attendanceUi.includes("height:'96dvh'")&&
-  files.attendanceUi.includes("padding:'4px 0'")&&
+  files.attendanceUi.includes("height:'98dvh'")&&
+  files.attendanceUi.includes("padding:'3px 0'")&&
   files.attendanceUi.includes('const mobileMarkButton=')&&
+  files.attendanceUi.includes('minHeight:36')&&
   files.attendanceUi.includes('const mobileOfflineNotice=')&&
   files.attendanceUi.includes('Offline: Mark saved people. Record new visitors on the approved paper sheet and add them after reconnecting.')&&
   !files.attendanceUi.includes("session?.name||'Attendance'")&&

@@ -3,6 +3,8 @@ import{existsSync,readFileSync}from'node:fs';
 
 const read=p=>readFileSync(p,'utf8');
 const attendance=read('components/AttendanceModal.js');
+const attendancePage=read('pages/attendance.js');
+const nextConfig=read('next.config.js');
 const fieldMode=read('lib/attendanceFieldMode.js');
 const layout=read('components/Layout.js');
 const navigationBack=read('components/NavigationBack.js');
@@ -81,6 +83,8 @@ const pkg=JSON.parse(read('package.json'));
 const vercel=JSON.parse(read('vercel.json'));
 
 const checks=[
+ ['Attendance route opens the canonical attendance modal directly instead of redirecting to People or the legacy session form',
+  attendancePage.includes("import('../components/AttendanceModal')")&&attendancePage.includes('<AttendanceModal isOpen={true}')&&attendancePage.includes('ClientErrorBoundary')&&!attendancePage.includes("router.replace('/session')")&&!nextConfig.includes("destination: '/people?tab=attendance'")],
  ['Attendance session state separates live work from background ARIA',
   /s\.status='active'/.test(activeApi)&&/background_processing/.test(activeApi)&&/can_start_new_session:\['owner','admin'\]\.includes\(String\(req\.user\.role\|\|''\)\.toLowerCase\(\)\)/.test(activeApi)],
  ['Attendance close is atomic with durable queue publication',

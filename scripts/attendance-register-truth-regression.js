@@ -66,9 +66,15 @@ assert.ok(!files.attendanceUi.includes('Use verified non-observation for a care 
   !files.attendanceUi.includes('Attendance-based care suggestions are paused')&&
   !files.attendanceUi.includes('ARIA works independently after you save')&&
   files.attendanceUi.includes('Give the session a clear name. You can close this screen at any time; attendance stays open for everyone until it is saved automatically or you choose to save it.')&&
-  files.attendanceUi.includes('<h2 style={compactViewport?mobileH2:h2}>ATTENDANCE</h2>')&&
-  files.attendanceUi.includes('{session?.name&&<div style={sessionNameText} title={session.name}>{session.name}</div>}')&&
-  files.attendanceUi.includes('<strong style={{fontSize:20}}>Create a session</strong>')&&
+  files.attendanceUi.includes("title={session?(session.name||'Live session'):'ATTENDANCE'}>{session?(session.name||'Live session'):'ATTENDANCE'}</h2>")&&
+  files.attendanceUi.includes('const sessionH2=')&&
+  files.attendanceUi.includes('const sessionMobileH2=')&&
+  !files.attendanceUi.includes('sessionNameText')&&
+  files.attendanceUi.includes('<strong style={compactViewport?mobileCreateTitle:createTitle}>Create a session</strong>')&&
+  files.attendanceUi.includes('const mobileSessionCreateBox=')&&
+  files.attendanceUi.includes('const createAura=')&&
+  files.attendanceUi.includes('const mobileCreateExplanation=')&&
+  files.attendanceUi.includes('prefers-reduced-motion:reduce')&&
   files.attendanceUi.includes('Live for everyone · Auto-saves by')&&
   files.attendanceUi.includes("window.matchMedia('(max-width: 680px)')")&&
   files.attendanceUi.includes("height:'98dvh'")&&

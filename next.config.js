@@ -8,6 +8,9 @@ const nextConfig = {
       // Scan remains a full page – redirect old /scan to Home (which has a Scan Register button)
       { source: '/scan', destination: '/', permanent: false },
 
+      // The former standalone session form is retired; Attendance owns session creation.
+      { source: '/session', destination: '/attendance', permanent: false },
+
       // Care Queue → Home (integrated)
       { source: '/care-queue', destination: '/', permanent: false },
 

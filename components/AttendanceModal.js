@@ -1294,7 +1294,7 @@ const overlay={
   display:'flex',alignItems:'center',justifyContent:'center',
   padding:12,overflow:'auto'
 };
-const mobileOverlay={...overlay,padding:4,overflow:'hidden'};
+const mobileOverlay={...overlay,padding:2,overflow:'hidden'};
 const modal={
   width:'min(1120px,94vw)',height:'min(88vh,820px)',minHeight:470,
   background:'linear-gradient(145deg,rgba(43,60,83,.97),rgba(10,18,33,.99))',
@@ -1302,7 +1302,7 @@ const modal={
   display:'flex',flexDirection:'column',color:'#f5f7fb',
   boxShadow:'0 35px 110px rgba(0,0,0,.7)'
 };
-const mobileModal={...modal,width:'100%',height:'96dvh',maxHeight:'96dvh',minHeight:0,borderRadius:20};
+const mobileModal={...modal,width:'100%',height:'98dvh',maxHeight:'98dvh',minHeight:0,borderRadius:18};
 const header={display:'flex',justifyContent:'space-between',gap:14,padding:'18px 22px 14px',borderBottom:'1px solid rgba(255,255,255,.08)',flexShrink:0};
 const mobileHeader={...header,padding:'10px 12px 8px',gap:8};
 const h2={margin:0,fontSize:'clamp(27px,3vw,34px)',lineHeight:1,fontWeight:800,letterSpacing:.45};
@@ -1350,7 +1350,7 @@ const peopleBox={flex:1,overflow:'auto',padding:'0 18px'};
 const mobilePeopleBox={...peopleBox,padding:'0 12px'};
 const empty={minHeight:160,display:'grid',placeItems:'center',alignContent:'center',gap:6,color:'rgba(255,255,255,.5)',textAlign:'center'};
 const personRow={display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,padding:'8px 0',borderBottom:'1px solid rgba(255,255,255,.05)'};
-const mobilePersonRow={...personRow,gap:8,padding:'4px 0'};
+const mobilePersonRow={...personRow,gap:8,padding:'3px 0'};
 const personInfo={display:'flex',alignItems:'center',gap:10,minWidth:0};
 const mobilePersonInfo={...personInfo,gap:8};
 const mobilePersonName={fontSize:15.5,fontWeight:650,lineHeight:1.2};
@@ -1365,7 +1365,7 @@ const avatar={width:36,height:36,borderRadius:'50%',background:'rgba(255,255,255
 const mobileAvatar={...avatar,width:30,height:30,fontSize:12};
 const presentAvatar={background:'rgba(74,222,128,.12)'};
 const markButton={padding:'7px 11px',borderRadius:999,border:'1px solid rgba(255,255,255,.11)',background:'rgba(255,255,255,.045)',color:'#fff',cursor:'pointer',whiteSpace:'nowrap',fontSize:13};
-const mobileMarkButton={padding:'5px 9px',fontSize:11.5,lineHeight:1.1};
+const mobileMarkButton={padding:'6px 9px',fontSize:12,lineHeight:1.1,minHeight:36,display:'inline-flex',alignItems:'center',justifyContent:'center'};
 const doneButton={background:'rgba(74,222,128,.09)',borderColor:'rgba(74,222,128,.2)'};
 const loadMoreButton={display:'block',margin:'12px auto 16px',padding:'9px 15px',borderRadius:999,border:'1px solid rgba(255,255,255,.11)',background:'rgba(255,255,255,.045)',color:'#fff',cursor:'pointer',fontSize:12};
 const footer={display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,padding:'10px 18px',borderTop:'1px solid rgba(255,255,255,.07)',flexShrink:0};
@@ -1376,6 +1376,6 @@ const footerActions={display:'flex',gap:8};
 const mobileFooterActions={...footerActions,gap:6};
 const fieldState={fontSize:9,color:'rgba(214,184,106,.75)',marginLeft:4};
 const discardButton={padding:'8px 14px',borderRadius:999,border:'1px solid rgba(255,255,255,.12)',background:'transparent',color:'#fff',cursor:'pointer',fontSize:13};
-const mobileDiscardButton={...discardButton,padding:'7px 10px',fontSize:11.5};
+const mobileDiscardButton={...discardButton,padding:'7px 10px',fontSize:11.5,minHeight:36};
 const keepButton={padding:'9px 16px',border:0,borderRadius:999,background:'#fff',color:'#08101e',fontWeight:700,cursor:'pointer',fontSize:13};
-const mobileKeepButton={...keepButton,padding:'8px 12px',fontSize:11.5};
+const mobileKeepButton={...keepButton,padding:'8px 12px',fontSize:11.5,minHeight:36};

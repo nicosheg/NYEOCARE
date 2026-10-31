@@ -473,7 +473,7 @@ export default function AttendanceModal({isOpen,onClose}){
           applyCachedRoster(fieldCached,{offlineFallback:true});
           setBackground(null);
           setError('');
-          setNotice('Offline mode is active. Your local attendance session is ready and will sync automatically when the connection returns.');
+          setNotice('Offline: this session is saved locally and will sync when you reconnect.');
           if(seq===loadSeq.current&&mounted.current)setLoading(false);
           timing('offline-cached');
           return;
@@ -1094,12 +1094,12 @@ export default function AttendanceModal({isOpen,onClose}){
       :'ARIA is updating'
     : null;
 
-  const content=<div style={overlay} onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}>
-    <div style={modal} role="dialog" aria-modal="true" aria-label="Attendance">
-      <header style={header}>
+  const content=<div style={compactViewport?mobileOverlay:overlay} onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}>
+    <div style={compactViewport?mobileModal:modal} role="dialog" aria-modal="true" aria-label="Attendance">
+      <header style={compactViewport?mobileHeader:header}>
         <div>
           <div style={headingRow}>
-            <h2 style={h2}>ATTENDANCE</h2>
+            <h2 style={compactViewport?mobileH2:h2}>ATTENDANCE</h2>
             {session?.status==='active'&&<span style={liveTag}>LIVE</span>}
           </div>
           {session?.name&&<div style={sessionNameText} title={session.name}>{session.name}</div>}
@@ -1201,10 +1201,10 @@ export default function AttendanceModal({isOpen,onClose}){
         </div>}
         
 
-        <div style={peopleBox}>
+        <div style={compactViewport?mobilePeopleBox:peopleBox}>
           {people.map(p=>
-            <div style={personRow} key={p.id}>
-              <div style={personInfo}>
+            <div style={compactViewport?mobilePersonRow:personRow} key={p.id}>
+              <div style={compactViewport?mobilePersonInfo:personInfo}>
                 <div style={{...(compactViewport?mobileAvatar:avatar),...(p.marked?presentAvatar:{})}}>
                   {(p.first_name||'?').charAt(0).toUpperCase()}
                 </div>

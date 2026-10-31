@@ -83,8 +83,8 @@ const pkg=JSON.parse(read('package.json'));
 const vercel=JSON.parse(read('vercel.json'));
 
 const checks=[
- ['Attendance route mounts the canonical modal only after hydration and provides a visible loading state',
-  attendancePage.includes("import AttendanceModal from '../components/AttendanceModal'")&&attendancePage.includes('const [hydrated, setHydrated] = useState(false)')&&attendancePage.includes('<AttendanceModal isOpen={true}')&&attendancePage.includes('<AttendancePageLoading />')&&attendancePage.includes('ClientErrorBoundary')&&!attendancePage.includes("router.replace('/session')")&&!nextConfig.includes("destination: '/people?tab=attendance'")],
+ ['Attendance route lazy-loads the canonical modal with a visible loading state instead of the legacy session route',
+  attendancePage.includes("import('../components/AttendanceModal')")&&attendancePage.includes('<AttendanceModal isOpen={true}')&&attendancePage.includes('AttendancePageLoading')&&attendancePage.includes('ClientErrorBoundary')&&!attendancePage.includes("router.replace('/session')")&&!nextConfig.includes("destination: '/people?tab=attendance'")],
  ['Every Home Attendance entry point uses the canonical route instead of a second local modal mount',
   home.includes("window.location.assign('/attendance')")&&countString(home,'onClick={openAttendance}')>=2&&!home.includes('setAttendance(')&&!home.includes('AttendanceModal')],
  ['Attendance session state separates live work from background ARIA',

@@ -83,8 +83,18 @@ const pkg=JSON.parse(read('package.json'));
 const vercel=JSON.parse(read('vercel.json'));
 
 const checks=[
- ['Attendance route client-loads the canonical modal and recovers from a stalled chunk',
-  attendancePage.includes("import dynamic from 'next/dynamic'")&&attendancePage.includes("() => import('../components/AttendanceModal')")&&attendancePage.includes('<AttendanceModal isOpen={true}')&&attendancePage.includes('setStalled(true)')&&attendancePage.includes('Reload Attendance')&&attendancePage.includes('ClientErrorBoundary')&&!attendancePage.includes("router.replace('/session')")&&!nextConfig.includes("destination: '/people?tab=attendance'")],
+ ['Attendance route mounts the canonical modal directly after client hydration',
+  attendancePage.includes("import AttendanceModal from '../components/AttendanceModal'")&&
+  !attendancePage.includes("import dynamic from 'next/dynamic'")&&
+  attendancePage.includes('const [clientReady, setClientReady] = useState(false)')&&
+  attendancePage.includes('setClientReady(true)')&&
+  attendancePage.includes('<AttendanceModal isOpen={true} onClose={goHome} />')&&
+  attendancePage.includes('ClientErrorBoundary')&&
+  !attendancePage.includes('Attendance is taking too long to load')&&
+  !attendancePage.includes("router.replace('/session')")&&
+  !nextConfig.includes("destination: '/people?tab=attendance'")],
+ ['Attendance route does not add a second global back button over the modal',
+  navigationBack.includes("path==='/attendance'")&&attendancePage.includes('onClose={goHome}')],
  ['The obsolete standalone session route forwards to canonical Attendance',
   nextConfig.includes("{ source: '/session', destination: '/attendance', permanent: false }")&&!existsSync('pages/session.js')],
  ['The unused AttendanceTab legacy compatibility wrapper is removed',
@@ -168,8 +178,8 @@ const checks=[
   /attachDatabasePool\(pool\)/.test(db)],
  ['Home coalesces bootstrap loads',
   /loadPromiseRef\.current/.test(home)],
- ['Home prefetches the same canonical AttendanceModal without mounting a second modal',
-  home.includes("import('../components/AttendanceModal').catch(error=>console.warn('[Attendance] Modal prefetch failed:',error))")&&!home.includes('const AttendanceModal=dynamic')&&!home.includes('<AttendanceModal')],
+ ['Home uses one prefetched Attendance route instead of a second modal import',
+  home.includes("router.push('/attendance')")&&!home.includes("import('../components/AttendanceModal')")&&!home.includes('const AttendanceModal=dynamic')&&!home.includes('<AttendanceModal')&&layout.includes("r.prefetch('/attendance')")],
  ['People does not initialize ARIA on page open',
   !peoplePage.includes('/api/aria/initialize')],
  ['Profile uses one bootstrap request',
@@ -181,7 +191,7 @@ const checks=[
  ['ARIA auto-sync is not startup-critical',
   /IDLE_DELAY=30000/.test(autoSync)&&/COOLDOWN=60000/.test(autoSync)&&/document\.visibilityState/.test(autoSync)],
  ['Home keeps Scan and Review lazy-loaded while Attendance has one canonical route entry point',/const ScanModal=dynamic/.test(home)&&/const ReviewCenterTab=dynamic/.test(home)&&!home.includes('const AttendanceModal=dynamic')&&home.includes("router.push('/attendance')")],
- ['Attendance route and canonical modal are prefetched for Field Mode',/r\.prefetch\('\/attendance'\)/.test(layout)&&home.includes("import('../components/AttendanceModal').catch(error=>console.warn('[Attendance] Modal prefetch failed:',error))")],
+ ['Attendance route and canonical modal are prefetched for Field Mode',/r\.prefetch\('\/attendance'\)/.test(layout)&&home.includes("router.push('/attendance')")&&!home.includes("import('../components/AttendanceModal')")],
  ['Navigation prefetches routes centrally during idle time',/requestIdleCallback/.test(layout)&&/r\.prefetch\('\/'\)/.test(layout)&&/r\.prefetch\('\/people'\)/.test(layout)&&/r\.prefetch\('\/profile'\)/.test(layout)&&!/router\.prefetch\('\/people'\)/.test(home)],
  ['People enhancer is not globally mounted',
   !/PeopleSurfaceEnhancer/.test(app)],

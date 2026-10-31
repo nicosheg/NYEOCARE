@@ -83,13 +83,15 @@ const pkg=JSON.parse(read('package.json'));
 const vercel=JSON.parse(read('vercel.json'));
 
 const checks=[
- ['Attendance opens as the original Home-mounted modal, not a standalone page',
-  home.includes("const AttendanceModal=dynamic(()=>import('../components/AttendanceModal'),{ssr:false})")&&
-  home.includes("[attendance,setAttendance]=useState(false)")&&
-  home.includes("const openAttendance=()=>setAttendance(true)")&&
-  home.includes('<AttendanceModal isOpen={attendance}')&&
-  home.includes('surface="attendance"')&&
-  /height:'min\(88dvh,820px\)'/.test(attendance)&&
+ ['Attendance opens as the original Home-mounted modal with an observable client import',
+  home.includes("import('../components/AttendanceModal')")&&
+  home.includes('const ensureAttendanceModal=useCallback')&&
+  home.includes("setAttendance(true);void ensureAttendanceModal(true)")&&
+  home.includes('attendanceModal?<AttendanceModal')&&
+  home.includes('<AttendanceOpening loading={attendanceLoading}')&&
+  home.includes('attendance_module_load_error')&&
+  home.includes("surface:'attendance-loader'")&&
+  /height:'min\(88dvh,820px\)'/.test(home)&&
   /width:'min\(1120px,94vw\)'/.test(attendance)&&
   !home.includes("router.push('/attendance')")],
  ['Legacy Attendance links return to Home and open the original modal',
@@ -97,7 +99,7 @@ const checks=[
   home.includes("router.query.attendance")&&
   home.includes("router.replace('/',undefined,{shallow:true,scroll:false})")],
  ['Attendance cache version changes with the repaired client-chunk lifecycle',
-  /const CACHE='nyeocare-static-v7'/.test(serviceWorker)],
+  /const CACHE='nyeocare-static-v8'/.test(serviceWorker)],
 
  ['The compatibility Attendance route never renders a standalone workspace',
   attendancePage.includes("router.replace('/?attendance=1')")&&!attendancePage.includes('<Layout>')&&
@@ -107,7 +109,7 @@ const checks=[
  ['The unused AttendanceTab legacy compatibility wrapper is removed',
   !existsSync('components/AttendanceTab.js')],
  ['Every Home Attendance entry point opens the same Home-mounted modal',
-  countString(home,'onClick={openAttendance}')>=2&&home.includes('const openAttendance=()=>setAttendance(true)')&&
+  countString(home,'onClick={openAttendance}')>=2&&home.includes('const openAttendance=()=>{setAttendance(true);void ensureAttendanceModal(true).catch(()=>{})}')&&
   home.includes('<AttendanceModal isOpen={attendance}')&&!home.includes("router.push('/attendance')")],
  ['Attendance session state separates live work from background ARIA',
   /s\.status='active'/.test(activeApi)&&/background_processing/.test(activeApi)&&/can_start_new_session:\['owner','admin'\]\.includes\(String\(req\.user\.role\|\|''\)\.toLowerCase\(\)\)/.test(activeApi)],
@@ -186,9 +188,11 @@ const checks=[
   /attachDatabasePool\(pool\)/.test(db)],
  ['Home coalesces bootstrap loads',
   /loadPromiseRef\.current/.test(home)],
- ['Attendance remains a single client-only Home modal, warmed while Home is idle',
-  home.includes('const AttendanceModal=dynamic')&&home.includes("import('../components/AttendanceModal')")&&
-  home.includes('<AttendanceModal isOpen={attendance}')&&!layout.includes("r.prefetch('/attendance')")],
+ ['Attendance modal is warmed through the observable Home importer, not Next dynamic null fallback',
+  home.includes('const ensureAttendanceModal=useCallback')&&
+  home.includes("ensureAttendanceModal(false).catch")&&
+  home.includes('<AttendanceOpening loading={attendanceLoading}')&&
+  !home.includes('const AttendanceModal=dynamic')&&!layout.includes("r.prefetch('/attendance')")],
  ['People does not initialize ARIA on page open',
   !peoplePage.includes('/api/aria/initialize')],
  ['Profile uses one bootstrap request',
@@ -199,8 +203,8 @@ const checks=[
   /stage!==\'processing\'/.test(scanRecovery)&&!/latest=1/.test(scanRecovery)],
  ['ARIA auto-sync is not startup-critical',
   /IDLE_DELAY=30000/.test(autoSync)&&/COOLDOWN=60000/.test(autoSync)&&/document\.visibilityState/.test(autoSync)],
- ['Home keeps Scan, Attendance and Review client-only and lazy-loaded',/const ScanModal=dynamic/.test(home)&&/const AttendanceModal=dynamic/.test(home)&&/const ReviewCenterTab=dynamic/.test(home)],
- ['Attendance modal warm-up is scoped to Home and avoids a separate route prefetch',home.includes("import('../components/AttendanceModal')")&&!layout.includes("r.prefetch('/attendance')")],
+ ['Home keeps Scan and Review lazy-loaded and Attendance explicitly client-loaded',/const ScanModal=dynamic/.test(home)&&/const ReviewCenterTab=dynamic/.test(home)&&/const ensureAttendanceModal=useCallback/.test(home)&&!home.includes('const AttendanceModal=dynamic')],
+ ['Attendance modal warm-up uses the same deduplicated importer as the Home button',home.includes("ensureAttendanceModal(false).catch")&&home.includes("setAttendanceModal(()=>module.default)")&&!layout.includes("r.prefetch('/attendance')")],
  ['Navigation prefetches routes centrally during idle time',/requestIdleCallback/.test(layout)&&/r\.prefetch\('\/'\)/.test(layout)&&/r\.prefetch\('\/people'\)/.test(layout)&&/r\.prefetch\('\/profile'\)/.test(layout)&&!/router\.prefetch\('\/people'\)/.test(home)],
  ['People enhancer is not globally mounted',
   !/PeopleSurfaceEnhancer/.test(app)],
@@ -285,7 +289,7 @@ const checks=[
  ['Global app runtime revalidates auth/data invisibly',
   /getClientSession/.test(fieldRuntime)&&/nyeocare:app-refresh/.test(fieldRuntime)&&/pageshow/.test(fieldRuntime)&&/setInterval\(run,60000\)/.test(fieldRuntime)],
  ['Service worker cache rotates with the client recovery release',
-  /nyeocare-static-v7/.test(serviceWorker)&&/self\.skipWaiting\(\)/.test(serviceWorker)&&/self\.clients\.claim\(\)/.test(serviceWorker)],
+  /nyeocare-static-v8/.test(serviceWorker)&&/self\.skipWaiting\(\)/.test(serviceWorker)&&/self\.clients\.claim\(\)/.test(serviceWorker)],
 ['Environment weather state cannot crash the app',
   /const WEATHER_KEY='nyeocare:weather:v2'/.test(environment)&&/let weatherInFlight=false/.test(environment)&&/const run=\(\)=>\{try\{getWeather\(\)/.test(environment)],
  ['ARIA care draft initializes a safe WhatsApp phone before database metadata insert',

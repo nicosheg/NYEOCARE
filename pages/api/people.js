@@ -52,9 +52,9 @@ if(req.method==='GET'){
   const values=[orgId];
   let n=2;
   if(includeInactive&&['active','inactive'].includes(requestedPersonStatus)){where.push(`p.status=$${n++}::text`);values.push(requestedPersonStatus)}
-  if(type&&['member','visitor'].includes(type)){where.push(`p.type=${n++}::text`);values.push(type)}
+  if(type&&['member','visitor'].includes(type)){where.push(`p.type=$${n++}::text`);values.push(type)}
   if(attendanceGroup==='unassigned')where.push('p.attendance_group IS NULL');
-  else if(attendanceGroup){where.push(`p.attendance_group=${n++}::text`);values.push(attendanceGroup)}
+  else if(attendanceGroup){where.push(`p.attendance_group=$${n++}::text`);values.push(attendanceGroup)}
   if(living==='1')where.push(`COALESCE(p.living_truth->>'status','alive') IN ('needs_decision','conflict')`);
   if(search){
    const term=`%${search.replace(/[\\%_]/g,'\\$&')}%`;

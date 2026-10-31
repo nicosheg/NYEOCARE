@@ -17,7 +17,7 @@ assert.ok(ui.includes("attendance-group-dialog-title")&&ui.includes("Assign ${se
 assert.ok(ui.includes("default_attendance_group:bulkDefaultAttendanceGroup||null"),'Bulk add must accept an optional default section.');
 assert.ok(ui.includes("requestPayload.attendance_group?{attendance_group:requestPayload.attendance_group}:{}"),'Single add retry identity must include assigned sections without changing legacy unassigned request hashes.');
 assert.ok(ui.includes("person.attendance_group&&<span className=\"person-attendance-group\""),'Assigned sections should be visible on compact People cards.');
-assert.ok(peopleApi.includes("p.attendance_group IS NULL")&&peopleApi.includes("p.attendance_group=$"),'People API must filter assigned and unassigned sections.');
+assert.ok(peopleApi.includes("p.type=$")&&peopleApi.includes("p.attendance_group IS NULL")&&peopleApi.includes("p.attendance_group=$"),'Existing type and new attendance-section filters must keep valid PostgreSQL bind placeholders.');
 assert.ok(peopleApi.includes("p.attendance_group,p.birthday")&&peopleApi.includes("r.attendance_group"),'People API must return section values.');
 assert.ok(peopleApi.includes("hashPersonCreatePayload({first_name,last_name,display_name,phone,email,type,birthday,attendance_group:attendanceGroup})"),'Single create idempotency must include explicitly assigned sections.');
 assert.ok(assignmentApi.includes("const organizationId=req.org.id")&&assignmentApi.includes("organization_id=$1::text")&&assignmentApi.includes("organization_id=$2::text"),'Assignment must be tenant-scoped from authenticated organization context.');

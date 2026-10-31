@@ -77,6 +77,7 @@ export default function AttendanceModal({isOpen,onClose}){
   const[welcomeSavingIds,setWelcomeSavingIds]=useState([]);
   const mounted=useRef(false);
   const[networkOnline,setNetworkOnline]=useState(true);
+  const[compactViewport,setCompactViewport]=useState(false);
   const[fieldRoster,setFieldRoster]=useState([]);
   const[fieldReady,setFieldReady]=useState(false);
   const[rosterSnapshotComplete,setRosterSnapshotComplete]=useState(false);
@@ -164,6 +165,18 @@ export default function AttendanceModal({isOpen,onClose}){
     window.addEventListener('online',update);
     window.addEventListener('offline',update);
     return()=>{window.removeEventListener('online',update);window.removeEventListener('offline',update)}
+  },[]);
+
+  useEffect(()=>{
+    const media=window.matchMedia('(max-width: 680px)');
+    const update=()=>setCompactViewport(media.matches);
+    update();
+    if(media.addEventListener)media.addEventListener('change',update);
+    else window.addEventListener('resize',update);
+    return()=>{
+      if(media.removeEventListener)media.removeEventListener('change',update);
+      else window.removeEventListener('resize',update);
+    };
   },[]);
 
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false}},[]);
@@ -1085,16 +1098,19 @@ export default function AttendanceModal({isOpen,onClose}){
     <div style={modal} role="dialog" aria-modal="true" aria-label="Attendance">
       <header style={header}>
         <div>
-          <div style={eyebrow}>{session?'LIVE ATTENDANCE':'ATTENDANCE'}</div>
-          {session?.name&&<h2 style={h2}>{session.name}</h2>}
-          <p style={sub}>
+          <div style={headingRow}>
+            <h2 style={h2}>ATTENDANCE</h2>
+            {session?.status==='active'&&<span style={liveTag}>LIVE</span>}
+          </div>
+          {session?.name&&<div style={sessionNameText} title={session.name}>{session.name}</div>}
+          <p style={compactViewport?mobileSub:sub}>
             {session
-              ? 'Mark people as you see them. Your changes are saved immediately.'
+              ? 'Tap to mark present. Saves instantly.'
               : background
                 ? `${backgroundLabel}. You can start the next attendance now.`
                 : 'Create a session to begin taking attendance.'}
           </p>
-          {session?.status==='active'&&autoCloseLabel&&<span style={autoCloseHint}>You can leave this screen. Attendance stays live for everyone and saves automatically by {autoCloseLabel}.</span>}
+          {session?.status==='active'&&autoCloseLabel&&<span style={compactViewport?mobileAutoCloseHint:autoCloseHint}>Live for everyone · Auto-saves by {autoCloseLabel}.</span>}
         </div>
         <button style={close} onClick={onClose} aria-label="Close attendance">×</button>
       </header>
@@ -1142,30 +1158,32 @@ export default function AttendanceModal({isOpen,onClose}){
         <span style={sub}>Ask an owner or admin to start the service. Once it is active, reopen Attendance to join and mark people present.</span>
       </div>
       :<div style={main}>
-        <div style={stats}>
-          <div><strong style={big}>{present}</strong><span style={label}>present</span></div>
-          <div style={divider}/>
-          <div><strong style={stat}>{total}</strong><span style={label}>{rosterSnapshotComplete?'people':'cached people'}</span></div>
-          <div><strong style={stat}>{percent}%</strong><span style={label}>{rosterSnapshotComplete?'marked':'cached marked'}</span></div>
-          <div style={progress}><i style={{width:`${percent}%`}}/></div>
+        <div style={compactViewport?mobileStats:stats}>
+          <div><strong style={compactViewport?mobileBig:big}>{present}</strong><span style={compactViewport?mobileLabel:label}>present</span></div>
+          <div style={compactViewport?mobileDivider:divider}/>
+          <div><strong style={compactViewport?mobileStat:stat}>{total}</strong><span style={compactViewport?mobileLabel:label}>{rosterSnapshotComplete?'people':'cached people'}</span></div>
+          <div><strong style={compactViewport?mobileStat:stat}>{percent}%</strong><span style={compactViewport?mobileLabel:label}>{rosterSnapshotComplete?'marked':'cached marked'}</span></div>
+          <div style={compactViewport?mobileProgress:progress}><i style={{width:`${percent}%`}}/></div>
         </div>
 
-        <div style={toolbar}>
-          <input
-            style={search}
-            value={query}
-            onChange={e=>setQuery(e.target.value)}
-            placeholder="Search people…"
-            aria-label="Search people"
-          />
-          {query&&<button style={clear} onClick={()=>setQuery('')} aria-label="Clear search">×</button>}
+        <div style={compactViewport?mobileToolbar:toolbar}>
+          <div style={toolbarRow}>
+            <div style={searchWrap}>
+              <input
+                style={compactViewport?mobileSearch:search}
+                value={query}
+                onChange={e=>setQuery(e.target.value)}
+                placeholder="Search people…"
+                aria-label="Search people"
+              />
+              {query&&<button style={clear} onClick={()=>setQuery('')} aria-label="Clear search">×</button>}
+            </div>
+            <button type="button" style={{...markButton,...(compactViewport?mobileAddVisitor:desktopAddVisitor),opacity:!networkOnline||addingVisitor?0.5:1}} disabled={!networkOnline||addingVisitor||session.status!=='active'} onClick={()=>{setVisitorIdentityReview(null);setShowAddVisitor(value=>!value)}}>
+              {showAddVisitor?'Cancel':'+ Add visitor'}
+            </button>
+          </div>
         </div>
-        <div style={{padding:'0 18px 8px',display:'flex',justifyContent:'flex-end'}}>
-          <button type="button" style={{...markButton,opacity:!networkOnline||addingVisitor?0.5:1}} disabled={!networkOnline||addingVisitor||session.status!=='active'} onClick={()=>{setVisitorIdentityReview(null);setShowAddVisitor(value=>!value)}}>
-            {showAddVisitor?'Cancel adding visitor':'+ Add visitor'}
-          </button>
-        </div>
-        {!networkOnline&&<div style={noticeBox}>Offline mode can queue attendance marks for people already in the directory, but it cannot create a new person record safely. Use the church’s approved paper attendance sheet for new visitors and add them when the connection returns.</div>}
+        {!networkOnline&&<div style={compactViewport?mobileOfflineNotice:noticeBox}>Offline: Mark saved people. Record new visitors on the approved paper sheet and add them after reconnecting.</div>}
         {showAddVisitor&&<div style={{margin:'0 18px 10px',padding:12,borderRadius:14,border:'1px solid rgba(255,255,255,.13)',background:'rgba(0,0,0,.14)',display:'grid',gap:8}}>
           <strong style={{fontSize:14}}>Add a first-time visitor</strong>
           <input style={{...input,width:'100%'}} value={visitorName} onChange={e=>{visitorRequestId.current='';setVisitorIdentityReview(null);setVisitorName(e.target.value)}} placeholder="Full name (required)" maxLength={180} autoComplete="name" />
@@ -1187,14 +1205,14 @@ export default function AttendanceModal({isOpen,onClose}){
           {people.map(p=>
             <div style={personRow} key={p.id}>
               <div style={personInfo}>
-                <div style={{...avatar,...(p.marked?presentAvatar:{})}}>
+                <div style={{...(compactViewport?mobileAvatar:avatar),...(p.marked?presentAvatar:{})}}>
                   {(p.first_name||'?').charAt(0).toUpperCase()}
                 </div>
                 <div style={{minWidth:0}}>
-                  <strong>{p.first_name} {p.last_name||''}</strong>
-                  {p.marked&&<small style={{display:'block'}}>{'Present'+(p.marked_by_name?' · '+p.marked_by_name:'')}</small>}
+                  <strong style={compactViewport?mobilePersonName:undefined}>{p.first_name} {p.last_name||''}</strong>
+                  {p.marked&&<small style={{display:'block',...(compactViewport?mobilePresentMeta:{})}}>{'Present'+(p.marked_by_name?' · '+p.marked_by_name:'')}</small>}
                   {p.marked&&p.first_visit_candidate===true&&(
-                    <div style={firstVisitWelcomeRow}>
+                    <div style={compactViewport?mobileFirstVisitWelcomeRow:firstVisitWelcomeRow}>
                       {p.first_visit_welcome_recorded===true
                         ? <small style={firstVisitWelcomeDone}>✓ Welcomed in person</small>
                         : <>
@@ -1215,7 +1233,7 @@ export default function AttendanceModal({isOpen,onClose}){
                 </div>
               </div>
               <button
-                style={{...markButton,...(p.marked?doneButton:{})}}
+                style={{...markButton,...(compactViewport?mobileMarkButton:{}),...(p.marked?doneButton:{})}}
                 disabled={closing||session.status!=='active'}
                 onClick={()=>mark(p.id,Boolean(p.marked))}
               >
@@ -1235,11 +1253,11 @@ export default function AttendanceModal({isOpen,onClose}){
         </div>
 
 
-        <footer style={footer}>
-          <div style={live}><i/>Live attendance <span style={fieldState}>{fieldStatus}</span></div>
-          <div style={footerActions}>
-            {canDiscard&&<button style={discardButton} disabled={closing} onClick={discard}>Discard</button>}
-            <button style={keepButton} disabled={closing||loading||session.status!=='active'} onClick={()=>setShowFinishConfirm(true)}>
+        <footer style={compactViewport?mobileFooter:footer}>
+          <div style={compactViewport?mobileLive:live}><i/>Live <span style={fieldState}>{fieldStatus}</span></div>
+          <div style={compactViewport?mobileFooterActions:footerActions}>
+            {canDiscard&&<button style={compactViewport?mobileDiscardButton:discardButton} disabled={closing} onClick={discard}>Discard</button>}
+            <button style={compactViewport?mobileKeepButton:keepButton} disabled={closing||loading||session.status!=='active'} onClick={()=>setShowFinishConfirm(true)}>
               {closing?'Saving…':'Save attendance'}
             </button>
           </div>
@@ -1264,6 +1282,9 @@ export default function AttendanceModal({isOpen,onClose}){
   return createPortal(content,document.body);
 }
 
+const headingRow={display:'flex',alignItems:'center',gap:9};
+const liveTag={padding:'3px 7px',borderRadius:999,border:'1px solid rgba(74,222,128,.24)',background:'rgba(74,222,128,.08)',color:'rgba(134,239,172,.9)',fontSize:9,fontWeight:800,letterSpacing:1.1,lineHeight:1};
+const sessionNameText={marginTop:3,maxWidth:'min(70vw,620px)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontSize:14,fontWeight:600,color:'rgba(245,247,251,.78)',lineHeight:1.2};
 const autoCloseHint={display:'block',marginTop:5,fontSize:11,color:'rgba(214,184,106,.82)',lineHeight:1.4};
 const finishConfirmOverlay={position:'fixed',inset:0,zIndex:2147483001,display:'grid',placeItems:'center',padding:18,background:'rgba(2,5,12,.76)',backdropFilter:'blur(12px)'};
 const finishConfirmCard={width:'min(440px,100%)',padding:20,borderRadius:20,border:'1px solid rgba(255,255,255,.16)',background:'linear-gradient(145deg,#26364d,#0b1425)',boxShadow:'0 24px 70px rgba(0,0,0,.55)',color:'#f5f7fb'};
@@ -1273,6 +1294,7 @@ const overlay={
   display:'flex',alignItems:'center',justifyContent:'center',
   padding:12,overflow:'auto'
 };
+const mobileOverlay={...overlay,padding:4,overflow:'hidden'};
 const modal={
   width:'min(1120px,94vw)',height:'min(88vh,820px)',minHeight:470,
   background:'linear-gradient(145deg,rgba(43,60,83,.97),rgba(10,18,33,.99))',
@@ -1280,10 +1302,14 @@ const modal={
   display:'flex',flexDirection:'column',color:'#f5f7fb',
   boxShadow:'0 35px 110px rgba(0,0,0,.7)'
 };
+const mobileModal={...modal,width:'100%',height:'96dvh',maxHeight:'96dvh',minHeight:0,borderRadius:20};
 const header={display:'flex',justifyContent:'space-between',gap:14,padding:'18px 22px 14px',borderBottom:'1px solid rgba(255,255,255,.08)',flexShrink:0};
-const eyebrow={fontSize:9,fontWeight:700,letterSpacing:2.2,color:'rgba(255,255,255,.4)',marginBottom:5};
-const h2={margin:0,fontSize:'clamp(24px,3vw,34px)',lineHeight:1.02};
+const mobileHeader={...header,padding:'10px 12px 8px',gap:8};
+const h2={margin:0,fontSize:'clamp(27px,3vw,34px)',lineHeight:1,fontWeight:800,letterSpacing:.45};
+const mobileH2={...h2,fontSize:26,lineHeight:1};
 const sub={margin:'5px 0 0',color:'rgba(255,255,255,.46)',fontSize:12,lineHeight:1.45};
+const mobileSub={...sub,margin:'3px 0 0',fontSize:11.5,lineHeight:1.25};
+const mobileAutoCloseHint={...autoCloseHint,marginTop:3,fontSize:10,lineHeight:1.25};
 const close={width:38,height:38,borderRadius:'50%',border:'1px solid rgba(255,255,255,.13)',background:'rgba(255,255,255,.08)',color:'#fff',fontSize:25,cursor:'pointer',flexShrink:0};
 const main={display:'flex',flexDirection:'column',flex:1,minHeight:0};
 const backgroundBox={margin:'10px 18px 0',padding:'12px 14px',borderRadius:16,border:'1px solid rgba(214,184,106,.2)',background:'rgba(214,184,106,.055)',display:'grid',gap:8};
@@ -1299,31 +1325,57 @@ const plus={width:52,height:52,borderRadius:'50%',display:'grid',placeItems:'cen
 const input={width:'min(440px,100%)',padding:'13px 15px',borderRadius:13,border:'1px solid rgba(255,255,255,.12)',background:'rgba(0,0,0,.2)',color:'#fff',outline:0,fontSize:15};
 const primary={padding:'12px 20px',border:0,borderRadius:999,background:'#fff',color:'#08101e',fontWeight:700,cursor:'pointer'};
 const stats={display:'flex',alignItems:'center',gap:14,padding:'12px 20px',borderBottom:'1px solid rgba(255,255,255,.06)',flexShrink:0};
+const mobileStats={...stats,gap:10,padding:'7px 12px'};
 const big={fontSize:28};
+const mobileBig={...big,fontSize:24,lineHeight:1};
 const stat={fontSize:20};
+const mobileStat={...stat,fontSize:17,lineHeight:1};
 const label={display:'block',fontSize:10,color:'rgba(255,255,255,.4)'};
+const mobileLabel={...label,fontSize:9,lineHeight:1.2};
 const divider={width:1,height:29,background:'rgba(255,255,255,.1)'};
+const mobileDivider={...divider,height:24};
 const progress={flex:1,height:4,background:'rgba(255,255,255,.1)',borderRadius:99,overflow:'hidden'};
+const mobileProgress={...progress,height:4};
 const toolbar={padding:'8px 18px',flexShrink:0};
-const search={width:'100%',padding:'10px 14px',borderRadius:12,border:'1px solid rgba(255,255,255,.1)',background:'rgba(0,0,0,.16)',color:'#fff',outline:0,fontSize:14};
-const clear={position:'absolute',right:31,marginTop:7,border:0,background:'none',color:'#fff',fontSize:20};
+const mobileToolbar={...toolbar,padding:'6px 12px'};
+const toolbarRow={display:'flex',alignItems:'center',gap:8,width:'100%'};
+const searchWrap={position:'relative',flex:'1 1 auto',minWidth:0};
+const search={width:'100%',padding:'10px 14px',borderRadius:12,border:'1px solid rgba(255,255,255,.1)',background:'rgba(0,0,0,.16)',color:'#fff',outline:0,fontSize:14,boxSizing:'border-box'};
+const mobileSearch={...search,padding:'8px 10px',fontSize:13,height:38};
+const clear={position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',border:0,background:'none',color:'#fff',fontSize:20};
+const desktopAddVisitor={padding:'10px 14px',fontSize:12,flexShrink:0};
+const mobileAddVisitor={padding:'7px 9px',fontSize:11.5,minHeight:38,flexShrink:0};
+const mobileOfflineNotice={margin:'0 12px 6px',padding:'6px 9px',borderRadius:10,border:'1px solid rgba(255,255,255,.1)',background:'rgba(255,255,255,.055)',color:'rgba(255,255,255,.82)',fontSize:11.5,lineHeight:1.25};
 const peopleBox={flex:1,overflow:'auto',padding:'0 18px'};
+const mobilePeopleBox={...peopleBox,padding:'0 12px'};
 const empty={minHeight:160,display:'grid',placeItems:'center',alignContent:'center',gap:6,color:'rgba(255,255,255,.5)',textAlign:'center'};
 const personRow={display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,padding:'8px 0',borderBottom:'1px solid rgba(255,255,255,.05)'};
+const mobilePersonRow={...personRow,gap:8,padding:'4px 0'};
 const personInfo={display:'flex',alignItems:'center',gap:10,minWidth:0};
+const mobilePersonInfo={...personInfo,gap:8};
+const mobilePersonName={fontSize:15.5,fontWeight:650,lineHeight:1.2};
+const mobilePresentMeta={fontSize:9.5,lineHeight:1.15,marginTop:1};
 const firstVisitWelcomeRow={display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',marginTop:5,maxWidth:340};
+const mobileFirstVisitWelcomeRow={...firstVisitWelcomeRow,gap:4,marginTop:2,maxWidth:230};
 const firstVisitWelcomeHint={fontSize:10,color:'rgba(214,184,106,.82)',lineHeight:1.35};
 const firstVisitWelcomeDone={fontSize:10,color:'rgba(74,222,128,.9)',lineHeight:1.35};
 const firstVisitWelcomeButton={padding:'4px 8px',borderRadius:999,border:'1px solid rgba(214,184,106,.32)',background:'rgba(214,184,106,.09)',color:'rgba(255,242,208,.96)',cursor:'pointer',fontSize:10,fontWeight:600,whiteSpace:'nowrap'};
 const firstVisitWelcomeButtonDisabled={opacity:.45,cursor:'not-allowed'};
 const avatar={width:36,height:36,borderRadius:'50%',background:'rgba(255,255,255,.08)',display:'grid',placeItems:'center',flexShrink:0,fontWeight:700,fontSize:14};
+const mobileAvatar={...avatar,width:30,height:30,fontSize:12};
 const presentAvatar={background:'rgba(74,222,128,.12)'};
 const markButton={padding:'7px 11px',borderRadius:999,border:'1px solid rgba(255,255,255,.11)',background:'rgba(255,255,255,.045)',color:'#fff',cursor:'pointer',whiteSpace:'nowrap',fontSize:13};
+const mobileMarkButton={padding:'5px 9px',fontSize:11.5,lineHeight:1.1};
 const doneButton={background:'rgba(74,222,128,.09)',borderColor:'rgba(74,222,128,.2)'};
 const loadMoreButton={display:'block',margin:'12px auto 16px',padding:'9px 15px',borderRadius:999,border:'1px solid rgba(255,255,255,.11)',background:'rgba(255,255,255,.045)',color:'#fff',cursor:'pointer',fontSize:12};
 const footer={display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,padding:'10px 18px',borderTop:'1px solid rgba(255,255,255,.07)',flexShrink:0};
+const mobileFooter={...footer,gap:8,padding:'6px 12px'};
 const live={fontSize:12,color:'rgba(255,255,255,.45)',display:'flex',alignItems:'center',gap:7};
+const mobileLive={...live,fontSize:10,gap:5};
 const footerActions={display:'flex',gap:8};
+const mobileFooterActions={...footerActions,gap:6};
 const fieldState={fontSize:9,color:'rgba(214,184,106,.75)',marginLeft:4};
 const discardButton={padding:'8px 14px',borderRadius:999,border:'1px solid rgba(255,255,255,.12)',background:'transparent',color:'#fff',cursor:'pointer',fontSize:13};
+const mobileDiscardButton={...discardButton,padding:'7px 10px',fontSize:11.5};
 const keepButton={padding:'9px 16px',border:0,borderRadius:999,background:'#fff',color:'#08101e',fontWeight:700,cursor:'pointer',fontSize:13};
+const mobileKeepButton={...keepButton,padding:'8px 12px',fontSize:11.5};

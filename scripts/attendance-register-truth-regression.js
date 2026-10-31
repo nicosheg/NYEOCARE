@@ -72,7 +72,7 @@ assert.ok(!files.attendanceUi.includes('Use verified non-observation for a care 
   files.attendanceUi.includes('Live for everyone · Auto-saves by')&&
   files.attendanceUi.includes("window.matchMedia('(max-width: 680px)')")&&
   files.attendanceUi.includes("height:'98dvh'")&&
-  files.attendanceUi.includes("padding:'3px 0'")&&
+  files.attendanceUi.includes("padding:'2px 0'")&&
   files.attendanceUi.includes('const mobileMarkButton=')&&
   files.attendanceUi.includes('minHeight:36')&&
   files.attendanceUi.includes('const mobileOfflineNotice=')&&

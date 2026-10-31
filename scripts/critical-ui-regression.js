@@ -83,8 +83,10 @@ const pkg=JSON.parse(read('package.json'));
 const vercel=JSON.parse(read('vercel.json'));
 
 const checks=[
- ['Attendance route opens the canonical attendance modal directly instead of redirecting to People or the legacy session form',
-  attendancePage.includes("import('../components/AttendanceModal')")&&attendancePage.includes('<AttendanceModal isOpen={true}')&&attendancePage.includes('ClientErrorBoundary')&&!attendancePage.includes("router.replace('/session')")&&!nextConfig.includes("destination: '/people?tab=attendance'")],
+ ['Attendance route mounts the canonical modal only after hydration and provides a visible loading state',
+  attendancePage.includes("import AttendanceModal from '../components/AttendanceModal'")&&attendancePage.includes('const [hydrated, setHydrated] = useState(false)')&&attendancePage.includes('<AttendanceModal isOpen={true}')&&attendancePage.includes('<AttendancePageLoading />')&&attendancePage.includes('ClientErrorBoundary')&&!attendancePage.includes("router.replace('/session')")&&!nextConfig.includes("destination: '/people?tab=attendance'")],
+ ['Every Home Attendance entry point uses the canonical route instead of a second local modal mount',
+  home.includes("window.location.assign('/attendance')")&&countString(home,'onClick={openAttendance}')>=2&&!home.includes('setAttendance(')&&!home.includes('AttendanceModal')],
  ['Attendance session state separates live work from background ARIA',
   /s\.status='active'/.test(activeApi)&&/background_processing/.test(activeApi)&&/can_start_new_session:\['owner','admin'\]\.includes\(String\(req\.user\.role\|\|''\)\.toLowerCase\(\)\)/.test(activeApi)],
  ['Attendance close is atomic with durable queue publication',
@@ -174,7 +176,7 @@ const checks=[
   /stage!==\'processing\'/.test(scanRecovery)&&!/latest=1/.test(scanRecovery)],
  ['ARIA auto-sync is not startup-critical',
   /IDLE_DELAY=30000/.test(autoSync)&&/COOLDOWN=60000/.test(autoSync)&&/document\.visibilityState/.test(autoSync)],
- ['Home defers heavy interaction surfaces',/const ScanModal=dynamic/.test(home)&&/const AttendanceModal=dynamic/.test(home)&&/const ReviewCenterTab=dynamic/.test(home)],
+ ['Home keeps Scan and Review lazy-loaded while Attendance has one canonical route entry point',/const ScanModal=dynamic/.test(home)&&/const ReviewCenterTab=dynamic/.test(home)&&!home.includes('const AttendanceModal=dynamic')&&home.includes("window.location.assign('/attendance')")],
  ['Navigation prefetches routes centrally during idle time',/requestIdleCallback/.test(layout)&&/r\.prefetch\('\/'\)/.test(layout)&&/r\.prefetch\('\/people'\)/.test(layout)&&/r\.prefetch\('\/profile'\)/.test(layout)&&!/router\.prefetch\('\/people'\)/.test(home)],
  ['People enhancer is not globally mounted',
   !/PeopleSurfaceEnhancer/.test(app)],
@@ -259,7 +261,7 @@ const checks=[
  ['Global app runtime revalidates auth/data invisibly',
   /getClientSession/.test(fieldRuntime)&&/nyeocare:app-refresh/.test(fieldRuntime)&&/pageshow/.test(fieldRuntime)&&/setInterval\(run,60000\)/.test(fieldRuntime)],
  ['Service worker cache rotates with the client recovery release',
-  /nyeocare-static-v4/.test(serviceWorker)&&/self\.skipWaiting\(\)/.test(serviceWorker)&&/self\.clients\.claim\(\)/.test(serviceWorker)],
+  /nyeocare-static-v5/.test(serviceWorker)&&/self\.skipWaiting\(\)/.test(serviceWorker)&&/self\.clients\.claim\(\)/.test(serviceWorker)],
 ['Environment weather state cannot crash the app',
   /const WEATHER_KEY='nyeocare:weather:v2'/.test(environment)&&/let weatherInFlight=false/.test(environment)&&/const run=\(\)=>\{try\{getWeather\(\)/.test(environment)],
  ['ARIA care draft initializes a safe WhatsApp phone before database metadata insert',

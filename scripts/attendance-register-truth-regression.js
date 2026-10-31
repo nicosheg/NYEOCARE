@@ -60,10 +60,14 @@ assert.ok(files.activeSession.includes('auto_close_at')&&
   files.activeSession.includes('organization_timezone'),
   'the active-session API must expose the deadline and identify a just-closed local session');
 
-assert.ok(files.attendanceUi.includes('Use verified non-observation for a care review in this event')&&
+assert.ok(!files.attendanceUi.includes('Use verified non-observation for a care review in this event')&&
   files.attendanceUi.includes('const[absenceMeaningful,setAbsenceMeaningful]=useState(false)')&&
   files.attendanceUi.includes('absence_meaningful:absenceMeaningful===true')&&
-  files.attendanceUi.includes('Attendance-based care suggestions are paused')&&
+  !files.attendanceUi.includes('Attendance-based care suggestions are paused')&&
+  !files.attendanceUi.includes('ARIA works independently after you save')&&
+  files.attendanceUi.includes('Give the session a clear name. You can close this screen at any time; attendance stays open for everyone until it is saved automatically or you choose to save it.')&&
+  files.attendanceUi.includes('{session?.name&&<h2 style={h2}>{session.name}</h2>}')&&
+  !files.attendanceUi.includes("session?.name||'Attendance'")&&
   !files.attendanceUi.includes('Register completeness')&&
   !files.attendanceUi.includes('registerCompleteness')&&
   !files.attendanceUi.includes('registerSource')&&
@@ -73,7 +77,7 @@ assert.ok(files.attendanceUi.includes('Use verified non-observation for a care r
   files.attendanceUi.includes('onClick={()=>setShowFinishConfirm(false)}')&&
   files.attendanceUi.includes('Attendance stays live for everyone')&&
   files.attendanceUi.includes('saves automatically by'),
-  'the attendance screen must be plain, contain a yes/cancel confirmation, and explain that it stays live until server auto-save');
+  'the attendance creation screen must keep its session explanation, hide internal care/ARIA copy and duplicate title, and preserve attendance-save behavior');
 assert.ok(files.attendanceUi.includes("const mark=async(id,isMarked)=>")&&
   files.attendanceUi.includes("if(!session||session.status!=='active'||closing)return")&&
   files.attendanceUi.includes("onClick={()=>mark(p.id,Boolean(p.marked))}")&&

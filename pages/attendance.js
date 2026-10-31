@@ -3,14 +3,24 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../components/Layout';
 import ClientErrorBoundary from '../components/ClientErrorBoundary';
-import AttendanceModal from '../components/AttendanceModal';
 
-function AttendancePageLoading() {
+function AttendancePageLoading({ slow, failed, onRetry }) {
   return (
     <main aria-live="polite" style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', padding: 24, color: 'var(--ny-text-muted)' }}>
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ width: 30, height: 30, margin: '0 auto 12px', borderRadius: '50%', border: '2px solid rgba(214,184,106,.2)', borderTopColor: '#D6B86A', animation: 'attendanceRouteSpin .8s linear infinite' }} />
-        <p style={{ margin: 0, fontSize: 13 }}>Opening Attendance…</p>
+      <div style={{ textAlign: 'center', maxWidth: 360 }}>
+        {!failed && <div style={{ width: 30, height: 30, margin: '0 auto 12px', borderRadius: '50%', border: '2px solid rgba(214,184,106,.2)', borderTopColor: '#D6B86A', animation: 'attendanceRouteSpin .8s linear infinite' }} />}
+        <p style={{ margin: '0 0 14px', fontSize: 13, lineHeight: 1.55 }}>
+          {failed
+            ? 'Attendance could not be opened. Your saved attendance is untouched.'
+            : slow
+              ? 'Attendance is still opening. Your saved attendance is safe.'
+              : 'Opening Attendance…'}
+        </p>
+        {(failed || slow) && (
+          <button type="button" onClick={onRetry} style={{ padding: '11px 18px', border: 0, borderRadius: 999, background: '#D6B86A', color: '#070D1D', fontWeight: 700, cursor: 'pointer' }}>
+            {failed ? 'Reload Attendance' : 'Try again'}
+          </button>
+        )}
         <style jsx>{`@keyframes attendanceRouteSpin { to { transform: rotate(360deg); } }`}</style>
       </div>
     </main>
@@ -24,10 +34,7 @@ function AttendanceRecovery({ onClose }) {
         <div style={{ fontSize: 10, letterSpacing: 3, color: 'var(--ny-text-whisper)', marginBottom: 12 }}>NYEOCARE</div>
         <h1 style={{ margin: '0 0 10px', fontSize: 22 }}>Attendance needs to be reopened.</h1>
         <p style={{ margin: '0 0 20px', color: 'var(--ny-text-muted)', fontSize: 14, lineHeight: 1.6 }}>Your saved attendance data is protected. Return home and open Attendance again.</p>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <button type="button" onClick={onClose} style={{ padding: '11px 18px', border: 0, borderRadius: 999, background: 'var(--ny-text)', color: 'var(--ny-bg)', fontWeight: 700, cursor: 'pointer' }}>Back to NYEOCARE</button>
-          <button type="button" onClick={() => window.location.reload()} style={{ padding: '11px 18px', border: '1px solid var(--ny-border)', borderRadius: 999, background: 'transparent', color: 'var(--ny-text)', fontWeight: 650, cursor: 'pointer' }}>Reload</button>
-        </div>
+        <button type="button" onClick={onClose} style={{ padding: '11px 18px', border: 0, borderRadius: 999, background: 'var(--ny-text)', color: 'var(--ny-bg)', fontWeight: 700, cursor: 'pointer' }}>Back to NYEOCARE</button>
       </section>
     </main>
   );
@@ -35,19 +42,55 @@ function AttendanceRecovery({ onClose }) {
 
 export default function AttendancePage() {
   const router = useRouter();
-  const [clientReady, setClientReady] = useState(false);
+  const [AttendanceModal, setAttendanceModal] = useState(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadSlow, setLoadSlow] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const goHome = () => router.replace('/');
 
   useEffect(() => {
-    setClientReady(true);
-  }, []);
+    let active = true;
+    setLoadFailed(false);
+    setLoadSlow(false);
+    const timer = window.setTimeout(() => {
+      if (active) setLoadSlow(true);
+    }, 10000);
+
+    import('../components/AttendanceModal')
+      .then(module => {
+        if (!active) return;
+        setAttendanceModal(() => module.default);
+        setLoadFailed(false);
+        setLoadSlow(false);
+      })
+      .catch(error => {
+        console.error('[Attendance] Canonical modal chunk failed to load:', error);
+        if (active) {
+          setLoadFailed(true);
+          setLoadSlow(false);
+        }
+      });
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [loadAttempt]);
+
+  const retryLoad = () => {
+    if (loadFailed) {
+      window.location.reload();
+      return;
+    }
+    setLoadAttempt(value => value + 1);
+  };
 
   return (
     <Layout>
       <ClientErrorBoundary surface="attendance-page" resetKey={router.asPath} fallback={<AttendanceRecovery onClose={goHome} />}>
-        {clientReady
+        {AttendanceModal
           ? <AttendanceModal isOpen={true} onClose={goHome} />
-          : <AttendancePageLoading />}
+          : <AttendancePageLoading slow={loadSlow} failed={loadFailed} onRetry={retryLoad} />}
       </ClientErrorBoundary>
     </Layout>
   );

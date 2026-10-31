@@ -186,11 +186,10 @@ const checks=[
   /attachDatabasePool\(pool\)/.test(db)],
  ['Home coalesces bootstrap loads',
   /loadPromiseRef\.current/.test(home)],
- ['Attendance modal is warmed through the observable Home importer, not Next dynamic null fallback',
-  home.includes('const ensureAttendanceModal=useCallback')&&
-  home.includes("ensureAttendanceModal(false).catch")&&
-  home.includes('<AttendanceOpening loading={attendanceLoading}')&&
-  !home.includes('const AttendanceModal=dynamic')&&!layout.includes("r.prefetch('/attendance')")],
+ ['Attendance modal uses the original Home client-only dynamic import and is not preloaded as a separate route',
+  home.includes("const AttendanceModal=dynamic(()=>import('../components/AttendanceModal'),{ssr:false})")&&
+  home.includes('<AttendanceModal isOpen={attendance}')&&
+  !home.includes('ensureAttendanceModal')&&!home.includes('AttendanceOpening')&&!layout.includes("r.prefetch('/attendance')")],
  ['People does not initialize ARIA on page open',
   !peoplePage.includes('/api/aria/initialize')],
  ['Profile uses one bootstrap request',

@@ -15,7 +15,7 @@ assert.ok(ui.includes("setAttendanceGroupFilter(group.value)")&&ui.includes("par
 assert.ok(ui.includes("Select all loaded (")&&ui.includes("Assign section")&&ui.includes("selectedIds.size"),'Bulk assignment must use a contextual selection bar.');
 assert.ok(ui.includes("attendance-group-dialog-title")&&ui.includes("Assign ${selectedIds.size} to"),'Assignment must confirm both count and target section.');
 assert.ok(ui.includes("default_attendance_group:bulkDefaultAttendanceGroup||null"),'Bulk add must accept an optional default section.');
-assert.ok(ui.includes("attendance_group:requestPayload.attendance_group"),'Single add retry identity must include assigned sections.');
+assert.ok(ui.includes("requestPayload.attendance_group?{attendance_group:requestPayload.attendance_group}:{}"),'Single add retry identity must include assigned sections without changing legacy unassigned request hashes.');
 assert.ok(ui.includes("person.attendance_group&&<span className=\"person-attendance-group\""),'Assigned sections should be visible on compact People cards.');
 assert.ok(peopleApi.includes("p.attendance_group IS NULL")&&peopleApi.includes("p.attendance_group=$"),'People API must filter assigned and unassigned sections.');
 assert.ok(peopleApi.includes("p.attendance_group,p.birthday")&&peopleApi.includes("r.attendance_group"),'People API must return section values.');

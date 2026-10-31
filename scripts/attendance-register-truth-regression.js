@@ -66,7 +66,16 @@ assert.ok(!files.attendanceUi.includes('Use verified non-observation for a care 
   !files.attendanceUi.includes('Attendance-based care suggestions are paused')&&
   !files.attendanceUi.includes('ARIA works independently after you save')&&
   files.attendanceUi.includes('Give the session a clear name. You can close this screen at any time; attendance stays open for everyone until it is saved automatically or you choose to save it.')&&
-  files.attendanceUi.includes('{session?.name&&<h2 style={h2}>{session.name}</h2>}')&&
+  files.attendanceUi.includes('<h2 style={compactViewport?mobileH2:h2}>ATTENDANCE</h2>')&&
+  files.attendanceUi.includes('{session?.name&&<div style={sessionNameText} title={session.name}>{session.name}</div>}')&&
+  files.attendanceUi.includes('<strong style={{fontSize:20}}>Create a session</strong>')&&
+  files.attendanceUi.includes('Live for everyone · Auto-saves by')&&
+  files.attendanceUi.includes("window.matchMedia('(max-width: 680px)')")&&
+  files.attendanceUi.includes("height:'96dvh'")&&
+  files.attendanceUi.includes("padding:'4px 0'")&&
+  files.attendanceUi.includes('const mobileMarkButton=')&&
+  files.attendanceUi.includes('const mobileOfflineNotice=')&&
+  files.attendanceUi.includes('Offline: Mark saved people. Record new visitors on the approved paper sheet and add them after reconnecting.')&&
   !files.attendanceUi.includes("session?.name||'Attendance'")&&
   !files.attendanceUi.includes('Register completeness')&&
   !files.attendanceUi.includes('registerCompleteness')&&
@@ -74,9 +83,7 @@ assert.ok(!files.attendanceUi.includes('Use verified non-observation for a care 
   files.attendanceUi.includes('Save attendance?')&&
   files.attendanceUi.includes('Have you finished marking everyone who attended? Anyone not marked Present will be marked absent for this event.')&&
   files.attendanceUi.includes('Yes, save attendance')&&
-  files.attendanceUi.includes('onClick={()=>setShowFinishConfirm(false)}')&&
-  files.attendanceUi.includes('Attendance stays live for everyone')&&
-  files.attendanceUi.includes('saves automatically by'),
+  files.attendanceUi.includes('onClick={()=>setShowFinishConfirm(false)}'),
   'the attendance creation screen must keep its session explanation, hide internal care/ARIA copy and duplicate title, and preserve attendance-save behavior');
 assert.ok(files.attendanceUi.includes("const mark=async(id,isMarked)=>")&&
   files.attendanceUi.includes("if(!session||session.status!=='active'||closing)return")&&

@@ -85,8 +85,9 @@ const pkg=JSON.parse(read('package.json'));
 const vercel=JSON.parse(read('vercel.json'));
 
 const checks=[
- ['Home Attendance opens the canonical component using the known-good client dynamic import',
-  home.includes("const AttendanceModal=dynamic(()=>import('../components/AttendanceModal'),{ssr:false})")&&
+ ['Home Attendance opens the canonical component without waiting for a runtime-loaded chunk',
+  home.includes("import AttendanceModal from'../components/AttendanceModal'")&&
+  !home.includes("dynamic(()=>import('../components/AttendanceModal')")&&
   home.includes('const openAttendance=()=>{setAttendance(true);void reportAttendanceOpenRequested()}')&&
   home.includes('<AttendanceModal isOpen={attendance}')&&
   countString(home,'onClick={openAttendance}')>=2&&
@@ -208,8 +209,8 @@ const checks=[
   /stage!==\'processing\'/.test(scanRecovery)&&!/latest=1/.test(scanRecovery)],
  ['ARIA auto-sync is not startup-critical',
   /IDLE_DELAY=30000/.test(autoSync)&&/COOLDOWN=60000/.test(autoSync)&&/document\.visibilityState/.test(autoSync)],
- ['Home keeps Scan, Attendance and Review on explicit client-only dynamic imports',/const ScanModal=dynamic/.test(home)&&/const AttendanceModal=dynamic/.test(home)&&/const ReviewCenterTab=dynamic/.test(home)&&/ssr:false/.test(home)&&!home.includes('ensureAttendanceModal')],
- ['Attendance has one canonical Home-mounted component and no substitute opening screen',countString(home,"const AttendanceModal=dynamic(()=>import('../components/AttendanceModal')")===1&&countString(home,'<AttendanceModal isOpen={attendance}')===1&&!home.includes('AttendanceOpening')&&!home.includes('attendanceLoadError')],
+ ['Home keeps Scan and Review on client-only dynamic imports while Attendance is statically bound',/const ScanModal=dynamic/.test(home)&&/import AttendanceModal from/.test(home)&&!/const AttendanceModal=dynamic/.test(home)&&/const ReviewCenterTab=dynamic/.test(home)&&/ssr:false/.test(home)&&!home.includes('ensureAttendanceModal')],
+ ['Attendance has one canonical Home-mounted component and no substitute opening screen',countString(home,"import AttendanceModal from'../components/AttendanceModal'")===1&&countString(home,'<AttendanceModal isOpen={attendance}')===1&&!home.includes("dynamic(()=>import('../components/AttendanceModal')")&&!home.includes('AttendanceOpening')&&!home.includes('attendanceLoadError')],
  ['Navigation prefetches routes centrally during idle time',/requestIdleCallback/.test(layout)&&/r\.prefetch\('\/'\)/.test(layout)&&/r\.prefetch\('\/people'\)/.test(layout)&&/r\.prefetch\('\/profile'\)/.test(layout)&&!/router\.prefetch\('\/people'\)/.test(home)],
  ['People enhancer is not globally mounted',
   !/PeopleSurfaceEnhancer/.test(app)],

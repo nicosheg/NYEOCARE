@@ -41,14 +41,7 @@ function withAttendanceFallback(promise,ms,fallback){
   return Promise.race([Promise.resolve(promise),new Promise(resolve=>{timer=setTimeout(()=>resolve(fallback),ms)})]).finally(()=>clearTimeout(timer));
 }
 const attendanceSearchKey=(sessionId,q)=>String(sessionId)+':'+String(q||'').trim();
-const ATTENDANCE_GROUP_FILTERS=[
-  {value:'all',label:'All'},
-  {value:'men',label:'Men'},
-  {value:'women',label:'Women'},
-  {value:'youth',label:'Youth'},
-  {value:'unassigned',label:'Unassigned'}
-];
-const attendanceGroupLabel=value=>ATTENDANCE_GROUP_FILTERS.find(item=>item.value===value)?.label||'Unassigned';
+import{ATTENDANCE_GROUP_FILTERS,attendanceGroupLabel}from'../lib/attendanceSections';
 function createVisitorRequestId(){
   try{
     if(typeof crypto!=='undefined'&&typeof crypto.randomUUID==='function')return crypto.randomUUID();

@@ -153,7 +153,9 @@ export default withOrg(async function handler(req,res){
       }:null
     });
   }catch(err){
-    console.error('[ATTENDANCE] Active session error:',err);
-    return res.status(500).json({error:'Could not load attendance.'});
+    const requestId=String(req.nyeoRequestId||'').slice(0,160)||null;
+    const diagnostic={request_id:requestId,error_code:String(err?.code||'ATTENDANCE_ACTIVE_SESSION_QUERY_FAILED'),error_name:String(err?.name||'Error'),message:String(err?.message||'Unknown active-session query failure').slice(0,1200),stack:String(err?.stack||'').slice(0,4000)};
+    console.error('[ATTENDANCE_ACTIVE_SESSION_QUERY_FAILED]',JSON.stringify(diagnostic));
+    return res.status(500).json({error:'Could not load attendance.',code:'ATTENDANCE_ACTIVE_SESSION_QUERY_FAILED',request_id:requestId});
   }
 });

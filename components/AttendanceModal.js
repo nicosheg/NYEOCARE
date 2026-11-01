@@ -1,5 +1,5 @@
 // components/AttendanceModal.js
-import{useCallback,useEffect,useRef,useState}from'react';
+import{useCallback,useEffect,useMemo,useRef,useState}from'react';
 import{createPortal}from'react-dom';
 import{getClientSession}from'../lib/clientSession';
 import{getCached,setCached,clearCached,publishDataChange}from'../lib/appData';
@@ -41,6 +41,14 @@ function withAttendanceFallback(promise,ms,fallback){
   return Promise.race([Promise.resolve(promise),new Promise(resolve=>{timer=setTimeout(()=>resolve(fallback),ms)})]).finally(()=>clearTimeout(timer));
 }
 const attendanceSearchKey=(sessionId,q)=>String(sessionId)+':'+String(q||'').trim();
+const ATTENDANCE_GROUP_FILTERS=[
+  {value:'all',label:'All'},
+  {value:'men',label:'Men'},
+  {value:'women',label:'Women'},
+  {value:'youth',label:'Youth'},
+  {value:'unassigned',label:'Unassigned'}
+];
+const attendanceGroupLabel=value=>ATTENDANCE_GROUP_FILTERS.find(item=>item.value===value)?.label||'Unassigned';
 function createVisitorRequestId(){
   try{
     if(typeof crypto!=='undefined'&&typeof crypto.randomUUID==='function')return crypto.randomUUID();
@@ -79,6 +87,8 @@ export default function AttendanceModal({isOpen,onClose}){
   const[error,setError]=useState('');
   const[notice,setNotice]=useState('');
   const[query,setQuery]=useState('');
+  const[attendanceGroupFilter,setAttendanceGroupFilter]=useState('all');
+  const[attendanceGroupDisplayLimit,setAttendanceGroupDisplayLimit]=useState(80);
   const[sessionName,setSessionName]=useState('');
   const[absenceMeaningful,setAbsenceMeaningful]=useState(false);
   const[showFinishConfirm,setShowFinishConfirm]=useState(false);
@@ -101,6 +111,33 @@ export default function AttendanceModal({isOpen,onClose}){
   const[rosterSnapshotComplete,setRosterSnapshotComplete]=useState(false);
   const[pendingCount,setPendingCount]=useState(0);
   const[legacyPendingCount,setLegacyPendingCount]=useState(0);
+  const attendanceSectionsReady=Boolean(session?.session_id&&rosterSnapshotComplete&&fieldRoster.every(person=>Object.prototype.hasOwnProperty.call(person,'attendance_group')));
+  const attendanceSectionCounts=useMemo(()=>{
+    const counts={all:fieldRoster.length,men:0,women:0,youth:0,unassigned:0};
+    for(const person of fieldRoster){
+      const value=String(person.attendance_group||'').trim().toLowerCase();
+      if(value==='men'||value==='women'||value==='youth')counts[value]++;
+      else counts.unassigned++;
+    }
+    return counts;
+  },[fieldRoster]);
+  const attendanceSectionPeople=useMemo(()=>{
+    if(attendanceGroupFilter==='all')return [];
+    return fieldRoster.filter(person=>{
+      const value=String(person.attendance_group||'').trim().toLowerCase();
+      return attendanceGroupFilter==='unassigned'
+        ? !value
+        : value===attendanceGroupFilter;
+    });
+  },[attendanceGroupFilter,fieldRoster]);
+  const attendanceSectionSearchResults=useMemo(
+    ()=>localRosterSearch(attendanceSectionPeople,query,Number.MAX_SAFE_INTEGER),
+    [attendanceSectionPeople,query]
+  );
+  const attendanceSectionPresent=useMemo(
+    ()=>attendanceSectionPeople.filter(person=>person.marked===true).length,
+    [attendanceSectionPeople]
+  );
   const loadSeq=useRef(0);
   const searchSeq=useRef(0);
   const lastSearchKey=useRef('');
@@ -120,6 +157,17 @@ export default function AttendanceModal({isOpen,onClose}){
   useEffect(()=>{onCloseRef.current=onClose},[onClose]);
   useEffect(()=>{fieldRosterRef.current=fieldRoster},[fieldRoster]);
   useEffect(()=>{queryRef.current=query},[query]);
+  useEffect(()=>{
+    setAttendanceGroupFilter('all');
+    setAttendanceGroupDisplayLimit(80);
+  },[session?.session_id]);
+  useEffect(()=>{
+    if(!attendanceSectionsReady&&attendanceGroupFilter!=='all'){
+      setAttendanceGroupFilter('all');
+      setAttendanceGroupDisplayLimit(80);
+      lastSearchKey.current='';
+    }
+  },[attendanceSectionsReady,attendanceGroupFilter]);
   useEffect(()=>{
     const sessionId=String(session?.session_id||'');
     if(fieldCursor.current.sessionId!==sessionId){
@@ -431,6 +479,13 @@ export default function AttendanceModal({isOpen,onClose}){
       fieldPolling.current=false;
     }
   },[isOpen,session?.session_id,session?.status,networkOnline,primeFieldCursor,warmFieldRoster,refreshFieldPending]);
+
+  const selectAttendanceGroup=value=>{
+    if(value!=='all'&&!attendanceSectionsReady)return;
+    setAttendanceGroupFilter(value);
+    setAttendanceGroupDisplayLimit(80);
+    if(value==='all')lastSearchKey.current='';
+  };
 
   const fetchPage=useCallback(async(live,q='',nextCursor=null,append=false,sessionOverride=null)=>{
     const s=sessionOverride||await getClientSession();
@@ -744,6 +799,7 @@ export default function AttendanceModal({isOpen,onClose}){
   useEffect(()=>{
     if(!isOpen||!session||session.status!=='active')return;
     const key=attendanceSearchKey(session.session_id,query);
+    if(attendanceGroupFilter!=='all'&&attendanceSectionsReady){lastSearchKey.current=key;return;}
     if(lastSearchKey.current===key)return;
     const seq=++searchSeq.current;
     const started=typeof performance!=='undefined'?performance.now():Date.now();
@@ -759,7 +815,7 @@ export default function AttendanceModal({isOpen,onClose}){
       }catch(e){if(seq===searchSeq.current&&mounted.current)setError(e.message||'Could not search people.')}
     },fieldReady?0:220);
     return()=>window.clearTimeout(timer);
-  },[isOpen,session?.session_id,session?.status,query,fetchPage,fieldReady,fieldRoster,networkOnline,rosterSnapshotComplete]);
+  },[isOpen,session?.session_id,session?.status,query,fetchPage,fieldReady,fieldRoster,networkOnline,rosterSnapshotComplete,attendanceGroupFilter,attendanceSectionsReady]);
 
   useEffect(()=>{
     if(!isOpen||session?.status!=='active'||!session?.session_id)return;
@@ -1010,7 +1066,12 @@ export default function AttendanceModal({isOpen,onClose}){
   };
 
   const loadMore=async()=>{
-    if(!session||!hasMore||!cursor||loadingMore)return;
+    if(!session||loadingMore)return;
+    if(attendanceGroupFilter!=='all'&&attendanceSectionsReady){
+      if(attendanceSectionSearchResults.length>attendanceGroupDisplayLimit)setAttendanceGroupDisplayLimit(value=>value+80);
+      return;
+    }
+    if(!hasMore||!cursor)return;
     setLoadingMore(true);setError('');if(fieldReady&&rosterSnapshotComplete){setLoadingMore(false);return}
     try{await fetchPage(session,query,cursor,true)}
     catch(e){setError(e.message||'Could not load more people.')}
@@ -1116,7 +1177,18 @@ export default function AttendanceModal({isOpen,onClose}){
 
   if(!isOpen||typeof document==='undefined')return null;
 
-  const percent=total?Math.round((present/total)*100):0;
+  const usingAttendanceSection=attendanceGroupFilter!=='all'&&attendanceSectionsReady;
+  const displayedPeople=usingAttendanceSection
+    ? attendanceSectionSearchResults.slice(0,attendanceGroupDisplayLimit)
+    : people;
+  const displayedHasMore=usingAttendanceSection
+    ? attendanceSectionSearchResults.length>attendanceGroupDisplayLimit
+    : hasMore;
+  const displayTotal=usingAttendanceSection?attendanceSectionPeople.length:total;
+  const displayPresent=usingAttendanceSection?attendanceSectionPresent:present;
+  const displayPeopleLabel=usingAttendanceSection?attendanceGroupLabel(attendanceGroupFilter)+' people':rosterSnapshotComplete?'people':'cached people';
+  const displayMarkedLabel=usingAttendanceSection?'marked in '+attendanceGroupLabel(attendanceGroupFilter).toLowerCase():rosterSnapshotComplete?'marked':'cached marked';
+  const percent=displayTotal?Math.round((displayPresent/displayTotal)*100):0;
   const fieldStatus=session?.status==='closed'?'Saved':networkOnline?(pendingCount?`Syncing ${pendingCount} change${pendingCount===1?'':'s'}`:'Online'):`Offline${pendingCount?' · '+pendingCount+' pending':''}`;
   const autoCloseLabel=(()=>{
     if(!session?.auto_close_at)return null;
@@ -1185,12 +1257,33 @@ export default function AttendanceModal({isOpen,onClose}){
       </div>
       :<div style={main}>
         <div style={compactViewport?mobileStats:stats}>
-          <div><strong style={compactViewport?mobileBig:big}>{present}</strong><span style={compactViewport?mobileLabel:label}>present</span></div>
+          <div><strong style={compactViewport?mobileBig:big}>{displayPresent}</strong><span style={compactViewport?mobileLabel:label}>present</span></div>
           <div style={compactViewport?mobileDivider:divider}/>
-          <div><strong style={compactViewport?mobileStat:stat}>{total}</strong><span style={compactViewport?mobileLabel:label}>{rosterSnapshotComplete?'people':'cached people'}</span></div>
-          <div><strong style={compactViewport?mobileStat:stat}>{percent}%</strong><span style={compactViewport?mobileLabel:label}>{rosterSnapshotComplete?'marked':'cached marked'}</span></div>
+          <div><strong style={compactViewport?mobileStat:stat}>{displayTotal}</strong><span style={compactViewport?mobileLabel:label}>{displayPeopleLabel}</span></div>
+          <div><strong style={compactViewport?mobileStat:stat}>{percent}%</strong><span style={compactViewport?mobileLabel:label}>{displayMarkedLabel}</span></div>
           <div style={compactViewport?mobileProgress:progress}><i style={{width:`${percent}%`}}/></div>
         </div>
+
+        <div role="group" aria-label="Filter attendance by section" style={{display:'flex',alignItems:'center',gap:6,overflowX:'auto',padding:compactViewport?'6px 12px 5px':'8px 18px 6px',whiteSpace:'nowrap',scrollbarWidth:'none',WebkitOverflowScrolling:'touch'}}>
+          {ATTENDANCE_GROUP_FILTERS.map(option=>{
+            const active=attendanceGroupFilter===option.value;
+            const enabled=option.value==='all'||attendanceSectionsReady;
+            const count=attendanceSectionsReady?attendanceSectionCounts[option.value]:option.value==='all'?total:'—';
+            return <button
+              key={option.value}
+              type="button"
+              disabled={!enabled}
+              aria-pressed={active}
+              onClick={()=>selectAttendanceGroup(option.value)}
+              title={enabled?'Show '+option.label+' attendance':'Section totals become available after the complete roster loads'}
+              style={{display:'inline-flex',alignItems:'center',gap:6,flex:'0 0 auto',minHeight:34,padding:'0 11px',borderRadius:999,border:'1px solid '+(active?'rgba(214,184,106,.52)':'rgba(255,255,255,.1)'),background:active?'rgba(214,184,106,.13)':'rgba(255,255,255,.035)',color:active?'#F1DFA9':'rgba(245,247,250,.7)',fontSize:11.5,fontWeight:650,opacity:enabled?1:.48,cursor:enabled?'pointer':'not-allowed'}}
+            >
+              <span>{option.label}</span>
+              <span style={{fontSize:10,fontVariantNumeric:'tabular-nums',color:active?'#F1DFA9':'rgba(245,247,250,.43)'}}>{count}</span>
+            </button>;
+          })}
+        </div>
+        {attendanceSectionsReady&&attendanceSectionCounts.unassigned>0&&<div style={{padding:compactViewport?'0 12px 5px':'0 18px 6px',fontSize:10,lineHeight:1.4,color:'rgba(245,247,250,.38)'}}>Assign sections in People → Select people → Assign section. Unassigned people stay unclassified until an operator assigns them.</div>}
 
         <div style={compactViewport?mobileToolbar:toolbar}>
           <div style={toolbarRow}>
@@ -1198,11 +1291,11 @@ export default function AttendanceModal({isOpen,onClose}){
               <input
                 style={compactViewport?mobileSearch:search}
                 value={query}
-                onChange={e=>setQuery(e.target.value)}
+                onChange={e=>{setQuery(e.target.value);setAttendanceGroupDisplayLimit(80)}}
                 placeholder="Search people…"
                 aria-label="Search people"
               />
-              {query&&<button style={clear} onClick={()=>setQuery('')} aria-label="Clear search">×</button>}
+              {query&&<button style={clear} onClick={()=>{setQuery('');setAttendanceGroupDisplayLimit(80)}} aria-label="Clear search">×</button>}
             </div>
             <button type="button" style={{...markButton,...(compactViewport?mobileAddVisitor:desktopAddVisitor),opacity:!networkOnline||addingVisitor?0.5:1}} disabled={!networkOnline||addingVisitor||session.status!=='active'} onClick={()=>{setVisitorIdentityReview(null);setShowAddVisitor(value=>!value)}}>
               {showAddVisitor?'Cancel':'+ Add visitor'}
@@ -1228,14 +1321,17 @@ export default function AttendanceModal({isOpen,onClose}){
         
 
         <div style={compactViewport?mobilePeopleBox:peopleBox}>
-          {people.map(p=>
+          {displayedPeople.map(p=>
             <div style={compactViewport?mobilePersonRow:personRow} key={p.id}>
               <div style={compactViewport?mobilePersonInfo:personInfo}>
                 <div style={{...(compactViewport?mobileAvatar:avatar),...(p.marked?presentAvatar:{})}}>
                   {(p.first_name||'?').charAt(0).toUpperCase()}
                 </div>
                 <div style={{minWidth:0}}>
-                  <strong style={compactViewport?mobilePersonName:undefined}>{p.first_name} {p.last_name||''}</strong>
+                  <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',minWidth:0}}>
+                    <strong style={compactViewport?mobilePersonName:undefined}>{p.first_name} {p.last_name||''}</strong>
+                    {attendanceGroupFilter==='all'&&Object.prototype.hasOwnProperty.call(p,'attendance_group')&&<small style={{padding:'2px 6px',borderRadius:999,border:'1px solid rgba(255,255,255,.08)',background:'rgba(255,255,255,.035)',color:'rgba(245,247,250,.43)',fontSize:9,lineHeight:1.2}}>{attendanceGroupLabel(p.attendance_group||'unassigned')}</small>}
+                  </div>
                   {p.marked&&<small style={{display:'block',...(compactViewport?mobilePresentMeta:{})}}>{'Present'+(p.marked_by_name?' · '+p.marked_by_name:'')}</small>}
                   {p.marked&&p.first_visit_candidate===true&&(
                     <div style={compactViewport?mobileFirstVisitWelcomeRow:firstVisitWelcomeRow}>
@@ -1268,12 +1364,12 @@ export default function AttendanceModal({isOpen,onClose}){
             </div>
           )}
 
-          {!people.length&&<div style={empty}>
+          {!displayedPeople.length&&<div style={empty}>
             <strong>{query?'No people found':'No active people yet'}</strong>
             <span>{query?'Try another name or phone number.':'Add people before taking attendance.'}</span>
           </div>}
 
-          {hasMore&&<button style={loadMoreButton} disabled={loadingMore} onClick={loadMore}>
+          {displayedHasMore&&<button style={loadMoreButton} disabled={loadingMore} onClick={loadMore}>
             {loadingMore?'Loading…':'Load more people'}
           </button>}
         </div>

@@ -3012,3 +3012,35 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 - This restoration requires no new table, column, migration, or production data rewrite. It uses the existing `people.attendance_group` schema and the current organization-scoped People assignment endpoint.
 - Regression coverage must verify: a shared People/Attendance section vocabulary from `lib/attendanceSections.js`; explicit section metadata in all three attendance roster/delta APIs; complete-snapshot gating; accurate section counts; search across the full selected section; local incremental pagination for both section filters and the complete All snapshot; server cursor pagination while All is incomplete; visible section labels in All; group updates propagating across open devices; and continued operation of offline mark/save/discard.
 - A release must pass the full CI suite and production build, deploy READY with an alias pointing to the tested commit, and receive a real-device check of All, each section filter, search, mark/unmark, and cross-device section changes. No test may alter production People assignments merely to manufacture group examples.
+
+
+---
+
+## 64. NOVEMBER 1, 2026 — CANONICAL ATTENDANCE HISTORY AND POST-SAVE SUMMARY
+
+### Product behaviour
+
+- Saving an attendance session returns the canonical persisted summary from the existing attendance records; the operator sees the saved result before leaving the Attendance experience.
+- The summary distinguishes confirmed present, confirmed not present, and needs review. An unconfirmed present=false row is not described as an absence. Missing rows are not automatically described as absent.
+- The Attendance History surface lists saved sessions for the current organization. Opening one shows the session timing, canonical count summary, all recorded people, the current review state, and keyset-paginated additional entries. History is read-only; historical correction remains on the existing explicit owner/admin path.
+- The same read model powers the authenticated /api/attendance/history endpoint and ARIA's get_attendance_history capability. It must remain tenant-scoped by both session and person organization keys.
+- History uses the existing sessions, attendance_records, people, and organizations tables. It does not create duplicate attendance totals or a second event store, and it requires no new Supabase table or paid-plan upgrade.
+- Section breakdowns currently use each person's current people.attendance_group. Existing attendance rows do not snapshot historical section assignment. The interface must disclose this limitation; do not imply the section was necessarily the person's classification on the historical service date. A future audited schema change may introduce an explicit section snapshot if historical-as-of reporting is required.
+- ARIA processing state is displayed separately from attendance persistence. A saved register can be available while ARIA is still processing; the interface must not equate background processing completion with whether attendance was saved.
+
+### Havilah production baseline verified November 1, 2026
+
+- The current NYEOCARE production database contains one closed Havilah session: Sunday service, started October 25, 2026.
+- It has 34 attendance rows: 30 confirmed present and 4 unconfirmed rows requiring review. Those four unconfirmed present=false rows must not be described as confirmed absences.
+- Among the 30 confirmed-present people, the current People section assignments are Men 3, Women 11, Youth 8, and Unassigned 8. These are current classifications, not a historical section snapshot.
+- The history view must discover this session directly from the existing production tables. Do not backfill, duplicate, rewrite, or fabricate a session to make it appear.
+- At the verified baseline, the session's ARIA processing status is completed. The history UI must still read the processing state from the session rather than hardcode this status.
+
+### Engineering and release requirements
+
+- lib/attendance/history.js is the shared read model for the save response, History API and ARIA. It is not acceptable to create separate UI-only aggregation logic or totals stored in a second table.
+- Every query must apply the authenticated organization_id; every people join must match both people.id and people.organization_id=attendance_records.organization_id.
+- Session and record detail collections are keyset-paginated and bounded. Do not load unbounded attendance history into a modal or ARIA response.
+- ARIA must expose get_attendance_history as a first-class read capability and deterministic natural-language intent, preserving the same organization boundary and review semantics as the operator UI.
+- Regressions must cover tenant joins, confirmed-versus-unconfirmed truth, current-section disclosure, pagination, save-response summary, History access, and ARIA capability routing.
+- Do not change attendance creation, marking, offline outbox, finalization, participation generation, review approval, correction, or automatic-close semantics while implementing this read-only experience.

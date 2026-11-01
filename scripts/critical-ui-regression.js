@@ -116,7 +116,8 @@ const checks=[
   !existsSync('components/AttendanceTab.js')],
  ['Every Home Attendance entry point opens the same Home-mounted modal',
   countString(home,'onClick={openAttendance}')>=2&&home.includes('const openAttendance=()=>{setAttendance(true);void reportAttendanceOpenRequested()}')&&
-  home.includes("const AttendanceModal=dynamic(()=>import('../components/AttendanceModal'),{ssr:false})")&&
+  home.includes("import AttendanceModal from'../components/AttendanceModal'")&&
+  !home.includes("dynamic(()=>import('../components/AttendanceModal')")&&
   home.includes('<AttendanceModal isOpen={attendance}')&&!home.includes('AttendanceOpening')&&!home.includes("router.push('/attendance')")],
  ['Attendance session state separates live work from background ARIA',
   /s\.status='active'/.test(activeApi)&&/background_processing/.test(activeApi)&&/can_start_new_session:\['owner','admin'\]\.includes\(String\(req\.user\.role\|\|''\)\.toLowerCase\(\)\)/.test(activeApi)],
@@ -195,8 +196,9 @@ const checks=[
   /attachDatabasePool\(pool\)/.test(db)],
  ['Home coalesces bootstrap loads',
   /loadPromiseRef\.current/.test(home)],
- ['Attendance modal uses the original Home client-only dynamic import and is not preloaded as a separate route',
-  home.includes("const AttendanceModal=dynamic(()=>import('../components/AttendanceModal'),{ssr:false})")&&
+ ['Attendance modal uses the canonical Home static import and is not preloaded as a separate route',
+  home.includes("import AttendanceModal from'../components/AttendanceModal'")&&
+  !home.includes("dynamic(()=>import('../components/AttendanceModal')")&&
   home.includes('<AttendanceModal isOpen={attendance}')&&
   !home.includes('ensureAttendanceModal')&&!home.includes('AttendanceOpening')&&!layout.includes("r.prefetch('/attendance')")],
  ['People does not initialize ARIA on page open',

@@ -68,6 +68,11 @@ const scanRegionMerge=read('lib/scanRegionMerge.js');
 const activeApi=read('pages/api/attendance/active-session.js');
 const attendanceCorrectionApi=read('pages/api/attendance/aria-correction.js');
 const attendancePeopleApi=read('pages/api/attendance/people.js');
+const attendanceFieldRosterApi=read('pages/api/attendance/field-roster.js');
+const attendanceFieldChangesApi=read('pages/api/attendance/field-changes.js');
+const attendanceGroupAssignmentApi=read('pages/api/people/attendance-group.js');
+const legacyAttendanceGroupsApi=read('pages/api/attendance/groups.js');
+const legacyAttendanceClaimApi=read('pages/api/attendance/claim-group.js');
 const closeApi=read('pages/api/attendance/close-session.js');
 const createApi=read('pages/api/attendance/create-session.js');
 const attendanceLifecycle=read('lib/attendance/sessionLifecycle.js');
@@ -136,6 +141,22 @@ const checks=[
   /limit=Math\.min/.test(attendancePeopleApi)&&/next_cursor/.test(attendancePeopleApi)&&/base64url/.test(attendancePeopleApi)],
  ['Attendance roster search stays server-side',
   /ILIKE '%'\|\|\$/.test(attendancePeopleApi)&&/COALESCE\(p\.phone/.test(attendancePeopleApi)],
+ ['Attendance section metadata is present in the first page, complete offline roster, and incremental cross-device updates',
+  attendancePeopleApi.includes('p.attendance_group')&&attendanceFieldRosterApi.includes('p.attendance_group')&&attendanceFieldChangesApi.includes('p.attendance_group')],
+ ['Attendance section filters require a complete, explicitly labelled roster and retain local pagination',
+  /attendanceSectionsReady=Boolean\(session\?\.session_id&&rosterSnapshotComplete&&fieldRoster\.every/.test(attendance)&&
+  /localRosterSearch\(attendanceSectionPeople,query,Number\.MAX_SAFE_INTEGER\)/.test(attendance)&&
+  /attendanceSectionSearchResults\.slice\(0,attendanceGroupDisplayLimit\)/.test(attendance)&&
+  /displayedPeople\.map\(p=>/.test(attendance)&&
+  /attendanceGroupFilter!=='all'&&attendanceSectionsReady/.test(attendance)&&
+  /if\(!hasMore\|\|!cursor\)return/.test(attendance)],
+ ['Attendance sections remain explicitly assigned in tenant-scoped People; legacy group-claim APIs stay disabled',
+  attendanceGroupAssignmentApi.includes('const organizationId=req.org.id')&&
+  attendanceGroupAssignmentApi.includes('UPDATE public.people SET attendance_group')&&
+  attendanceGroupAssignmentApi.includes('id=ANY($3::uuid[])')&&
+  /assignSelectedAttendanceGroup/.test(peoplePage)&&
+  peoplePage.includes("'/api/people/attendance-group'")&&
+  legacyAttendanceGroupsApi.includes('status(410)')&&legacyAttendanceClaimApi.includes('status(410)')],
  ['Attendance UI loads pages instead of the whole organization',
   /limit:'80'/.test(attendance)&&/loadMore/.test(attendance)],
  ['Attendance UI shows background ARIA without blocking live attendance',

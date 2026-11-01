@@ -2961,3 +2961,53 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 - A post-build catalog audit verified all 167 foreign keys are covered by valid B-tree indexes. The Supabase `unindexed_foreign_keys` advisor finding is expected to disappear after its next refresh.
 - The idempotent source migration is `supabase/migrations/20261030234620_cover_public_foreign_keys.sql`, matching the migration ledger. It uses `CREATE INDEX IF NOT EXISTS` because the indexes are already built before the migration is recorded; it must not rebuild them.
 - CI includes a regression that checks all 73 source-controlled index definitions. When adding future foreign keys, check for an appropriate leading-column index before adding another one; do not blindly index duplicates.
+
+---
+
+## 62. NOVEMBER 1, 2026 — ATTENDANCE MODULE INITIALIZATION FAILURE AND RELEASE LESSON
+
+### Incident and exact root cause
+
+- The Home Attendance action was functioning: the durable client diagnostic recorded `attendance_open_requested`. The canonical Attendance module never reached its mounted diagnostic, proving the failure was after the button/state trigger and before the component rendered.
+- The failure was a JavaScript temporal-dead-zone error inside `components/AttendanceModal.js`, not a missing click handler, shared modal state, z-index problem, database failure, or third-party modal dependency.
+- The `creationIntro` style object spread `sub` before the `const sub` declaration had executed. Production module evaluation threw `ReferenceError: Cannot access 'X' before initialization` while Next.js collected page data for Home. A successful JavaScript compile alone did not prove safe module initialization.
+- The exact fix was to declare `sub` before `creationIntro`. The canonical Home import remains the known-good client-only dynamic import: `dynamic(()=>import('../components/AttendanceModal'),{ssr:false})`. Do not replace it with a static Home import, custom component loader, substitute opening screen, or parallel Attendance implementation. A static-import experiment reproduced the module-initialization failure during the production build and was reverted.
+- The release added a regression scan over AttendanceModal style-object declarations. It rejects a style object that spreads a later style declaration, preventing this class of temporal-dead-zone failure.
+
+### Permanent debugging and release rules
+
+- Trace a critical modal through four independently observable stages: **button activated → state opened → canonical component mounted → first data load completed**. A working button does not prove that the modal mounted.
+- Diagnose the earliest missing stage. A click diagnostic with no mount diagnostic points to module loading, rendering, or an exception between those stages; it does not justify changing database queries or rebuilding the UI.
+- Client module-evaluation and render failures can occur without a corresponding Vercel server runtime error. Review browser/client diagnostics and production build page-data collection output alongside server logs.
+- When a component fails before its mount effect, inspect module-scope constants, imports, and top-level initialization before changing React state, modal layering, API contracts, or the database.
+- The Attendance style-order regression guard is mandatory. Any Attendance style-object change must pass the critical UI regression suite and a production Next.js build. A successful compile is insufficient if page-data collection fails.
+- Before release, verify that the production alias points to the exact tested commit and run the actual Home → Attendance open path on a device. Do not claim closure based only on a build or server-health result.
+- Preserve the canonical Attendance modal, server session lifecycle, durable attendance records, and IndexedDB Field Mode queue during recovery. Never clear browser/app storage to troubleshoot a modal-opening failure.
+
+---
+
+## 63. NOVEMBER 1, 2026 — EXPLICIT PEOPLE SECTIONS IN LIVE ATTENDANCE
+
+### Canonical model and assignment workflow
+
+- Men, Women, Youth, and Unassigned are **explicit People sections**, not attendance-session groups and not inferred identity attributes.
+- The canonical field is `people.attendance_group`: `men`, `women`, or `youth`; `NULL` means **Unassigned**. Existing assignments remain unchanged.
+- An operator assigns sections in People: select relevant people, choose **Assign section**, and save. Single-person and bulk People creation may also set an optional section. The server derives the tenant from the authenticated operator and applies changes only to selected people in that organization.
+- Never infer a person's section from their name, honorific, photo, appearance, age estimate, phone number, or an AI guess. Unassigned is an intentional, truthful state—not a data-cleanup error.
+- At the November 1, 2026 Havilah snapshot, the active directory contained 7 explicitly assigned Youth and 54 Unassigned people; no Men or Women assignments were present. These are snapshot counts, not a basis for guessing or automatically classifying unassigned records.
+
+### Attendance experience
+
+- The Attendance modal exposes **All**, **Men**, **Women**, **Youth**, and **Unassigned** filters with counts from the complete current session roster. Choosing a section filters the names so operators can mark one section at a time. The All view remains available and shows a small section label when the roster row contains the canonical field.
+- Section counts and filters must not activate from a partial first page or an old offline cache that predates the section field. They become available only after a complete canonical roster snapshot is confirmed and every row explicitly contains `attendance_group`. Until then, the existing All attendance workflow remains usable and section filters stay disabled.
+- In a section view, search runs against the full verified roster for that section and uses local incremental display pagination. It must not silently restrict results to the first 80 organization-wide names. All retains the existing cursor-paginated server path; its loading and pagination semantics must not change.
+- The summary counters reflect the selected section while a section is active, and reflect the whole roster in All. Search narrows displayed names but does not change the selected section's total or present count.
+- The complete field-roster API, first-page attendance API, and incremental field-changes API all carry `people.attendance_group`. This keeps section labels consistent across online pages, full Field Mode snapshots, IndexedDB caches, and other open devices when an operator changes a person's section.
+- Group filtering is presentation-only. It must not change session membership, attendance-record ownership, mark/unmark persistence, confirmation, save/discard behavior, participation generation, ARIA processing, or offline mutation semantics.
+
+### Boundaries and regression requirements
+
+- Use `people.attendance_group` for these four sections. Do not restore the retired `attendance_groups` / `session_groups` workflow, group claiming, or the disabled legacy attendance-group endpoints. Session sections and organization-group memberships serve different purposes and must not be conflated with this People classification.
+- This restoration requires no new table, column, migration, or production data rewrite. It uses the existing `people.attendance_group` schema and the current organization-scoped People assignment endpoint.
+- Regression coverage must verify: explicit section metadata in all three attendance roster/delta APIs; complete-snapshot gating; accurate section counts; search across the full selected section; local section pagination; unchanged All cursor pagination; visible section labels in All; group updates propagating across open devices; and continued operation of offline mark/save/discard.
+- A release must pass the full CI suite and production build, deploy READY with an alias pointing to the tested commit, and receive a real-device check of All, each section filter, search, mark/unmark, and cross-device section changes. No test may alter production People assignments merely to manufacture group examples.

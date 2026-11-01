@@ -213,6 +213,9 @@ test('strict-JSON recovery waits for the Groq input-token window before its one 
  assert.ok(hybridSource.includes("await waitForStructuredRecovery(err,'invalid_structured_output')"));
  assert.ok(hybridSource.includes("await waitForStructuredRecovery(part.rate,'empty_region')"));
  assert.ok(hybridSource.includes("response_format:jsonObjectFallback?{type:'json_object'}:SCHEMA"));
+ assert.ok(hybridSource.includes("await waitForStructuredRecovery(err,'invalid_structured_output')"));
+ assert.ok(hybridSource.includes("requestId:id,...rate,finish_reason:finishReason"));
+ assert.ok(hybridSource.includes("requestId:id,...rate,finish_reason:finishReason"));
 });
 test('scan uses low-effort hidden reasoning, full model output capacity and same-model recovery',()=>{
  assert.ok(hybridSource.includes('reasoning_effort:reasoningEffort'));

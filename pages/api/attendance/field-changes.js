@@ -71,7 +71,7 @@ export default withOrg(async function handler(req, res) {
     let attendance = [];
     if (since) {
       const created = await pool.query(
-        `SELECT p.id, p.first_name, p.last_name, p.display_name, p.phone, p.type, p.created_at, p.updated_at,
+        `SELECT p.id, p.first_name, p.last_name, p.display_name, p.phone, p.type, p.attendance_group, p.created_at, p.updated_at,
            CASE WHEN lower(BTRIM(COALESCE(p.type,''))) = 'visitor'
              AND NOT EXISTS (
                SELECT 1 FROM participation_records previous

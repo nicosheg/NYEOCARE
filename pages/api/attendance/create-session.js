@@ -18,9 +18,10 @@ export default withAdmin(async function handler(req,res){
 
   const orgId=req.org.id;
   const userId=req.user.id;
-  const client=await pool.connect();
+  let client=null;
 
   try{
+    client=await pool.connect();
     await client.query('BEGIN');
     const created=await createAttendanceSession({
       db:client,
@@ -41,7 +42,7 @@ export default withAdmin(async function handler(req,res){
       background_processing_not_blocking:true
     });
   }catch(err){
-    await client.query('ROLLBACK').catch(()=>{});
+    if(client)await client.query('ROLLBACK').catch(()=>{});
     if(err.code==='ATTENDANCE_SESSION_ACTIVE'||err.code==='23505'){
       return res.status(409).json({
         success:false,
@@ -52,9 +53,10 @@ export default withAdmin(async function handler(req,res){
         session:err.session||null
       });
     }
-    console.error('[ATTENDANCE] Create session error:',err);
-    return res.status(err.status||500).json({error:err.status?err.message:'Could not start attendance.'});
+    const requestId=String(req.nyeoRequestId||'').slice(0,160)||null;
+    console.error('[ATTENDANCE_SESSION_CREATE_FAILED]',JSON.stringify({request_id:requestId,error_code:String(err?.code||'ATTENDANCE_SESSION_CREATE_FAILED'),error_name:String(err?.name||'Error'),message:String(err?.message||'Unknown attendance session creation failure').slice(0,1200),stack:String(err?.stack||'').slice(0,4000)}));
+    return res.status(err.status||500).json({error:err.status?err.message:'Could not start attendance.',code:String(err?.code||'ATTENDANCE_SESSION_CREATE_FAILED'),request_id:requestId});
   }finally{
-    client.release();
+    client?.release();
   }
 });

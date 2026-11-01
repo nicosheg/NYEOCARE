@@ -1,7 +1,7 @@
 import{withOrg}from'../../../lib/apiHelpers';
 import{recordDiagnosticEvent}from'../../../lib/diagnostics/server';
 
-const clean=(value,max=6000)=>String(value??'').replace(/[\\r\\n]+/g,' ').slice(0,max);
+const clean=(value,max=6000)=>String(value??'').replace(/[\r\n]+/g,' ').slice(0,max);
 
 export default withOrg(async function handler(req,res){
  if(req.method!=='POST')return res.status(405).json({error:'Method not allowed'});
@@ -22,7 +22,7 @@ export default withOrg(async function handler(req,res){
   buildId:clean(body.buildId||process.env.VERCEL_GIT_COMMIT_SHA||'unknown',120),
   userAgent:clean(body.userAgent||req.headers['user-agent']||'',700),
   statusCode:body.metadata?.status??null,
-  metadata:body.metadata&&typeof body.metadata==='object'?body.metadata:{}
+  metadata:{...(body.metadata&&typeof body.metadata==='object'?body.metadata:{}),...(body.componentStack?{componentStack:String(body.componentStack).slice(0,6000)}:{})}
  };
  console.error('[NYEOCARE_CLIENT_ERROR]',JSON.stringify(event));
  void recordDiagnosticEvent(event);

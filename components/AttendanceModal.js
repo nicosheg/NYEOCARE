@@ -6,6 +6,7 @@ import{getCached,setCached,clearCached,publishDataChange}from'../lib/appData';
 import{supabase}from'../lib/supabaseClient';import AriaProcessingStatus from'./AriaProcessingStatus';
 import{getFieldSession,getFieldPeople,isFieldRosterSnapshotComplete,saveFieldSession,saveFieldPeople,enqueueFieldMutation,removeFieldMutation,getFieldPendingCount,getPendingFieldMutations,getUnattributedPendingFieldMutationCount,removeFieldPerson,localRosterSearch,clearFieldSession,syncFieldMode}from'../lib/attendanceFieldMode';
 import{measurePerformance}from'../lib/performanceTelemetry';
+import AttendanceHistoryPanel from'./AttendanceHistoryPanel';
 
 const FAST_SYNC_FALLBACK_MS=2500;
 const SLOW_SYNC_FALLBACK_MS=5000;
@@ -85,6 +86,8 @@ export default function AttendanceModal({isOpen,onClose}){
   const[sessionName,setSessionName]=useState('');
   const[absenceMeaningful,setAbsenceMeaningful]=useState(false);
   const[showFinishConfirm,setShowFinishConfirm]=useState(false);
+  const[savedResult,setSavedResult]=useState(null);
+  const[showHistory,setShowHistory]=useState(false);
   const[showAddVisitor,setShowAddVisitor]=useState(false);
   const[visitorName,setVisitorName]=useState('');
   const[visitorPhone,setVisitorPhone]=useState('');
@@ -247,7 +250,7 @@ export default function AttendanceModal({isOpen,onClose}){
     if(!isOpen)return;
     void reportAttendanceOpenDiagnostic({kind:'attendance_modal_mounted',severity:'info',message:'The canonical AttendanceModal mounted and received isOpen=true.',stage:'render',metadata:{online:typeof navigator==='undefined'?null:navigator.onLine===true}});
   },[isOpen]);
-  useEffect(()=>{if(!isOpen)setShowFinishConfirm(false)},[isOpen]);
+  useEffect(()=>{if(!isOpen){setShowFinishConfirm(false);setShowHistory(false);setSavedResult(null)}},[isOpen]);
 
   useEffect(()=>{
     if(!isOpen)return;
@@ -921,6 +924,7 @@ export default function AttendanceModal({isOpen,onClose}){
       if(!live)throw Error('Attendance session response was incomplete.');
 
       const next={...live,user_id:s.user.id};
+      setSavedResult(null);setShowHistory(false);
       lastSearchKey.current=attendanceSearchKey(next.session_id,'');
       setQuery('');
       setSession(next);
@@ -1135,7 +1139,10 @@ export default function AttendanceModal({isOpen,onClose}){
       if(!response.ok||!data.success)throw Object.assign(Error(data.error||'Attendance could not be saved yet.'),{transient:response.status>=500||response.status===0});
       await clearFieldSession(s.user.id,session.session_id);
       clearCached('attendance:'+s.user.id);
-      publishDataChange('attendance');perf('ok');onClose();
+      setSavedResult(data.summary||{session:data.session||{id:session.session_id,name:session.name},totals:null,group_breakdown:[],summary_unavailable:true});
+      setSession(current=>current?{...current,status:'closed'}:current);
+      setNotice('Attendance is saved. ARIA continues updating the organization in the background.');
+      publishDataChange('attendance');perf('ok');
     }catch(e){
       const transient=e?.transient||e instanceof TypeError||typeof navigator!=='undefined'&&!navigator.onLine;
       if(transient){
@@ -1221,15 +1228,19 @@ export default function AttendanceModal({isOpen,onClose}){
             <h2 style={session?compactViewport?sessionMobileH2:sessionH2:compactViewport?mobileCreationH2:creationH2}
               title={session?(session.name||'Live session'):'ATTENDANCE'}>{session?(session.name||'Live session'):'ATTENDANCE'}</h2>
             {session?.status==='active'&&<span style={liveTag}>LIVE</span>}
+            {savedResult&&<span style={savedTag}>SAVED</span>}
           </div>
           {session
-            ? <p style={compactViewport?mobileSub:sub}>Tap to mark present. Saves instantly.</p>
+            ? <p style={compactViewport?mobileSub:sub}>{savedResult?'Saved attendance record':session.status==='active'?'Tap to mark present. Saves instantly.':'Attendance saved'}</p>
             : background
               ? <p style={compactViewport?mobileSub:sub}>{backgroundLabel}. You can start the next attendance now.</p>
               : <p style={compactViewport?mobileCreationIntro:creationIntro}>Create a session to begin taking attendance.</p>}
           {session?.status==='active'&&autoCloseLabel&&<span style={compactViewport?mobileAutoCloseHint:autoCloseHint}>Live for everyone · Auto-saves by {autoCloseLabel}.</span>}
         </div>
-        <button style={close} onClick={onClose} aria-label="Close attendance">×</button>
+        <div style={{display:'flex',alignItems:'center',gap:7,flexShrink:0}}>
+          <button type="button" style={historyButton} onClick={()=>setShowHistory(true)}>History</button>
+          <button style={close} onClick={onClose} aria-label="Close attendance">×</button>
+        </div>
       </header>
 
       {background&&!session&&<div style={backgroundBox}><AriaProcessingStatus kind="attendance" status={background.processing_status||'processing'} stage={background.aria_processing_stage||background.stage||''} progress={background.progress||0} processed={background.processed||0} total={background.total||0}/><span style={backgroundHint}>{backgroundLabel==='ARIA updated'?'The last session is fully understood.':background.processing_status==='needs_attention'?'Attendance is saved. ARIA is waiting for a human decision.':'Attendance is saved. You can start the next session while ARIA finishes this one.'}</span></div>}
@@ -1246,6 +1257,25 @@ export default function AttendanceModal({isOpen,onClose}){
       {error&&<div style={errorBox}>{error}</div>}
 
       {loading?<div style={loadingBox}>Preparing attendance…</div>
+      :savedResult?<div style={savedResultBox}>
+        <div style={savedResultIcon}>✓</div>
+        <strong style={savedResultTitle}>Attendance saved</strong>
+        <span style={savedResultText}>This session is now part of your organization’s saved attendance history.</span>
+        {savedResult.totals?<>
+          <div style={savedStatsGrid}>
+            <div style={savedStatPrimary}><strong>{Number(savedResult.totals.confirmed_present_count)||0}</strong><span>Confirmed present</span></div>
+            <div style={savedStat}><strong>{Number(savedResult.totals.pending_review_count)||0}</strong><span>Needs review</span></div>
+            <div style={savedStat}><strong>{Number(savedResult.totals.confirmed_not_present_count)||0}</strong><span>Confirmed not present</span></div>
+          </div>
+          <div style={savedSectionHeading}>Attendance breakdown <small>Current People sections</small></div>
+          {(savedResult.group_breakdown||[]).map(group=><div style={savedGroupRow} key={group.key}><span>{group.label}</span><strong>{Number(group.count)||0}</strong></div>)}
+          <span style={savedResultFootnote}>Section totals use current People assignments. Older attendance records do not contain a historic section snapshot.</span>
+        </>:<span style={savedResultFootnote}>The session is saved. Its summary is temporarily unavailable; open history to retrieve the canonical register.</span>}
+        <div style={savedResultActions}>
+          <button type="button" style={historyPrimary} onClick={()=>setShowHistory(true)}>View full register</button>
+          <button type="button" style={savedDoneButton} onClick={onClose}>Done</button>
+        </div>
+      </div>
       :!session?canStartSession?<div style={compactViewport?mobileSessionCreateBox:sessionCreateBox}>
          <div className="ny-attendance-create-aura" style={createAura} aria-hidden="true"><div style={createPlus}>＋</div></div>
          <strong style={compactViewport?mobileCreateTitle:createTitle}>Create a session</strong>
@@ -1405,12 +1435,27 @@ export default function AttendanceModal({isOpen,onClose}){
     </div>}
   </div>;
 
-  return createPortal(content,document.body);
+  return <>{createPortal(content,document.body)}<AttendanceHistoryPanel isOpen={showHistory} onClose={()=>setShowHistory(false)} initialSessionId={savedResult?.session?.id||null}/></>;
 }
 
 const headingRow={display:'flex',alignItems:'center',gap:9,minWidth:0};
 const liveTag={padding:'3px 7px',borderRadius:999,border:'1px solid rgba(74,222,128,.24)',background:'rgba(74,222,128,.08)',color:'rgba(134,239,172,.9)',fontSize:9,fontWeight:800,letterSpacing:1.1,lineHeight:1,flexShrink:0};
 const autoCloseHint={display:'block',marginTop:5,fontSize:11,color:'rgba(214,184,106,.82)',lineHeight:1.4};
+const historyButton={padding:'8px 12px',minHeight:36,borderRadius:999,border:'1px solid rgba(214,184,106,.24)',background:'rgba(214,184,106,.07)',color:'#E8D49A',fontSize:11,fontWeight:700,cursor:'pointer'};
+const savedTag={padding:'3px 7px',borderRadius:999,border:'1px solid rgba(127,191,154,.27)',background:'rgba(127,191,154,.09)',color:'#9BD4AE',fontSize:9,fontWeight:800,letterSpacing:1.05,lineHeight:1};
+const savedResultBox={flex:1,minHeight:0,overflowY:'auto',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:10,padding:'22px clamp(16px,5vw,42px)',textAlign:'center',background:'radial-gradient(ellipse at 50% 12%,rgba(214,184,106,.12),transparent 48%)'};
+const savedResultIcon={width:56,height:56,borderRadius:'50%',display:'grid',placeItems:'center',border:'1px solid rgba(127,191,154,.3)',background:'rgba(127,191,154,.1)',color:'#9BD4AE',fontSize:26,fontWeight:800};
+const savedResultTitle={fontSize:22,fontWeight:800,color:'#F5F7FA',marginTop:2};
+const savedResultText={fontSize:12,color:'rgba(245,247,250,.56)',maxWidth:390,lineHeight:1.5};
+const savedStatsGrid={display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:8,width:'min(620px,100%)',marginTop:12};
+const savedStat={display:'grid',gap:4,padding:'12px 8px',borderRadius:14,border:'1px solid rgba(255,255,255,.08)',background:'rgba(255,255,255,.035)',minWidth:0};
+const savedStatPrimary={...savedStat,borderColor:'rgba(127,191,154,.22)',background:'rgba(127,191,154,.065)'};
+const savedSectionHeading={display:'flex',justifyContent:'space-between',alignItems:'baseline',gap:12,width:'min(620px,100%)',marginTop:12,fontSize:12,fontWeight:750,textAlign:'left'};
+const savedGroupRow={display:'flex',alignItems:'center',justifyContent:'space-between',width:'min(620px,100%)',padding:'8px 2px',borderBottom:'1px solid rgba(255,255,255,.055)',fontSize:11,color:'rgba(245,247,250,.72)'};
+const savedResultFootnote={width:'min(620px,100%)',textAlign:'left',fontSize:9.5,color:'rgba(245,247,250,.36)',lineHeight:1.45,marginTop:4};
+const savedResultActions={display:'flex',alignItems:'center',justifyContent:'center',gap:8,flexWrap:'wrap',width:'min(620px,100%)',marginTop:16};
+const historyPrimary={padding:'11px 17px',border:0,borderRadius:999,background:'#E8D49A',color:'#101827',fontSize:12,fontWeight:800,cursor:'pointer'};
+const savedDoneButton={padding:'10px 16px',borderRadius:999,border:'1px solid rgba(255,255,255,.13)',background:'rgba(255,255,255,.045)',color:'#F5F7FA',fontSize:12,cursor:'pointer'};
 const finishConfirmOverlay={position:'fixed',inset:0,zIndex:2147483001,display:'grid',placeItems:'center',padding:18,background:'rgba(2,5,12,.76)',backdropFilter:'blur(12px)'};
 const finishConfirmCard={width:'min(440px,100%)',padding:20,borderRadius:20,border:'1px solid rgba(255,255,255,.16)',background:'linear-gradient(145deg,#26364d,#0b1425)',boxShadow:'0 24px 70px rgba(0,0,0,.55)',color:'#f5f7fb'};
 const overlay={

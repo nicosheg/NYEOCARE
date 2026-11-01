@@ -3,6 +3,7 @@ import pool from '../../../lib/db';
 import { withOrg } from '../../../lib/apiHelpers';
 import { isOrganizationOperator } from '../../../lib/attendance/access';
 import { finalizeAttendanceSession } from '../../../lib/attendance/sessionLifecycle';
+import { getAttendanceSessionSummary } from '../../../lib/attendance/history';
 
 export default withOrg(async function handler(req,res){
   if(req.method!=='POST')return res.status(405).json({error:'Method not allowed'});
@@ -43,6 +44,9 @@ export default withOrg(async function handler(req,res){
       sessionId:session_id
     });
     await client.query('COMMIT');
+    let summary=null;
+    try{summary=await getAttendanceSessionSummary(pool,orgId,session_id)}
+    catch(summaryError){console.warn('[ATTENDANCE] Saved summary read deferred:',summaryError?.message||summaryError)}
 
     if(result.alreadySaved){
       return res.status(200).json({
@@ -51,6 +55,7 @@ export default withOrg(async function handler(req,res){
         processing_pending:result.processing_pending,
         queued:true,
         session:result.session,
+        summary,
         message:'Attendance is already saved. ARIA is handling the background work.'
       });
     }
@@ -62,6 +67,7 @@ export default withOrg(async function handler(req,res){
       queue_message_id:result.queue_message_id,
       error:null,
       session:result.session,
+      summary,
       message:'Attendance saved. ARIA is updating the organization in the background.'
     });
   }catch(err){

@@ -1284,9 +1284,9 @@ export default function AttendanceModal({isOpen,onClose}){
         <span style={savedResultText}>This session is now part of your organization’s saved attendance history.</span>
         {savedResult.totals?<>
           <div style={savedStatsGrid}>
-            <div style={savedStatPrimary}><strong>{Number(savedResult.totals.confirmed_present_count)||0}</strong><span>Confirmed present</span></div>
-            <div style={savedStat}><strong>{Number(savedResult.totals.pending_review_count)||0}</strong><span>Needs review</span></div>
-            <div style={savedStat}><strong>{Number(savedResult.totals.confirmed_not_present_count)||0}</strong><span>Confirmed not present</span></div>
+            <div style={savedStat}><strong>{Number(savedResult.totals.recorded_count)||0}</strong><span>Recorded entries</span></div>
+            <div style={savedStatPrimary}><strong>{Number(savedResult.totals.present_count)||0}</strong><span>Present</span></div>
+            <div style={savedStat}><strong>{Number(savedResult.totals.absent_count)||0}</strong><span>Absent</span></div>
           </div>
           <div style={savedSectionHeading}>Attendance breakdown <small>Current People sections</small></div>
           {(savedResult.group_breakdown||[]).map(group=><div style={savedGroupRow} key={group.key}><span>{group.label}</span><strong>{Number(group.count)||0}</strong></div>)}

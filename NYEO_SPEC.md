@@ -3021,8 +3021,8 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 ### Product behaviour
 
 - Saving an attendance session returns the canonical persisted summary from the existing attendance records; the operator sees the saved result before leaving the Attendance experience.
-- The summary distinguishes confirmed present, confirmed not present, and needs review. An unconfirmed present=false row is not described as an absence. Missing rows are not automatically described as absent.
-- The Attendance History surface lists saved sessions for the current organization. Opening one shows the session timing, canonical count summary, all recorded people, the current review state, and keyset-paginated additional entries. History is read-only; historical correction remains on the existing explicit owner/admin path.
+- For a closed, saved session, the saved register displays only **Present** and **Absent**, derived from the recorded `attendance_records.present` value. The internal `confirmed` flag remains intact as provenance/workflow data but does not create a third review status in the saved-history interface. Only people with an actual attendance record appear; people without a record are not automatically counted as absent.
+- The Attendance History surface lists saved sessions for the current organization. Opening one shows the session timing, recorded present/absent totals, all recorded people, their Present/Absent status, and keyset-paginated additional entries. History is read-only; a future correction flow may be added explicitly, but saved history is not currently editable.
 - The same read model powers the authenticated /api/attendance/history endpoint and ARIA's get_attendance_history capability. It must remain tenant-scoped by both session and person organization keys.
 - History uses the existing sessions, attendance_records, people, and organizations tables. It does not create duplicate attendance totals or a second event store, and it requires no new Supabase table or paid-plan upgrade.
 - Section breakdowns currently use each person's current people.attendance_group. Existing attendance rows do not snapshot historical section assignment. The interface must disclose this limitation; do not imply the section was necessarily the person's classification on the historical service date. A future audited schema change may introduce an explicit section snapshot if historical-as-of reporting is required.
@@ -3064,3 +3064,14 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 
 - `scripts/attendance-history-regression.mjs` guards this status/style name collision: the status variable must remain `processingStatus`, the `processing` layout style must remain an object, and the panel must use that object for the style prop.
 - This regression is part of `test:attendance-history` and the production CI gate.
+
+
+## 66. NOVEMBER 1, 2026 — SAVED ATTENDANCE PRESENT/ABSENT DISPLAY AND BACK NAVIGATION
+
+- A closed session is displayed as a finalized register with two visible row states only: **Present** and **Absent**. These labels are read from the existing persisted `attendance_records.present` value, not inferred from people missing from the register.
+- Summary and session-list counts use the recorded present/absent values and total recorded entries. The UI does not show a third “Needs review” category after a session is saved.
+- The underlying `confirmed` field is not rewritten or discarded. This UI change is presentation-only and does not alter attendance persistence, participation generation, ARIA evidence, historical rows, or current People assignments.
+- The current Havilah saved session has 34 real register rows: 30 operator-recorded present and 4 operator-recorded absent. Those four rows are already stored with `status='not_present'` and `source='operator'`; the display change does not create or fabricate four absences.
+- Attendance History uses normal browser/device back navigation: from a register detail it returns to the saved-session list; from the list it returns to the Attendance screen. The redundant close X is removed. The detail back arrow follows the same navigation stack.
+- No schema migration, data rewrite, placeholder session, or new attendance table is introduced.
+- Regression tests require the present/absent-only summary and row labels, complete section counts, and history back-navigation behavior.

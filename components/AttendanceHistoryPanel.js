@@ -1,5 +1,5 @@
 // components/AttendanceHistoryPanel.js
-import{useCallback,useEffect,useState}from'react';
+import{useCallback,useEffect,useRef,useState}from'react';
 import{createPortal}from'react-dom';
 import{getClientSession}from'../lib/clientSession';
 
@@ -16,6 +16,9 @@ export default function AttendanceHistoryPanel({isOpen,onClose,initialSessionId=
   const[sessions,setSessions]=useState([]),[listCursor,setListCursor]=useState(null),[listMore,setListMore]=useState(false),[listLoading,setListLoading]=useState(false);
   const[detail,setDetail]=useState(null),[recordCursor,setRecordCursor]=useState(null),[recordMore,setRecordMore]=useState(false),[detailLoading,setDetailLoading]=useState(false),[loadingMore,setLoadingMore]=useState(false);
   const[error,setError]=useState(''),[compact,setCompact]=useState(false);
+  const navigationRef=useRef({key:null,active:false,detail:null});
+  const onCloseRef=useRef(onClose);
+  useEffect(()=>{onCloseRef.current=onClose},[onClose]);
 
   const request=useCallback(async url=>{
     const auth=await getClientSession();
@@ -49,10 +52,48 @@ export default function AttendanceHistoryPanel({isOpen,onClose,initialSessionId=
     finally{setDetailLoading(false);setLoadingMore(false);}
   },[request]);
 
+  const openSession=useCallback(id=>{
+    const navigation=navigationRef.current;
+    if(navigation.active&&!navigation.detail){
+      navigation.detail=String(id);
+      const state=window.history.state&&typeof window.history.state==='object'?window.history.state:{};
+      window.history.pushState({...state,nyeoAttendanceHistoryKey:navigation.key,nyeoAttendanceHistoryDetail:navigation.detail},'');
+    }
+    void loadDetail(id);
+  },[loadDetail]);
+
+  const backFromDetail=()=>{
+    const navigation=navigationRef.current;
+    if(navigation.active&&navigation.detail){window.history.back();return;}
+    setDetail(null);setError('');
+  };
+
   useEffect(()=>{
     if(!isOpen)return;
     setDetail(null);setError('');setSessions([]);setListCursor(null);setListMore(false);
+    const key='nyeo-attendance-history-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);
+    const baseState=window.history.state&&typeof window.history.state==='object'?window.history.state:{};
+    const navigation={key,active:true,detail:null};
+    navigationRef.current=navigation;
+    window.history.pushState({...baseState,nyeoAttendanceHistoryKey:key,nyeoAttendanceHistoryDetail:null},'');
+    if(initialSessionId){
+      navigation.detail=String(initialSessionId);
+      window.history.pushState({...window.history.state,nyeoAttendanceHistoryKey:key,nyeoAttendanceHistoryDetail:navigation.detail},'');
+    }
+    const handlePopState=()=>{
+      if(!navigation.active)return;
+      if(navigation.detail){
+        navigation.detail=null;
+        setDetail(null);
+        setError('');
+        return;
+      }
+      navigation.active=false;
+      onCloseRef.current?.();
+    };
+    window.addEventListener('popstate',handlePopState);
     void loadSessions();if(initialSessionId)void loadDetail(initialSessionId);
+    return()=>window.removeEventListener('popstate',handlePopState);
   },[isOpen,initialSessionId,loadSessions,loadDetail]);
 
   useEffect(()=>{
@@ -64,32 +105,31 @@ export default function AttendanceHistoryPanel({isOpen,onClose,initialSessionId=
 
   if(!isOpen||typeof document==='undefined')return null;
   const summary=detail?.summary||null,totals=summary?.totals||{},breakdown=summary?.group_breakdown||[];
-  const present=count(totals.confirmed_present_count),pending=count(totals.pending_review_count),notPresent=count(totals.confirmed_not_present_count);
+  const present=count(totals.present_count),absent=count(totals.absent_count);
   const processingStatus=detail?.session?.aria_processing_status;
-  const view=<div style={overlay} onMouseDown={event=>{if(event.target===event.currentTarget)onClose?.();}}>
+  const view=<div style={overlay}>
     <section style={{...modal,width:compact?'100vw':'min(920px,96vw)',height:compact?'100dvh':'min(90dvh,860px)',maxHeight:compact?'100dvh':'90dvh',borderRadius:compact?0:26}}>
       <header style={header}>
         <div style={{display:'flex',alignItems:'center',gap:10,minWidth:0}}>
-          {detail&&<button type="button" style={back} onClick={()=>{setDetail(null);setError('');}}>‹</button>}
+          {detail&&<button type="button" style={back} onClick={backFromDetail}>‹</button>}
           <div style={{minWidth:0}}>
             <div style={eyebrow}>NYEOCARE · ATTENDANCE</div>
             <h2 style={heading}>{detail?detail.session?.name||'Saved attendance':'Past attendance'}</h2>
             <div style={subtitle}>{detail?.session?formatDate(detail.session.started_at,detail.session.organization_timezone):'Saved gatherings and their recorded register'}</div>
           </div>
         </div>
-        <button type="button" style={close} onClick={onClose} aria-label="Close history">×</button>
       </header>
       {error&&<div style={errorBox} role="alert">{error}</div>}
       {detail?<div style={body}>
         {detailLoading&&!summary?<div style={empty}>Loading saved register…</div>:<>
           <div style={summaryCard}>
-            <div style={smallCaps}>CONFIRMED ATTENDANCE</div>
+            <div style={smallCaps}>RECORDED ATTENDANCE</div>
             <div style={bigNumber}>{present}</div>
-            <div style={summaryLabel}>people confirmed present</div>
+            <div style={summaryLabel}>people recorded as present</div>
             <div style={stats}>
               <div><strong>{count(totals.recorded_count)}</strong><span>Recorded entries</span></div>
-              <div><strong>{pending}</strong><span>Needs review</span></div>
-              <div><strong>{notPresent}</strong><span>Confirmed not present</span></div>
+              <div><strong>{present}</strong><span>Present</span></div>
+              <div><strong>{absent}</strong><span>Absent</span></div>
             </div>
             <div style={processing}>
               <i style={{background:processingStatus==='completed'?'#7FBF9A':processingStatus==='needs_attention'?'#D6B86A':'#8FAFD6'}}/>
@@ -105,15 +145,15 @@ export default function AttendanceHistoryPanel({isOpen,onClose,initialSessionId=
           <div style={sectionTitle}><strong>Saved register</strong><span>{(detail.records||[]).length} loaded</span></div>
           <div style={records}>
             {(detail.records||[]).map(record=>{
-              const label=record.confirmed?(record.present?'Present':'Not present'):'Needs review';
-              const tone=record.confirmed?(record.present?'#9BD4AE':'rgba(245,247,250,.52)'):'#E8D49A';
+              const label=record.present?'Present':'Absent';
+              const tone=record.present?'#9BD4AE':'rgba(245,247,250,.58)';
               return <div style={recordRow} key={record.id}>
                 <div style={avatar}>{personName(record.person_name).charAt(0).toUpperCase()}</div>
                 <div style={{minWidth:0,flex:1}}>
                   <strong style={name}>{personName(record.person_name)}</strong>
                   <div style={meta}>{groups[record.attendance_group]||'Unassigned'} · {record.marked_at?formatDate(record.marked_at,detail.session?.organization_timezone):'Date recorded'}</div>
                 </div>
-                <span style={{...status,color:tone,borderColor:record.confirmed?'rgba(255,255,255,.1)':'rgba(214,184,106,.3)'}}>{label}</span>
+                <span style={{...status,color:tone,borderColor:'rgba(255,255,255,.1)'}}>{label}</span>
               </div>;
             })}
             {!detail.records?.length&&!detailLoading&&<div style={empty}>No attendance entries were recorded for this session.</div>}
@@ -121,10 +161,10 @@ export default function AttendanceHistoryPanel({isOpen,onClose,initialSessionId=
           </div>
         </>}
       </div>:<div style={body}>
-        <div style={intro}><strong>Every saved gathering, kept together.</strong><span>Open a session to see its confirmed count, review state, section summary and recorded names.</span></div>
-        {listLoading&&!sessions.length?<div style={empty}>Loading attendance history…</div>:sessions.map(item=><button type="button" style={sessionCard} key={item.id} onClick={()=>loadDetail(item.id)}>
+        <div style={intro}><strong>Every saved gathering, kept together.</strong><span>Open a session to see its recorded present and absent counts, section summary and register.</span></div>
+        {listLoading&&!sessions.length?<div style={empty}>Loading attendance history…</div>:sessions.map(item=><button type="button" style={sessionCard} key={item.id} onClick={()=>openSession(item.id)}>
           <div style={sessionTop}><div style={{minWidth:0}}><strong style={sessionName}>{item.name||'Attendance session'}</strong><span style={sessionDate}>{formatDate(item.started_at,item.organization_timezone)}</span></div><span style={arrow}>›</span></div>
-          <div style={sessionStats}><span><strong>{count(item.confirmed_present_count)}</strong> present</span><span><strong>{count(item.pending_review_count)}</strong> need review</span><span>{item.aria_processing_status==='completed'?'ARIA updated':'ARIA processing'}</span></div>
+          <div style={sessionStats}><span><strong>{count(item.present_count)}</strong> present</span><span><strong>{count(item.absent_count)}</strong> absent</span><span>{item.aria_processing_status==='completed'?'ARIA updated':'ARIA processing'}</span></div>
         </button>)}
         {!listLoading&&!sessions.length&&!error&&<div style={empty}>No saved attendance sessions yet.</div>}
         {listMore&&<button type="button" style={more} disabled={loadingMore} onClick={()=>loadSessions(listCursor,true)}>{loadingMore?'Loading…':'Load earlier sessions'}</button>}

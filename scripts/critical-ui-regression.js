@@ -26,6 +26,8 @@ const peopleSizing=read('styles/people-sizing.css');
 const reviewCenter=read('components/ReviewCenterTab.js');
 const appPage=read('pages/_app.js');
 const errorBoundary=read('components/ClientErrorBoundary.js');
+const clientDiagnosticApi=read('pages/api/diagnostics/client-error.js');
+const diagnosticServer=read('lib/diagnostics/server.js');
 const attendanceModal=read('components/AttendanceModal.js');
 const environment=read('components/NyeoEnvironment.js');
 const draftEngine=read('lib/aria/draftEngine.js');
@@ -85,12 +87,18 @@ const vercel=JSON.parse(read('vercel.json'));
 const checks=[
  ['Home Attendance opens the canonical component using the known-good client dynamic import',
   home.includes("const AttendanceModal=dynamic(()=>import('../components/AttendanceModal'),{ssr:false})")&&
-  home.includes('const openAttendance=()=>setAttendance(true)')&&
+  home.includes('const openAttendance=()=>{setAttendance(true);void reportAttendanceOpenRequested()}')&&
   home.includes('<AttendanceModal isOpen={attendance}')&&
   countString(home,'onClick={openAttendance}')>=2&&
   !home.includes('ensureAttendanceModal')&&
   !home.includes('AttendanceOpening')&&
   !home.includes("router.push('/attendance')")],
+ ['Attendance click, modal mount and load failures have separate durable diagnostics',
+  home.includes("kind:'attendance_open_requested'")&&attendance.includes("kind:'attendance_modal_mounted'")&&attendance.includes("kind:'attendance_open_failed'")&&attendance.includes('loadStage')&&attendance.includes('http_status:Number(e?.status)||null')],
+ ['Attendance active-session and session-create errors preserve request IDs and server exception details',
+  activeApi.includes('[ATTENDANCE_ACTIVE_SESSION_QUERY_FAILED]')&&activeApi.includes('request_id:requestId')&&activeApi.includes("code:'ATTENDANCE_ACTIVE_SESSION_QUERY_FAILED'")&&createApi.includes('[ATTENDANCE_SESSION_CREATE_FAILED]')&&createApi.includes('client?.release()')],
+ ['Client diagnostic sanitization preserves message characters and React component stacks',
+  clientDiagnosticApi.includes("replace(/[\\r\\n]+/g,' ').slice(0,max)")&&diagnosticServer.includes("replace(/[\\r\\n]+/g,' ').slice(0,max)")&&clientDiagnosticApi.includes('componentStack:String(body.componentStack).slice(0,6000)')],
  ['Legacy Attendance links return to Home and open the original modal',
   attendancePage.includes("router.replace('/?attendance=1')")&&
   home.includes("router.query.attendance")&&
@@ -106,7 +114,7 @@ const checks=[
  ['The unused AttendanceTab legacy compatibility wrapper is removed',
   !existsSync('components/AttendanceTab.js')],
  ['Every Home Attendance entry point opens the same Home-mounted modal',
-  countString(home,'onClick={openAttendance}')>=2&&home.includes('const openAttendance=()=>setAttendance(true)')&&
+  countString(home,'onClick={openAttendance}')>=2&&home.includes('const openAttendance=()=>{setAttendance(true);void reportAttendanceOpenRequested()}')&&
   home.includes("const AttendanceModal=dynamic(()=>import('../components/AttendanceModal'),{ssr:false})")&&
   home.includes('<AttendanceModal isOpen={attendance}')&&!home.includes('AttendanceOpening')&&!home.includes("router.push('/attendance')")],
  ['Attendance session state separates live work from background ARIA',

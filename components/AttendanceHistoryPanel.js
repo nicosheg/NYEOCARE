@@ -65,7 +65,7 @@ export default function AttendanceHistoryPanel({isOpen,onClose,initialSessionId=
   if(!isOpen||typeof document==='undefined')return null;
   const summary=detail?.summary||null,totals=summary?.totals||{},breakdown=summary?.group_breakdown||[];
   const present=count(totals.confirmed_present_count),pending=count(totals.pending_review_count),notPresent=count(totals.confirmed_not_present_count);
-  const processing=detail?.session?.aria_processing_status;
+  const processingStatus=detail?.session?.aria_processing_status;
   const view=<div style={overlay} onMouseDown={event=>{if(event.target===event.currentTarget)onClose?.();}}>
     <section style={{...modal,width:compact?'100vw':'min(920px,96vw)',height:compact?'100dvh':'min(90dvh,860px)',maxHeight:compact?'100dvh':'90dvh',borderRadius:compact?0:26}}>
       <header style={header}>
@@ -92,8 +92,8 @@ export default function AttendanceHistoryPanel({isOpen,onClose,initialSessionId=
               <div><strong>{notPresent}</strong><span>Confirmed not present</span></div>
             </div>
             <div style={processing}>
-              <i style={{background:processing==='completed'?'#7FBF9A':processing==='needs_attention'?'#D6B86A':'#8FAFD6'}}/>
-              <span>{processing==='completed'?'ARIA updated':processing==='needs_attention'?'ARIA needs attention':'ARIA processing / queued'}</span>
+              <i style={{background:processingStatus==='completed'?'#7FBF9A':processingStatus==='needs_attention'?'#D6B86A':'#8FAFD6'}}/>
+              <span>{processingStatus==='completed'?'ARIA updated':processingStatus==='needs_attention'?'ARIA needs attention':'ARIA processing / queued'}</span>
               <span style={{opacity:.5}}>· {String(detail.session?.register_completeness||'unconfirmed').replace(/_/g,' ')}</span>
             </div>
           </div>

@@ -3044,3 +3044,23 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 - ARIA must expose get_attendance_history as a first-class read capability and deterministic natural-language intent, preserving the same organization boundary and review semantics as the operator UI.
 - Regressions must cover tenant joins, confirmed-versus-unconfirmed truth, current-section disclosure, pagination, save-response summary, History access, and ARIA capability routing.
 - Do not change attendance creation, marking, offline outbox, finalization, participation generation, review approval, correction, or automatic-close semantics while implementing this read-only experience.
+
+
+## 65. NOVEMBER 1, 2026 — ATTENDANCE HISTORY CLIENT RENDER FAILURE
+
+### Production diagnosis
+
+- Production client diagnostics recorded React minified error **#62** when an operator opened the Attendance surface. React #62 means a DOM element received a string for its `style` prop where React requires a style-property object.
+- The exact collision was in `components/AttendanceHistoryPanel.js`: a local string, `const processing=detail?.session?.aria_processing_status`, shadowed the module-level `processing` layout-style object. The render then passed a status such as `completed` into `<div style={processing}>`, triggering the client exception.
+- The fix renames the local status value to `processingStatus`. The module-level `processing` layout style remains the object passed to the DOM node. No attendance API, session, saved record, offline queue, or database data is changed by this presentation fix.
+
+### Real saved-history verification
+
+- The production Havilah organization has one closed saved attendance session: **Sunday service — October 25, 2026**.
+- That session has **34 recorded entries**: **30 confirmed present** and **4 awaiting review**. All 34 entries join to person records within the same organization; no missing person is replaced with invented history.
+- Attendance History displays only actual closed sessions and their canonical `attendance_records`. When an organization has no closed sessions, the honest empty state is **No saved attendance sessions yet.** No demo sessions, placeholder records, or synthetic history may be created to make the screen look populated.
+
+### Regression protection
+
+- `scripts/attendance-history-regression.mjs` guards this status/style name collision: the status variable must remain `processingStatus`, the `processing` layout style must remain an object, and the panel must use that object for the style prop.
+- This regression is part of `test:attendance-history` and the production CI gate.

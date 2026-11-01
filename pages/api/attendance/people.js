@@ -80,7 +80,7 @@ export default withOrg(async function handler(req,res){
            (SELECT COUNT(*)::int FROM attendance_records ap
             WHERE ap.organization_id=$1 AND ap.session_id=$2 AND ap.present=true) AS present_count
        )
-       SELECT p.id,p.first_name,p.last_name,p.display_name,p.phone,p.type,
+       SELECT p.id,p.first_name,p.last_name,p.display_name,p.phone,p.type,p.attendance_group,
          CASE WHEN lower(BTRIM(COALESCE(p.type,'')))='visitor'
            AND NOT EXISTS(SELECT 1 FROM participation_records previous WHERE previous.organization_id=p.organization_id AND previous.person_id=p.id AND previous.participation_type='attendance' AND previous.session_id IS DISTINCT FROM s.id AND previous.occurred_at<s.started_at)
            AND NOT EXISTS(SELECT 1 FROM attendance_records prior LEFT JOIN sessions prior_session ON prior_session.id=prior.session_id AND prior_session.organization_id=prior.organization_id WHERE prior.organization_id=p.organization_id AND prior.people_id=p.id AND prior.present=true AND prior.confirmed=true AND prior.session_id IS DISTINCT FROM s.id AND COALESCE(prior_session.started_at,prior.attendance_date::timestamptz,prior.marked_at)<s.started_at) THEN true ELSE false END AS first_visit_candidate,

@@ -721,8 +721,23 @@ export default function AttendanceModal({isOpen,onClose}){
 
 
   const refreshSessionState=useCallback(async()=>{
-    if(!isOpen||!session?.session_id)return;
+    if(!isOpen)return;
     try{
+      const savedSessionId=String(savedResult?.session?.id||'');
+      if(savedSessionId){
+        const auth=await getClientSession();if(!auth?.access_token)return;
+        const params=new URLSearchParams({session_id:savedSessionId,summary_only:'1'});
+        const response=await fetchAttendanceWithTimeout('/api/attendance/history?'+params.toString(),{headers:{Authorization:'Bearer '+auth.access_token},cache:'no-store'},ATTENDANCE_LOAD_TIMEOUT_MS);
+        const data=await read(response);
+        if(response.ok&&data.success===true&&data.summary){
+          const latest=data.summary.session||{};
+          setSavedResult(data.summary);
+          setSession(current=>current?{...current,...latest,status:'closed'}:current);
+          setBackground({processing_status:latest.aria_processing_status||'idle',aria_processing_stage:latest.aria_processing_stage||'idle',stage:latest.aria_processing_stage||'idle',progress:Number(latest.aria_processing_progress)||0,processed:Number(latest.aria_processing_processed)||0,total:Number(latest.aria_processing_total)||0});
+        }
+        return;
+      }
+      if(!session?.session_id)return;
       const s=await getClientSession();if(!s)return;
       const response=await fetchAttendanceWithTimeout('/api/attendance/active-session',{headers:{Authorization:`Bearer ${s.access_token}`},cache:'no-store'});
       const data=await read(response);if(!response.ok)return;
@@ -758,7 +773,7 @@ export default function AttendanceModal({isOpen,onClose}){
       setBackground(data.background_processing||null);
       await refreshFieldPending(live.session_id);
     }catch{}
-  },[isOpen,session?.session_id,refreshFieldPending]);
+  },[isOpen,session?.session_id,savedResult?.session?.id,refreshFieldPending]);
 
   useEffect(()=>{
     if(!isOpen)return;
@@ -1140,7 +1155,9 @@ export default function AttendanceModal({isOpen,onClose}){
       await clearFieldSession(s.user.id,session.session_id);
       clearCached('attendance:'+s.user.id);
       setSavedResult(data.summary||{session:data.session||{id:session.session_id,name:session.name},totals:null,group_breakdown:[],summary_unavailable:true});
-      setSession(current=>current?{...current,status:'closed'}:current);
+      const savedSession=data.summary?.session||data.session||{};
+      setBackground({processing_status:savedSession.aria_processing_status||'pending',aria_processing_stage:savedSession.aria_processing_stage||'queued',stage:savedSession.aria_processing_stage||'queued',progress:Number(savedSession.aria_processing_progress)||0,processed:Number(savedSession.aria_processing_processed)||0,total:Number(savedSession.aria_processing_total)||0});
+      setSession(current=>current?{...current,...savedSession,status:'closed'}:current);
       setNotice('Attendance is saved. ARIA continues updating the organization in the background.');
       publishDataChange('attendance');perf('ok');
     }catch(e){

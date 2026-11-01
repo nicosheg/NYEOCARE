@@ -143,10 +143,12 @@ const checks=[
   /ILIKE '%'\|\|\$/.test(attendancePeopleApi)&&/COALESCE\(p\.phone/.test(attendancePeopleApi)],
  ['Attendance section metadata is present in the first page, complete offline roster, and incremental cross-device updates',
   attendancePeopleApi.includes('p.attendance_group')&&attendanceFieldRosterApi.includes('p.attendance_group')&&attendanceFieldChangesApi.includes('p.attendance_group')],
- ['Attendance section filters require a complete, explicitly labelled roster and retain local pagination',
+ ['Attendance section filters require complete explicit roster metadata; complete snapshots paginate locally while incomplete All retains its cursor',
   /attendanceSectionsReady=Boolean\(session\?\.session_id&&rosterSnapshotComplete&&fieldRoster\.every/.test(attendance)&&
   /localRosterSearch\(attendanceSectionPeople,query,Number\.MAX_SAFE_INTEGER\)/.test(attendance)&&
+  /localRosterSearch\(fieldRoster,query,Number\.MAX_SAFE_INTEGER\)/.test(attendance)&&
   /attendanceSectionSearchResults\.slice\(0,attendanceGroupDisplayLimit\)/.test(attendance)&&
+  /attendanceAllSearchResults\.slice\(0,attendanceGroupDisplayLimit\)/.test(attendance)&&
   /displayedPeople\.map\(p=>/.test(attendance)&&
   /attendanceGroupFilter!=='all'&&attendanceSectionsReady/.test(attendance)&&
   /if\(!hasMore\|\|!cursor\)return/.test(attendance)],

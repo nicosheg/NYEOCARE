@@ -40,6 +40,7 @@ jobs:
       - run: npm run test:foreign-key-indexes
       - run: npm run test:event-date
       - run: npm run test:attendance-access
+      - run: npm run test:attendance-history
       - run: npm run test:person-create-idempotency
       - run: npm run test:identity-review
       - run: npm run test:tenant-isolation

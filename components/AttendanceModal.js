@@ -87,6 +87,7 @@ export default function AttendanceModal({isOpen,onClose}){
   const[absenceMeaningful,setAbsenceMeaningful]=useState(false);
   const[showFinishConfirm,setShowFinishConfirm]=useState(false);
   const[savedResult,setSavedResult]=useState(null);
+  const savedResultRef=useRef(null);
   const[showHistory,setShowHistory]=useState(false);
   const[showAddVisitor,setShowAddVisitor]=useState(false);
   const[visitorName,setVisitorName]=useState('');
@@ -250,7 +251,7 @@ export default function AttendanceModal({isOpen,onClose}){
     if(!isOpen)return;
     void reportAttendanceOpenDiagnostic({kind:'attendance_modal_mounted',severity:'info',message:'The canonical AttendanceModal mounted and received isOpen=true.',stage:'render',metadata:{online:typeof navigator==='undefined'?null:navigator.onLine===true}});
   },[isOpen]);
-  useEffect(()=>{if(!isOpen){setShowFinishConfirm(false);setShowHistory(false);setSavedResult(null)}},[isOpen]);
+  useEffect(()=>{if(!isOpen){setShowFinishConfirm(false);setShowHistory(false);setSavedResult(null);savedResultRef.current=null}},[isOpen]);
 
   useEffect(()=>{
     if(!isOpen)return;
@@ -741,6 +742,7 @@ export default function AttendanceModal({isOpen,onClose}){
       const s=await getClientSession();if(!s)return;
       const response=await fetchAttendanceWithTimeout('/api/attendance/active-session',{headers:{Authorization:`Bearer ${s.access_token}`},cache:'no-store'});
       const data=await read(response);if(!response.ok)return;
+      if(savedResultRef.current?.session?.id)return;
       if(!data.active||String(data.session_id)!==String(session.session_id)){
         await syncFieldMode().catch(()=>false);
         const pending=await getFieldPendingCount(session.session_id,s.user.id).catch(()=>1);
@@ -939,7 +941,7 @@ export default function AttendanceModal({isOpen,onClose}){
       if(!live)throw Error('Attendance session response was incomplete.');
 
       const next={...live,user_id:s.user.id};
-      setSavedResult(null);setShowHistory(false);
+      setSavedResult(null);savedResultRef.current=null;setShowHistory(false);
       lastSearchKey.current=attendanceSearchKey(next.session_id,'');
       setQuery('');
       setSession(next);
@@ -1154,7 +1156,9 @@ export default function AttendanceModal({isOpen,onClose}){
       if(!response.ok||!data.success)throw Object.assign(Error(data.error||'Attendance could not be saved yet.'),{transient:response.status>=500||response.status===0});
       await clearFieldSession(s.user.id,session.session_id);
       clearCached('attendance:'+s.user.id);
-      setSavedResult(data.summary||{session:data.session||{id:session.session_id,name:session.name},totals:null,group_breakdown:[],summary_unavailable:true});
+      const savedPayload=data.summary||{session:data.session||{id:session.session_id,name:session.name},totals:null,group_breakdown:[],summary_unavailable:true};
+      savedResultRef.current=savedPayload;
+      setSavedResult(savedPayload);
       const savedSession=data.summary?.session||data.session||{};
       setBackground({processing_status:savedSession.aria_processing_status||'pending',aria_processing_stage:savedSession.aria_processing_stage||'queued',stage:savedSession.aria_processing_stage||'queued',progress:Number(savedSession.aria_processing_progress)||0,processed:Number(savedSession.aria_processing_processed)||0,total:Number(savedSession.aria_processing_total)||0});
       setSession(current=>current?{...current,...savedSession,status:'closed'}:current);

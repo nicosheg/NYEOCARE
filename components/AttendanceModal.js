@@ -49,6 +49,24 @@ function createVisitorRequestId(){
   return 'visitor_'+Date.now().toString(36)+'_'+part()+'_'+part();
 }
 
+async function reportAttendanceOpenDiagnostic({kind='attendance_open_failed',severity='error',message='Attendance could not open.',stage='unknown',accessToken=null,stack='',metadata={}}={}){
+  try{
+    let token=accessToken;
+    if(!token){const auth=await getClientSession().catch(()=>null);token=auth?.access_token||null;}
+    if(!token)return false;
+    const response=await fetch('/api/diagnostics/client-error',{
+      method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+      body:JSON.stringify({kind,severity,surface:'attendance-modal',message:String(message).slice(0,2000),stack:String(stack||'').slice(0,6000),metadata:{stage,...metadata}}),
+      keepalive:true
+    });
+    if(!response.ok)console.warn('[ATTENDANCE_DIAGNOSTIC] Report rejected:',response.status);
+    return response.ok;
+  }catch(error){
+    console.warn('[ATTENDANCE_DIAGNOSTIC] Report failed:',error?.message||error);
+    return false;
+  }
+}
 export default function AttendanceModal({isOpen,onClose}){
   const[session,setSession]=useState(null);
   const[background,setBackground]=useState(null);
@@ -180,6 +198,10 @@ export default function AttendanceModal({isOpen,onClose}){
   },[]);
 
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false}},[]);
+  useEffect(()=>{
+    if(!isOpen)return;
+    void reportAttendanceOpenDiagnostic({kind:'attendance_modal_mounted',severity:'info',message:'The canonical AttendanceModal mounted and received isOpen=true.',stage:'render',metadata:{online:typeof navigator==='undefined'?null:navigator.onLine===true}});
+  },[isOpen]);
   useEffect(()=>{if(!isOpen)setShowFinishConfirm(false)},[isOpen]);
 
   useEffect(()=>{
@@ -456,12 +478,14 @@ export default function AttendanceModal({isOpen,onClose}){
   const load=useCallback(async({showLoading=true,forceSnapshot=false}={})=>{
     const seq=++loadSeq.current;
     const currentQuery=queryRef.current;
-    let fieldCached=null,confirmedSessionId=null,sessionUserId=null;
+    let fieldCached=null,confirmedSessionId=null,sessionUserId=null,sessionAccessToken=null,loadStage='auth';
     if(showLoading&&mounted.current){setLoading(true);setError('');setNotice('');}
     try{
       const s=await withAttendanceDeadline(getClientSession(),ATTENDANCE_AUTH_TIMEOUT_MS,'Your sign-in session took too long to load. Check your connection and try again.');
       sessionUserId=String(s?.user?.id||'');
-      if(!s)throw Error('You must be logged in.');
+      sessionAccessToken=String(s?.access_token||'');
+      if(!s)throw Object.assign(Error('You must be logged in.'),{code:'ATTENDANCE_AUTH_REQUIRED'});
+      loadStage='local_field_cache';
 
       const offline=typeof navigator!=='undefined'&&!navigator.onLine;
       fieldCached=await withAttendanceFallback(hydrateFieldSession(s.user.id),offline?1200:ATTENDANCE_LOCAL_READ_TIMEOUT_MS,null);
@@ -485,12 +509,14 @@ export default function AttendanceModal({isOpen,onClose}){
         return;
       }
 
+      loadStage='active_session_api';
       const response=await fetchAttendanceWithTimeout('/api/attendance/active-session',{
         headers:{Authorization:`Bearer ${s.access_token}`},
         cache:'no-store'
       },ATTENDANCE_LOAD_TIMEOUT_MS);
+      loadStage='active_session_response';
       const data=await read(response);
-      if(!response.ok)throw Error(data.error||'Could not load attendance.');
+      if(!response.ok)throw Object.assign(Error(data.error||'Could not load attendance.'),{status:response.status,code:data.code||'ATTENDANCE_ACTIVE_SESSION_HTTP_ERROR',requestId:data.request_id||response.headers.get('x-nyeo-request-id')||null});
 
       const bg=data.background_processing||null;
       if(seq!==loadSeq.current||!mounted.current)return;
@@ -532,10 +558,12 @@ export default function AttendanceModal({isOpen,onClose}){
       const live=normalizeSession(data);
       if(!live)throw Error('Attendance session response was incomplete.');
       if(data.joined!==true){
+        loadStage='join_active_session';
         const joinResponse=await fetchAttendanceWithTimeout('/api/attendance/join-session',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.access_token},body:JSON.stringify({session_id:live.session_id})});
         const joined=await read(joinResponse);
-        if(!joinResponse.ok||joined.success!==true)throw Error(joined.error||'Could not join this attendance session. Ask an owner or admin to add you.');
+        if(!joinResponse.ok||joined.success!==true)throw Object.assign(Error(joined.error||'Could not join this attendance session. Ask an owner or admin to add you.'),{status:joinResponse.status,code:joined.code||'ATTENDANCE_JOIN_SESSION_HTTP_ERROR',requestId:joined.request_id||joinResponse.headers.get('x-nyeo-request-id')||null});
       }
+      loadStage='attendance_field_cursor';
       await primeFieldCursor(live,s);
       confirmedSessionId=String(live.session_id);
       lastSearchKey.current=attendanceSearchKey(live.session_id,currentQuery);
@@ -573,6 +601,7 @@ export default function AttendanceModal({isOpen,onClose}){
         if(cached.people.length)setLoading(false);
       }
 
+      loadStage='attendance_roster_page';
       await fetchPage(live,currentQuery,'',false,s);
       saveFieldSession(s.user.id,{...live,user_id:s.user.id}).catch(()=>{});
       if(seq===loadSeq.current&&mounted.current)setLoading(false);
@@ -583,8 +612,18 @@ export default function AttendanceModal({isOpen,onClose}){
       if(fieldCached&&fieldWarmAt.current&&Date.now()-fieldWarmAt.current<300000&&!forceSnapshot)return;
       void warmFieldRoster(live,s).catch(()=>{});
     }catch(e){
-      console.error('[ATTENDANCE] Load error:',e);
+      console.error('[ATTENDANCE_OPEN_FAILED]',{stage:loadStage,code:e?.code||e?.name||'ATTENDANCE_LOAD_FAILED',status:e?.status||null,message:e?.message||'Unknown attendance load error',request_id:e?.requestId||null});
       if(seq===loadSeq.current&&mounted.current){
+        const recoveredFromLocal=fieldCached?.session?.status==='active'&&Array.isArray(fieldCached.people)&&fieldCached.people.length>0;
+        void reportAttendanceOpenDiagnostic({
+          kind:recoveredFromLocal?'attendance_open_degraded':'attendance_open_failed',
+          severity:recoveredFromLocal?'warning':'error',
+          message:`${loadStage}: ${String(e?.code||e?.name||'ATTENDANCE_LOAD_FAILED')}: ${String(e?.message||'Could not load attendance.')}`,
+          stack:e?.stack||'',
+          accessToken:sessionAccessToken,
+          stage:loadStage,
+          metadata:{code:String(e?.code||''),http_status:Number(e?.status)||null,request_id:String(e?.requestId||''),online:typeof navigator==='undefined'?null:navigator.onLine===true,has_local_session:Boolean(fieldCached?.session),local_roster_count:Array.isArray(fieldCached?.people)?fieldCached.people.length:0,server_session_confirmed:Boolean(confirmedSessionId)}
+        });
         setLoading(false);
         if(fieldCached?.session?.status==='active'&&(!confirmedSessionId||confirmedSessionId===String(fieldCached.sessionId))){
           const recoveredPeople=Array.isArray(fieldCached.people)?fieldCached.people:[];

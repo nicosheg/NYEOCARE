@@ -94,7 +94,7 @@ const checks=[
   !home.includes('AttendanceOpening')&&
   !home.includes("router.push('/attendance')")],
  ['Attendance click, modal mount and load failures have separate durable diagnostics',
-  home.includes("kind:'attendance_open_requested'")&&attendance.includes("kind:'attendance_modal_mounted'")&&attendance.includes("kind:'attendance_open_failed'")&&attendance.includes('loadStage')&&attendance.includes('http_status:Number(e?.status)||null')],
+  home.includes("kind:'attendance_open_requested'")&&attendance.includes("kind:'attendance_modal_mounted'")&&attendance.includes("'attendance_open_failed'")&&attendance.includes('loadStage')&&attendance.includes('http_status:Number(e?.status)||null')],
  ['Attendance active-session and session-create errors preserve request IDs and server exception details',
   activeApi.includes('[ATTENDANCE_ACTIVE_SESSION_QUERY_FAILED]')&&activeApi.includes('request_id:requestId')&&activeApi.includes("code:'ATTENDANCE_ACTIVE_SESSION_QUERY_FAILED'")&&createApi.includes('[ATTENDANCE_SESSION_CREATE_FAILED]')&&createApi.includes('client?.release()')],
  ['Client diagnostic sanitization preserves message characters and React component stacks',

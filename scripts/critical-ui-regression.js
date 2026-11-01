@@ -96,7 +96,7 @@ const checks=[
   home.includes("router.query.attendance")&&
   home.includes("router.replace('/',undefined,{shallow:true,scroll:false})")],
  ['Attendance cache version changes with the repaired client-chunk lifecycle',
-  /const CACHE='nyeocare-static-v8'/.test(serviceWorker)],
+  /const CACHE='nyeocare-static-v9'/.test(serviceWorker)],
 
  ['The compatibility Attendance route never renders a standalone workspace',
   attendancePage.includes("router.replace('/?attendance=1')")&&!attendancePage.includes('<Layout>')&&
@@ -286,7 +286,7 @@ const checks=[
  ['Global app runtime revalidates auth/data invisibly',
   /getClientSession/.test(fieldRuntime)&&/nyeocare:app-refresh/.test(fieldRuntime)&&/pageshow/.test(fieldRuntime)&&/setInterval\(run,60000\)/.test(fieldRuntime)],
  ['Service worker cache rotates with the client recovery release',
-  /nyeocare-static-v8/.test(serviceWorker)&&/self\.skipWaiting\(\)/.test(serviceWorker)&&/self\.clients\.claim\(\)/.test(serviceWorker)],
+  /nyeocare-static-v9/.test(serviceWorker)&&/self\.skipWaiting\(\)/.test(serviceWorker)&&/self\.clients\.claim\(\)/.test(serviceWorker)],
 ['Environment weather state cannot crash the app',
   /const WEATHER_KEY='nyeocare:weather:v2'/.test(environment)&&/let weatherInFlight=false/.test(environment)&&/const run=\(\)=>\{try\{getWeather\(\)/.test(environment)],
  ['ARIA care draft initializes a safe WhatsApp phone before database metadata insert',

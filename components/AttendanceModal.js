@@ -130,6 +130,10 @@ export default function AttendanceModal({isOpen,onClose}){
         : value===attendanceGroupFilter;
     });
   },[attendanceGroupFilter,fieldRoster]);
+  const attendanceAllSearchResults=useMemo(
+    ()=>localRosterSearch(fieldRoster,query,Number.MAX_SAFE_INTEGER),
+    [fieldRoster,query]
+  );
   const attendanceSectionSearchResults=useMemo(
     ()=>localRosterSearch(attendanceSectionPeople,query,Number.MAX_SAFE_INTEGER),
     [attendanceSectionPeople,query]
@@ -1067,8 +1071,11 @@ export default function AttendanceModal({isOpen,onClose}){
 
   const loadMore=async()=>{
     if(!session||loadingMore)return;
-    if(attendanceGroupFilter!=='all'&&attendanceSectionsReady){
-      if(attendanceSectionSearchResults.length>attendanceGroupDisplayLimit)setAttendanceGroupDisplayLimit(value=>value+80);
+    if(rosterSnapshotComplete){
+      const available=attendanceGroupFilter!=='all'&&attendanceSectionsReady
+        ? attendanceSectionSearchResults.length
+        : attendanceAllSearchResults.length;
+      if(available>attendanceGroupDisplayLimit)setAttendanceGroupDisplayLimit(value=>value+80);
       return;
     }
     if(!hasMore||!cursor)return;
@@ -1180,10 +1187,14 @@ export default function AttendanceModal({isOpen,onClose}){
   const usingAttendanceSection=attendanceGroupFilter!=='all'&&attendanceSectionsReady;
   const displayedPeople=usingAttendanceSection
     ? attendanceSectionSearchResults.slice(0,attendanceGroupDisplayLimit)
-    : people;
+    : rosterSnapshotComplete
+      ? attendanceAllSearchResults.slice(0,attendanceGroupDisplayLimit)
+      : people;
   const displayedHasMore=usingAttendanceSection
     ? attendanceSectionSearchResults.length>attendanceGroupDisplayLimit
-    : hasMore;
+    : rosterSnapshotComplete
+      ? attendanceAllSearchResults.length>attendanceGroupDisplayLimit
+      : hasMore;
   const displayTotal=usingAttendanceSection?attendanceSectionPeople.length:total;
   const displayPresent=usingAttendanceSection?attendanceSectionPresent:present;
   const displayPeopleLabel=usingAttendanceSection?attendanceGroupLabel(attendanceGroupFilter)+' people':rosterSnapshotComplete?'people':'cached people';

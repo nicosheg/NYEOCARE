@@ -10,7 +10,7 @@ const idempotency=read('lib/peopleCreateIdempotency.js');
 const migration=read('supabase/migrations/20261031160000_add_people_attendance_sections.sql');
 
 assert.ok(ui.includes("const[attendanceGroupFilter,setAttendanceGroupFilter]=useState('all')"),'People must default to All sections on each page visit.');
-assert.ok(ui.includes("{value:'all',label:'All'}")&&ui.includes("{value:'men',label:'Men'}")&&ui.includes("{value:'women',label:'Women'}")&&ui.includes("{value:'youth',label:'Youth'}")&&ui.includes("{value:'unassigned',label:'Unassigned'}"),'All default attendance sections must be available.');
+assert.ok(ui.includes("ATTENDANCE_GROUP_FILTERS.map(group=>")&&ui.includes("ATTENDANCE_GROUP_LABELS")&&read('lib/attendanceSections.js').includes("value:'all',label:'All'")&&read('lib/attendanceSections.js').includes("value:'unassigned',label:'Unassigned'"),'All default attendance sections must be available through the shared section contract.');
 assert.ok(ui.includes("setAttendanceGroupFilter(group.value)")&&ui.includes("params.set('attendance_group',groupValue)"),'Section tabs must filter server-side.');
 assert.ok(ui.includes("Select all loaded (")&&ui.includes("Assign section")&&ui.includes("selectedIds.size"),'Bulk assignment must use a contextual selection bar.');
 assert.ok(ui.includes("attendance-group-dialog-title")&&ui.includes("Assign ${selectedIds.size} to"),'Assignment must confirm both count and target section.');

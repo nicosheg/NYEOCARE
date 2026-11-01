@@ -28,4 +28,24 @@ assert.ok(idempotency.includes("if(attendance_group)canonical.attendance_group")
 assert.ok(migration.includes("ADD COLUMN IF NOT EXISTS attendance_group text")&&migration.includes("attendance_group IS NULL OR attendance_group IN ('men','women','youth')"),'Migration must add a nullable constrained field.');
 assert.ok(migration.includes("people_org_status_attendance_group_idx"),'Migration must index organization/status/section filtering.');
 assert.ok(!/UPDATE public\.people\s+SET attendance_group/i.test(migration),'Existing records must remain unassigned instead of being inferred.');
-console.log('People attendance section regression checks passed.');
+
+const attendance=read('components/AttendanceModal.js');
+const attendanceSectionContract=read('lib/attendanceSections.js');
+const attendancePeopleApi=read('pages/api/attendance/people.js');
+const attendanceFieldRosterApi=read('pages/api/attendance/field-roster.js');
+const attendanceFieldChangesApi=read('pages/api/attendance/field-changes.js');
+const peopleSectionImport="import{ATTENDANCE_GROUP_LABELS,ATTENDANCE_GROUP_OPTIONS,ATTENDANCE_GROUP_FILTERS}from'../lib/attendanceSections'";
+const attendanceSectionImport="import{ATTENDANCE_GROUP_FILTERS,attendanceGroupLabel}from'../lib/attendanceSections'";
+
+assert.ok(ui.includes(peopleSectionImport)&&ui.includes("ATTENDANCE_GROUP_FILTERS.map(group=>"),'People section tabs must use the shared section definition.');
+assert.ok(attendance.includes(attendanceSectionImport)&&attendance.includes("ATTENDANCE_GROUP_FILTERS.map(option=>"),'Attendance filters must use the exact same shared section definition as People.');
+assert.ok(attendanceSectionContract.includes("value:'all',label:'All'")&&attendanceSectionContract.includes("value:'men',label:'Men'")&&attendanceSectionContract.includes("value:'women',label:'Women'")&&attendanceSectionContract.includes("value:'youth',label:'Youth'")&&attendanceSectionContract.includes("value:'unassigned',label:'Unassigned'"),'The shared section vocabulary must include All, Men, Women, Youth, and Unassigned.');
+assert.ok(attendance.includes("fieldRoster.every(person=>Object.prototype.hasOwnProperty.call(person,'attendance_group'))")&&attendance.includes("rosterSnapshotComplete"),'Attendance section filters must stay disabled until the full canonical roster contains the section field.');
+assert.ok(attendance.includes("attendanceSectionCounts=useMemo")&&attendance.includes("attendanceSectionPeople=useMemo")&&attendance.includes("attendanceSectionPresent=useMemo"),'Section totals, filtering, and present counts must be derived from the same complete roster.');
+assert.ok(attendance.includes("attendanceAllSearchResults")&&attendance.includes("attendanceSectionSearchResults")&&attendance.includes("attendanceGroupDisplayLimit"),'Search and incremental display pagination must work across the entire All roster and each selected section.');
+assert.ok(attendancePeopleApi.includes("p.attendance_group")&&attendanceFieldRosterApi.includes("p.attendance_group")&&attendanceFieldChangesApi.includes("p.attendance_group"),'First-page, full Field Mode, and incremental cross-device APIs must all return the canonical People section.');
+assert.ok(assignmentApi.includes("SET attendance_group=$1::text,updated_at=NOW()"),'Changing a section must update the person timestamp so open Attendance devices receive the new section.');
+assert.ok(attendance.includes("...prior,...incoming")&&attendance.includes("setFieldRoster(nextRoster)"),'Attendance delta synchronization must merge updated People section metadata into the live roster.');
+assert.ok(attendance.includes("attendanceGroupFilter==='all'")&&attendance.includes("attendanceGroupLabel(p.attendance_group||'unassigned')"),'All view must preserve visible section labels for each person.');
+
+console.log('People and Attendance section-alignment regression checks passed.');

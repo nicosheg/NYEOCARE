@@ -19,6 +19,10 @@ const journeyHeroStart=personPage.indexOf('<section style={S.hero}>');
 const journeyHeroEnd=personPage.indexOf('</section>',journeyHeroStart);
 const journeyContextStart=personPage.indexOf('<section className="fiducia-card" style={S.chat}>');
 const countString=(source,needle)=>source.split(needle).length-1;
+const attendanceStyleSource=attendanceModal.slice(attendanceModal.indexOf('const headingRow'));
+const attendanceStyleDeclarations=[...attendanceStyleSource.matchAll(/const\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*\\{([\\s\\S]*?)\\};/g)].map((m,index)=>({name:m[1],body:m[2],index}));
+const attendanceStyleOrder=new Map(attendanceStyleDeclarations.map(item=>[item.name,item.index]));
+const attendanceForwardStyleReferences=attendanceStyleDeclarations.flatMap(item=>[...item.body.matchAll(/\\.\\.\\.\\s*([A-Za-z_$][\\w$]*)/g)].filter(match=>attendanceStyleOrder.has(match[1])&&attendanceStyleOrder.get(match[1])>item.index).map(match=>({from:item.name,to:match[1]})));
 const peopleApi=read('pages/api/people.js');
 const peopleMutation=read('lib/aria/peopleMutationEngine.js');
 const bulkPeopleApi=read('pages/api/people/bulk-create.js');
@@ -85,15 +89,15 @@ const pkg=JSON.parse(read('package.json'));
 const vercel=JSON.parse(read('vercel.json'));
 
 const checks=[
- ['Home Attendance opens the canonical component without waiting for a runtime-loaded chunk',
-  home.includes("import AttendanceModal from'../components/AttendanceModal'")&&
-  !home.includes("dynamic(()=>import('../components/AttendanceModal')")&&
+ ['Home Attendance opens the canonical component with the known-good client-only dynamic import',
+  home.includes("const AttendanceModal=dynamic(()=>import('../components/AttendanceModal'),{ssr:false})")&&
   home.includes('const openAttendance=()=>{setAttendance(true);void reportAttendanceOpenRequested()}')&&
   home.includes('<AttendanceModal isOpen={attendance}')&&
   countString(home,'onClick={openAttendance}')>=2&&
   !home.includes('ensureAttendanceModal')&&
   !home.includes('AttendanceOpening')&&
   !home.includes("router.push('/attendance')")],
+ ['Attendance style objects never spread a later declaration into the temporal dead zone',attendanceForwardStyleReferences.length===0],
  ['Attendance click, modal mount and load failures have separate durable diagnostics',
   home.includes("kind:'attendance_open_requested'")&&attendance.includes("kind:'attendance_modal_mounted'")&&attendance.includes("'attendance_open_failed'")&&attendance.includes('loadStage')&&attendance.includes('http_status:Number(e?.status)||null')],
  ['Attendance active-session and session-create errors preserve request IDs and server exception details',
@@ -116,8 +120,7 @@ const checks=[
   !existsSync('components/AttendanceTab.js')],
  ['Every Home Attendance entry point opens the same Home-mounted modal',
   countString(home,'onClick={openAttendance}')>=2&&home.includes('const openAttendance=()=>{setAttendance(true);void reportAttendanceOpenRequested()}')&&
-  home.includes("import AttendanceModal from'../components/AttendanceModal'")&&
-  !home.includes("dynamic(()=>import('../components/AttendanceModal')")&&
+  home.includes("const AttendanceModal=dynamic(()=>import('../components/AttendanceModal'),{ssr:false})")&&
   home.includes('<AttendanceModal isOpen={attendance}')&&!home.includes('AttendanceOpening')&&!home.includes("router.push('/attendance')")],
  ['Attendance session state separates live work from background ARIA',
   /s\.status='active'/.test(activeApi)&&/background_processing/.test(activeApi)&&/can_start_new_session:\['owner','admin'\]\.includes\(String\(req\.user\.role\|\|''\)\.toLowerCase\(\)\)/.test(activeApi)],
@@ -196,9 +199,8 @@ const checks=[
   /attachDatabasePool\(pool\)/.test(db)],
  ['Home coalesces bootstrap loads',
   /loadPromiseRef\.current/.test(home)],
- ['Attendance modal uses the canonical Home static import and is not preloaded as a separate route',
-  home.includes("import AttendanceModal from'../components/AttendanceModal'")&&
-  !home.includes("dynamic(()=>import('../components/AttendanceModal')")&&
+ ['Attendance modal uses the original Home client-only dynamic import and is not preloaded as a separate route',
+  home.includes("const AttendanceModal=dynamic(()=>import('../components/AttendanceModal'),{ssr:false})")&&
   home.includes('<AttendanceModal isOpen={attendance}')&&
   !home.includes('ensureAttendanceModal')&&!home.includes('AttendanceOpening')&&!layout.includes("r.prefetch('/attendance')")],
  ['People does not initialize ARIA on page open',
@@ -211,8 +213,8 @@ const checks=[
   /stage!==\'processing\'/.test(scanRecovery)&&!/latest=1/.test(scanRecovery)],
  ['ARIA auto-sync is not startup-critical',
   /IDLE_DELAY=30000/.test(autoSync)&&/COOLDOWN=60000/.test(autoSync)&&/document\.visibilityState/.test(autoSync)],
- ['Home keeps Scan and Review on client-only dynamic imports while Attendance is statically bound',/const ScanModal=dynamic/.test(home)&&/import AttendanceModal from/.test(home)&&!/const AttendanceModal=dynamic/.test(home)&&/const ReviewCenterTab=dynamic/.test(home)&&/ssr:false/.test(home)&&!home.includes('ensureAttendanceModal')],
- ['Attendance has one canonical Home-mounted component and no substitute opening screen',countString(home,"import AttendanceModal from'../components/AttendanceModal'")===1&&countString(home,'<AttendanceModal isOpen={attendance}')===1&&!home.includes("dynamic(()=>import('../components/AttendanceModal')")&&!home.includes('AttendanceOpening')&&!home.includes('attendanceLoadError')],
+ ['Home keeps Scan, Attendance and Review on explicit client-only dynamic imports',/const ScanModal=dynamic/.test(home)&&/const AttendanceModal=dynamic/.test(home)&&/const ReviewCenterTab=dynamic/.test(home)&&/ssr:false/.test(home)&&!home.includes('ensureAttendanceModal')],
+ ['Attendance has one canonical Home-mounted component and no substitute opening screen',countString(home,"const AttendanceModal=dynamic(()=>import('../components/AttendanceModal')")===1&&countString(home,'<AttendanceModal isOpen={attendance}')===1&&!home.includes('AttendanceOpening')&&!home.includes('attendanceLoadError')],
  ['Navigation prefetches routes centrally during idle time',/requestIdleCallback/.test(layout)&&/r\.prefetch\('\/'\)/.test(layout)&&/r\.prefetch\('\/people'\)/.test(layout)&&/r\.prefetch\('\/profile'\)/.test(layout)&&!/router\.prefetch\('\/people'\)/.test(home)],
  ['People enhancer is not globally mounted',
   !/PeopleSurfaceEnhancer/.test(app)],

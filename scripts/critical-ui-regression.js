@@ -19,7 +19,7 @@ const journeyHeroStart=personPage.indexOf('<section style={S.hero}>');
 const journeyHeroEnd=personPage.indexOf('</section>',journeyHeroStart);
 const journeyContextStart=personPage.indexOf('<section className="fiducia-card" style={S.chat}>');
 const countString=(source,needle)=>source.split(needle).length-1;
-const attendanceStyleSource=attendanceModal.slice(attendanceModal.indexOf('const headingRow'));
+const attendanceStyleSource=attendance.slice(attendance.indexOf('const headingRow'));
 const attendanceStyleDeclarations=[...attendanceStyleSource.matchAll(/const\s+([A-Za-z_$][\w$]*)\s*=\s*\{([\s\S]*?)\};/g)].map((m,index)=>({name:m[1],body:m[2],index}));
 const attendanceStyleOrder=new Map(attendanceStyleDeclarations.map(item=>[item.name,item.index]));
 const attendanceForwardStyleReferences=attendanceStyleDeclarations.flatMap(item=>[...item.body.matchAll(/\.\.\.\s*([A-Za-z_$][\w$]*)/g)].filter(match=>attendanceStyleOrder.has(match[1])&&attendanceStyleOrder.get(match[1])>item.index).map(match=>({from:item.name,to:match[1]})));

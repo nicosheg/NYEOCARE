@@ -3,7 +3,7 @@ import test from'node:test';import assert from'node:assert/strict';import{readFi
 process.env.DATABASE_URL ||= 'postgres://test:test@127.0.0.1:5432/test';
 const{validateScanOutput,fuzzyMatch,normalizeName,normalizeDisplayName}=await import('../lib/scanValidation.js');const{resolveIdentities}=await import('../lib/identityResolver.js');const{nameSimilarity}=await import('../lib/duplicateDetector.js');const{getModelConfig}=await import('../lib/modelRegistry.js');
 const{getScanProgressPercent}=await import('../lib/scanProgress.js');
-const{parseRetryAfterSeconds,parseDurationSeconds,getRateLimitRetrySeconds}=await import('../lib/scanRateLimit.js');
+const{parseRetryAfterSeconds,parseDurationSeconds,getRateLimitRetrySeconds,getStructuredRecoveryDelaySeconds}=await import('../lib/scanRateLimit.js');
 const{mergeScanRegions}=await import('../lib/scanRegionMerge.js');const{formatScanLearningHints}=await import('../lib/scanLearningHints.js');const{resolveScanReasoningEffort,getScanPipelineVersion,SCAN_VISUAL_VERIFICATION_INSTRUCTION}=await import('../lib/scanReasoning.js');
 const{normalizeScanFailureStage,persistScanFailure,recordScanFailureAndAlert,sendScanFailureAlert}=await import('../lib/scanFailure.js');
 const admissionSource=readFileSync(new URL('../pages/api/scan/admission.js',import.meta.url),'utf8');
@@ -203,6 +203,16 @@ test('Groq Retry-After is not inflated by an unrelated non-exhausted token reset
  assert.equal(getRateLimitRetrySeconds({message:'quota limit reached',retryAfter:'1',remainingTokens:'3648',remainingRequests:'999',resetTokens:'32.64s',resetRequests:'1m26.4s'}),1);
  assert.equal(getRateLimitRetrySeconds({message:'quota limit reached',remainingTokens:'0',remainingRequests:'999',resetTokens:'2.5s',resetRequests:'1m26.4s'}),2.5);
  assert.equal(parseDurationSeconds('1m26.4s'),86.4);
+});
+
+test('strict-JSON recovery waits for the Groq input-token window before its one JSON-object retry',()=>{
+ assert.equal(getStructuredRecoveryDelaySeconds({resetTokens:'46.53s'}),48);
+ assert.equal(getStructuredRecoveryDelaySeconds({resetTokens:'2.5s'}),8);
+ assert.equal(getStructuredRecoveryDelaySeconds({}),60);
+ assert.equal(getStructuredRecoveryDelaySeconds({resetTokens:'2m'}),90);
+ assert.ok(hybridSource.includes("await waitForStructuredRecovery(err,'invalid_structured_output')"));
+ assert.ok(hybridSource.includes("await waitForStructuredRecovery(part.rate,'empty_region')"));
+ assert.ok(hybridSource.includes("response_format:jsonObjectFallback?{type:'json_object'}:SCHEMA"));
 });
 test('scan uses low-effort hidden reasoning, full model output capacity and same-model recovery',()=>{
  assert.ok(hybridSource.includes('reasoning_effort:reasoningEffort'));

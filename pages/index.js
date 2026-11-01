@@ -1,7 +1,21 @@
 // pages/index.js
 import{useEffect,useRef,useState}from'react';import{useRouter}from'next/router';import dynamic from'next/dynamic';import{createPortal}from'react-dom';import{getClientSession,refreshClientSession}from'../lib/clientSession';import{getCached,setCached,publishDataChange,subscribeDataChange}from'../lib/appData';import{useOnboarding}from'../components/OnboardingProvider';import Layout from'../components/Layout';import FirstExperience from'../components/FirstExperience';import ClientErrorBoundary from'../components/ClientErrorBoundary';import AriaProcessingStatus from'../components/AriaProcessingStatus';const ScanModal=dynamic(()=>import('../components/ScanModal'),{ssr:false});const AttendanceModal=dynamic(()=>import('../components/AttendanceModal'),{ssr:false});const ReviewCenterTab=dynamic(()=>import('../components/ReviewCenterTab'),{ssr:false});
+async function reportAttendanceOpenRequested(){
+ try{
+  const auth=await getClientSession().catch(()=>null);
+  if(!auth?.access_token)return false;
+  const response=await fetch('/api/diagnostics/client-error',{
+   method:'POST',
+   headers:{'Content-Type':'application/json',Authorization:'Bearer '+auth.access_token},
+   body:JSON.stringify({kind:'attendance_open_requested',severity:'info',surface:'attendance-launcher',message:'The Home Attendance button was activated and Home set the Attendance modal state to open.',metadata:{launcher:'home',pathname:typeof window==='undefined'?'':window.location.pathname}}),
+   keepalive:true
+  });
+  if(!response.ok)console.warn('[ATTENDANCE_UI] Open diagnostic rejected:',response.status);
+  return response.ok;
+ }catch(error){console.warn('[ATTENDANCE_UI] Could not report the Attendance open attempt:',error?.message||error);return false}
+}
 const greeting=()=>{const h=new Date().getHours();return h>=5&&h<12?'Good morning.':h>=12&&h<17?'Good afternoon.':h>=17&&h<21?'Good evening.':'Good night.'};
-export default function ARIAHome(){const router=useRouter(),onboarding=useOnboarding();const[data,setData]=useState(null),[loading,setLoading]=useState(true),[briefOpen,setBriefOpen]=useState(false),[briefIntro,setBriefIntro]=useState(false),[scan,setScan]=useState(false),[attendance,setAttendance]=useState(false),[review,setReview]=useState(false),[live,setLive]=useState(false),[reviewCount,setReviewCount]=useState(0),[timeGreeting,setTimeGreeting]=useState(greeting()),[selected,setSelected]=useState(null),[ariaAttendance,setAriaAttendance]=useState(null);const openAttendance=()=>setAttendance(true);const lastLoadAt=useRef(0),retryRef=useRef(null),retryAttemptRef=useRef(0);
+export default function ARIAHome(){const router=useRouter(),onboarding=useOnboarding();const[data,setData]=useState(null),[loading,setLoading]=useState(true),[briefOpen,setBriefOpen]=useState(false),[briefIntro,setBriefIntro]=useState(false),[scan,setScan]=useState(false),[attendance,setAttendance]=useState(false),[review,setReview]=useState(false),[live,setLive]=useState(false),[reviewCount,setReviewCount]=useState(0),[timeGreeting,setTimeGreeting]=useState(greeting()),[selected,setSelected]=useState(null),[ariaAttendance,setAriaAttendance]=useState(null);const openAttendance=()=>{setAttendance(true);void reportAttendanceOpenRequested()};const lastLoadAt=useRef(0),retryRef=useRef(null),retryAttemptRef=useRef(0);
 const load=async({background=false}={})=>{
  if(typeof window==='undefined')return;
  const run=async()=>{

@@ -34,12 +34,33 @@ export function OnboardingProvider({children}){
  useEffect(()=>{
   let active=true;
   load();
+  const handleMembershipChanged=async()=>{
+   try{
+    const session=await getClientSession();
+    if(!active||!session)return;
+    const key=String(session.user?.id||'');
+    if(!key)return;
+    const pending=inflight.get(key);
+    if(pending){try{await pending}catch{}}
+    if(!active)return;
+    inflight.delete(key);
+    cache.delete(key);
+    await load(session);
+   }catch(error){
+    if(active)console.warn('[ONBOARDING] Membership refresh failed:',error?.message||error);
+   }
+  };
+  window.addEventListener('nyeocare:organization-membership-changed',handleMembershipChanged);
   const{data:{subscription}}=supabase.auth.onAuthStateChange((event,session)=>{
    if(!active)return;
    if(event==='SIGNED_OUT'){reset();return}
    if(event==='SIGNED_IN'||event==='USER_UPDATED')load(session);
   });
-  return()=>{active=false;subscription.unsubscribe()};
+  return()=>{
+   active=false;
+   window.removeEventListener('nyeocare:organization-membership-changed',handleMembershipChanged);
+   subscription.unsubscribe();
+  };
  },[load,reset]);
  const completeExperience=useCallback(async experience=>{if(!experience)return false;setState(prev=>{const experienced={...prev.experienced,[experience]:true};const next={...prev,experienced};if(mounted.current){try{const sessionPromise=getClientSession();sessionPromise.then(session=>{if(!session)return;fetch('/api/onboarding',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},body:JSON.stringify({action:'experience_completed',experience})}).then(r=>r.ok?r.json():null).then(data=>{if(data?.onboarding?.experienced){cache.set(String(session.user.id),{state:{...next,experienced:data.onboarding.experienced},at:Date.now()})}}).catch(()=>{})}).catch(()=>{})}catch{}}return next});return true},[]);
  const isExperienced=useCallback(experience=>state.experienced?.[experience]===true,[state.experienced]);

@@ -7,6 +7,8 @@ const join=read('pages/api/users/join.js');
 const create=read('pages/api/auth/create-organization.js');
 const login=read('pages/login.js');
 const packageJson=JSON.parse(read('package.json'));
+const onboarding=read('components/OnboardingProvider.js');
+const joinPage=read('pages/join/[token].js');
 const resolver=auth.slice(auth.indexOf('export async function getCurrentCareUser'),auth.indexOf('export async function ensureCareUser'));
 
 const checks=[
@@ -22,6 +24,8 @@ const checks=[
   ['login verifies organization membership before entering the app',login.includes("fetch('/api/users/me'")&&login.includes('membership.status===401')],
   ['standalone signup creates a workspace through an explicit endpoint',login.includes("fetch('/api/auth/create-organization'")&&login.includes("intent:'create_organization'")],
   ['unassigned sign-ins are directed back to their invitation instead of auto-provisioned',login.includes('reopen the invitation link')&&login.includes('Create a new organization instead')],
+  ['invitation acceptance invalidates prior tenant-scoped client caches',joinPage.includes('clearCached();')&&joinPage.includes("publishDataChange('organization-membership-changed'")&&joinPage.includes("nyeocare:organization-membership-changed")],
+  ['onboarding cache is refreshed after the authenticated user changes organization',onboarding.includes("window.addEventListener('nyeocare:organization-membership-changed'")&&onboarding.includes('cache.delete(key)')&&onboarding.includes('await load(session)')],
   ['the complete auth regression suite runs with npm test',packageJson.scripts.test.includes('npm run test:auth')&&packageJson.scripts['test:auth'].includes('auth-organization-regression.js')]
 ];
 

@@ -18,6 +18,7 @@ const[showPassword,setShowPassword]=useState(false);
 const[showConfirm,setShowConfirm]=useState(false);
 const[working,setWorking]=useState(false);
 const[error,setError]=useState('');
+const[pendingVerification,setPendingVerification]=useState(false);
 
 useEffect(()=>{
 if(!router.isReady||!token)return;
@@ -56,6 +57,27 @@ if(mode==='create'&&password!==confirm)return'The passwords do not match.';
 return'';
 };
 
+const resendVerification=async()=>{
+if(working)return;
+const cleanEmail=email.trim().toLowerCase();
+if(!cleanEmail){setError('Enter your email address first.');return;}
+setWorking(true);
+setError('');
+try{
+const{error:resendError}=await supabase.auth.resend({
+type:'signup',
+email:cleanEmail,
+options:{emailRedirectTo:`${window.location.origin}/auth/verify?next=${encodeURIComponent('/join/'+token)}`}
+});
+if(resendError)throw resendError;
+setError('A fresh NYEOCARE verification link has been sent. Check your inbox and spam folder.');
+}catch(e){
+setError('We could not send a new verification link right now. Please try again shortly.');
+}finally{
+setWorking(false);
+}
+};
+
 const join=async()=>{
 if(working)return;
 
@@ -73,7 +95,10 @@ const auth=mode==='create'
 ?await supabase.auth.signUp({
 email:cleanEmail,
 password,
-options:{data:{name:cleanName}}
+options:{
+data:{name:cleanName},
+emailRedirectTo:`${window.location.origin}/auth/verify?next=${encodeURIComponent('/join/'+token)}`
+}
 })
 :await supabase.auth.signInWithPassword({
 email:cleanEmail,
@@ -82,6 +107,12 @@ password
 
 if(auth.error){
 const msg=auth.error.message?.toLowerCase()||'';
+
+if(mode==='login'&&(auth.error.code==='email_not_confirmed'||msg.includes('email not confirmed'))){
+setPendingVerification(true);
+setError('Verify this email before signing in. Request a fresh NYEOCARE verification link below.');
+return;
+}
 
 if(mode==='create'&&(msg.includes('already registered')||msg.includes('already exists')||msg.includes('already been registered'))){
 setError('This email already has a NYEOCARE account. Choose “I already have an account” below.');
@@ -94,9 +125,10 @@ throw auth.error;
 const session=auth.data?.session;
 
 if(!session){
+if(mode==='create')setPendingVerification(true);
 setError(
 mode==='create'
-?'Your account has been created. Check your email to verify it, then open this invitation again.'
+?'Your account has been created. We sent a NYEOCARE verification link. Open it to verify your email and automatically join this organization.'
 :'Sign in completed, but no session was created. Please try again.'
 );
 return;
@@ -138,6 +170,7 @@ setWorking(false);
 const switchMode=()=>{
 if(working)return;
 setError('');
+setPendingVerification(false);
 setPassword('');
 setConfirm('');
 setShowPassword(false);
@@ -228,6 +261,7 @@ disabled={working}
 </>}
 
 {error&&<div className="error">{error}</div>}
+{pendingVerification&&<button className="secondary" type="button" onClick={resendVerification} disabled={working}>{working?'Sending…':'Resend verification email'}</button>}
 
 <button className="primary" onClick={join} disabled={working}>
 {working

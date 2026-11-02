@@ -33,6 +33,8 @@ const[name,setName]=useState('');
 const[loading,setLoading]=useState(false);
 const[unassigned,setUnassigned]=useState(false);
 const[message,setMessage]=useState('');
+const[pendingVerification,setPendingVerification]=useState(false);
+const[verificationNext,setVerificationNext]=useState('/login?verified=1');
 const[isLogin,setIsLogin]=useState(true);
 const[showPassword,setShowPassword]=useState(false);const[passwordFocused,setPasswordFocused]=useState(false);
 const passwordChecks={length:password.length>=8,lower:/[a-z]/.test(password),upper:/[A-Z]/.test(password),number:/\d/.test(password),symbol:/[^A-Za-z0-9]/.test(password)};
@@ -92,7 +94,9 @@ const errorText=String(error?.message||'').toLowerCase();
 if(error?.status===429||code.includes('rate')||errorText.includes('rate limit')){
  showMessage('Too many sign-in attempts right now. Please wait a little and try again.');
 }else if(code==='email_not_confirmed'||errorText.includes('email not confirmed')){
- showMessage('Please verify your email address before signing in.');
+ setPendingVerification(true);
+ setVerificationNext('/login?verified=1');
+ showMessage('Your email is not verified yet. Request a fresh NYEOCARE verification link below.');
 }else if(accountExists===false){
  showMessage('No NYEOCARE account was found for this email. Check the email or create an account.');
 }else if(code==='invalid_credentials'||errorText.includes('invalid login credentials')){
@@ -138,7 +142,10 @@ try{
 const{data,error}=await supabase.auth.signUp({
 email:cleanEmail,
 password,
-options:{data:{name:cleanName,display_name:cleanName}}
+options:{
+data:{name:cleanName,display_name:cleanName},
+emailRedirectTo:`${window.location.origin}/auth/verify?next=${encodeURIComponent('/auth/complete-signup')}`
+}
 });
 if(error){
 const text=error.message?.toLowerCase()||'';
@@ -162,13 +169,38 @@ if(data?.session){
  await router.replace('/');
  return;
 }
-showMessage('Account created. Verify your email, then sign in to finish creating your new organization. To join an existing organization, open its invitation link instead.');
+setPendingVerification(true);
+setVerificationNext('/auth/complete-signup');
+showMessage('Your account is ready. We sent a verification link from NYEOCARE. Open it to verify your email and finish setting up your space.');
 }catch(error){
 console.error('Signup error:',error);
 showMessage(getErrorMessage(error));
 }finally{
 if(mountedRef.current)setLoading(false);
 }
+};
+
+const handleResendVerification=async()=>{
+ if(loading)return;
+ const cleanEmail=email.trim().toLowerCase();
+ if(!cleanEmail){showMessage('Enter your email address first.');return;}
+ setLoading(true);
+ setMessage('');
+ try{
+  const{error}=await supabase.auth.resend({
+   type:'signup',
+   email:cleanEmail,
+   options:{emailRedirectTo:`${window.location.origin}/auth/verify?next=${encodeURIComponent(verificationNext)}`}
+  });
+  if(error)throw error;
+  showMessage('A fresh verification link has been sent. Check your inbox and spam folder.');
+ }catch(error){
+  const text=String(error?.message||'').toLowerCase();
+  if(error?.status===429||text.includes('rate limit'))showMessage('Too many verification requests. Wait a little before requesting another link.');
+  else showMessage('We could not send a new verification link right now. Please try again shortly.');
+ }finally{
+  if(mountedRef.current)setLoading(false);
+ }
 };
 
 const handleCreateOrganization=async()=>{
@@ -203,7 +235,7 @@ setMessage('');
 try{
 const{error}=await supabase.auth.signInWithOtp({
 email:cleanEmail,
-options:{emailRedirectTo:`${window.location.origin}/`}
+options:{emailRedirectTo:`${window.location.origin}/auth/verify?next=${encodeURIComponent('/login?magic=1')}`}
 });
 if(error){
 const text=error.message?.toLowerCase()||'';
@@ -227,10 +259,11 @@ setMessage('');
 setPassword('');
 setShowPassword(false);
 setUnassigned(false);
+setPendingVerification(false);
 setIsLogin(current=>!current);
 };
 
-const isSuccess=message.startsWith('📨')||message.startsWith('Account created');
+const isSuccess=message.startsWith('📨')||message.startsWith('Account created')||message.startsWith('Your account is ready')||message.startsWith('A fresh verification link');
 
 return(
 <div className="auth-container">
@@ -262,6 +295,7 @@ return(
 <div className="auth-divider">— or —</div>
 <button type="button" onClick={handleMagicLink} disabled={loading} className="auth-magic">Send Magic Link</button>
 {message&&<p className={`auth-message ${isSuccess?'success':'error'}`}>{message}</p>}
+{pendingVerification&&<button type="button" onClick={handleResendVerification} disabled={loading} className="auth-magic">{loading?'Sending…':'Resend verification email'}</button>}
 <p className="auth-toggle">
 {isLogin?(
 <>Don’t have an account?{' '}<button type="button" onClick={switchMode} className="auth-toggle-link" disabled={loading}>Create one</button></>

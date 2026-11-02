@@ -76,6 +76,7 @@ export default async function handler(req,res){
   if(!token)return res.status(400).json({error:'Invitation link is invalid.'});
   const email=String(authUser.email||'').trim().toLowerCase();
   if(!email)return res.status(400).json({error:'Your account does not have an email address.'});
+  if(!authUser.email_confirmed_at)return res.status(403).json({error:'Verify your email address before joining an organization.',code:'EMAIL_NOT_VERIFIED'});
   const suppliedName=typeof req.body?.name==='string'?req.body.name.trim():'';
   if(suppliedName.length>120)return res.status(400).json({error:'Your display name is too long.'});
 
@@ -83,6 +84,7 @@ export default async function handler(req,res){
   try{
     await client.query('BEGIN');
     await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,[authUser.id]);
+    await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,[`email:${email}`]);
     const invite=await client.query(`
       SELECT i.id,i.organization_id,i.email,i.role,i.expires_at,o.name AS organization_name
       FROM public.organization_invites i
@@ -173,6 +175,19 @@ export default async function handler(req,res){
       });
     }
 
+    const emailOwner=await client.query(`
+      SELECT id,organization_id FROM public.users
+      WHERE lower(email)=lower($1)
+      LIMIT 1
+      FOR UPDATE
+    `,[email]);
+    if(emailOwner.rows.length){
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        error:'This email is already assigned to another NYEOCARE organization. Sign in with the existing account or ask an administrator to review the account.',
+        code:'EMAIL_ALREADY_ASSIGNED'
+      });
+    }
     const name=suppliedName||String(authUser.user_metadata?.name||authUser.user_metadata?.full_name||email.split('@')[0]||'User').trim();
     if(!name){
       await client.query('ROLLBACK');
@@ -200,6 +215,9 @@ export default async function handler(req,res){
   }catch(error){
     try{await client.query('ROLLBACK')}catch{}
     console.error('[JOIN]',error?.message||error);
+    if(error?.code==='23505'){
+      return res.status(409).json({error:'This email is already assigned to another NYEOCARE organization. Sign in with the existing account or ask an administrator to review the account.',code:'EMAIL_ALREADY_ASSIGNED'});
+    }
     return res.status(500).json({error:'Unable to join the organization.'});
   }finally{
     client.release();

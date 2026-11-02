@@ -13,6 +13,7 @@ export default async function handler(req,res){
   }
   const authUser=await getAuthUser(req);
   if(!authUser)return res.status(401).json({error:'Please sign in before creating an organization.'});
+  if(!authUser.email_confirmed_at)return res.status(403).json({error:'Verify your email address before creating an organization.',code:'EMAIL_NOT_VERIFIED'});
 
   try{
     const existing=await getCurrentCareUser(req);

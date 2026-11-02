@@ -20,7 +20,7 @@ const checks=[
   ['legacy workspace movement is blocked when any real organization data exists',join.includes("dataCheck.rows[0]?.has_business_data===false")&&join.includes('No data was moved')],
   ['successful invitation acceptance changes only the existing membership row',join.includes('SET organization_id=$1,role=$2')&&join.includes('movedFromPersonalWorkspace')],
   ['login verifies organization membership before entering the app',login.includes("fetch('/api/users/me'")&&login.includes('membership.status===401')],
-  ['standalone signup creates a workspace through an explicit endpoint',login.includes("fetch('/api/auth/create-organization'")&&login.includes("intent:'create_organization'"))],
+  ['standalone signup creates a workspace through an explicit endpoint',login.includes("fetch('/api/auth/create-organization'")&&login.includes("intent:'create_organization'")],
   ['unassigned sign-ins are directed back to their invitation instead of auto-provisioned',login.includes('reopen the invitation link')&&login.includes('Create a new organization instead')],
   ['the complete auth regression suite runs with npm test',packageJson.scripts.test.includes('npm run test:auth')&&packageJson.scripts['test:auth'].includes('auth-organization-regression.js')]
 ];

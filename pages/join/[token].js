@@ -2,6 +2,7 @@
 import{useEffect,useState}from'react';
 import{useRouter}from'next/router';
 import{supabase}from'../../lib/supabaseClient';
+import{clearCached,publishDataChange}from'../../lib/appData';
 
 export default function JoinPage(){
 const router=useRouter();
@@ -116,6 +117,12 @@ name:mode==='create'?cleanName:undefined
 const d=await r.json();
 
 if(!r.ok)throw new Error(d.error||'Unable to join the organization.');
+
+// A membership transfer changes the tenant context without changing the Supabase
+// session. Drop user-scoped client caches before the app reloads under Havilah.
+clearCached();
+publishDataChange('organization-membership-changed',{organizationId:d.organization_id||null});
+window.dispatchEvent(new Event('nyeocare:organization-membership-changed'));
 
 setData(prev=>({...prev,...d}));
 setState('joined');

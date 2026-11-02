@@ -31,6 +31,7 @@ const[email,setEmail]=useState('');
 const[password,setPassword]=useState('');
 const[name,setName]=useState('');
 const[loading,setLoading]=useState(false);
+const[unassigned,setUnassigned]=useState(false);
 const[message,setMessage]=useState('');
 const[isLogin,setIsLogin]=useState(true);
 const[showPassword,setShowPassword]=useState(false);const[passwordFocused,setPasswordFocused]=useState(false);
@@ -50,8 +51,16 @@ else if(router.query.mode==='login')setIsLogin(true);
 const checkSession=async()=>{
  try{
   const session=await getClientSession();
+  if(!active||!mountedRef.current||!session)return;
+  const response=await fetch('/api/users/me',{headers:{Authorization:'Bearer '+session.access_token},cache:'no-store'});
   if(!active||!mountedRef.current)return;
-  if(session){await router.replace('/');return;}
+  if(response.ok){setUnassigned(false);await router.replace('/');return;}
+  if(response.status===401){
+   setUnassigned(true);
+   setMessage('You are signed in, but this account is not connected to an organization. To join Havilah, reopen the invitation link. Do not create a separate organization for an existing invitation.');
+  }else{
+   setMessage('You are signed in, but NYEOCARE could not verify your organization access. Please try again.');
+  }
  }catch(error){
   if(active&&mountedRef.current)console.warn('[AUTH] Existing session check delayed:',error?.message||error);
  }
@@ -93,8 +102,16 @@ if(error?.status===429||code.includes('rate')||errorText.includes('rate limit'))
 }
 return;
 }
-if(data?.session)await router.replace('/');
-else showMessage('Sign in completed, but no session was created. Please try again.');
+if(data?.session){
+ const membership=await fetch('/api/users/me',{headers:{Authorization:'Bearer '+data.session.access_token},cache:'no-store'});
+ if(membership.ok){setUnassigned(false);await router.replace('/');return}
+ if(membership.status===401){
+  setUnassigned(true);
+  showMessage('You are signed in, but this account is not connected to an organization. To join Havilah, reopen the invitation link. Do not create a separate organization for an existing invitation.');
+  return;
+ }
+ throw new Error('Sign-in worked, but NYEOCARE could not verify organization access. Please try again.');
+}else showMessage('Sign in completed, but no session was created. Please try again.');
 }catch(error){
 console.error('Login error:',error);
 showMessage(getErrorMessage(error));
@@ -134,14 +151,47 @@ showMessage(getErrorMessage(error));
 }
 return;
 }
-if(data?.session){await router.replace('/');return}
-showMessage('Account created. Check your email to verify your account, then continue.');
+if(data?.session){
+ const response=await fetch('/api/auth/create-organization',{
+  method:'POST',
+  headers:{'Content-Type':'application/json',Authorization:'Bearer '+data.session.access_token},
+  body:JSON.stringify({intent:'create_organization'})
+ });
+ const result=await response.json().catch(()=>({}));
+ if(!response.ok)throw new Error(result.error||'Your account was created, but the new organization could not be set up. Please try again.');
+ await router.replace('/');
+ return;
+}
+showMessage('Account created. Verify your email, then sign in to finish creating your new organization. To join an existing organization, open its invitation link instead.');
 }catch(error){
 console.error('Signup error:',error);
 showMessage(getErrorMessage(error));
 }finally{
 if(mountedRef.current)setLoading(false);
 }
+};
+
+const handleCreateOrganization=async()=>{
+ if(loading)return;
+ setLoading(true);
+ setMessage('');
+ try{
+  const session=await getClientSession();
+  if(!session?.access_token)throw new Error('Please sign in again before creating an organization.');
+  const response=await fetch('/api/auth/create-organization',{
+   method:'POST',
+   headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},
+   body:JSON.stringify({intent:'create_organization'})
+  });
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(data.error||'Unable to create your organization.');
+  setUnassigned(false);
+  await router.replace('/');
+ }catch(error){
+  showMessage(getErrorMessage(error));
+ }finally{
+  if(mountedRef.current)setLoading(false);
+ }
 };
 
 const handleMagicLink=async()=>{
@@ -176,6 +226,7 @@ if(loading)return;
 setMessage('');
 setPassword('');
 setShowPassword(false);
+setUnassigned(false);
 setIsLogin(current=>!current);
 };
 
@@ -207,6 +258,7 @@ return(
 {!isLogin&&passwordFocused&&<div className={"password-guide "+(passwordReady?"ready":"")} aria-live="polite">{passwordReady?'Password is ready.':'Password needs: 8 characters, a lowercase letter, an uppercase letter, a number, and a symbol.'}</div>}
 <button type="submit" disabled={loading} className="auth-button">{loading?(isLogin?'Signing in...':'Creating your space...'):(isLogin?'Sign In':'Create Account')}</button>
 </form>
+{isLogin&&unassigned&&<button type="button" onClick={handleCreateOrganization} disabled={loading} className="auth-create-org">{loading?'Creating organization…':'Create a new organization instead'}</button>}
 <div className="auth-divider">— or —</div>
 <button type="button" onClick={handleMagicLink} disabled={loading} className="auth-magic">Send Magic Link</button>
 {message&&<p className={`auth-message ${isSuccess?'success':'error'}`}>{message}</p>}
@@ -242,6 +294,7 @@ return(
 .auth-button{width:100%;padding:14px;border-radius:12px;border:0;background:#e6b93f;color:#080d18;font-weight:600;font-size:16px;cursor:pointer;box-shadow:0 0 22px rgba(230,185,63,.16)}
 .auth-button:disabled{opacity:.6;cursor:not-allowed}
 .auth-divider{text-align:center;color:rgba(255,255,255,.2);font-size:13px;margin:16px 0}
+.auth-create-org{width:100%;margin-top:12px;padding:12px;border-radius:12px;border:1px solid rgba(230,185,63,.24);background:rgba(230,185,63,.07);color:#e6c96f;font-size:13px;cursor:pointer}.auth-create-org:disabled{opacity:.5;cursor:not-allowed}
 .auth-magic{width:100%;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:transparent;color:rgba(255,255,255,.6);font-size:14px;cursor:pointer}
 .auth-magic:disabled{opacity:.5}
 .auth-message{margin-top:16px;text-align:center;font-size:14px;padding:10px 12px;border-radius:8px;line-height:1.5}

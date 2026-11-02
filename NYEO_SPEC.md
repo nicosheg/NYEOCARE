@@ -3075,3 +3075,14 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 - Attendance History uses normal browser/device back navigation: from a register detail it returns to the saved-session list; from the list it returns to the Attendance screen. The redundant close X is removed. The detail back arrow follows the same navigation stack.
 - No schema migration, data rewrite, placeholder session, or new attendance table is introduced.
 - Regression tests require the present/absent-only summary and row labels, complete section counts, and history back-navigation behavior.
+
+
+## Authentication and organization-membership integrity
+
+- An authenticated Supabase identity is not automatically an organization member. Resolving a session, loading a profile, opening onboarding, or requesting any ordinary API endpoint must be read-only with respect to organization membership.
+- A user joins an existing organization only through a valid, unexpired, single-use invitation. Invitation acceptance is the authoritative point at which the user's organization membership is assigned.
+- A standalone organization is created only after an explicit create-organization action. Never infer that intent from a missing membership row, a successful login, a session refresh, or a background request.
+- Organization creation and invitation acceptance must serialize on the authenticated Supabase user ID, and the database must retain a unique constraint/index on non-null `users.supabase_user_id`. These controls prevent concurrent requests from creating duplicate memberships or orphan workspaces.
+- A legacy personal workspace may be reassigned during invitation acceptance only when the account has the exact generated personal-workspace signature, the Auth and membership/workspace creation timestamps match the system-provisioning window, it is the sole membership and sole workspace member, and every public table carrying `organization_id` contains no business data. Technical activity and diagnostic logs are retained in the old workspace; no organization or log is deleted.
+- Any other cross-organization membership conflict fails closed. Do not silently move a user, merge organizations, discard records, or weaken tenant isolation to make login succeed.
+- Regression coverage must verify that ordinary authenticated requests never provision a workspace, standalone creation is explicit, invitation acceptance assigns the invited organization, and recovery of a legacy empty personal workspace fails closed when any tenant data exists.

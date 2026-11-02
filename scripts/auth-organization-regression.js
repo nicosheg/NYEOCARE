@@ -11,7 +11,7 @@ const resolver=auth.slice(auth.indexOf('export async function getCurrentCareUser
 
 const checks=[
   ['ordinary authenticated requests never create organizations',resolver.includes('if(!result.rows.length)return null;')&&!resolver.includes('ensureCareUser(')],
-  ['explicit organization creation uses a per-identity transaction lock',auth.includes('pg_advisory_xact_lock(hashtextextended($1, 0))')&&auth.includes('await client.query(\'BEGIN\')')],
+  ['explicit organization creation uses a per-identity transaction lock',auth.includes('pg_advisory_xact_lock(hashtextextended($1, 0))')&&auth.includes("client.query('BEGIN')")],
   ['inactive users cannot silently receive a new organization',auth.includes("code:'CARE_USER_INACTIVE'")],
   ['new organization creation requires an explicit authenticated intent',create.includes("req.body?.intent!=='create_organization'")&&create.includes('getAuthUser(req)')&&create.includes('ensureCareUser(authUser)')],
   ['invitation acceptance and organization creation share the same identity lock',join.includes('pg_advisory_xact_lock(hashtextextended($1, 0))')&&auth.includes('pg_advisory_xact_lock(hashtextextended($1, 0))')],

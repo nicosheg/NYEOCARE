@@ -2,6 +2,7 @@
 import{useEffect,useRef,useState}from'react';
 import{useRouter}from'next/router';
 import{supabase}from'../lib/supabaseClient';import{getClientSession,refreshClientSession}from'../lib/clientSession';
+import{getPasswordChecks,PASSWORD_POLICY_DESCRIPTION}from'../lib/authPasswordPolicy';
 
 function PasswordRequirement({ok,text}){return <span className={`password-requirement ${ok?'ok':''}`}><span className="requirement-dot" aria-hidden="true">{ok?'✓':''}</span>{text}</span>}
 
@@ -10,18 +11,6 @@ if(typeof error==='string')return error;
 if(error?.message)return error.message;
 if(error?.error_description)return error.error_description;
 return'Something went wrong. Please try again.';
-}
-
-async function diagnoseLogin(email){
-try{
-const response=await fetch('/api/auth/diagnose-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
-if(!response.ok)return null;
-const data=await response.json();
-return typeof data.accountExists==='boolean'?data.accountExists:null;
-}catch(error){
-console.error('Login diagnosis failed:',error);
-return null;
-}
 }
 
 export default function Login(){
@@ -37,7 +26,7 @@ const[pendingVerification,setPendingVerification]=useState(false);
 const[verificationNext,setVerificationNext]=useState('/login?verified=1');
 const[isLogin,setIsLogin]=useState(true);
 const[showPassword,setShowPassword]=useState(false);const[passwordFocused,setPasswordFocused]=useState(false);
-const passwordChecks={length:password.length>=8,lower:/[a-z]/.test(password),upper:/[A-Z]/.test(password),number:/\d/.test(password),symbol:/[^A-Za-z0-9]/.test(password)};
+const passwordChecks=getPasswordChecks(password);
 const passwordReady=Object.values(passwordChecks).every(Boolean);
 
 useEffect(()=>{
@@ -87,8 +76,7 @@ setMessage('');
 try{
 const{data,error}=await supabase.auth.signInWithPassword({email:cleanEmail,password});
 if(error){
-console.error('[AUTH] Password sign-in failed:',{code:error?.code||null,status:error?.status||null,message:error?.message||null});
-const accountExists=await diagnoseLogin(cleanEmail);
+console.error('[AUTH] Password sign-in failed:',{code:error?.code||null,status:error?.status||null});
 const code=String(error?.code||'').toLowerCase();
 const errorText=String(error?.message||'').toLowerCase();
 if(error?.status===429||code.includes('rate')||errorText.includes('rate limit')){
@@ -96,13 +84,9 @@ if(error?.status===429||code.includes('rate')||errorText.includes('rate limit'))
 }else if(code==='email_not_confirmed'||errorText.includes('email not confirmed')){
  setPendingVerification(true);
  setVerificationNext('/login?verified=1');
- showMessage('Your email is not verified yet. Request a fresh NYEOCARE verification link below.');
-}else if(accountExists===false){
- showMessage('No NYEOCARE account was found for this email. Check the email or create an account.');
-}else if(code==='invalid_credentials'||errorText.includes('invalid login credentials')){
- showMessage('We could not sign you in with that email and password. Check both carefully, or use a password reset.');
+ showMessage('Your email still needs verification. Request a fresh NYEOCARE verification link below.');
 }else{
- showMessage('We could not sign you in right now. Please try again.');
+ showMessage('We could not sign you in with those details. Check your email and password, or reset your password.');
 }
 return;
 }
@@ -133,7 +117,7 @@ if(!cleanName){showMessage('Please enter your display name.');return}
 if(cleanName.length>120){showMessage('Your display name is too long.');return}
 if(!cleanEmail){showMessage('Please enter your email.');return}
 if(!passwordReady){
-showMessage('Your password must be at least 8 characters and include lowercase, uppercase, a number, and a symbol.');
+showMessage('Your password must meet this policy: "+PASSWORD_POLICY_DESCRIPTION');
 return;
 }
 setLoading(true);
@@ -150,7 +134,7 @@ emailRedirectTo:`${window.location.origin}/auth/verify?next=${encodeURIComponent
 if(error){
 const text=error.message?.toLowerCase()||'';
 if(text.includes('already registered')||text.includes('already exists')||error.code==='user_already_exists'){
-showMessage('This email is already registered. Please log in instead.');
+showMessage('We could not create the account with those details. Try signing in or use password recovery if you already registered.');
 }else if(text.includes('rate limit')||text.includes('rate_limited')){
 showMessage('You’ve been temporarily rate-limited. Please wait a moment and try again.');
 }else{
@@ -285,12 +269,13 @@ return(
 )}
 <input type="email" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} required className="auth-input" autoComplete="email" disabled={loading} inputMode="email" autoCapitalize="none" spellCheck="false"/>
 <div className="password-wrap">
-<input type={showPassword?'text':'password'} placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} onFocus={()=>setPasswordFocused(true)} required className="auth-input password-input" autoComplete={isLogin?'current-password':'new-password'} disabled={loading}/>
+<input type={showPassword?'text':'password'} placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} onFocus={()=>setPasswordFocused(true)} required className="auth-input password-input" autoComplete={isLogin?'current-password':'new-password'} minLength={isLogin?undefined:12} disabled={loading}/>
 <button type="button" className="password-toggle" onClick={()=>setShowPassword(current=>!current)} disabled={loading}>{showPassword?'Hide':'Show'}</button>
 </div>
-{!isLogin&&passwordFocused&&<div className={"password-guide "+(passwordReady?"ready":"")} aria-live="polite">{passwordReady?'Password is ready.':'Password needs: 8 characters, a lowercase letter, an uppercase letter, a number, and a symbol.'}</div>}
+{!isLogin&&passwordFocused&&<div className={"password-guide "+(passwordReady?"ready":"")} aria-live="polite">{passwordReady?'Password is ready.':'Password needs: 12 characters, a lowercase letter, an uppercase letter, a number, and a symbol.'}</div>}
 <button type="submit" disabled={loading} className="auth-button">{loading?(isLogin?'Signing in...':'Creating your space...'):(isLogin?'Sign In':'Create Account')}</button>
 </form>
+{isLogin&&<button type="button" className="auth-forgot" onClick={()=>router.push('/forgot-password')} disabled={loading}>Forgot password?</button>}
 {isLogin&&unassigned&&<button type="button" onClick={handleCreateOrganization} disabled={loading} className="auth-create-org">{loading?'Creating organization…':'Create a new organization instead'}</button>}
 <div className="auth-divider">— or —</div>
 <button type="button" onClick={handleMagicLink} disabled={loading} className="auth-magic">Send Magic Link</button>
@@ -327,6 +312,7 @@ return(
 .password-guide{margin:-4px 2px 0;min-height:17px;color:#ef5b63;font-size:11px;line-height:1.4;letter-spacing:.005em;transition:color .18s ease}.password-guide.ready{color:#69d6a0}
 .auth-button{width:100%;padding:14px;border-radius:12px;border:0;background:#e6b93f;color:#080d18;font-weight:600;font-size:16px;cursor:pointer;box-shadow:0 0 22px rgba(230,185,63,.16)}
 .auth-button:disabled{opacity:.6;cursor:not-allowed}
+.auth-forgot{display:block;margin:10px 0 0 auto;padding:4px 2px;border:0;background:transparent;color:#e6c96f;font-size:13px;cursor:pointer}.auth-forgot:disabled{opacity:.5}
 .auth-divider{text-align:center;color:rgba(255,255,255,.2);font-size:13px;margin:16px 0}
 .auth-create-org{width:100%;margin-top:12px;padding:12px;border-radius:12px;border:1px solid rgba(230,185,63,.24);background:rgba(230,185,63,.07);color:#e6c96f;font-size:13px;cursor:pointer}.auth-create-org:disabled{opacity:.5;cursor:not-allowed}
 .auth-magic{width:100%;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:transparent;color:rgba(255,255,255,.6);font-size:14px;cursor:pointer}

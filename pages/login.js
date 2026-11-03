@@ -117,7 +117,7 @@ if(!cleanName){showMessage('Please enter your display name.');return}
 if(cleanName.length>120){showMessage('Your display name is too long.');return}
 if(!cleanEmail){showMessage('Please enter your email.');return}
 if(!passwordReady){
-showMessage('Your password must meet this policy: "+PASSWORD_POLICY_DESCRIPTION');
+showMessage('Your password must meet this policy: '+PASSWORD_POLICY_DESCRIPTION);
 return;
 }
 setLoading(true);

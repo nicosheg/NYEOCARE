@@ -37,6 +37,8 @@ const next=safeNext(typeof router.query.next==='string'?router.query.next:'');
 const tokenHash=typeof router.query.token_hash==='string'?router.query.token_hash:'';
 const code=typeof router.query.code==='string'?router.query.code:'';
 let recoveryVerified=false;
+let recoveryEventObserved=false;
+const recoverySubscription=supabase.auth.onAuthStateChange(event=>{if(event==='PASSWORD_RECOVERY')recoveryEventObserved=true;});
 let authError=null;
 let session=null;
 if(tokenHash){
@@ -49,11 +51,12 @@ session=result.data?.session||null;
 }else if(code){
 const result=await supabase.auth.exchangeCodeForSession(code);
 authError=result.error;
-recoveryVerified=next==='/reset-password';
+recoveryVerified=next==='/reset-password'&&recoveryEventObserved;
 session=result.data?.session||null;
 }else{
 session=await getClientSession();
 }
+recoverySubscription.data.subscription.unsubscribe();
 if(authError)throw authError;
 if(!session)session=await getClientSession();
 if(!session?.access_token)throw new Error('The link could not establish a secure session. Request a fresh verification email and open it on this device.');

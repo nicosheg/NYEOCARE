@@ -11,6 +11,7 @@ try{
 const parsed=new URL(value,window.location.origin);
 if(parsed.origin!==window.location.origin)return'/login?verified=1';
 if(parsed.pathname==='/auth/complete-signup')return parsed.pathname;
+if(parsed.pathname==='/reset-password')return parsed.pathname;
 if(parsed.pathname==='/login')return parsed.pathname+parsed.search;
 const invite=parsed.pathname.match(/^\/join\/([A-Za-z0-9_-]+)$/);
 if(invite)return parsed.pathname;
@@ -35,17 +36,20 @@ try{
 const next=safeNext(typeof router.query.next==='string'?router.query.next:'');
 const tokenHash=typeof router.query.token_hash==='string'?router.query.token_hash:'';
 const code=typeof router.query.code==='string'?router.query.code:'';
+let recoveryVerified=false;
 let authError=null;
 let session=null;
 if(tokenHash){
 const type=typeof router.query.type==='string'?router.query.type:'signup';
-if(!['signup','magiclink'].includes(type))throw new Error('This verification link is not supported. Request a new NYEOCARE link.');
+if(!['signup','magiclink','recovery'].includes(type))throw new Error('This verification link is not supported. Request a new NYEOCARE link.');
+if(type==='recovery')recoveryVerified=true;
 const result=await supabase.auth.verifyOtp({token_hash:tokenHash,type});
 authError=result.error;
 session=result.data?.session||null;
 }else if(code){
 const result=await supabase.auth.exchangeCodeForSession(code);
 authError=result.error;
+recoveryVerified=next==='/reset-password';
 session=result.data?.session||null;
 }else{
 session=await getClientSession();
@@ -54,6 +58,17 @@ if(authError)throw authError;
 if(!session)session=await getClientSession();
 if(!session?.access_token)throw new Error('The link could not establish a secure session. Request a fresh verification email and open it on this device.');
 if(!active)return;
+
+if(recoveryVerified){
+if(next!=='/reset-password')throw new Error('This password reset link has an invalid destination. Request a new NYEOCARE link.');
+window.sessionStorage.setItem('nyeocare:password-recovery-verified','1');
+setStatus('Recovery link verified.');
+setDetail('Your account is secure. Choose a new password to continue.');
+setDone(true);
+window.setTimeout(()=>{if(active)router.replace('/reset-password')},650);
+return;
+}
+if(next==='/reset-password')throw new Error('This reset link is incomplete. Request a fresh password reset email.');
 
 const invitation=next.match(/^\/join\/([A-Za-z0-9_-]+)$/);
 if(invitation){

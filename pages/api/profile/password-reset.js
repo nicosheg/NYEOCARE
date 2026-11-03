@@ -8,8 +8,8 @@ const user=await getCurrentCareUser(req);
 if(!user)return res.status(401).json({error:'Unauthorized'});
 if(!user.email)return res.status(400).json({error:'Your account does not have an email address.'});
 try{
-const base=(process.env.NEXT_PUBLIC_SITE_URL||process.env.NEXT_PUBLIC_APP_URL||`https://${req.headers.host}`).replace(/\/$/,'');
-const{error}=await supabase.auth.resetPasswordForEmail(user.email,{redirectTo:`${base}/reset-password`});
+const base=(process.env.NEXT_PUBLIC_SITE_URL||process.env.NEXT_PUBLIC_APP_URL||'https://nyeocare.vercel.app').replace(/\/$/,'');
+const{error}=await supabase.auth.resetPasswordForEmail(user.email,{redirectTo:`${origin.replace(/\/$/,'')}/auth/verify?next=%2Freset-password`});
 if(error)return res.status(400).json({error:'Unable to send the secure reset link.'});
 return res.status(200).json({success:true});
 }catch(e){

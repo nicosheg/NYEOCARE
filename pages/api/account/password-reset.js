@@ -10,9 +10,9 @@ if(!user)return res.status(401).json({error:'Unauthorized.'});
 if(!user.email)return res.status(400).json({error:'No email address is available for this account.'});
 
 try{
-const origin=process.env.NEXT_PUBLIC_SITE_URL||process.env.NEXT_PUBLIC_APP_URL||`${req.headers['x-forwarded-proto']||'https'}://${req.headers.host}`;
+const origin=(process.env.NEXT_PUBLIC_SITE_URL||process.env.NEXT_PUBLIC_APP_URL||'https://nyeocare.vercel.app').replace(/\/$/,'');
 
-const{error}=await supabase.auth.resetPasswordForEmail(user.email,{redirectTo:`${origin.replace(/\/$/,'')}/reset-password`});
+const{error}=await supabase.auth.resetPasswordForEmail(user.email,{redirectTo:`${origin.replace(/\/$/,'')}/auth/verify?next=%2Freset-password`});
 
 if(error)return res.status(400).json({error:'Unable to send the password reset email.'});
 

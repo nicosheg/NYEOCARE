@@ -4,7 +4,7 @@ import{useRouter}from'next/router';
 const HISTORY_KEY='nyeocare:navigation-history:v1';
 const SCROLL_KEY='nyeocare:route-scroll:v1';
 const RESTORE_KEY='nyeocare:pending-scroll-restore:v1';
-const AUTH_ROUTES=new Set(['/login','/signup','/join','/reset-password','/profile/password-reset']);
+const AUTH_ROUTES=new Set(['/login','/signup','/join','/forgot-password','/reset-password','/profile/password-reset']);
 
 const validPath=value=>typeof value==='string'&&value.startsWith('/')&&!value.startsWith('//')&&!value.includes('\\')&&!value.includes('\0');
 const isAuthPath=value=>{const p=String(value||'').split('?')[0];return AUTH_ROUTES.has(p)||p.startsWith('/join/')};

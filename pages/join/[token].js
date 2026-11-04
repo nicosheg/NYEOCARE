@@ -2,6 +2,7 @@
 import{useEffect,useState}from'react';
 import{useRouter}from'next/router';
 import{supabase}from'../../lib/supabaseClient';
+import{getAuthRedirectUrl}from'../../lib/authRedirectUrl';
 import{clearCached,publishDataChange}from'../../lib/appData';
 
 export default function JoinPage(){
@@ -67,7 +68,7 @@ try{
 const{error:resendError}=await supabase.auth.resend({
 type:'signup',
 email:cleanEmail,
-options:{emailRedirectTo:`${window.location.origin}/auth/verify?next=${encodeURIComponent('/join/'+token)}`}
+options:{emailRedirectTo:getAuthRedirectUrl('/auth/verify?next='+encodeURIComponent('/join/'+token))}
 });
 if(resendError)throw resendError;
 setError('A fresh NYEOCARE verification link has been sent. Check your inbox and spam folder.');
@@ -97,7 +98,7 @@ email:cleanEmail,
 password,
 options:{
 data:{name:cleanName},
-emailRedirectTo:`${window.location.origin}/auth/verify?next=${encodeURIComponent('/join/'+token)}`
+emailRedirectTo:getAuthRedirectUrl('/auth/verify?next='+encodeURIComponent('/join/'+token))
 }
 })
 :await supabase.auth.signInWithPassword({

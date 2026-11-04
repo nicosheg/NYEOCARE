@@ -4,7 +4,7 @@ import{useRouter}from'next/router';
 import Layout from'../components/Layout';
 import FirstExperience from'../components/FirstExperience';
 import{useOnboarding}from'../components/OnboardingProvider';
-import{supabase}from'../lib/supabaseClient';import{getClientSession,refreshClientSession}from'../lib/clientSession';import{markPendingRecoveryRequest,clearPendingRecoveryRequest}from'../lib/authRecoveryState';import{getCached,setCached,cacheAge,publishDataChange}from'../lib/appData';
+import{supabase}from'../lib/supabaseClient';import{getClientSession,refreshClientSession}from'../lib/clientSession';import{getAuthRedirectUrl}from'../lib/authRedirectUrl';import{markPendingRecoveryRequest,clearPendingRecoveryRequest}from'../lib/authRecoveryState';import{getCached,setCached,cacheAge,publishDataChange}from'../lib/appData';
 const roleLabel=r=>r==='owner'?'Owner':r==='admin'?'Admin':'User';
 const PASSWORD_RECOVERY_COOLDOWN_KEY='nyeocare:password-recovery-requested-at';
 const PASSWORD_RECOVERY_COOLDOWN_MS=60000;
@@ -120,16 +120,26 @@ markPendingRecoveryRequest();
 try{
 const session=await getClientSession();
 if(!session){clearPendingRecoveryRequest();return router.replace('/login')}
-const r=await fetch('/api/profile/password-reset',{method:'POST',headers:{Authorization:`Bearer ${session.access_token}`}});
-const d=await r.json().catch(()=>({}));
-if(!r.ok){
+const email=String(profile?.user?.email||'').trim().toLowerCase();
+if(!email)throw new Error('Your account does not have an email address.');
+const redirectTo=getAuthRedirectUrl('/auth/verify?next='+encodeURIComponent('/reset-password'));
+const{error}=await supabase.auth.resetPasswordForEmail(email,{redirectTo});
+if(error){
 clearPendingRecoveryRequest();
-return setMsg(d.error||'Unable to send the secure reset link.');
+const status=Number(error.status||0);
+const code=String(error.code||'').toLowerCase();
+const detail=String(error.message||'').toLowerCase();
+if(status===429||code==='over_email_send_rate_limit'||code==='email_rate_limit_exceeded'||detail.includes('rate limit')||detail.includes('too many')){
+return setMsg('NYEOCARE email delivery has reached its sending limit. Repeated requests will not send a link. A dedicated email provider is required for reliable password recovery.');
+}
+console.error('[AUTH] Profile password recovery failed:',error.message||error);
+return setMsg('Unable to send the secure reset link right now. Please try again later.');
 }
 setPasswordEmail(true);
 }catch(e){
 clearPendingRecoveryRequest();
-setMsg('Unable to send the secure reset link. Please try again later.');
+console.error('[AUTH] Profile password recovery failed:',e?.message||e);
+setMsg(e?.message==='Your account does not have an email address.'?e.message:'Unable to send the secure reset link right now. Please try again later.');
 }finally{
 setPasswordLoading(false);
 }

@@ -49,6 +49,8 @@ const result=await supabase.auth.verifyOtp({token_hash:tokenHash,type});
 authError=result.error;
 session=result.data?.session||null;
 }else if(code){
+// Register before exchanging. Automatic URL detection is disabled in the
+// shared client, so this route is the sole owner of the one-time PKCE code.
 recoverySubscription=supabase.auth.onAuthStateChange(event=>{if(event==='PASSWORD_RECOVERY')recoveryEventObserved=true;});
 const result=await supabase.auth.exchangeCodeForSession(code);
 authError=result.error;

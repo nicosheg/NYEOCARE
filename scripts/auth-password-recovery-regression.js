@@ -7,6 +7,10 @@ const forgot=read('pages/forgot-password.js');
 const verify=read('pages/auth/verify.js');
 const reset=read('pages/reset-password.js');
 const policy=read('lib/authPasswordPolicy.js');
+const supabaseClient=read('lib/supabaseClient.js');
+const redirectHelper=read('lib/authRedirectUrl.js');
+const loginRedirects=read('pages/login.js');
+const invitation=read('pages/join/[token].js');
 const docs=read('docs/EMAIL_VERIFICATION.md');
 const checks=[
 ['login no longer calls the public account-existence endpoint',!login.includes('diagnose-login')&&!login.includes('diagnoseLogin')&&!existsSync('pages/api/auth/diagnose-login.js')],
@@ -17,6 +21,9 @@ const checks=[
 ['forgot-password sends a reset link through the NYEOCARE verification callback',forgot.includes('resetPasswordForEmail(cleanEmail')&&forgot.includes('/auth/verify?next=')&&forgot.includes("encodeURIComponent('/reset-password')")],
 ['forgot-password response does not reveal whether the email exists',forgot.includes('If an NYEOCARE account matches that email address')&&forgot.includes('does not reveal whether an email address is registered')],
 ['forgot-password includes a 60-second user-facing cooldown and rate-limit handling',forgot.includes('COOLDOWN_MS=60000')&&forgot.includes('localStorage')&&forgot.includes('status===429')],
+['browser auth does not auto-consume callback URLs before the NYEOCARE verifier',supabaseClient.includes('detectSessionInUrl: false')],
+['PKCE email callbacks use the canonical production origin outside local development',redirectHelper.includes('https://nyeocare.vercel.app')&&forgot.includes('getAuthRedirectUrl')&&loginRedirects.includes('getAuthRedirectUrl')&&invitation.includes('getAuthRedirectUrl')],
+['verification callback registers the recovery listener before its single PKCE code exchange',verify.indexOf('onAuthStateChange(event=>')<verify.indexOf('exchangeCodeForSession(code)')&&verify.includes('recoveryEventObserved')],
 ['verification callback accepts recovery token hashes and only routes after exchange',verify.includes("'recovery'")&&verify.includes('verifyOtp({token_hash:tokenHash,type})')&&verify.includes('recoveryVerified')&&verify.includes('password-recovery-verified')],
 ['reset page requires recovery confirmation and a live session before updating password',reset.includes('sessionStorage.getItem(RECOVERY_KEY)')&&reset.includes('supabase.auth.getSession()')&&reset.includes('supabase.auth.updateUser({password})')],
 ['successful password reset attempts global session revocation',reset.includes("signOut({scope:'global'})")],

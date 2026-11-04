@@ -2,6 +2,7 @@
 import{useEffect,useState}from'react';
 import{useRouter}from'next/router';
 import{supabase}from'../lib/supabaseClient';
+import{getAuthRedirectUrl}from'../lib/authRedirectUrl';
 
 const COOLDOWN_KEY='nyeocare:password-recovery-requested-at';
 const COOLDOWN_MS=60000;
@@ -42,7 +43,7 @@ return;
 }
 setLoading(true);
 try{
-const redirectTo=window.location.origin+'/auth/verify?next='+encodeURIComponent('/reset-password');
+const redirectTo=getAuthRedirectUrl('/auth/verify?next='+encodeURIComponent('/reset-password'));
 const result=await supabase.auth.resetPasswordForEmail(cleanEmail,{redirectTo});
 if(result.error){
 const status=Number(result.error.status||0);

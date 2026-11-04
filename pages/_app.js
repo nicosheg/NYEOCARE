@@ -7,7 +7,7 @@ const FieldModeRuntime=dynamic(()=>import('../components/FieldModeRuntime'),{ssr
 import ClientErrorBoundary from'../components/ClientErrorBoundary';import NavigationBack from'../components/NavigationBack';
 import '../styles/people-sizing.css';
 import {supabase} from '../lib/supabaseClient';
-import {hasPendingRecoveryRequest,hasVerifiedRecoverySession,markVerifiedRecoverySession,clearPendingRecoveryRequest} from '../lib/authRecoveryState';
+import {hasPendingRecoveryRequest,hasVerifiedRecoverySession,hasRecoveryCallbackBeenSeen,markVerifiedRecoverySession,clearPendingRecoveryRequest,clearRecoveryCallbackSeen} from '../lib/authRecoveryState';
 export default function App({Component,pageProps}){const router=useRouter();
 useEffect(()=>{
  if(!router.isReady||router.pathname==='/reset-password'||router.pathname==='/auth/verify')return;
@@ -15,10 +15,10 @@ useEffect(()=>{
  let handling=false;
  const finishRecovery=async()=>{
   if(!active||handling)return;
-  const hasCode=typeof router.query.code==='string'&&router.query.code.length>0;
   const pending=hasPendingRecoveryRequest();
+  const callbackSeen=hasRecoveryCallbackBeenSeen();
   const verified=hasVerifiedRecoverySession();
-  if(!verified&&!(pending&&hasCode))return;
+  if(!verified&&!(pending&&callbackSeen))return;
   handling=true;
   try{
    // getSession awaits Supabase's single automatic PKCE callback exchange.
@@ -27,6 +27,7 @@ useEffect(()=>{
    if(!data?.session?.access_token){handling=false;return;}
    markVerifiedRecoverySession();
    clearPendingRecoveryRequest();
+   clearRecoveryCallbackSeen();
    if(active)await router.replace('/reset-password');
   }catch(error){
    handling=false;

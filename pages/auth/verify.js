@@ -54,7 +54,7 @@ session=result.data?.session||null;
 const result=await supabase.auth.getSession();
 authError=result.error;
 session=result.data?.session||null;
-recoveryVerified=hasVerifiedRecoverySession()||(hasPendingRecoveryRequest()&&hasRecoveryCallbackBeenSeen());
+recoveryVerified=hasVerifiedRecoverySession()||(next==='/reset-password'&&hasPendingRecoveryRequest()&&hasRecoveryCallbackBeenSeen());
 }else{
 session=await supabase.auth.getSession().then(result=>{
   if(result.error)throw result.error;

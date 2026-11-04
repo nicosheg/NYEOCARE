@@ -159,3 +159,17 @@ These are project settings, not application code. They must be explicitly checke
 NYEOCARE now owns the signup/recovery screens, callback route, user-facing copy, password rules, and email HTML templates. Supabase Auth still handles identity and one-time token verification behind the scenes. No Supabase dashboard or provider URL needs to appear in the user's journey when the templates and redirect configuration are activated.
 
 However, the actual email sender cannot honestly be branded as NYEOCARE until a domain controlled by NYEOCARE and a custom SMTP provider are configured. The current shared Supabase mailer only sends to project-team addresses and is limited to 2 emails per hour. It is not an external-user delivery solution. Do not launch this flow to external active users until a verified sending domain, SMTP credentials, and sender DNS records (SPF, DKIM and DMARC) are in place.
+
+
+## PKCE callback ownership and canonical redirect origin
+
+The browser Supabase client sets `detectSessionInUrl: false`. NYEOCARE handles every email-based PKCE callback explicitly in `pages/auth/verify.js`. Do not re-enable automatic URL detection: the global session warmer can initialize the Supabase client before the verifier page mounts, consume the one-time authorization code, and leave the page attempting a second exchange. The verifier must subscribe to `PASSWORD_RECOVERY` before calling `exchangeCodeForSession`.
+
+All production signup, invitation, magic-link, and password-recovery emails use the canonical origin `https://nyeocare.vercel.app`, not the current browser hostname. This prevents links created from a Vercel preview hostname from being rejected by Supabase's redirect allow list and silently falling back to the project Site URL. Local development uses the local origin.
+
+In Supabase Dashboard → Authentication → URL Configuration → Redirect URLs, allow:
+
+- `https://nyeocare.vercel.app/**`
+- `http://localhost:3000/**` (local development only)
+
+The production Site URL should be `https://nyeocare.vercel.app`. The redirect allow list must include the production callback. Keep preview deployment URLs out of user-facing auth links.

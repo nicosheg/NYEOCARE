@@ -10,7 +10,7 @@ import {supabase} from '../lib/supabaseClient';
 import {hasPendingRecoveryRequest,hasVerifiedRecoverySession,markVerifiedRecoverySession,clearPendingRecoveryRequest} from '../lib/authRecoveryState';
 export default function App({Component,pageProps}){const router=useRouter();
 useEffect(()=>{
- if(!router.isReady||router.pathname==='/reset-password')return;
+ if(!router.isReady||router.pathname==='/reset-password'||router.pathname==='/auth/verify')return;
  let active=true;
  let handling=false;
  const finishRecovery=async()=>{

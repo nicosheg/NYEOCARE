@@ -4,9 +4,6 @@ import{readFileSync,existsSync}from'node:fs';
 const read=path=>readFileSync(path,'utf8');
 const login=read('pages/login.js');
 const profile=read('pages/profile.js');
-const profilePasswordResetApi=read('pages/api/profile/password-reset.js');
-const accountPasswordResetApi=read('pages/api/account/password-reset.js');
-const recoveryRequest=read('lib/authRecoveryRequest.js');
 const forgot=read('pages/forgot-password.js');
 const verify=read('pages/auth/verify.js');
 const reset=read('pages/reset-password.js');
@@ -40,10 +37,10 @@ const checks=[
 ['reset page requires a live session plus verified callback context before password update',reset.includes('hasVerifiedRecoverySession()')&&reset.includes('hasRecoveryCallbackBeenSeen()')&&reset.includes('supabase.auth.getSession()')&&reset.includes('supabase.auth.updateUser({password})')],
 ['successful password reset clears recovery markers and attempts global session revocation',reset.includes('clearVerifiedRecoverySession()')&&reset.includes('clearPendingRecoveryRequest()')&&reset.includes("signOut({scope:'global'})")],
 ['documentation includes recovery templates, sender setup and both production callback aliases',docs.includes('Recovery email template')&&docs.includes('Password-changed notification template')&&docs.includes('custom SMTP provider')&&docs.includes('nyeocare-nicosheg.vercel.app/**')],
-['signed-in Profile password recovery records routing state and shares the 60-second cross-flow cooldown',profile.includes('markPendingRecoveryRequest()')&&profile.includes('clearPendingRecoveryRequest()')&&profile.includes("PASSWORD_RECOVERY_COOLDOWN_KEY='nyeocare:password-recovery-requested-at'")&&profile.includes('passwordCooldown>0')],
-['Profile and legacy Account password-reset APIs use the shared recovery sender',profilePasswordResetApi.includes('requestPasswordRecovery(user.email, req)')&&accountPasswordResetApi.includes('requestPasswordRecovery(user.email, req)')&&!profilePasswordResetApi.includes('NEXT_PUBLIC_SITE_URL')&&!accountPasswordResetApi.includes('NEXT_PUBLIC_SITE_URL')],
-['server-side recovery callback preserves only a trusted stable NYEOCARE request origin',recoveryRequest.includes('getAuthRedirectUrlFromRequest(req, PASSWORD_RECOVERY_CALLBACK)')&&redirectHelper.includes('headers.origin')&&redirectHelper.includes('headers.referer')&&redirectHelper.includes('STABLE_PRODUCTION_HOSTS')],
-['server-side recovery APIs surface provider throttling as HTTP 429 rather than a generic failure',profilePasswordResetApi.includes('isPasswordRecoveryRateLimitError(error)')&&accountPasswordResetApi.includes('isPasswordRecoveryRateLimitError(error)')&&profilePasswordResetApi.includes('res.status(429)')&&accountPasswordResetApi.includes('res.status(429)')]
+['signed-in Profile password recovery uses the browser singleton and same-origin callback',profile.includes('supabase.auth.resetPasswordForEmail(email,{redirectTo})')&&profile.includes('getAuthRedirectUrl')&&!profile.includes("fetch('/api/profile/password-reset'")],
+['signed-in Profile recovery records routing state and shares the 60-second cross-flow cooldown',profile.includes('markPendingRecoveryRequest()')&&profile.includes('clearPendingRecoveryRequest()')&&profile.includes("PASSWORD_RECOVERY_COOLDOWN_KEY='nyeocare:password-recovery-requested-at'")&&profile.includes('passwordCooldown>0')],
+['legacy server-side password reset endpoints are retired to prevent PKCE verifier loss',!existsSync('pages/api/profile/password-reset.js')&&!existsSync('pages/api/account/password-reset.js')],
+['server-side recovery redirect helper is not used; browser origin helper remains canonical',!existsSync('lib/authRecoveryRequest.js')&&redirectHelper.includes('window.location.origin')&&!redirectHelper.includes('getAuthRedirectUrlFromRequest') ]
 ];
 const failures=checks.filter(([,ok])=>!ok).map(([name])=>name);
 for(const[name,ok]of checks)console.log((ok?'PASS: ':'FAIL: ')+name);

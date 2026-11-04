@@ -3,6 +3,7 @@ import{useEffect,useRef,useState}from'react';
 import{useRouter}from'next/router';
 import{supabase}from'../lib/supabaseClient';import{getClientSession,refreshClientSession}from'../lib/clientSession';
 import{getPasswordChecks,PASSWORD_POLICY_DESCRIPTION}from'../lib/authPasswordPolicy';
+import{getAuthRedirectUrl}from'../lib/authRedirectUrl';
 
 function PasswordRequirement({ok,text}){return <span className={`password-requirement ${ok?'ok':''}`}><span className="requirement-dot" aria-hidden="true">{ok?'✓':''}</span>{text}</span>}
 
@@ -128,7 +129,7 @@ email:cleanEmail,
 password,
 options:{
 data:{name:cleanName,display_name:cleanName},
-emailRedirectTo:`${window.location.origin}/auth/verify?next=${encodeURIComponent('/auth/complete-signup')}`
+emailRedirectTo:getAuthRedirectUrl('/auth/verify?next='+encodeURIComponent('/auth/complete-signup'))
 }
 });
 if(error){
@@ -174,7 +175,7 @@ const handleResendVerification=async()=>{
   const{error}=await supabase.auth.resend({
    type:'signup',
    email:cleanEmail,
-   options:{emailRedirectTo:`${window.location.origin}/auth/verify?next=${encodeURIComponent(verificationNext)}`}
+   options:{emailRedirectTo:getAuthRedirectUrl('/auth/verify?next='+encodeURIComponent(verificationNext))}
   });
   if(error)throw error;
   showMessage('A fresh verification link has been sent. Check your inbox and spam folder.');
@@ -219,7 +220,7 @@ setMessage('');
 try{
 const{error}=await supabase.auth.signInWithOtp({
 email:cleanEmail,
-options:{emailRedirectTo:`${window.location.origin}/auth/verify?next=${encodeURIComponent('/login?magic=1')}`}
+options:{emailRedirectTo:getAuthRedirectUrl('/auth/verify?next='+encodeURIComponent('/login?magic=1'))}
 });
 if(error){
 const text=error.message?.toLowerCase()||'';

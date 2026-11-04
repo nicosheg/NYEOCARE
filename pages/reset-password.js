@@ -3,7 +3,7 @@ import{useEffect,useState}from'react';
 import{useRouter}from'next/router';
 import{supabase}from'../lib/supabaseClient';
 import{getPasswordChecks,PASSWORD_POLICY_DESCRIPTION}from'../lib/authPasswordPolicy';
-import{hasPendingRecoveryRequest,hasVerifiedRecoverySession,markVerifiedRecoverySession,clearPendingRecoveryRequest,clearVerifiedRecoverySession}from'../lib/authRecoveryState';
+import{hasPendingRecoveryRequest,hasVerifiedRecoverySession,hasRecoveryCallbackBeenSeen,markVerifiedRecoverySession,clearPendingRecoveryRequest,clearVerifiedRecoverySession,clearRecoveryCallbackSeen}from'../lib/authRecoveryState';
 
 export default function ResetPassword(){
 const router=useRouter();
@@ -33,13 +33,12 @@ try{
 // waits for that process, including callbacks that land directly on this page.
 const{data,error:sessionError}=await supabase.auth.getSession();
 if(sessionError)throw sessionError;
-const hasCallbackCode=typeof router.query.code==='string'&&router.query.code.length>0;
-const recoveryContext=hasVerifiedRecoverySession()||(hasPendingRecoveryRequest()&&hasCallbackCode);
+const recoveryContext=hasVerifiedRecoverySession()||(hasPendingRecoveryRequest()&&hasRecoveryCallbackBeenSeen());
 if(mounted&&data?.session&&recoveryContext){
 markVerifiedRecoverySession();
 clearPendingRecoveryRequest();
+clearRecoveryCallbackSeen();
 setRecovery(true);
-if(hasCallbackCode)await router.replace('/reset-password',undefined,{shallow:true});
 }
 }catch(prepareError){
 console.warn('[AUTH] Could not restore recovery state:',prepareError?.message||prepareError);
@@ -69,6 +68,7 @@ console.warn('[AUTH] Global sign-out after password change failed:',signOutError
 await supabase.auth.signOut({scope:'local'});
 }
 clearPendingRecoveryRequest();
+clearRecoveryCallbackSeen();
 clearVerifiedRecoverySession();
 window.setTimeout(()=>router.replace('/login?reset=success'),900);
 }catch(updateError){

@@ -101,7 +101,7 @@ The Vercel project currently has only the `nyeocare.vercel.app` application doma
 5. The reset page requires a verified recovery session and enforces the same 12-character password policy as signup.
 6. After a successful update, NYEOCARE revokes the user's sessions and returns them to sign in.
 
-Supabase Auth's built-in per-user recovery request interval defaults to 60 seconds. The NYEOCARE page also displays a 60-second cooldown to prevent accidental repeated submissions in the same browser. The project-level Auth rate limit remains the authoritative enforcement; the browser timer is not a security boundary.
+Supabase Auth's built-in per-user recovery request interval defaults to 60 seconds. Both `/forgot-password` and the signed-in Profile **Recreate password** action persist the same 60-second browser cooldown, so switching between those screens does not bypass the user-facing guard. Signed-in reset requests also use the shared recovery sender and preserve the validated active NYEOCARE origin. The project-level Auth rate limit remains the authoritative enforcement; the browser timer is not a security boundary. The built-in Supabase mailer has a separate project-wide quota of 2 emails per hour. When Auth returns `429 over_email_send_rate_limit`, repeated attempts cannot overcome that quota; configure custom SMTP before expecting reliable recovery delivery.
 
 ### Recovery email template
 
@@ -167,7 +167,7 @@ The browser Supabase client uses `detectSessionInUrl: true`, so the Supabase sin
 
 The forgot-password page records a short-lived, non-secret request marker in local storage. Before creating the browser client, NYEOCARE checks whether the current URL contains a PKCE `code` while that recovery request marker is active, and records a separate short-lived callback-received marker. This capture happens before Supabase's automatic PKCE handler removes the code from the address bar. The app then waits for `supabase.auth.getSession()` to finish and requires a live session before routing the user to `/reset-password`. The global fallback is deliberately limited to the home route, which is the configured Site URL fallback. The markers are routing state only, never authentication credentials.
 
-Production email requests preserve the active stable NYEOCARE Vercel alias so the PKCE verifier is stored and read on the same origin. The accepted stable aliases are `https://nyeocare.vercel.app` and `https://nyeocare-nicosheg.vercel.app`. Vercel preview deployment hostnames are never used for production email callbacks.
+Production email requests preserve the active stable NYEOCARE Vercel alias so the PKCE verifier is stored and read on the same origin. Browser requests resolve the current origin directly; signed-in Profile and legacy Account API requests resolve it from the request's Origin or Referer header, accepting only the two stable NYEOCARE hosts (or localhost for development). The accepted stable aliases are `https://nyeocare.vercel.app` and `https://nyeocare-nicosheg.vercel.app`. Vercel preview deployment hostnames are never used for production email callbacks.
 
 In Supabase Dashboard → Authentication → URL Configuration:
 

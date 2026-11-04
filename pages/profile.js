@@ -4,8 +4,10 @@ import{useRouter}from'next/router';
 import Layout from'../components/Layout';
 import FirstExperience from'../components/FirstExperience';
 import{useOnboarding}from'../components/OnboardingProvider';
-import{supabase}from'../lib/supabaseClient';import{getClientSession,refreshClientSession}from'../lib/clientSession';import{getCached,setCached,cacheAge,publishDataChange}from'../lib/appData';
+import{supabase}from'../lib/supabaseClient';import{getClientSession,refreshClientSession}from'../lib/clientSession';import{getAuthRedirectUrl}from'../lib/authRedirectUrl';import{markPendingRecoveryRequest,clearPendingRecoveryRequest}from'../lib/authRecoveryState';import{getCached,setCached,cacheAge,publishDataChange}from'../lib/appData';
 const roleLabel=r=>r==='owner'?'Owner':r==='admin'?'Admin':'User';
+const PASSWORD_RECOVERY_COOLDOWN_KEY='nyeocare:password-recovery-requested-at';
+const PASSWORD_RECOVERY_COOLDOWN_MS=60000;
 
 function ProfileSkeleton(){
 return <Layout><div className="wrap skeletonWrap"><header><div className="sk avatarSk"/><div className="skHead"><div className="sk skEye"/><div className="sk skTitle"/><div className="sk skSub"/></div></header><div className="sections">{[1,2,3,4].map(x=><div className="sk skCard" key={x}><div className="skCardText"><div className="sk skLabel"/><div className="sk skLine"/><div className="sk skSmall"/></div><div className="sk skArrow"/></div>)}</div><style jsx>{`.skeletonWrap{animation:softIn .45s ease-out}.sk{position:relative;overflow:hidden;background:rgba(255,255,255,.055)}.sk:after{content:"";position:absolute;inset:0;transform:translateX(-120%);background:linear-gradient(105deg,transparent 20%,rgba(255,255,255,.055) 45%,rgba(255,255,255,.08) 50%,rgba(255,255,255,.055) 55%,transparent 80%);animation:shimmer 3.2s cubic-bezier(.37,0,.63,1) infinite}.avatarSk{width:58px;height:58px;border-radius:20px}.skHead{display:flex;flex-direction:column;gap:7px;flex:1}.skEye{width:58px;height:8px;border-radius:6px}.skTitle{width:145px;height:18px;border-radius:7px}.skSub{width:190px;height:10px;border-radius:6px}.skCard{height:72px;border:1px solid rgba(220,235,250,.07);border-radius:22px;background:rgba(20,33,52,.32);display:flex;align-items:center;justify-content:space-between;padding:16px 17px}.skCardText{display:flex;flex-direction:column;gap:7px}.skLabel{width:48px;height:7px;border-radius:5px}.skLine{width:120px;height:14px;border-radius:6px}.skSmall{width:175px;height:8px;border-radius:5px}.skArrow{width:8px;height:22px;border-radius:5px}.skeletonWrap header{display:flex;align-items:center;gap:12px;padding:4px 2px 16px}.skeletonWrap .sections{display:flex;flex-direction:column;gap:10px}@keyframes shimmer{0%{transform:translateX(-120%)}55%,100%{transform:translateX(120%)}}@keyframes softIn{from{opacity:.55}to{opacity:1}}@media(max-width:600px){.skCard{border-radius:15px}.skeletonWrap header{padding-left:2px}.wrap{max-width:440px;padding-left:11px;padding-right:11px}.cardHead strong{font-size:13px}}`}</style></div></Layout>
@@ -28,6 +30,7 @@ const[userName,setUserName]=useState('');
 
 const[passwordEmail,setPasswordEmail]=useState(false);
 const[passwordLoading,setPasswordLoading]=useState(false);
+const[passwordCooldown,setPasswordCooldown]=useState(0);
 
 const load=async()=>{
  try{
@@ -49,6 +52,17 @@ const load=async()=>{
  }catch(e){setMsg(e.message||'Unable to load profile.')}finally{setLoading(false)}
 };
 useEffect(()=>{load()},[]);
+
+useEffect(()=>{
+const refresh=()=>{
+const requestedAt=Number(window.localStorage.getItem(PASSWORD_RECOVERY_COOLDOWN_KEY)||0);
+const remaining=Math.max(0,Math.ceil((requestedAt+PASSWORD_RECOVERY_COOLDOWN_MS-Date.now())/1000));
+setPasswordCooldown(remaining);
+};
+refresh();
+const timer=window.setInterval(refresh,1000);
+return()=>window.clearInterval(timer);
+},[]);
 
 const save=async()=>{
 if(!profile)return;
@@ -98,16 +112,37 @@ try{await navigator.clipboard.writeText(invite.url);setMsg('Invite copied')}catc
 
 
 const resetPassword=async()=>{
-if(passwordLoading)return;
+if(passwordLoading||passwordCooldown>0)return;
 setPasswordLoading(true);setPasswordEmail(false);setMsg('');
+window.localStorage.setItem(PASSWORD_RECOVERY_COOLDOWN_KEY,String(Date.now()));
+setPasswordCooldown(60);
+markPendingRecoveryRequest();
 try{
 const session=await getClientSession();
-if(!session)return router.replace('/login');
-const r=await fetch('/api/profile/password-reset',{method:'POST',headers:{Authorization:`Bearer ${session.access_token}`}});
-const d=await r.json();
-if(!r.ok)return setMsg(d.error||'Unable to send the secure reset link.');
+if(!session){clearPendingRecoveryRequest();return router.replace('/login')}
+const email=String(profile?.user?.email||'').trim().toLowerCase();
+if(!email)throw new Error('Your account does not have an email address.');
+const redirectTo=getAuthRedirectUrl('/auth/verify?next='+encodeURIComponent('/reset-password'));
+const{error}=await supabase.auth.resetPasswordForEmail(email,{redirectTo});
+if(error){
+clearPendingRecoveryRequest();
+const status=Number(error.status||0);
+const code=String(error.code||'').toLowerCase();
+const detail=String(error.message||'').toLowerCase();
+if(status===429||code==='over_email_send_rate_limit'||code==='email_rate_limit_exceeded'||detail.includes('rate limit')||detail.includes('too many')){
+return setMsg('NYEOCARE email delivery has reached its sending limit. Repeated requests will not send a link. A dedicated email provider is required for reliable password recovery.');
+}
+console.error('[AUTH] Profile password recovery failed:',error.message||error);
+return setMsg('Unable to send the secure reset link right now. Please try again later.');
+}
 setPasswordEmail(true);
-}catch(e){setMsg('Unable to send the secure reset link.')}finally{setPasswordLoading(false)}
+}catch(e){
+clearPendingRecoveryRequest();
+console.error('[AUTH] Profile password recovery failed:',e?.message||e);
+setMsg(e?.message==='Your account does not have an email address.'?e.message:'Unable to send the secure reset link right now. Please try again later.');
+}finally{
+setPasswordLoading(false);
+}
 };
 
 const remove=async id=>{
@@ -148,7 +183,7 @@ return <Layout><div className="wrap">
 
 <section className={`card ${open==='invite'?'open':''}`}><button className="cardHead" onClick={()=>setOpen(open==='invite'?null:'invite')}><div><span className="label">INVITE</span><strong>Add someone</strong><small>One-time access link</small></div><span className="arrow">›</span></button>{open==='invite'&&<div className="body"><p className="hint">Create a one-time link. Send it directly through WhatsApp, Messages, email or any app on your phone.</p><div className="roles"><button className={inviteRole==='user'?'selected':''} onClick={()=>setInviteRole('user')}><b>User</b><small>Everyday access</small></button><button className={inviteRole==='admin'?'selected':''} onClick={()=>setInviteRole('admin')}><b>Admin</b><small>Manage people & ARIA</small></button></div><button className="save" onClick={createInvite}>Create invite</button></div>}</section>
 
-<section className={`card ${open==='account'?'open':''}`}><button className="cardHead" onClick={()=>setOpen(open==='account'?null:'account')}><div><span className="label">ACCOUNT</span><strong>Security & preferences</strong><small>{roleLabel(u.role)} · {u.email}</small></div><span className="arrow">›</span></button>{open==='account'&&<div className="body">{['owner','admin'].includes(u.role)&&<button className="action" onClick={()=>router.push('/system/diagnostics')}>System diagnostics ›</button>}<button className="action" onClick={resetPassword} disabled={passwordLoading}>{passwordLoading?'Sending secure link…':'Recreate password ›'}</button>{passwordEmail&&<p className="hint good">A secure password reset link has been sent to {u.email}.</p>}<button className="action" onClick={async()=>{await supabase.auth.signOut({scope:'local'});router.replace('/login')}}>Sign out</button></div>}</section>
+<section className={`card ${open==='account'?'open':''}`}><button className="cardHead" onClick={()=>setOpen(open==='account'?null:'account')}><div><span className="label">ACCOUNT</span><strong>Security & preferences</strong><small>{roleLabel(u.role)} · {u.email}</small></div><span className="arrow">›</span></button>{open==='account'&&<div className="body">{['owner','admin'].includes(u.role)&&<button className="action" onClick={()=>router.push('/system/diagnostics')}>System diagnostics ›</button>}<button className="action" onClick={resetPassword} disabled={passwordLoading||passwordCooldown>0}>{passwordLoading?'Sending secure link…':passwordCooldown>0?'Try again in '+passwordCooldown+'s':'Recreate password ›'}</button>{passwordEmail&&<p className="hint good">A secure password reset link has been sent to {u.email}.</p>}<button className="action" onClick={async()=>{await supabase.auth.signOut({scope:'local'});router.replace('/login')}}>Sign out</button></div>}</section>
 </div>
 
 {msg&&<div className="toast">{msg}</div>}

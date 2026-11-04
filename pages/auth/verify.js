@@ -54,13 +54,13 @@ session=result.data?.session||null;
 const result=await supabase.auth.getSession();
 authError=result.error;
 session=result.data?.session||null;
-recoveryVerified=next==='/reset-password'&&(hasVerifiedRecoverySession()||hasPendingRecoveryRequest());
+recoveryVerified=hasVerifiedRecoverySession()||(next==='/reset-password'&&hasPendingRecoveryRequest());
 }else{
 session=await supabase.auth.getSession().then(result=>{
   if(result.error)throw result.error;
   return result.data?.session||null;
 });
-recoveryVerified=next==='/reset-password'&&hasVerifiedRecoverySession();
+recoveryVerified=hasVerifiedRecoverySession();
 }
 if(authError)throw authError;
 if(!session)session=await getClientSession();
@@ -68,7 +68,9 @@ if(!session?.access_token)throw new Error('The link could not establish a secure
 if(!active)return;
 
 if(recoveryVerified){
-if(next!=='/reset-password')throw new Error('This password reset link has an invalid destination. Request a new NYEOCARE link.');
+// PASSWORD_RECOVERY is a Supabase-authenticated event, so it takes
+// precedence over a missing/overridden next parameter and must never be
+// treated as an ordinary sign-in or email-confirmation callback.
 markVerifiedRecoverySession();
 clearPendingRecoveryRequest();
 setStatus('Recovery link verified.');

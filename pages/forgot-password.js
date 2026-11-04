@@ -3,6 +3,7 @@ import{useEffect,useState}from'react';
 import{useRouter}from'next/router';
 import{supabase}from'../lib/supabaseClient';
 import{getAuthRedirectUrl}from'../lib/authRedirectUrl';
+import{markPendingRecoveryRequest,clearPendingRecoveryRequest}from'../lib/authRecoveryState';
 
 const COOLDOWN_KEY='nyeocare:password-recovery-requested-at';
 const COOLDOWN_MS=60000;
@@ -44,8 +45,12 @@ return;
 setLoading(true);
 try{
 const redirectTo=getAuthRedirectUrl('/auth/verify?next='+encodeURIComponent('/reset-password'));
+// Keep a short-lived marker in localStorage because the email may open in a
+// new tab. The PKCE session itself still comes only from Supabase.
+markPendingRecoveryRequest();
 const result=await supabase.auth.resetPasswordForEmail(cleanEmail,{redirectTo});
 if(result.error){
+clearPendingRecoveryRequest();
 const status=Number(result.error.status||0);
 const detail=String(result.error.message||'').toLowerCase();
 if(status===429||detail.includes('rate limit')||detail.includes('too many')){
@@ -61,6 +66,7 @@ window.localStorage.setItem(COOLDOWN_KEY,String(Date.now()));
 setCooldown(60);
 setMessage('If an NYEOCARE account matches that email address, a secure password reset link has been sent. Check your inbox and spam folder.');
 }catch(requestError){
+clearPendingRecoveryRequest();
 console.error('[AUTH] Password recovery request failed:',requestError?.message||requestError);
 setError('We could not process the request right now. Please try again later.');
 }finally{

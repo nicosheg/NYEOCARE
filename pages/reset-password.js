@@ -3,8 +3,7 @@ import{useEffect,useState}from'react';
 import{useRouter}from'next/router';
 import{supabase}from'../lib/supabaseClient';
 import{getPasswordChecks,PASSWORD_POLICY_DESCRIPTION}from'../lib/authPasswordPolicy';
-
-const RECOVERY_KEY='nyeocare:password-recovery-verified';
+import{hasPendingRecoveryRequest,hasVerifiedRecoverySession,hasRecoveryCallbackBeenSeen,markVerifiedRecoverySession,clearPendingRecoveryRequest,clearVerifiedRecoverySession,clearRecoveryCallbackSeen}from'../lib/authRecoveryState';
 
 export default function ResetPassword(){
 const router=useRouter();
@@ -23,24 +22,32 @@ const passwordReady=Object.values(checks).every(Boolean);
 useEffect(()=>{
 let mounted=true;
 const{data:subscription}=supabase.auth.onAuthStateChange((event,session)=>{
-if(mounted&&event==='PASSWORD_RECOVERY'&&session)setRecovery(true);
+if(mounted&&event==='PASSWORD_RECOVERY'&&session){
+markVerifiedRecoverySession();
+setRecovery(true);
+}
 });
 const prepare=async()=>{
 try{
-const marker=window.sessionStorage.getItem(RECOVERY_KEY);
-if(marker==='1'){
-window.sessionStorage.removeItem(RECOVERY_KEY);
-const{data}=await supabase.auth.getSession();
-if(mounted&&data?.session)setRecovery(true);
+// Supabase's singleton handles a PKCE URL during initialization. getSession()
+// waits for that process, including callbacks that land directly on this page.
+const{data,error:sessionError}=await supabase.auth.getSession();
+if(sessionError)throw sessionError;
+const recoveryContext=hasVerifiedRecoverySession()||(hasPendingRecoveryRequest()&&hasRecoveryCallbackBeenSeen());
+if(mounted&&data?.session&&recoveryContext){
+markVerifiedRecoverySession();
+clearPendingRecoveryRequest();
+clearRecoveryCallbackSeen();
+setRecovery(true);
 }
 }catch(prepareError){
 console.warn('[AUTH] Could not restore recovery state:',prepareError?.message||prepareError);
 }
 if(mounted)setReady(true);
 };
-prepare();
+if(router.isReady)prepare();
 return()=>{mounted=false;subscription.subscription.unsubscribe()};
-},[]);
+},[router.isReady,router.query.code]);
 
 const submit=async event=>{
 event.preventDefault();
@@ -60,7 +67,9 @@ catch(signOutError){
 console.warn('[AUTH] Global sign-out after password change failed:',signOutError?.message||signOutError);
 await supabase.auth.signOut({scope:'local'});
 }
-window.sessionStorage.removeItem(RECOVERY_KEY);
+clearPendingRecoveryRequest();
+clearRecoveryCallbackSeen();
+clearVerifiedRecoverySession();
 window.setTimeout(()=>router.replace('/login?reset=success'),900);
 }catch(updateError){
 console.error('[AUTH] Password update failed:',updateError?.message||updateError);

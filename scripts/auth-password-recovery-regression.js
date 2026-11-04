@@ -7,6 +7,9 @@ const forgot=read('pages/forgot-password.js');
 const verify=read('pages/auth/verify.js');
 const reset=read('pages/reset-password.js');
 const policy=read('lib/authPasswordPolicy.js');
+const app=read('pages/_app.js');
+const recoveryState=read('lib/authRecoveryState.js');
+const sessionCache=read('lib/clientSession.js');
 const supabaseClient=read('lib/supabaseClient.js');
 const redirectHelper=read('lib/authRedirectUrl.js');
 const loginRedirects=read('pages/login.js');
@@ -18,16 +21,21 @@ const checks=[
 ['signup does not disclose an already-registered email address',login.includes('We could not create the account with those details')&&!login.includes('This email is already registered')],
 ['signup and reset share a 12-character mixed-character password policy',login.includes('getPasswordChecks(password)')&&reset.includes('getPasswordChecks(password)')&&policy.includes('PASSWORD_MIN_LENGTH = 12')&&policy.includes('isStrongPassword')],
 ['login exposes a branded forgot-password route',login.includes("router.push('/forgot-password')")&&login.includes('Forgot password?')],
-['forgot-password sends a reset link through the NYEOCARE verification callback',forgot.includes('resetPasswordForEmail(cleanEmail')&&forgot.includes('/auth/verify?next=')&&forgot.includes("encodeURIComponent('/reset-password')")],
+['forgot-password sends the reset email through the NYEOCARE verification callback',forgot.includes('resetPasswordForEmail(cleanEmail')&&forgot.includes('/auth/verify?next=')&&forgot.includes("encodeURIComponent('/reset-password')")],
+['forgot-password records a short-lived recovery intent and callback receipt for cross-tab routing',forgot.includes('markPendingRecoveryRequest()')&&forgot.includes('clearPendingRecoveryRequest()')&&recoveryState.includes('RECOVERY_REQUEST_TTL_MS')&&recoveryState.includes('RECOVERY_CALLBACK_SEEN_KEY')],
 ['forgot-password response does not reveal whether the email exists',forgot.includes('If an NYEOCARE account matches that email address')&&forgot.includes('does not reveal whether an email address is registered')],
 ['forgot-password includes a 60-second user-facing cooldown and rate-limit handling',forgot.includes('COOLDOWN_MS=60000')&&forgot.includes('localStorage')&&forgot.includes('status===429')],
-['browser auth does not auto-consume callback URLs before the NYEOCARE verifier',supabaseClient.includes('detectSessionInUrl: false')],
-['PKCE email callbacks use the canonical production origin outside local development',redirectHelper.includes('https://nyeocare.vercel.app')&&forgot.includes('getAuthRedirectUrl')&&loginRedirects.includes('getAuthRedirectUrl')&&invitation.includes('getAuthRedirectUrl')],
-['verification callback registers the recovery listener before its single PKCE code exchange',verify.indexOf('onAuthStateChange(event=>')<verify.indexOf('exchangeCodeForSession(code)')&&verify.includes('recoveryEventObserved')],
-['verification callback accepts recovery token hashes and only routes after exchange',verify.includes("'recovery'")&&verify.includes('verifyOtp({token_hash:tokenHash,type})')&&verify.includes('recoveryVerified')&&verify.includes('password-recovery-verified')],
-['reset page requires recovery confirmation and a live session before updating password',reset.includes('sessionStorage.getItem(RECOVERY_KEY)')&&reset.includes('supabase.auth.getSession()')&&reset.includes('supabase.auth.updateUser({password})')],
-['successful password reset attempts global session revocation',reset.includes("signOut({scope:'global'})")],
-['documentation includes branded recovery/password-change templates and required Auth settings',docs.includes('Recovery email template')&&docs.includes('Password-changed notification template')&&docs.includes('1800 seconds (30 minutes)')&&docs.includes('custom SMTP provider')]
+['Supabase automatically processes browser PKCE callbacks instead of competing manual exchanges',supabaseClient.includes('detectSessionInUrl: isBrowser')&&!supabaseClient.includes('detectSessionInUrl: false,\n    flowType')],
+['the Supabase singleton captures the recovery callback before automatic PKCE processing clears the URL',supabaseClient.indexOf('markRecoveryCallbackSeen()')<supabaseClient.indexOf('export const supabase = createClient')&&supabaseClient.includes('searchParams.has')],
+['the Supabase singleton installs an early recovery listener and clears markers on sign-out',supabaseClient.includes('supabase.auth.onAuthStateChange')&&supabaseClient.includes("event !== 'PASSWORD_RECOVERY'")&&supabaseClient.includes('markVerifiedRecoverySession()')&&supabaseClient.includes('clearRecoveryCallbackSeen()')],
+['ordinary sign-out preserves an outstanding recovery request until it expires or is completed',supabaseClient.includes('Keep an outstanding recovery request alive')&&!supabaseClient.includes("if (event === 'SIGNED_OUT') {\n      clearVerifiedRecoverySession();\n      clearPendingRecoveryRequest();")],
+['the shared session cache mirrors PASSWORD_RECOVERY sessions',sessionCache.includes("event === 'PASSWORD_RECOVERY'")],
+['production callback URLs preserve either attached stable app alias and exclude preview hosts',redirectHelper.includes('nyeocare.vercel.app')&&redirectHelper.includes('nyeocare-nicosheg.vercel.app')&&redirectHelper.includes('window.location.origin')],
+['the verification route waits for Supabase URL initialization and recognizes a captured PKCE recovery callback',verify.includes('supabase.auth.getSession()')&&!verify.includes('exchangeCodeForSession(code)')&&verify.includes('hasVerifiedRecoverySession()')&&verify.includes('hasPendingRecoveryRequest()')&&verify.includes('hasRecoveryCallbackBeenSeen()')&&verify.includes("next==='/reset-password'")&&!verify.includes("if(next!=='/reset-password')")],
+['the global app catches Site URL fallback callbacks after PKCE removes the code from the URL',app.includes('hasRecoveryCallbackBeenSeen()')&&app.includes('hasPendingRecoveryRequest()')&&app.includes("router.replace('/reset-password')")&&app.includes("router.pathname!=='/'")],
+['reset page requires a live session plus verified callback context before password update',reset.includes('hasVerifiedRecoverySession()')&&reset.includes('hasRecoveryCallbackBeenSeen()')&&reset.includes('supabase.auth.getSession()')&&reset.includes('supabase.auth.updateUser({password})')],
+['successful password reset clears recovery markers and attempts global session revocation',reset.includes('clearVerifiedRecoverySession()')&&reset.includes('clearPendingRecoveryRequest()')&&reset.includes("signOut({scope:'global'})")],
+['documentation includes recovery templates, sender setup and both production callback aliases',docs.includes('Recovery email template')&&docs.includes('Password-changed notification template')&&docs.includes('custom SMTP provider')&&docs.includes('nyeocare-nicosheg.vercel.app/**')]
 ];
 const failures=checks.filter(([,ok])=>!ok).map(([name])=>name);
 for(const[name,ok]of checks)console.log((ok?'PASS: ':'FAIL: ')+name);

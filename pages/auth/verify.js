@@ -4,6 +4,7 @@ import{useRouter}from'next/router';
 import{supabase}from'../../lib/supabaseClient';
 import{getClientSession}from'../../lib/clientSession';
 import{clearCached,publishDataChange}from'../../lib/appData';
+import{hasPendingRecoveryRequest,hasVerifiedRecoverySession,hasRecoveryCallbackBeenSeen,markVerifiedRecoverySession,clearPendingRecoveryRequest,clearRecoveryCallbackSeen}from'../../lib/authRecoveryState';
 
 function safeNext(value){
 if(typeof value!=='string'||!value.startsWith('/')||value.startsWith('//')||value.includes('\\'))return'/login?verified=1';
@@ -37,8 +38,6 @@ const next=safeNext(typeof router.query.next==='string'?router.query.next:'');
 const tokenHash=typeof router.query.token_hash==='string'?router.query.token_hash:'';
 const code=typeof router.query.code==='string'?router.query.code:'';
 let recoveryVerified=false;
-let recoveryEventObserved=false;
-let recoverySubscription=null;
 let authError=null;
 let session=null;
 if(tokenHash){
@@ -49,25 +48,32 @@ const result=await supabase.auth.verifyOtp({token_hash:tokenHash,type});
 authError=result.error;
 session=result.data?.session||null;
 }else if(code){
-// Register before exchanging. Automatic URL detection is disabled in the
-// shared client, so this route is the sole owner of the one-time PKCE code.
-recoverySubscription=supabase.auth.onAuthStateChange(event=>{if(event==='PASSWORD_RECOVERY')recoveryEventObserved=true;});
-const result=await supabase.auth.exchangeCodeForSession(code);
+// Supabase's singleton owns URL parsing and the PKCE exchange. Calling
+// exchangeCodeForSession here would compete with automatic initialization
+// and loses the recovery event metadata. getSession waits for initialization.
+const result=await supabase.auth.getSession();
 authError=result.error;
-recoveryVerified=next==='/reset-password'&&recoveryEventObserved;
 session=result.data?.session||null;
+recoveryVerified=hasVerifiedRecoverySession()||(next==='/reset-password'&&hasPendingRecoveryRequest()&&hasRecoveryCallbackBeenSeen());
 }else{
-session=await getClientSession();
+session=await supabase.auth.getSession().then(result=>{
+  if(result.error)throw result.error;
+  return result.data?.session||null;
+});
+recoveryVerified=hasVerifiedRecoverySession()||(hasPendingRecoveryRequest()&&hasRecoveryCallbackBeenSeen());
 }
-if(recoverySubscription)recoverySubscription.data.subscription.unsubscribe();
 if(authError)throw authError;
 if(!session)session=await getClientSession();
 if(!session?.access_token)throw new Error('The link could not establish a secure session. Request a fresh verification email and open it on this device.');
 if(!active)return;
 
 if(recoveryVerified){
-if(next!=='/reset-password')throw new Error('This password reset link has an invalid destination. Request a new NYEOCARE link.');
-window.sessionStorage.setItem('nyeocare:password-recovery-verified','1');
+// PASSWORD_RECOVERY is a Supabase-authenticated event, so it takes
+// precedence over a missing/overridden next parameter and must never be
+// treated as an ordinary sign-in or email-confirmation callback.
+markVerifiedRecoverySession();
+clearPendingRecoveryRequest();
+clearRecoveryCallbackSeen();
 setStatus('Recovery link verified.');
 setDetail('Your account is secure. Choose a new password to continue.');
 setDone(true);

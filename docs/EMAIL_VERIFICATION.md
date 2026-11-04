@@ -163,13 +163,17 @@ However, the actual email sender cannot honestly be branded as NYEOCARE until a 
 
 ## PKCE callback ownership and canonical redirect origin
 
-The browser Supabase client sets `detectSessionInUrl: false`. NYEOCARE handles every email-based PKCE callback explicitly in `pages/auth/verify.js`. Do not re-enable automatic URL detection: the global session warmer can initialize the Supabase client before the verifier page mounts, consume the one-time authorization code, and leave the page attempting a second exchange. The verifier must subscribe to `PASSWORD_RECOVERY` before calling `exchangeCodeForSession`.
+The browser Supabase client uses `detectSessionInUrl: true`, so the Supabase singleton is the **only** owner of PKCE URL parsing and code exchange. A recovery listener is installed immediately when the singleton is created, before route components and session warmers mount. Do not manually call `exchangeCodeForSession` from `pages/auth/verify.js`: a second exchange races the automatic handler, and the direct exchange can emit an ordinary sign-in event rather than the recovery event.
 
-All production signup, invitation, magic-link, and password-recovery emails use the canonical origin `https://nyeocare.vercel.app`, not the current browser hostname. This prevents links created from a Vercel preview hostname from being rejected by Supabase's redirect allow list and silently falling back to the project Site URL. Local development uses the local origin.
+The forgot-password page records a short-lived, non-secret request marker in local storage. Before creating the browser client, NYEOCARE checks whether the current URL contains a PKCE `code` while that recovery request marker is active, and records a separate short-lived callback-received marker. This capture happens before Supabase's automatic PKCE handler removes the code from the address bar. The app then waits for `supabase.auth.getSession()` to finish and requires a live session before routing the user to `/reset-password`. The global fallback is deliberately limited to the home route, which is the configured Site URL fallback. The markers are routing state only, never authentication credentials.
 
-In Supabase Dashboard → Authentication → URL Configuration → Redirect URLs, allow:
+Production email requests preserve the active stable NYEOCARE Vercel alias so the PKCE verifier is stored and read on the same origin. The accepted stable aliases are `https://nyeocare.vercel.app` and `https://nyeocare-nicosheg.vercel.app`. Vercel preview deployment hostnames are never used for production email callbacks.
 
-- `https://nyeocare.vercel.app/**`
-- `http://localhost:3000/**` (local development only)
+In Supabase Dashboard → Authentication → URL Configuration:
 
-The production Site URL should be `https://nyeocare.vercel.app`. The redirect allow list must include the production callback. Keep preview deployment URLs out of user-facing auth links.
+- Set **Site URL** to `https://nyeocare.vercel.app`.
+- Add `https://nyeocare.vercel.app/**` to **Redirect URLs**.
+- Add `https://nyeocare-nicosheg.vercel.app/**` to **Redirect URLs**.
+- Keep `http://localhost:3000/**` for local development only.
+
+Both stable aliases need to be allow-listed because PKCE storage is origin-specific and users may request recovery from either attached production alias. When `redirectTo` is not allow-listed, Supabase falls back to the Site URL; the global recovery handler can route a recovery code that lands there, but the correct long-term configuration is to allow both aliases.

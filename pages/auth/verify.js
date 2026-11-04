@@ -4,7 +4,7 @@ import{useRouter}from'next/router';
 import{supabase}from'../../lib/supabaseClient';
 import{getClientSession}from'../../lib/clientSession';
 import{clearCached,publishDataChange}from'../../lib/appData';
-import{hasPendingRecoveryRequest,hasVerifiedRecoverySession,markVerifiedRecoverySession,clearPendingRecoveryRequest}from'../../lib/authRecoveryState';
+import{hasPendingRecoveryRequest,hasVerifiedRecoverySession,hasRecoveryCallbackBeenSeen,markVerifiedRecoverySession,clearPendingRecoveryRequest,clearRecoveryCallbackSeen}from'../../lib/authRecoveryState';
 
 function safeNext(value){
 if(typeof value!=='string'||!value.startsWith('/')||value.startsWith('//')||value.includes('\\'))return'/login?verified=1';
@@ -54,13 +54,13 @@ session=result.data?.session||null;
 const result=await supabase.auth.getSession();
 authError=result.error;
 session=result.data?.session||null;
-recoveryVerified=hasVerifiedRecoverySession()||(next==='/reset-password'&&hasPendingRecoveryRequest());
+recoveryVerified=hasVerifiedRecoverySession()||(hasPendingRecoveryRequest()&&hasRecoveryCallbackBeenSeen());
 }else{
 session=await supabase.auth.getSession().then(result=>{
   if(result.error)throw result.error;
   return result.data?.session||null;
 });
-recoveryVerified=hasVerifiedRecoverySession();
+recoveryVerified=hasVerifiedRecoverySession()||(hasPendingRecoveryRequest()&&hasRecoveryCallbackBeenSeen());
 }
 if(authError)throw authError;
 if(!session)session=await getClientSession();
@@ -73,6 +73,7 @@ if(recoveryVerified){
 // treated as an ordinary sign-in or email-confirmation callback.
 markVerifiedRecoverySession();
 clearPendingRecoveryRequest();
+clearRecoveryCallbackSeen();
 setStatus('Recovery link verified.');
 setDetail('Your account is secure. Choose a new password to continue.');
 setDone(true);

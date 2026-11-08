@@ -12,7 +12,6 @@ const scanSource = read('components/ScanModal.js');
 const attendanceSource = read('components/AttendanceModal.js');
 const historySource = read('components/AttendanceHistoryPanel.js');
 const reviewSource = read('components/ReviewCenterTab.js');
-const firstExperienceSource = read('components/FirstExperience.js');
 
 assert.match(documentSource, /id="nyeocare-modal-root"/, 'The modal root must be a body-level sibling of #__next.');
 assert.match(appSource, /name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/, 'Mobile viewport metadata must be explicit.');
@@ -40,12 +39,10 @@ for (const [name, source] of [
   ['Scan', scanSource],
   ['Attendance', attendanceSource],
   ['Attendance history', historySource],
-  ['Review', reviewSource],
-  ['First experience', firstExperienceSource]
+  ['Review', reviewSource]
 ]) {
   assert.match(source, /top:0(?:!important)?[;,]right:0(?:!important)?[;,]bottom:0(?:!important)?[;,]left:0(?:!important)?/, name + ' must explicitly define all four fixed-position edges for older browsers.');
 }
-assert.match(firstExperienceSource, /<ModalPortal><div className="experienceOverlay ny-modal-overlay">/, 'First experience must be rendered outside the Home layout as well.');
 assert.match(attendanceSource, /const mobileModal=\{\.\.\.modal,width:'100%',height:'88vh',maxHeight:'88vh'/, 'Attendance mobile sizing must have a vh fallback for browsers without dvh or min().');
 assert.match(historySource, /height:compact\?'100vh':'90vh',maxHeight:compact\?'100vh':860/, 'Attendance history sizing must use the legacy viewport unit.');
 

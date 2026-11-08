@@ -1477,10 +1477,10 @@ const savedResultFootnote={width:'min(620px,100%)',textAlign:'left',fontSize:9.5
 const savedResultActions={display:'flex',alignItems:'center',justifyContent:'center',gap:8,flexWrap:'wrap',width:'min(620px,100%)',marginTop:16};
 const historyPrimary={padding:'11px 17px',border:0,borderRadius:999,background:'#E8D49A',color:'#101827',fontSize:12,fontWeight:800,cursor:'pointer'};
 const savedDoneButton={padding:'10px 16px',borderRadius:999,border:'1px solid rgba(255,255,255,.13)',background:'rgba(255,255,255,.045)',color:'#F5F7FA',fontSize:12,cursor:'pointer'};
-const finishConfirmOverlay={position:'fixed',inset:0,zIndex:2147483001,display:'grid',placeItems:'center',padding:18,background:'rgba(2,5,12,.76)',backdropFilter:'blur(12px)'};
+const finishConfirmOverlay={position:'fixed',top:0,right:0,bottom:0,left:0,inset:0,zIndex:2147483001,display:'grid',placeItems:'center',padding:18,background:'rgba(2,5,12,.76)',backdropFilter:'blur(12px)'};
 const finishConfirmCard={width:'min(440px,100%)',padding:20,borderRadius:20,border:'1px solid rgba(255,255,255,.16)',background:'linear-gradient(145deg,#26364d,#0b1425)',boxShadow:'0 24px 70px rgba(0,0,0,.55)',color:'#f5f7fb'};
 const overlay={
-  position:'fixed',inset:0,zIndex:2147483000,
+  position:'fixed',top:0,right:0,bottom:0,left:0,inset:0,zIndex:2147483000,
   background:'rgba(2,5,12,.72)',backdropFilter:'blur(18px)',
   display:'flex',alignItems:'center',justifyContent:'center',
   padding:12,overflow:'auto'

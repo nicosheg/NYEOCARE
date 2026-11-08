@@ -43,7 +43,7 @@ for (const [name, source] of [
   ['Review', reviewSource],
   ['First experience', firstExperienceSource]
 ]) {
-  assert.match(source, /top:0(?:!important)?;right:0(?:!important)?;bottom:0(?:!important)?;left:0(?:!important)?/, name + ' must explicitly define all four fixed-position edges for older browsers.');
+  assert.match(source, /top:0(?:!important)?[;,]right:0(?:!important)?[;,]bottom:0(?:!important)?[;,]left:0(?:!important)?/, name + ' must explicitly define all four fixed-position edges for older browsers.');
 }
 assert.match(firstExperienceSource, /<ModalPortal><div className="experienceOverlay ny-modal-overlay">/, 'First experience must be rendered outside the Home layout as well.');
 assert.match(attendanceSource, /const mobileModal=\{\.\.\.modal,width:'100%',height:'88vh',maxHeight:'88vh'/, 'Attendance mobile sizing must have a vh fallback for browsers without dvh or min().');

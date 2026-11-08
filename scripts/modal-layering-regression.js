@@ -14,7 +14,7 @@ const historySource = read('components/AttendanceHistoryPanel.js');
 
 assert.match(documentSource, /id="nyeocare-modal-root"/, 'The modal root must be a body-level sibling of #__next.');
 assert.match(appSource, /name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/, 'Mobile viewport metadata must be explicit.');
-assert.match(appSource, /#nyeocare-modal-root\{[^}]*z-index:2147483646[^}]*isolation:isolate/s, 'The shared modal root must own a top-level stacking context.');
+assert.match(appSource, /#nyeocare-modal-root\{[^}]*z-index:2147483647[^}]*isolation:isolate/s, 'The shared modal root must own a top-level stacking context.');
 assert.match(appSource, /\.ny-modal-overlay[^}]*height:100dvh/s, 'Modal overlays must use the dynamic mobile viewport height.');
 assert.match(appSource, /pointer-events:auto!important/, 'Modal overlays must remain interactive inside the pointer-transparent portal root.');
 assert.match(portalSource, /getElementById\('nyeocare-modal-root'\)/, 'ModalPortal must target the shared root.');

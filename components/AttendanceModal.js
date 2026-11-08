@@ -1,11 +1,11 @@
 // components/AttendanceModal.js
 import{useCallback,useEffect,useMemo,useRef,useState}from'react';
-import{createPortal}from'react-dom';
+
 import{getClientSession}from'../lib/clientSession';
 import{getCached,setCached,clearCached,publishDataChange}from'../lib/appData';
 import{supabase}from'../lib/supabaseClient';import AriaProcessingStatus from'./AriaProcessingStatus';
 import{getFieldSession,getFieldPeople,isFieldRosterSnapshotComplete,saveFieldSession,saveFieldPeople,enqueueFieldMutation,removeFieldMutation,getFieldPendingCount,getPendingFieldMutations,getUnattributedPendingFieldMutationCount,removeFieldPerson,localRosterSearch,clearFieldSession,syncFieldMode}from'../lib/attendanceFieldMode';
-import{measurePerformance}from'../lib/performanceTelemetry';
+import{measurePerformance}from'../lib/performanceTelemetry';import ModalPortal from'./ModalPortal';
 import AttendanceHistoryPanel from'./AttendanceHistoryPanel';
 
 const FAST_SYNC_FALLBACK_MS=2500;
@@ -1237,12 +1237,12 @@ export default function AttendanceModal({isOpen,onClose}){
       :'ARIA is updating'
     : null;
 
-  const content=<div style={compactViewport?mobileOverlay:overlay} onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}>
+  const content=<div className="ny-modal-overlay" style={{...(compactViewport?mobileOverlay:overlay),pointerEvents:'auto'}} onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}>
     <style jsx global>{`
       @keyframes nyeoAttendanceBreath {0%,100%{transform:scale(1);opacity:.78}50%{transform:scale(1.045);opacity:1}}
       @media(prefers-reduced-motion:reduce){.ny-attendance-create-aura{animation:none!important}}
     `}</style>
-    <div style={compactViewport?mobileModal:modal} role="dialog" aria-modal="true" aria-label="Attendance">
+    <div className="ny-modal-panel" style={compactViewport?mobileModal:modal} role="dialog" aria-modal="true" aria-label="Attendance">
       <header style={compactViewport?mobileHeader:header}>
         <div>
           <div style={headingRow}>
@@ -1456,7 +1456,7 @@ export default function AttendanceModal({isOpen,onClose}){
     </div>}
   </div>;
 
-  return <>{createPortal(content,document.body)}<AttendanceHistoryPanel isOpen={showHistory} onClose={()=>setShowHistory(false)} initialSessionId={savedResult?.session?.id||null}/></>;
+  return <><ModalPortal>{content}</ModalPortal><AttendanceHistoryPanel isOpen={showHistory} onClose={()=>setShowHistory(false)} initialSessionId={savedResult?.session?.id||null}/></>;
 }
 
 const headingRow={display:'flex',alignItems:'center',gap:9,minWidth:0};
@@ -1477,23 +1477,23 @@ const savedResultFootnote={width:'min(620px,100%)',textAlign:'left',fontSize:9.5
 const savedResultActions={display:'flex',alignItems:'center',justifyContent:'center',gap:8,flexWrap:'wrap',width:'min(620px,100%)',marginTop:16};
 const historyPrimary={padding:'11px 17px',border:0,borderRadius:999,background:'#E8D49A',color:'#101827',fontSize:12,fontWeight:800,cursor:'pointer'};
 const savedDoneButton={padding:'10px 16px',borderRadius:999,border:'1px solid rgba(255,255,255,.13)',background:'rgba(255,255,255,.045)',color:'#F5F7FA',fontSize:12,cursor:'pointer'};
-const finishConfirmOverlay={position:'fixed',inset:0,zIndex:2147483001,display:'grid',placeItems:'center',padding:18,background:'rgba(2,5,12,.76)',backdropFilter:'blur(12px)'};
+const finishConfirmOverlay={position:'fixed',top:0,right:0,bottom:0,left:0,inset:0,zIndex:2147483001,display:'grid',placeItems:'center',padding:18,background:'rgba(2,5,12,.76)',backdropFilter:'blur(12px)'};
 const finishConfirmCard={width:'min(440px,100%)',padding:20,borderRadius:20,border:'1px solid rgba(255,255,255,.16)',background:'linear-gradient(145deg,#26364d,#0b1425)',boxShadow:'0 24px 70px rgba(0,0,0,.55)',color:'#f5f7fb'};
 const overlay={
-  position:'fixed',inset:0,zIndex:2147483000,
+  position:'fixed',top:0,right:0,bottom:0,left:0,inset:0,zIndex:2147483000,
   background:'rgba(2,5,12,.72)',backdropFilter:'blur(18px)',
   display:'flex',alignItems:'center',justifyContent:'center',
   padding:12,overflow:'auto'
 };
 const mobileOverlay={...overlay,padding:2,overflow:'hidden'};
 const modal={
-  width:'min(1120px,94vw)',height:'min(88vh,820px)',minHeight:470,
+  width:'94vw',maxWidth:1120,height:'88vh',maxHeight:820,minHeight:470,
   background:'linear-gradient(145deg,rgba(43,60,83,.97),rgba(10,18,33,.99))',
   border:'1px solid rgba(235,244,255,.18)',borderRadius:30,overflow:'hidden',
   display:'flex',flexDirection:'column',color:'#f5f7fb',
   boxShadow:'0 35px 110px rgba(0,0,0,.7)'
 };
-const mobileModal={...modal,width:'min(1120px,94vw)',height:'min(88dvh,820px)',maxHeight:'88dvh',minHeight:0,borderRadius:30};
+const mobileModal={...modal,width:'100%',height:'88vh',maxHeight:'88vh',minHeight:0,borderRadius:30};
 const header={display:'flex',justifyContent:'space-between',gap:14,padding:'18px 22px 14px',borderBottom:'1px solid rgba(255,255,255,.08)',flexShrink:0};
 const mobileHeader={...header,padding:'10px 12px 8px',gap:8};
 const h2={margin:0,fontSize:'clamp(30px,3.5vw,38px)',lineHeight:1,fontWeight:850,letterSpacing:.5};

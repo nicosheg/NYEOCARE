@@ -1,7 +1,7 @@
 // components/AttendanceHistoryPanel.js
 import{useCallback,useEffect,useRef,useState}from'react';
-import{createPortal}from'react-dom';
-import{getClientSession}from'../lib/clientSession';
+
+import{getClientSession}from'../lib/clientSession';import ModalPortal from'./ModalPortal';
 
 const groups={men:'Men',women:'Women',youth:'Youth',unassigned:'Unassigned'};
 const count=value=>Number(value)||0;
@@ -107,8 +107,8 @@ export default function AttendanceHistoryPanel({isOpen,onClose,initialSessionId=
   const summary=detail?.summary||null,totals=summary?.totals||{},breakdown=summary?.group_breakdown||[];
   const present=count(totals.present_count),absent=count(totals.absent_count);
   const processingStatus=detail?.session?.aria_processing_status;
-  const view=<div style={overlay}>
-    <section style={{...modal,width:compact?'100vw':'min(920px,96vw)',height:compact?'100dvh':'min(90dvh,860px)',maxHeight:compact?'100dvh':'90dvh',borderRadius:compact?0:26}}>
+  const view=<div className="ny-modal-overlay" style={{...overlay,pointerEvents:'auto'}}>
+    <section className="ny-modal-panel" style={{...modal,width:compact?'100vw':'96vw',maxWidth:compact?'100vw':920,height:compact?'100vh':'90vh',maxHeight:compact?'100vh':860,borderRadius:compact?0:26}}>
       <header style={header}>
         <div style={{display:'flex',alignItems:'center',gap:10,minWidth:0}}>
           {detail&&<button type="button" style={back} onClick={backFromDetail}>‹</button>}
@@ -171,9 +171,9 @@ export default function AttendanceHistoryPanel({isOpen,onClose,initialSessionId=
       </div>}
     </section>
   </div>;
-  return createPortal(view,document.body);
+  return <ModalPortal>{view}</ModalPortal>;
 }
-const overlay={position:'fixed',inset:0,zIndex:2147483600,display:'flex',alignItems:'center',justifyContent:'center',padding:10,background:'rgba(2,5,12,.82)',backdropFilter:'blur(18px)'};
+const overlay={position:'fixed',top:0,right:0,bottom:0,left:0,inset:0,zIndex:2147483600,display:'flex',alignItems:'center',justifyContent:'center',padding:10,background:'rgba(2,5,12,.82)',backdropFilter:'blur(18px)'};
 const modal={display:'flex',flexDirection:'column',overflow:'hidden',border:'1px solid rgba(235,244,255,.16)',background:'linear-gradient(145deg,rgba(34,49,72,.99),rgba(7,14,27,.995))',boxShadow:'0 35px 110px rgba(0,0,0,.65)',color:'#F5F7FA'};
 const header={display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,padding:'18px 20px 14px',borderBottom:'1px solid rgba(255,255,255,.08)',flexShrink:0};
 const eyebrow={fontSize:9,fontWeight:800,letterSpacing:1.6,color:'rgba(214,184,106,.85)'};

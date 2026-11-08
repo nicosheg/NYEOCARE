@@ -1,6 +1,6 @@
 // components/FirstExperience.js
 import{useEffect,useState}from'react';
-import{getClientSession}from'../lib/clientSession';
+import{getClientSession}from'../lib/clientSession';import ModalPortal from'./ModalPortal';
 
 const STEP_META={home:'1 of 3',scan:'2 of 3',review:'3 of 3',people:'1 of 1','person-journey':'1 of 1',profile:'1 of 1',briefing:'ARIA · TODAY'};
 
@@ -50,7 +50,7 @@ setSaving(false);
 }
 };
 
-return <div className="experienceOverlay">
+return <ModalPortal><div className="experienceOverlay ny-modal-overlay">
 <div className="experienceCard">
 <div className="experienceGlow"/>
 <div className="experienceContent">
@@ -61,8 +61,8 @@ return <div className="experienceOverlay">
 </div>
 </div>
 <style jsx>{`
-.experienceOverlay{position:fixed;inset:0;z-index:9500;display:flex;align-items:center;justify-content:center;padding:18px;pointer-events:none;background:rgba(3,7,16,.68);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);animation:experienceBackdropIn .35s ease-out}
-.experienceCard{position:relative;width:min(540px,100%);overflow:hidden;pointer-events:auto;border:1px solid rgba(255,255,255,.11);border-radius:30px;background:linear-gradient(155deg,rgba(17,25,42,.98),rgba(8,13,24,.98));box-shadow:0 34px 110px rgba(0,0,0,.58),inset 0 1px 0 rgba(255,255,255,.06);animation:experienceIn .55s cubic-bezier(.22,1,.36,1)}
+ .experienceOverlay{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;z-index:9500;display:flex;align-items:center;justify-content:center;padding:18px;pointer-events:none;background:rgba(3,7,16,.68);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);animation:experienceBackdropIn .35s ease-out}
+ .experienceCard{position:relative;width:100%;max-width:540px;overflow:hidden;pointer-events:auto;border:1px solid rgba(255,255,255,.11);border-radius:30px;background:linear-gradient(155deg,rgba(17,25,42,.98),rgba(8,13,24,.98));box-shadow:0 34px 110px rgba(0,0,0,.58),inset 0 1px 0 rgba(255,255,255,.06);animation:experienceIn .55s cubic-bezier(.22,1,.36,1)}
 .experienceGlow{position:absolute;width:330px;height:330px;top:-235px;left:50%;transform:translateX(-50%);border-radius:50%;background:rgba(214,184,106,.12);filter:blur(36px)}\n.experienceMark{position:absolute;top:22px;right:22px;width:38px;height:38px;border-radius:13px;display:grid;place-items:center;border:1px solid rgba(214,184,106,.18);background:rgba(214,184,106,.07);color:#e8d49a;font-size:12px;letter-spacing:2px;box-shadow:0 0 24px rgba(214,184,106,.07)}
 .experienceContent{position:relative;padding:34px 32px 32px}.experienceTop{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-right:48px}.step{font-size:10px;color:rgba(255,255,255,.32);letter-spacing:.08em;white-space:nowrap}
 .eyebrow{color:#d6b86a;font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;margin-bottom:0}
@@ -73,5 +73,5 @@ p{color:rgba(255,255,255,.64);font-size:15px;line-height:1.7;margin:0 0 26px;max
 @keyframes experienceBackdropIn{from{opacity:0}to{opacity:1}}\n@keyframes experienceIn{from{opacity:0;transform:translateY(24px) scale(.975)}to{opacity:1;transform:translateY(0) scale(1)}}
 @media(max-width:600px){.experienceOverlay{padding:14px}.experienceCard{border-radius:26px}.experienceContent{padding:30px 22px 24px}.experienceMark{top:18px;right:18px;width:34px;height:34px}.experienceTop{padding-right:42px}h2{font-size:25px;margin-top:16px}.experienceButton{width:100%;padding:14px 20px}}
 `}</style>
-</div>;
+</div></ModalPortal>;
   }

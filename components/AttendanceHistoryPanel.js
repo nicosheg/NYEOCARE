@@ -173,7 +173,7 @@ export default function AttendanceHistoryPanel({isOpen,onClose,initialSessionId=
   </div>;
   return <ModalPortal>{view}</ModalPortal>;
 }
-const overlay={position:'fixed',inset:0,zIndex:2147483600,display:'flex',alignItems:'center',justifyContent:'center',padding:10,background:'rgba(2,5,12,.82)',backdropFilter:'blur(18px)'};
+const overlay={position:'fixed',top:0,right:0,bottom:0,left:0,inset:0,zIndex:2147483600,display:'flex',alignItems:'center',justifyContent:'center',padding:10,background:'rgba(2,5,12,.82)',backdropFilter:'blur(18px)'};
 const modal={display:'flex',flexDirection:'column',overflow:'hidden',border:'1px solid rgba(235,244,255,.16)',background:'linear-gradient(145deg,rgba(34,49,72,.99),rgba(7,14,27,.995))',boxShadow:'0 35px 110px rgba(0,0,0,.65)',color:'#F5F7FA'};
 const header={display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,padding:'18px 20px 14px',borderBottom:'1px solid rgba(255,255,255,.08)',flexShrink:0};
 const eyebrow={fontSize:9,fontWeight:800,letterSpacing:1.6,color:'rgba(214,184,106,.85)'};

@@ -108,7 +108,7 @@ export default function AttendanceHistoryPanel({isOpen,onClose,initialSessionId=
   const present=count(totals.present_count),absent=count(totals.absent_count);
   const processingStatus=detail?.session?.aria_processing_status;
   const view=<div className="ny-modal-overlay" style={{...overlay,pointerEvents:'auto'}}>
-    <section className="ny-modal-panel" style={{...modal,width:compact?'100vw':'min(920px,96vw)',height:compact?'100dvh':'min(90dvh,860px)',maxHeight:compact?'100dvh':'90dvh',borderRadius:compact?0:26}}>
+    <section className="ny-modal-panel" style={{...modal,width:compact?'100vw':'96vw',maxWidth:compact?'100vw':920,height:compact?'100vh':'90vh',maxHeight:compact?'100vh':860,borderRadius:compact?0:26}}>
       <header style={header}>
         <div style={{display:'flex',alignItems:'center',gap:10,minWidth:0}}>
           {detail&&<button type="button" style={back} onClick={backFromDetail}>‹</button>}

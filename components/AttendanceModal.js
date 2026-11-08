@@ -1,11 +1,11 @@
 // components/AttendanceModal.js
 import{useCallback,useEffect,useMemo,useRef,useState}from'react';
-import{createPortal}from'react-dom';
+
 import{getClientSession}from'../lib/clientSession';
 import{getCached,setCached,clearCached,publishDataChange}from'../lib/appData';
 import{supabase}from'../lib/supabaseClient';import AriaProcessingStatus from'./AriaProcessingStatus';
 import{getFieldSession,getFieldPeople,isFieldRosterSnapshotComplete,saveFieldSession,saveFieldPeople,enqueueFieldMutation,removeFieldMutation,getFieldPendingCount,getPendingFieldMutations,getUnattributedPendingFieldMutationCount,removeFieldPerson,localRosterSearch,clearFieldSession,syncFieldMode}from'../lib/attendanceFieldMode';
-import{measurePerformance}from'../lib/performanceTelemetry';
+import{measurePerformance}from'../lib/performanceTelemetry';import ModalPortal from'./ModalPortal';
 import AttendanceHistoryPanel from'./AttendanceHistoryPanel';
 
 const FAST_SYNC_FALLBACK_MS=2500;
@@ -1237,12 +1237,12 @@ export default function AttendanceModal({isOpen,onClose}){
       :'ARIA is updating'
     : null;
 
-  const content=<div style={compactViewport?mobileOverlay:overlay} onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}>
+  const content=<div className="ny-modal-overlay" style={{...(compactViewport?mobileOverlay:overlay),pointerEvents:'auto'}} onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}>
     <style jsx global>{`
       @keyframes nyeoAttendanceBreath {0%,100%{transform:scale(1);opacity:.78}50%{transform:scale(1.045);opacity:1}}
       @media(prefers-reduced-motion:reduce){.ny-attendance-create-aura{animation:none!important}}
     `}</style>
-    <div style={compactViewport?mobileModal:modal} role="dialog" aria-modal="true" aria-label="Attendance">
+    <div className="ny-modal-panel" style={compactViewport?mobileModal:modal} role="dialog" aria-modal="true" aria-label="Attendance">
       <header style={compactViewport?mobileHeader:header}>
         <div>
           <div style={headingRow}>
@@ -1456,7 +1456,7 @@ export default function AttendanceModal({isOpen,onClose}){
     </div>}
   </div>;
 
-  return <>{createPortal(content,document.body)}<AttendanceHistoryPanel isOpen={showHistory} onClose={()=>setShowHistory(false)} initialSessionId={savedResult?.session?.id||null}/></>;
+  return <><ModalPortal>{content}</ModalPortal><AttendanceHistoryPanel isOpen={showHistory} onClose={()=>setShowHistory(false)} initialSessionId={savedResult?.session?.id||null}/></>;
 }
 
 const headingRow={display:'flex',alignItems:'center',gap:9,minWidth:0};

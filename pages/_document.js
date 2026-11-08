@@ -33,6 +33,6 @@ const EARLY_RECOVERY_SCRIPT=String.raw`(function(){
 
 export default class MyDocument extends Document{
  render(){
-  return <Html><Head><script dangerouslySetInnerHTML={{__html:EARLY_RECOVERY_SCRIPT}}/></Head><body><Main/><NextScript/></body></Html>;
+  return <Html><Head><script dangerouslySetInnerHTML={{__html:EARLY_RECOVERY_SCRIPT}}/></Head><body><Main/><div id="nyeocare-modal-root"/><NextScript/></body></Html>;
  }
 }

@@ -1487,13 +1487,13 @@ const overlay={
 };
 const mobileOverlay={...overlay,padding:2,overflow:'hidden'};
 const modal={
-  width:'min(1120px,94vw)',height:'min(88vh,820px)',minHeight:470,
+  width:'94vw',maxWidth:1120,height:'88vh',maxHeight:820,minHeight:470,
   background:'linear-gradient(145deg,rgba(43,60,83,.97),rgba(10,18,33,.99))',
   border:'1px solid rgba(235,244,255,.18)',borderRadius:30,overflow:'hidden',
   display:'flex',flexDirection:'column',color:'#f5f7fb',
   boxShadow:'0 35px 110px rgba(0,0,0,.7)'
 };
-const mobileModal={...modal,width:'min(1120px,94vw)',height:'min(88dvh,820px)',maxHeight:'88dvh',minHeight:0,borderRadius:30};
+const mobileModal={...modal,width:'100%',height:'88vh',maxHeight:'88vh',minHeight:0,borderRadius:30};
 const header={display:'flex',justifyContent:'space-between',gap:14,padding:'18px 22px 14px',borderBottom:'1px solid rgba(255,255,255,.08)',flexShrink:0};
 const mobileHeader={...header,padding:'10px 12px 8px',gap:8};
 const h2={margin:0,fontSize:'clamp(30px,3.5vw,38px)',lineHeight:1,fontWeight:850,letterSpacing:.5};

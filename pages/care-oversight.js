@@ -110,7 +110,7 @@ export default function CareOversight(){
 
    <section className="coMetrics" aria-label="Organizational care summary">
     <div className="coMetric"><span>Open responsibilities</span><strong>{metricValue(summary.open_responsibilities)}</strong><small>{metricValue(summary.due_today)} due today</small></div>
-    <div className="coMetric"><span>Need leadership attention</span><strong>{metricValue(summary.support_requests+summary.overdue+summary.reviews)}</strong><small>{metricValue(summary.support_requests)} support · {metricValue(summary.overdue)} overdue · {metricValue(summary.reviews)} review</small></div>
+    <div className="coMetric"><span>Need leadership attention</span><strong>{metricValue(summary.support_requests)}</strong><small>{metricValue(summary.overdue)} overdue · {metricValue(summary.reviews)} review items also need review</small></div>
     <div className="coMetric"><span>Outcomes recorded</span><strong>{metricValue(summary.outcomes_recorded_7d)}</strong><small>Human-reported care outcomes · last 7 days</small></div>
     <div className="coMetric"><span>Follow-up completion</span><strong>{careLoop.rate===null?'—':careLoop.rate+'%'}</strong><small>{careLoop.due?metricValue(careLoop.completed_with_outcome)+' of '+metricValue(careLoop.due)+' due with an outcome':'No eligible follow-ups due this week'}</small></div>
    </section>
@@ -150,6 +150,9 @@ export default function CareOversight(){
      </article>)}
     </div>}
     <p className="coFootnote">Reassignment changes who carries the queue responsibility. It does not rewrite a person’s record, change an ARIA decision or claim that the work has been completed.</p>
+    <div className="coWorkloadTitle">Current workload</div>
+    <p className="coFootnote">Use this view to start a capacity conversation. It is not a ranking or an operator performance score.</p>
+    <div className="coWorkloads">{(data.workloads||[]).map(person=><div className="coWorkload" key={person.id}><div><strong>{person.name||'Operator'}</strong><span>{person.role==='user'?'Operator':person.role}</span></div><div className="coWorkloadCounts"><b>{Number(person.due_count)||0} due</b><span>{Number(person.open_count)||0} open · {Number(person.overdue_count)||0} overdue</span></div></div>)}</div>
    </section>
 
    <section className="coSection">
@@ -214,6 +217,15 @@ export default function CareOversight(){
    .coNotice{border:1px solid rgba(127,191,154,.2);background:rgba(127,191,154,.06);color:var(--ny-success)}
    .coError{border:1px solid rgba(239,68,68,.18);background:rgba(239,68,68,.07);color:#fca5a5}
    .coSection{padding:21px 0;border-top:1px solid var(--ny-border-subtle)}
+   .coWorkloadTitle{margin-top:18px;color:var(--ny-text-secondary);font-size:11px;font-weight:650}
+   .coWorkloads{display:grid;gap:6px;margin-top:9px}
+   .coWorkload{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--ny-border-subtle);border-radius:12px;background:rgba(255,255,255,.018)}
+   .coWorkload>div:first-child{display:grid;gap:2px}
+   .coWorkload strong{color:var(--ny-text-secondary);font-size:10px;font-weight:600}
+   .coWorkload span{color:var(--ny-text-whisper);font-size:8px}
+   .coWorkloadCounts{display:grid;gap:2px;text-align:right;white-space:nowrap}
+   .coWorkloadCounts b{color:var(--ny-text);font-size:10px;font-weight:650}
+   .coWorkloadCounts span{color:var(--ny-text-whisper);font-size:8px}
    .coSectionTop{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:12px}
    .coSection h2{margin:5px 0 0;font-size:18px;letter-spacing:-.025em;color:var(--ny-text);font-weight:620}
    .coCount{color:var(--ny-text-whisper);font-size:9px;white-space:nowrap}

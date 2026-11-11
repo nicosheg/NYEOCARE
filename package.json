@@ -52,7 +52,7 @@
     "test:aria-attendance-workspace": "node scripts/aria-attendance-workspace-regression.js",
     "test:foreign-key-indexes": "node scripts/foreign-key-index-regression.js",
     "test:modal-layering": "node scripts/modal-layering-regression.js",
-    "test:operator-adoption": "node scripts/operator-adoption-regression.js"
+    "test:operator-adoption": "node --check pages/api/home/bootstrap.js && node --check pages/api/operator-support.js && node --check pages/api/care-oversight/index.js && node --check pages/care-oversight.js && node scripts/operator-adoption-regression.js"
   },
   "dependencies": {
     "next": "15.5.24",

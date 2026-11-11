@@ -26,7 +26,7 @@ export default function WorkToday({data,role,onOpenItem,onOpenAll,onOpenCareOver
      {item.message&&<span className="workItemMessage">{item.message}</span>}
      <span className="workItemAction">Open responsibility <b>→</b></span>
     </button>
-    {role==='user'&&item.queue_item_id&&<div className="workItemHelp"><OperatorSupportRequest queueItemId={item.queue_item_id} championName={championName}/></div>}
+    {role==='user'&&item.queue_item_id&&item.task_kind!=='internal_message'&&<div className="workItemHelp"><OperatorSupportRequest queueItemId={item.queue_item_id} championName={championName}/></div>}
    </article>)}
   </div>:<div className="workEmpty">
    <span className="workEmptyLine"/>
@@ -35,7 +35,7 @@ export default function WorkToday({data,role,onOpenItem,onOpenAll,onOpenCareOver
   </div>}
   <footer className="workFooter">
    <span>Today for you · {count}</span><span>Scheduled later · {later}</span>
-   {count>3&&<button onClick={onOpenAll}>See all {count} →</button>}
+   {count>3&&<button onClick={onOpenAll}>Open ARIA Today →</button>}
   </footer>
   <style jsx>{`
    .workToday{width:100%;margin:6px 0 15px;padding:16px 15px 12px;border-radius:23px;border:1px solid rgba(255,255,255,.09);background:linear-gradient(145deg,rgba(255,255,255,.048),rgba(255,255,255,.015));box-shadow:0 18px 46px rgba(0,0,0,.12)}

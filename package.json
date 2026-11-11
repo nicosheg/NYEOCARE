@@ -51,7 +51,8 @@
     "test:attendance-register-truth": "node scripts/attendance-register-truth-regression.js",
     "test:aria-attendance-workspace": "node scripts/aria-attendance-workspace-regression.js",
     "test:foreign-key-indexes": "node scripts/foreign-key-index-regression.js",
-    "test:modal-layering": "node scripts/modal-layering-regression.js"
+    "test:modal-layering": "node scripts/modal-layering-regression.js",
+    "test:operator-adoption": "node scripts/operator-adoption-regression.js"
   },
   "dependencies": {
     "next": "15.5.24",

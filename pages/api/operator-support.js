@@ -58,10 +58,14 @@ export default withOrg(async function handler(req,res){
    body:messageBody,idempotencyKey,
    metadata:{kind:'operator_support_request',source:'operator_support_request',queue_item_id:String(item.id),task_kind:item.task_kind,reason,requested_at:new Date().toISOString()}
   });
+  const actualRecipientName=sent.message?.recipient_name||recipient.name||'your support contact';
+  const actualRecipientRole=sent.message?.recipient_role||recipient.role;
   return res.status(200).json({
    success:true,already_requested:!sent.created,
-   recipient:{name:recipient.name||'Your support contact',role:recipient.role},
-   message:'Your request has been shared with '+(recipient.name||'your support contact')+'. They can see the responsibility you linked and help coordinate the next step.'
+   recipient:{name:actualRecipientName,role:actualRecipientRole},
+   message:sent.created
+    ?'Your request has been shared with '+actualRecipientName+'. They can see the responsibility you linked and help coordinate the next step.'
+    :'Your request was already shared with '+actualRecipientName+'. It remains linked to this responsibility.'
   });
  }catch(error){
   console.error('[OPERATOR SUPPORT] request failed:',error?.message||error);

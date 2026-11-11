@@ -37,7 +37,7 @@ export default function OperatorSupportRequest({queueItemId,championName=null}){
     {REASONS.map(item=><option key={item.value} value={item.value}>{item.label}</option>)}
    </select>
    <textarea value={note} onChange={e=>setNote(e.target.value)} maxLength={500} rows={2} placeholder="Add context for the person helping you (optional)." disabled={busy}/>
-   <p>This goes to {championName?championName:'an active organization leader'}. Authorized leaders can see the request and the responsibility you linked so they can help—not to score your activity. Please do not include sensitive personal details; share only what is needed to remove the block.</p>
+   <p>This goes to {championName?championName:'an active organization leader'}. Authorized leaders can see the request and the responsibility you linked so they can help—not to score your activity. Please do not include sensitive personal details; share only what is needed to remove the block. Please do not include sensitive personal details; share only what is needed to remove the block.</p>
    {error&&<div className="supportError" role="alert">{error}</div>}
    <div className="supportActions">
     <button type="button" className="supportSend" onClick={submit} disabled={busy}>{busy?'Sending…':'Send request'}</button>

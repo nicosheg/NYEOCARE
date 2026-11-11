@@ -1,5 +1,5 @@
 // components/OperatorSupportRequest.js
-import{useState}from'react';
+import{useEffect,useState}from'react';
 import{getClientSession}from'../lib/clientSession';
 
 const REASONS=[
@@ -11,6 +11,7 @@ const REASONS=[
 
 export default function OperatorSupportRequest({queueItemId,championName=null}){
  const[open,setOpen]=useState(false),[reason,setReason]=useState('unclear'),[note,setNote]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[sent,setSent]=useState(null);
+ useEffect(()=>{let active=true;(async()=>{try{const session=await getClientSession();if(!session?.access_token)return;const response=await fetch('/api/operator-support?queue_item_id='+encodeURIComponent(queueItemId),{headers:{Authorization:'Bearer '+session.access_token},cache:'no-store'});const body=await response.json().catch(()=>({}));if(active&&response.ok&&body.requested)setSent({message:body.acknowledged?'A leader has acknowledged your request. Continue the conversation with them; the responsibility remains open until its real outcome is recorded.':'You have already asked for help with this responsibility. It is waiting for a response.'})}catch(e){console.warn('[OPERATOR SUPPORT] existing request check failed:',e?.message||e)}})();return()=>{active=false}},[queueItemId]);
  const submit=async()=>{
   if(busy||!queueItemId)return;
   setBusy(true);setError('');

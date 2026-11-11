@@ -11,7 +11,7 @@ export default withAdmin(async function handler(req,res){
  const client=await pool.connect();
  try{
   await client.query('BEGIN');
-  const message=(await client.query(`SELECT id,recipient_user_id,support_acknowledged_at
+  const message=(await client.query(`SELECT id,recipient_user_id,seen_at,support_acknowledged_at
    FROM aria_internal_messages
    WHERE id=$1::uuid AND organization_id=$2 AND status='sent'
      AND metadata->>'kind'='operator_support_request'
@@ -20,11 +20,20 @@ export default withAdmin(async function handler(req,res){
   const updated=(await client.query(`UPDATE aria_internal_messages
    SET support_acknowledged_at=COALESCE(support_acknowledged_at,NOW()),support_acknowledged_by=$3,updated_at=NOW()
    WHERE id=$1 AND organization_id=$2 RETURNING support_acknowledged_at`,[messageId,req.org.id,req.user.id])).rows[0];
-  await client.query(`UPDATE aria_daily_queue_items
-   SET status='completed',completed_at=COALESCE(completed_at,NOW()),updated_at=NOW()
-   WHERE organization_id=$1 AND task_kind='internal_message' AND source_id=$2
-     AND assigned_user_id=$3 AND status IN('pending','deferred')`,
-   [req.org.id,messageId,message.recipient_user_id]);
+  // Only mark the internal message as read when the acknowledging leader
+  // is also its actual recipient. Another admin's acknowledgement must not
+  // silently clear someone else's inbox item.
+  if(String(message.recipient_user_id)===String(req.user.id)){
+   await client.query(`UPDATE aria_internal_messages
+    SET seen_at=COALESCE(seen_at,NOW()),updated_at=NOW()
+    WHERE id=$1 AND organization_id=$2 AND recipient_user_id=$3`,
+    [messageId,req.org.id,req.user.id]);
+   await client.query(`UPDATE aria_daily_queue_items
+    SET status='completed',completed_at=COALESCE(completed_at,NOW()),updated_at=NOW()
+    WHERE organization_id=$1 AND task_kind='internal_message' AND source_id=$2
+      AND assigned_user_id=$3 AND status IN('pending','deferred')`,
+    [req.org.id,messageId,req.user.id]);
+  }
   await client.query(`INSERT INTO aria_activity_log
    (organization_id,actor_id,actor_role,route,method,action_kind,status_code,success,entity_type,entity_id,metadata)
    VALUES($1,$2,$3,'/api/care-oversight/acknowledge','POST','support_request_acknowledged',200,true,'aria_internal_message',$4,$5::jsonb)`,

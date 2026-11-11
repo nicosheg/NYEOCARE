@@ -18,7 +18,7 @@ export default withAdmin(async function handler(req,res){
    FOR UPDATE`,[messageId,req.org.id])).rows[0];
   if(!message){await client.query('ROLLBACK');return res.status(404).json({error:'That support request is no longer available.'});}
   const updated=(await client.query(`UPDATE aria_internal_messages
-   SET support_acknowledged_at=COALESCE(support_acknowledged_at,NOW()),support_acknowledged_by=$3,updated_at=NOW()
+   SET support_acknowledged_at=COALESCE(support_acknowledged_at,NOW()),support_acknowledged_by=COALESCE(support_acknowledged_by,$3),updated_at=NOW()
    WHERE id=$1 AND organization_id=$2 RETURNING support_acknowledged_at`,[messageId,req.org.id,req.user.id])).rows[0];
   // Only mark the internal message as read when the acknowledging leader
   // is also its actual recipient. Another admin's acknowledgement must not

@@ -52,7 +52,8 @@ const checks=[
  ['ARIA briefing avoids a duplicate task count and uses a compact mobile surface',home.includes("'Open ARIA Today'")&&!home.includes('items with a clear next step.')&&home.includes('minHeight:50')&&home.includes('.nyHomeBrief{min-height:48px!important')],
  ['Attendance save forces a Home read only after the server confirms the session is saved',attendance.includes("publishDataChange('attendance',{saved:true,session_id:session.session_id})")&&home.includes('forceRefreshRef.current=true')&&home.includes('onData=()=>load({background:true,force:true})')],
  ['Forced Home reads bypass the ten-second throttle and coalesce behind an in-flight request',home.includes('background=false,force=false')&&home.includes('if(!force&&Date.now()-lastLoadAt.current<10000)return')&&home.includes('forceRefreshRef.current=false;void load({background:true,force:true})')],
- ['Reconnect sync completes before Home refresh so offline marks cannot race the updated screen',fieldRuntime.indexOf('await syncFieldMode()')>=0&&fieldRuntime.indexOf('await syncFieldMode()')<fieldRuntime.indexOf('await refreshApp(reason)')&&fieldRuntime.includes('if(runPromise)return runPromise')]
+ ['Reconnect sync completes before Home refresh so offline marks cannot race the updated screen',fieldRuntime.indexOf('await syncFieldMode()')>=0&&fieldRuntime.indexOf('await syncFieldMode()')<fieldRuntime.indexOf('await refreshApp(reason)')&&fieldRuntime.includes('if(runPromise)return runPromise')],
+ ['Home reloads the work queue when confirmed ARIA processing completes',home.includes('ariaProcessingSeenRef.current=true')&&home.includes('ariaProcessingSeenRef.current=false;void load({background:true,force:true})')&&home.includes('setInterval(refreshAttendance,5000)')]
 ];
 
 if(checks.some(check=>!Array.isArray(check)||check.length!==2)){

@@ -35,7 +35,7 @@ export default function FieldModeRuntime(){
   document.addEventListener('visibilitychange',onVisible);
   window.addEventListener('focus',onFocus);
   window.addEventListener('pageshow',onPageShow);
-  const interval=window.setInterval(()=>{void run('field-runtime')},60000);
+  const interval=window.setInterval(run,60000);
   return()=>{
    alive=false;
    if(timer)window.clearTimeout(timer);

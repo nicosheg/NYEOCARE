@@ -11,7 +11,7 @@ const REASONS=[
 
 export default function OperatorSupportRequest({queueItemId,championName=null}){
  const[open,setOpen]=useState(false),[reason,setReason]=useState('unclear'),[note,setNote]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[sent,setSent]=useState(null);
- useEffect(()=>{let active=true;(async()=>{try{const session=await getClientSession();if(!session?.access_token)return;const response=await fetch('/api/operator-support?queue_item_id='+encodeURIComponent(queueItemId),{headers:{Authorization:'Bearer '+session.access_token},cache:'no-store'});const body=await response.json().catch(()=>({}));if(active&&response.ok&&body.requested)setSent({message:body.acknowledged?'A leader has acknowledged your request. Continue the conversation with them; the responsibility remains open until its real outcome is recorded.':'You have already asked for help with this responsibility. It is waiting for a response.'})}catch(e){console.warn('[OPERATOR SUPPORT] existing request check failed:',e?.message||e)}})();return()=>{active=false}},[queueItemId]);
+ useEffect(()=>{let active=true;(async()=>{try{const session=await getClientSession();if(!session?.access_token)return;const response=await fetch('/api/operator-support?queue_item_id='+encodeURIComponent(queueItemId),{headers:{Authorization:'Bearer '+session.access_token},cache:'no-store'});const body=await response.json().catch(()=>({}));if(active&&response.ok&&body.requested)setSent({message:body.acknowledged?'A leader has acknowledged your request. They have been notified; the responsibility remains open until its real outcome is recorded.':'You have already asked for help with this responsibility. It is waiting for a response.'})}catch(e){console.warn('[OPERATOR SUPPORT] existing request check failed:',e?.message||e)}})();return()=>{active=false}},[queueItemId]);
  const submit=async()=>{
   if(busy||!queueItemId)return;
   setBusy(true);setError('');
@@ -37,7 +37,7 @@ export default function OperatorSupportRequest({queueItemId,championName=null}){
     {REASONS.map(item=><option key={item.value} value={item.value}>{item.label}</option>)}
    </select>
    <textarea value={note} onChange={e=>setNote(e.target.value)} maxLength={500} rows={2} placeholder="Add context for the person helping you (optional)." disabled={busy}/>
-   <p>This goes to {championName?championName:'an active organization leader'}. Authorized leaders can see the request and the responsibility you linked so they can help—not to score your activity.</p>
+   <p>This goes to {championName?championName:'an active organization leader'}. Authorized leaders can see the request and the responsibility you linked so they can help—not to score your activity. Please do not include sensitive personal details; share only what is needed to remove the block.</p>
    {error&&<div className="supportError" role="alert">{error}</div>}
    <div className="supportActions">
     <button type="button" className="supportSend" onClick={submit} disabled={busy}>{busy?'Sending…':'Send request'}</button>

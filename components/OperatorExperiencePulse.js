@@ -48,7 +48,7 @@ export default function OperatorExperiencePulse(){
  };
  if(status==='loading'||status==='hidden')return null;
  return <section className="pulseRoot" aria-label="Weekly operator experience pulse">
-  {status==='thank-you'?<div className="pulseThanks" role="status"><span className="pulseEyebrow">THANK YOU</span><strong>Your feedback will help make the work clearer.</strong><p>Leadership sees team-level summaries, not individual answers in Care Oversight.</p></div>:<>
+  {status==='thank-you'?<div className="pulseThanks" role="status"><span className="pulseEyebrow">THANK YOU</span><strong>Your feedback will help make the work clearer.</strong><p>Your response is linked to your account to prevent duplicates. Leadership sees team-level summaries only.</p></div>:<>
    <div className="pulseHeader"><div><span className="pulseEyebrow">A WEEKLY CHECK-IN</span><h2>How is the work feeling?</h2></div><span className="pulseTime">About 20 seconds</span></div>
    <p className="pulseIntro">There is no score for you. Tell us where NYEOCARE is helping and where it needs to improve.</p>
    <div className="pulseQuestions">{QUESTIONS.map(question=><div className="pulseQuestion" key={question.key}>
@@ -59,7 +59,7 @@ export default function OperatorExperiencePulse(){
     <div className="pulseScaleLegend"><span>Not at all</span><span>Very much</span></div>
    </div>)}</div>
    {error&&<div className="pulseError" role="alert">{error}</div>}
-   <div className="pulseFooter"><p>Only combined team averages are displayed to leadership. You can skip this week's check-in.</p><div><button type="button" className="pulseSkip" onClick={()=>send('dismiss')} disabled={busy}>Not now</button><button type="button" className="pulseSubmit" onClick={()=>send('submit')} disabled={busy}>{busy?'Saving…':'Share feedback'}</button></div></div>
+   <div className="pulseFooter"><p>Your response is linked to your account so you only answer once per week. Leadership sees combined averages only. You can skip this week's check-in.</p><div><button type="button" className="pulseSkip" onClick={()=>send('dismiss')} disabled={busy}>Not now</button><button type="button" className="pulseSubmit" onClick={()=>send('submit')} disabled={busy}>{busy?'Saving…':'Share feedback'}</button></div></div>
   </>}
   <style jsx>{`
    .pulseRoot{margin:15px 0 2px;padding:16px 16px 14px;border:1px solid rgba(143,175,214,.13);border-radius:20px;background:linear-gradient(145deg,rgba(143,175,214,.065),rgba(255,255,255,.018));}

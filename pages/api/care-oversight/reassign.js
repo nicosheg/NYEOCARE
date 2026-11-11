@@ -9,11 +9,12 @@ export default withAdmin(async function handler(req,res){
  const reason=String(req.body?.reason||'').trim().slice(0,500);
  if(!queueItemId||!targetUserId)return res.status(400).json({error:'Choose a responsibility and an active operator.'});
  try{
-  const result=await reassignDailyQueueItem({orgId:req.org.id,actorUserId:req.user.id,queueItemId,targetUserId,reason});
+  const result=await reassignDailyQueueItem({orgId:req.org.id,actorUserId:req.user.id,actorRole:req.user.role,queueItemId,targetUserId,reason});
   if(!result.ok){
-   const status=result.code==='TARGET_OPERATOR_UNAVAILABLE'||result.code==='QUEUE_ITEM_NOT_FOUND'?404:409;
+   const status=result.code==='TARGET_OPERATOR_UNAVAILABLE'||result.code==='QUEUE_ITEM_NOT_FOUND'?404:result.code==='FORBIDDEN'?403:409;
    const messages={
     QUEUE_ITEM_NOT_FOUND:'That responsibility could not be found in this organization.',
+    FORBIDDEN:'You cannot reassign this responsibility.',
     QUEUE_ITEM_NOT_REASSIGNABLE:'That responsibility has already changed or is not eligible for reassignment.',
     TARGET_OPERATOR_UNAVAILABLE:'That operator is no longer available.',
     ALREADY_ASSIGNED:'That responsibility is already assigned to this operator.'

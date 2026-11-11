@@ -3128,7 +3128,7 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
   2. I understand what I am expected to do in NYEOCARE.
   3. I feel confident using NYEOCARE.
 - Scores are 1–5. Store one response per authenticated operator and week so repeated submissions cannot distort the aggregate.
-- The response is linked to an operator for duplicate prevention and private follow-up; do not promise anonymity. Care Oversight may display only team-level averages and response counts. It must not expose individual answers or create operator ratings.
+- The response is linked to an operator for duplicate prevention; do not promise anonymity. Care Oversight may display response counts and team-level averages only after at least three operators have responded in that week. Below that threshold, do not expose the response count or scores. It must not expose individual answers or create operator ratings.
 - Keep direct browser access denied with forced RLS; access the pulse through tenant-scoped server APIs only.
 
 ### Care Oversight and adoption measurement

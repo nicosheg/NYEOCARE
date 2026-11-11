@@ -143,7 +143,7 @@ export default withAdmin(async function handler(req,res){
        AND m.metadata->>'kind'='operator_support_request'
        AND m.sent_at>=NOW()-INTERVAL '30 days'
        AND ${supportVisibility}
-     ORDER BY m.seen_at ASC NULLS FIRST,m.sent_at DESC
+     ORDER BY m.support_acknowledged_at ASC NULLS FIRST,m.sent_at DESC
      LIMIT 20`,supportParams),
    pool.query(`SELECT u.id::text id,u.name,u.role
      FROM users u

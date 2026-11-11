@@ -47,7 +47,7 @@ The application code cannot create a legitimate sending identity without a domai
    - Sender name: `NYEOCARE`
    - Sender address: `no-reply@auth.<owned-domain>`
    - SMTP host, port, username and password supplied by the provider
-4. In Supabase Dashboard → Authentication → URL Configuration, set the Site URL to the production NYEOCARE app URL and allow the production `/auth/verify` destination plus the required local-development URLs.
+4. In Supabase Dashboard → Authentication → URL Configuration, set the Site URL to `https://nyeocare.vercel.app` and allow `https://nyeocare.vercel.app/**` plus the required local-development URLs. Do not use a deployment-specific `*.vercel.app` hostname.
 5. In Authentication → Email Templates, use the confirmation template below. The Supabase token hash is exchanged by NYEOCARE; the user never lands on a Supabase-hosted verification page.
 6. Add the matching branded magic-link template if passwordless sign-in is enabled.
 7. Send test emails to external addresses and verify the From identity, delivered headers, SPF, DKIM, DMARC, link destination, expired-link behavior, and resend rate limiting before announcing verification as live.
@@ -167,13 +167,15 @@ The browser Supabase client uses `detectSessionInUrl: true`, so the Supabase sin
 
 The forgot-password page records a short-lived, non-secret request marker in local storage. Before creating the browser client, NYEOCARE checks whether the current URL contains a PKCE `code` while that recovery request marker is active, and records a separate short-lived callback-received marker. This capture happens before Supabase's automatic PKCE handler removes the code from the address bar. The app then waits for `supabase.auth.getSession()` to finish and requires a live session before routing the user to `/reset-password`. The global fallback is deliberately limited to the home route, which is the configured Site URL fallback. The markers are routing state only, never authentication credentials.
 
-Production email requests preserve the active stable NYEOCARE Vercel alias so the PKCE verifier is stored and read on the same origin. Both Forgot Password and the signed-in Profile action initiate recovery in the browser using that browser's current stable alias. Do not reintroduce a server-side `resetPasswordForEmail` call: a server-side PKCE verifier cannot be read by the browser receiving the email callback. The accepted stable aliases are `https://nyeocare.vercel.app` and `https://nyeocare-nicosheg.vercel.app`. Vercel preview deployment hostnames are never used for production email callbacks.
+Production authentication uses one canonical origin: `https://nyeocare.vercel.app`. The application redirects the legacy `nyeocare-nicosheg.vercel.app` alias to the canonical host before the page or browser Supabase client initializes. Do not use the legacy alias or a deployment-specific hostname for authentication requests. This keeps the PKCE verifier, signup request and email callback on the same browser origin. Do not reintroduce a server-side `resetPasswordForEmail` call: a server-side PKCE verifier cannot be read by the browser receiving the email callback.
+
+Vercel Deployment Protection must use **Protect production deployment URLs and all preview deployments** (`prod_deployment_urls_and_all_previews`). This leaves the public project production alias accessible while keeping per-deployment URLs and preview deployments protected.
 
 In Supabase Dashboard → Authentication → URL Configuration:
 
 - Set **Site URL** to `https://nyeocare.vercel.app`.
 - Add `https://nyeocare.vercel.app/**` to **Redirect URLs**.
-- Add `https://nyeocare-nicosheg.vercel.app/**` to **Redirect URLs**.
 - Keep `http://localhost:3000/**` for local development only.
+- Do not add `nyeocare-nicosheg.vercel.app` or preview/deployment URLs as production auth destinations.
 
-Both stable aliases need to be allow-listed because PKCE storage is origin-specific and users may request recovery from either attached production alias. When `redirectTo` is not allow-listed, Supabase falls back to the Site URL; the global recovery handler can route a recovery code that lands there, but the correct long-term configuration is to allow both aliases.
+A confirmation email should return to `/auth/verify`, not the app root `/`. If a new confirmation link lands on `/?code=...`, inspect the active signup email template: the built-in template must link to `{{ .ConfirmationURL }}`; a custom token-hash template must build its link from `{{ .RedirectTo }}`. Do not build a confirmation link directly from `{{ .SiteURL }}`, because that drops the per-request `/auth/verify?next=...` destination. Correct this before sending fresh production confirmation links. When a supplied `redirectTo` is not accepted by the redirect allow-list, Supabase may use the configured Site URL; the canonical Site URL is therefore an important safe fallback, but it is not a substitute for allowing the actual callback URL.

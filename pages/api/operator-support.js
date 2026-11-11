@@ -20,11 +20,11 @@ export default withOrg(async function handler(req,res){
  if(req.method==='POST'&&!REASONS[reason])return res.status(400).json({error:'Choose the kind of help you need.'});
  try{
   if(req.method==='GET'){
-   const existing=(await pool.query(\`SELECT seen_at,sent_at FROM aria_internal_messages
+   const existing=(await pool.query(\`SELECT support_acknowledged_at,sent_at FROM aria_internal_messages
     WHERE organization_id=$1 AND sender_user_id=$2 AND status='sent'
       AND metadata->>'kind'='operator_support_request' AND metadata->>'queue_item_id'=$3
     ORDER BY sent_at DESC LIMIT 1\`,[req.org.id,req.user.id,queueItemId])).rows[0]||null;
-   return res.status(200).json({requested:Boolean(existing),acknowledged:Boolean(existing?.seen_at),sent_at:existing?.sent_at||null});
+   return res.status(200).json({requested:Boolean(existing),acknowledged:Boolean(existing?.support_acknowledged_at),sent_at:existing?.sent_at||null});
   }
   const item=(await pool.query(`SELECT id,task_kind,status,assigned_user_id,queue_date
    FROM aria_daily_queue_items

@@ -3172,6 +3172,7 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 - `scripts/operator-adoption-regression.js` is part of the normal test suite and CI.
 - Regressions must cover: personal queue reuse, Home entry-point preservation, role-scoped server access, support request ownership/idempotency, distinct leadership acknowledgement, audited reassignment, voluntary weekly pulse uniqueness/RLS, aggregate-only leadership pulse visibility and the absence of login/activity metrics.
 - Apply the pulse migration before deploying application code that reads its table. Verify the migration ledger, table, forced RLS policy, unique constraint and support acknowledgement columns in production.
+- The migration filename timestamp must match its applied `supabase_migrations.schema_migrations.version`. If the exact migration was already applied through a managed migration action, first verify its complete schema effect in production, then align the repository filename to that existing version; do not leave the same migration pending under a second timestamp or apply duplicate DDL.
 - Production acceptance is not complete until an operator and an owner/admin have both used their respective flows with real roles. Verify on a lower-end Android device as well as a modern browser.
 
 

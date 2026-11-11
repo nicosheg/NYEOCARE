@@ -36,7 +36,7 @@ const checks=[
  ['Only owner/admin can acknowledge support requests, and a different leader cannot mark the recipient inbox as read',acknowledge.includes('withAdmin')&&acknowledge.includes("metadata->>'kind'='operator_support_request'")&&acknowledge.includes('support_acknowledged_at')&&acknowledge.includes('support_acknowledged_by')&&acknowledge.includes('String(message.recipient_user_id)===String(req.user.id)')&&acknowledge.includes('support_request_acknowledged')],
  ['Only owner/admin can reassign real queue responsibilities, admins cannot reassign other leaders work, and internal messages are not reassigned',reassignApi.includes('withAdmin')&&reassignApi.includes('actorRole:req.user.role')&&reassignApi.includes('reassignDailyQueueItem')&&queue.includes("item.task_kind==='internal_message'")&&queue.includes("assignee.role='user'")&&queue.includes("$4='owner'")&&queue.includes("AND role='user'")&&queue.includes('queue_reassigned')],
  ['Reassignment preserves an audit event and does not rewrite canonical care or person records',queue.includes('assigned_user_id=$1,status=\'pending\'')&&queue.includes('aria_activity_log')&&queue.includes('aria_daily_queue_item')],
- ['First-time Home copy explains the purpose and visibility differently for operators and leaders',onboarding.includes("experience==='home'&&role==='user'")&&onboarding.includes("experience==='home'&&['owner','admin'].includes(role)")&&onboarding.includes('not rank your logins')]
+ ['First-time Home copy explains the purpose and visibility differently for operators and leaders',onboarding.includes("experience==='home'&&role==='user'")&&onboarding.includes("experience==='home'&&['owner','admin'].includes(role)")&&onboarding.includes('not rank your logins')],
  ['Acknowledgement remains available until explicit leadership acknowledgement, independent of message-read state',oversightPage.includes('!request.support_acknowledged_at')&&!oversightPage.includes('!request.seen_at')],
  ['Leadership responsibility totals and workload exclude private internal-message inbox items',oversight.includes("WHERE organization_id=$1 AND task_kind<>'internal_message'")&&oversight.includes("AND q.task_kind<>'internal_message'")],
  ['Due-today counts use the organization-local current date and keep overdue responsibilities separate',oversight.includes("queue_date=$2::date")&&oversight.includes("queue_date<$2::date")&&oversightPage.includes('due today')],
@@ -44,6 +44,10 @@ const checks=[
  ['Operator support privacy guidance is displayed once without duplicated copy',supportUi.split('Please do not include sensitive personal details').length===2]
 ];
 
+if(checks.some(check=>!Array.isArray(check)||check.length!==2)){
+ console.error('[OPERATOR ADOPTION] Invalid regression check declaration.');
+ process.exit(1);
+}
 const failures=checks.filter(([,ok])=>!ok).map(([name])=>name);
 for(const[name,ok]of checks)console.log((ok?'PASS: ':'FAIL: ')+name);
 if(failures.length){

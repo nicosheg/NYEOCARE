@@ -121,7 +121,7 @@ export default withOrg(async function handler(req,res){
     now=new Date(),date=now.toISOString().slice(0,10),count=visibleQueueItems.length,s=org.latest_session||null,c=org.latest_completed_session||null;
   const championId=String(settings?.adoption?.operator_champion_user_id||'');
   const operatorChampion=championId?(await pool.query(
-    \`SELECT id::text id,name FROM users WHERE id::text=$1 AND organization_id=$2 AND active=true AND role='user' LIMIT 1\`,
+    `SELECT id::text id,name FROM users WHERE id::text=$1 AND organization_id=$2 AND active=true AND role='user' LIMIT 1`,
     [championId,orgId]
   )).rows[0]||null:null;
 

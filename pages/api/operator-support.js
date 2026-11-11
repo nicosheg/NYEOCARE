@@ -37,7 +37,7 @@ export default withOrg(async function handler(req,res){
   const championId=String(org?.settings?.adoption?.operator_champion_user_id||'');
   let recipient=null;
   if(uuid.test(championId)&&championId!==String(req.user.id)){
-   recipient=(await pool.query(`SELECT id,name,role FROM users WHERE id=$1::uuid AND organization_id=$2 AND active=true LIMIT 1`,[championId,req.org.id])).rows[0]||null;
+   recipient=(await pool.query(`SELECT id,name,role FROM users WHERE id=$1::uuid AND organization_id=$2 AND active=true AND role='user' LIMIT 1`,[championId,req.org.id])).rows[0]||null;
   }
   if(!recipient){
    recipient=(await pool.query(`SELECT id,name,role FROM users

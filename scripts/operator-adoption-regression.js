@@ -20,6 +20,7 @@ const oversightPage=read('pages/care-oversight.js');
 const onboarding=read('components/FirstExperience.js');
 
 const checks=[
+ ['Home uses clear singular/plural copy that also covers messages, not just responsibilities',work.includes("(count===1?'thing':'things')")&&!work.includes("responsibility'+(count===1?'':'ies')")],
  ['Home makes the existing personal daily queue the first actionable surface while preserving ARIA Today',home.includes('import WorkToday')&&home.includes('<WorkToday data={data}')&&home.includes('<button className="nyHomeBrief"')&&home.includes("const AttendanceModal=dynamic(()=>import('../components/AttendanceModal'),{ssr:false})")],
  ['Home passes the authenticated operator role and champion context instead of trusting client-selected role data',home.includes("operatorRole=String(data.operator?.role||'')")&&homeApi.includes('operator:{id:String(req.user.id),name:req.user.name||\'Operator\',role:req.user.role}')&&homeApi.includes('operator_champion:operatorChampion')],
  ['The work surface displays existing queue items, limits the preview and provides the canonical full briefing',work.includes('data?.queue')&&work.includes('items.slice(0,3)')&&work.includes('onOpenAll')&&work.includes('queue.laterCount')],

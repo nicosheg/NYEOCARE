@@ -15,7 +15,7 @@ export default function WorkToday({data,role,onOpenItem,onOpenAll,onOpenCareOver
  const championName=data?.operator_champion?.name||null;
  return <section className="workToday" aria-labelledby="work-today-heading">
   <header className="workHeader">
-   <div><span className="workEyebrow">YOUR WORK TODAY</span><h2 id="work-today-heading">What needs you?</h2><p>{count?count+' responsibility'+(count===1?'':'ies')+' ready for today.':'Your day is clear for now.'}</p></div>
+   <div><span className="workEyebrow">YOUR WORK TODAY</span><h2 id="work-today-heading">What needs you?</h2><p>{count?count+' '+(count===1?'thing':'things')+' ready for today.':'Your day is clear for now.'}</p></div>
    {['owner','admin'].includes(role)&&<button className="oversightLink" onClick={onOpenCareOversight}>Care Oversight <span>↗</span></button>}
   </header>
   {items.length>0?<div className="workList">

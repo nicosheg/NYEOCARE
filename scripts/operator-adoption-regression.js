@@ -41,7 +41,9 @@ const checks=[
  ['Leadership responsibility totals and workload exclude private internal-message inbox items',oversight.includes("WHERE organization_id=$1 AND task_kind<>'internal_message'")&&oversight.includes("AND q.task_kind<>'internal_message'")],
  ['Due-today counts use the organization-local current date and keep overdue responsibilities separate',oversight.includes("queue_date=$2::date")&&oversight.includes("queue_date<$2::date")&&oversightPage.includes('due today')],
  ['Waiting support-request total is computed before the twenty-item display limit',oversight.includes("COUNT(*) FILTER (WHERE m.support_acknowledged_at IS NULL) OVER()")&&oversight.includes('supportRequests.rows[0]?.unacknowledged_total')],
- ['Operator support privacy guidance is displayed once without duplicated copy',supportUi.split('Please do not include sensitive personal details').length===2]
+ ['Operator support privacy guidance is displayed once without duplicated copy',supportUi.split('Please do not include sensitive personal details').length===2],
+ ['Unacknowledged support requests do not disappear after 30 days',oversight.includes("(m.support_acknowledged_at IS NULL OR m.sent_at>=NOW()-INTERVAL '30 days')")],
+ ['Support waiting counts match the complete server total, with the twenty-card preview disclosed',oversightPage.includes('Support requests waiting')&&oversightPage.includes('summary.support_requests')&&oversightPage.includes('shown')&&!oversightPage.includes('supportRequests.filter(x=>!x.support_acknowledged_at).length')]
 ];
 
 if(checks.some(check=>!Array.isArray(check)||check.length!==2)){

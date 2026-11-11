@@ -110,7 +110,7 @@ export default function CareOversight(){
 
    <section className="coMetrics" aria-label="Organizational care summary">
     <div className="coMetric"><span>Open responsibilities</span><strong>{metricValue(summary.open_responsibilities)}</strong><small>{metricValue(summary.due_today)} due today</small></div>
-    <div className="coMetric"><span>Need leadership attention</span><strong>{metricValue(summary.support_requests)}</strong><small>{metricValue(summary.overdue)} overdue · {metricValue(summary.reviews)} review items also need review</small></div>
+    <div className="coMetric"><span>Support requests waiting</span><strong>{metricValue(summary.support_requests)}</strong><small>{metricValue(summary.overdue)} overdue · {metricValue(summary.reviews)} review items also need review</small></div>
     <div className="coMetric"><span>Outcomes recorded</span><strong>{metricValue(summary.outcomes_recorded_7d)}</strong><small>Human-reported care outcomes · last 7 days</small></div>
     <div className="coMetric"><span>Follow-up completion</span><strong>{careLoop.rate===null?'—':careLoop.rate+'%'}</strong><small>{careLoop.due?metricValue(careLoop.completed_with_outcome)+' of '+metricValue(careLoop.due)+' due with an outcome':'No eligible follow-ups due this week'}</small></div>
    </section>
@@ -119,7 +119,7 @@ export default function CareOversight(){
    {error&&<div className="coError" role="alert">{error}</div>}
 
    <section className="coSection">
-    <div className="coSectionTop"><div><div className="coSectionEyebrow">WHEN PEOPLE ASK FOR SUPPORT</div><h2>Requests that need a response</h2></div><span className="coCount">{supportRequests.filter(x=>!x.support_acknowledged_at).length} new</span></div>
+    <div className="coSectionTop"><div><div className="coSectionEyebrow">WHEN PEOPLE ASK FOR SUPPORT</div><h2>Requests that need a response</h2></div><span className="coCount">{metricValue(summary.support_requests)} waiting{Number(summary.support_requests)>supportRequests.length?' · '+metricValue(supportRequests.length)+' shown':''}</span></div>
     {supportRequests.length===0?<div className="coEmpty">No support requests are waiting right now. Keep the route open for the moment someone needs another pair of hands.</div>:<div className="coStack">
      {supportRequests.map(request=><article className="coRequest" key={request.id}>
       <div className="coRequestTop"><div><strong>{request.sender?.name||'An operator'}</strong><span>{request.sender?.role||'operator'} · {fmtDate(request.sent_at)}</span></div><span className={request.support_acknowledged_at?'coStatusSeen':'coStatusNew'}>{request.support_acknowledged_at?'Acknowledged':'Needs acknowledgement'}</span></div>

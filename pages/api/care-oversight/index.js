@@ -142,7 +142,7 @@ export default withAdmin(async function handler(req,res){
        ON linked.organization_id=m.organization_id AND linked.id::text=m.metadata->>'queue_item_id'
      WHERE m.organization_id=$1 AND m.status='sent'
        AND m.metadata->>'kind'='operator_support_request'
-       AND m.sent_at>=NOW()-INTERVAL '30 days'
+       AND (m.support_acknowledged_at IS NULL OR m.sent_at>=NOW()-INTERVAL '30 days')
        AND ${supportVisibility}
      ORDER BY m.support_acknowledged_at ASC NULLS FIRST,m.sent_at DESC
      LIMIT 20`,supportParams),

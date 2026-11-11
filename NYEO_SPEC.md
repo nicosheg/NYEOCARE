@@ -3181,4 +3181,5 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 - Open responsibility totals and per-operator workload counts exclude `internal_message` queue items. Private inbox delivery is not care work and must not inflate operator workload.
 - A `due today` count uses the organization-local `queue_date = today`; overdue responsibilities are counted separately and must not be double-counted as due today.
 - The waiting-support-request total is computed across the complete role-visible result set before limiting the number of request cards shown.
+- Unacknowledged support requests remain visible in Care Oversight regardless of age; the recent-history window must never silently expire an unresolved request. If older acknowledged requests are omitted for brevity, keep that limit separate from the unresolved request set.
 - The leadership acknowledgement action remains available until `support_acknowledged_at` is set. `seen_at` only means the actual recipient opened the message; it is never a substitute for explicit leadership acknowledgement.

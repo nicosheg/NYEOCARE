@@ -128,7 +128,7 @@ export default withAdmin(async function handler(req,res){
      ORDER BY CASE q.task_kind WHEN 'follow_up' THEN 0 WHEN 'scan_review' THEN 1 ELSE 2 END,
        q.priority DESC,q.queue_date ASC,q.created_at ASC
      LIMIT 18`,visibilityParams),
-   pool.query(`SELECT m.id::text id,m.body,m.sent_at,m.seen_at,m.metadata,
+   pool.query(`SELECT m.id::text id,m.body,m.sent_at,m.support_acknowledged_at,m.metadata,
       s.id::text sender_user_id,s.name sender_name,s.role sender_role,
       r.name recipient_name,r.role recipient_role,
       linked.payload->>'title' task_title,linked.task_kind
@@ -166,7 +166,7 @@ export default withAdmin(async function handler(req,res){
     due_today:Number(work.due_count)||0,
     overdue:Number(work.overdue_count)||0,
     follow_ups_due:Number(work.follow_ups_due)||0,
-    support_requests:(supportRequests.rows||[]).filter(row=>!row.seen_at).length,
+    support_requests:(supportRequests.rows||[]).filter(row=>!row.support_acknowledged_at).length,
     reviews:(Number(reviewSummary.rows[0]?.scan_reviews)||0)+(Number(reviewSummary.rows[0]?.identity_reviews)||0),
     outcomes_recorded_7d:Number(outcomeSummary.rows[0]?.count)||0
    },
@@ -184,7 +184,7 @@ export default withAdmin(async function handler(req,res){
    workloads:workloads.rows||[],
    assignments:assignments.rows||[],
    support_requests:(supportRequests.rows||[]).map(row=>({
-    id:row.id,body:row.body,sent_at:row.sent_at,seen_at:row.seen_at,
+    id:row.id,body:row.body,sent_at:row.sent_at,support_acknowledged_at:row.support_acknowledged_at,
     sender:{id:row.sender_user_id,name:row.sender_name,role:row.sender_role},
     recipient:{name:row.recipient_name,role:row.recipient_role},
     task_title:row.task_title||'Assigned responsibility',

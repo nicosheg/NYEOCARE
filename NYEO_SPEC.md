@@ -3183,3 +3183,15 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 - The waiting-support-request total is computed across the complete role-visible result set before limiting the number of request cards shown.
 - Unacknowledged support requests remain visible in Care Oversight regardless of age; the recent-history window must never silently expire an unresolved request. If older acknowledged requests are omitted for brevity, keep that limit separate from the unresolved request set.
 - The leadership acknowledgement action remains available until `support_acknowledged_at` is set. `seen_at` only means the actual recipient opened the message; it is never a substitute for explicit leadership acknowledgement.
+
+
+### Saved attendance as the automatic first-visit care boundary
+
+- Creating or importing a People record establishes identity only. A `PERSON_CREATED` event may refresh person intelligence, but it must not create a `NEW_PERSON` care observation or an operator responsibility.
+- A visitor with no confirmed participation has no automatic first-visit care action. Do not treat roster membership, a scan, a profile being added, or an open attendance session as proof that the person attended.
+- Automatic first-visit follow-up is eligible only after the server has saved/closed the attendance session and the durable attendance processor has written confirmed `participation_records`. Preserve the existing human-led first-visit disposition, consent and contact policy.
+- Direct human care context, support requests, scan/identity review and other independently evidenced care signals remain valid; this boundary suppresses only automatic welcome work inferred from person creation or zero participation.
+- The Home work preview uses compact, single-row cards with a clear signal label, person name and one-line context. Keep it bounded and usable at 320px widths; do not repeat a full “open responsibility” action line inside each card.
+- Home may render its last authorized in-memory snapshot immediately, but data-change and reconnect events must bypass the ten-second refresh throttle. Coalesce a forced request behind an in-flight Home read instead of dropping it.
+- For offline attendance, finish syncing local mutations and the queued close request before publishing the Home refresh event. A client-side close request alone is not saved attendance; do not activate care until the server confirms the closed session.
+- Regressions must prove that `PERSON_CREATED` cannot create an active actionable `NEW_PERSON` observation, confirmed participation still drives the saved-session care path, and old machine-generated `NEW_PERSON` rows are resolved without deleting People or attendance records.

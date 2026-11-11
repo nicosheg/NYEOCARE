@@ -1163,7 +1163,7 @@ export default function AttendanceModal({isOpen,onClose}){
       setBackground({processing_status:savedSession.aria_processing_status||'pending',aria_processing_stage:savedSession.aria_processing_stage||'queued',stage:savedSession.aria_processing_stage||'queued',progress:Number(savedSession.aria_processing_progress)||0,processed:Number(savedSession.aria_processing_processed)||0,total:Number(savedSession.aria_processing_total)||0});
       setSession(current=>current?{...current,...savedSession,status:'closed'}:current);
       setNotice('Attendance is saved. ARIA continues updating the organization in the background.');
-      publishDataChange('attendance');perf('ok');
+      publishDataChange('attendance',{saved:true,session_id:session.session_id});perf('ok');
     }catch(e){
       const transient=e?.transient||e instanceof TypeError||typeof navigator!=='undefined'&&!navigator.onLine;
       if(transient){

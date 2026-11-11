@@ -18,12 +18,14 @@ const queue=read('lib/dailyQueue.js');
 const messaging=read('lib/aria/internalMessaging.js');
 const oversightPage=read('pages/care-oversight.js');
 const onboarding=read('components/FirstExperience.js');
+const attendance=read('components/AttendanceModal.js');
+const fieldRuntime=read('components/FieldModeRuntime.js');
 
 const checks=[
  ['Home uses clear singular/plural copy that also covers messages, not just responsibilities',work.includes("(count===1?'thing':'things')")&&!work.includes("responsibility'+(count===1?'':'ies')")],
  ['Home makes the existing personal daily queue the first actionable surface while preserving ARIA Today',home.includes('import WorkToday')&&home.includes('<WorkToday data={data}')&&home.includes('<button className="nyHomeBrief"')&&home.includes("const AttendanceModal=dynamic(()=>import('../components/AttendanceModal'),{ssr:false})")],
  ['Home passes the authenticated operator role and champion context instead of trusting client-selected role data',home.includes("operatorRole=String(data.operator?.role||'')")&&homeApi.includes('operator:{id:String(req.user.id),name:req.user.name||\'Operator\',role:req.user.role}')&&homeApi.includes('operator_champion:operatorChampion')],
- ['The work surface displays existing queue items, limits the preview and provides the canonical full briefing',work.includes('data?.queue')&&work.includes('items.slice(0,3)')&&work.includes('onOpenAll')&&work.includes('queue.laterCount')],
+ ['The work surface displays existing queue items, limits the preview and keeps the canonical ARIA Today entry point',work.includes('data?.queue')&&work.includes('items.slice(0,3)')&&work.includes('queue.laterCount')&&home.includes("'Open ARIA Today'")],
  ['Help requests are attached to a currently assigned responsibility and use the existing internal message system',supportApi.includes('assigned_user_id=$3')&&supportApi.includes("task_kind<>'internal_message'")&&supportApi.includes('sendInternalMessage')&&supportApi.includes("kind:'operator_support_request'")],
  ['Help request delivery is transparent, idempotent, routed to the persisted recipient and its state survives a page reload',supportApi.includes('idempotencyKey')&&supportApi.includes('metadata->>\'queue_item_id\'=$3')&&supportApi.includes('sent.message?.recipient_name')&&supportApi.includes("active=true AND role='user'")&&supportUi.includes('This goes to')&&supportUi.includes('existing request check failed')&&supportUi.includes('sensitive personal details')],
  ['Only the authenticated operator can submit their weekly pulse, with a bounded 1–5 scale and one record per week',pulseApi.includes("req.user.role!=='user'")&&pulseApi.includes('validScore')&&pulseApi.includes('week_start')&&pulseApi.includes('submitted_at')],
@@ -44,7 +46,13 @@ const checks=[
  ['Waiting support-request total is computed before the twenty-item display limit',oversight.includes("COUNT(*) FILTER (WHERE m.support_acknowledged_at IS NULL) OVER()")&&oversight.includes('supportRequests.rows[0]?.unacknowledged_total')],
  ['Operator support privacy guidance is displayed once without duplicated copy',supportUi.split('Please do not include sensitive personal details').length===2],
  ['Unacknowledged support requests do not disappear after 30 days',oversight.includes("(m.support_acknowledged_at IS NULL OR m.sent_at>=NOW()-INTERVAL '30 days')")],
- ['Support waiting counts match the complete server total, with the twenty-card preview disclosed',oversightPage.includes('Support requests waiting')&&oversightPage.includes('summary.support_requests')&&oversightPage.includes('shown')&&!oversightPage.includes('supportRequests.filter(x=>!x.support_acknowledged_at).length')]
+ ['Support waiting counts match the complete server total, with the twenty-card preview disclosed',oversightPage.includes('Support requests waiting')&&oversightPage.includes('summary.support_requests')&&oversightPage.includes('shown')&&!oversightPage.includes('supportRequests.filter(x=>!x.support_acknowledged_at).length')],
+ ['Home work cards use a compact label/name hierarchy and a 44px touch target',work.includes('workItemHead')&&work.includes('workItemArrow')&&work.includes('min-height:44px')&&work.includes('white-space:nowrap')&&!work.includes('Open responsibility')&&!work.includes("return'RESPONSIBILITY'")],
+ ['Home cards stay bounded and avoid horizontal overflow at legacy phone widths',work.includes('items.slice(0,3)')&&work.includes('min-width:0')&&work.includes('@media(max-width:340px)')&&work.includes('text-overflow:ellipsis')],
+ ['ARIA briefing avoids a duplicate task count and uses a compact mobile surface',home.includes("'Open ARIA Today'")&&!home.includes('items with a clear next step.')&&home.includes('minHeight:50')&&home.includes('.nyHomeBrief{min-height:48px!important')],
+ ['Attendance save forces a Home read only after the server confirms the session is saved',attendance.includes("publishDataChange('attendance',{saved:true,session_id:session.session_id})")&&home.includes('forceRefreshRef.current=true')&&home.includes('onData=()=>load({background:true,force:true})')],
+ ['Forced Home reads bypass the ten-second throttle and coalesce behind an in-flight request',home.includes('background=false,force=false')&&home.includes('if(!force&&Date.now()-lastLoadAt.current<10000)return')&&home.includes('forceRefreshRef.current=false;void load({background:true,force:true})')],
+ ['Reconnect sync completes before Home refresh so offline marks cannot race the updated screen',fieldRuntime.indexOf('await syncFieldMode()')>=0&&fieldRuntime.indexOf('await syncFieldMode()')<fieldRuntime.indexOf('await refreshApp(reason)')&&fieldRuntime.includes('if(runPromise)return runPromise')]
 ];
 
 if(checks.some(check=>!Array.isArray(check)||check.length!==2)){

@@ -17,6 +17,11 @@ const files={
  attendanceUi:read('components/AttendanceModal.js'),
  fieldMode:read('lib/attendanceFieldMode.js'),
  attendanceProcessor:read('lib/aria/attendanceProcessor.js'),
+ eventProcessor:read('lib/aria/eventProcessor.js'),
+ dailyQueue:read('lib/dailyQueue.js'),
+ peopleIntelligence:read('lib/aria/peopleIntelligence.js'),
+ attendanceIntelligence:read('lib/aria/attendanceIntelligence.js'),
+ activationMigration:read('supabase/migrations/20261111180229_care_activation_after_saved_attendance.sql'),
  home:read('pages/index.js'),
  churchProfile:read('components/ChurchProfileTab.js')
 };
@@ -144,6 +149,36 @@ assert.ok(files.attendanceProcessor.includes('ATTENDANCE_CARE_FOLLOW_UP_ENABLED 
   files.attendanceProcessor.includes('async function createReturnSignals(sessionId,orgId) {')&&
   files.attendanceProcessor.includes('if(!ATTENDANCE_CARE_FOLLOW_UP_ENABLED)return {returning:0,actions:0,skipped:\'attendance_care_follow_up_paused\'};'),
   'attendance-derived absence and return follow-ups must stay paused while first-visit care processing remains in place');
+const observationMap=files.eventProcessor.match(/const OBSERVATION_MAP=\{([\s\S]*?)\n\};/)?.[1]||'';
+assert.ok(!/^\s*PERSON_CREATED\s*:/m.test(observationMap)&&
+  /^\s*PARTICIPATION_CONFIRMED\s*:/m.test(observationMap)&&
+  files.eventProcessor.includes("['PERSON_CREATED','PERSON_UPDATED','PARTICIPATION_CONFIRMED'"),
+  'creating a People record must not activate actionable care; saved participation still emits its own event');
+assert.ok(files.dailyQueue.includes("o.type='NEW_PERSON'")&&
+  files.dailyQueue.includes("created_event.type='PERSON_CREATED'")&&
+  files.dailyQueue.includes("created_event.id::text=o.metadata->>'source_event_id'"),
+  'the daily queue must suppress legacy and replayed person-created welcome signals');
+assert.ok(files.peopleIntelligence.includes("if(type==='visitor'&&count===0)return{action:null")&&
+  files.peopleIntelligence.includes('An automatic first-visit care suggestion waits until attendance is saved.'),
+  'a visitor with no confirmed participation must not receive an automatic welcome action');
+assert.ok(files.attendanceIntelligence.includes('WHEN participation_count=0 THEN NULL')&&
+  !files.attendanceIntelligence.includes("WHEN participation_count=0 THEN 'welcome_and_onboard'"),
+  'attendance intelligence must not suggest first-visit work with zero confirmed participation');
+assert.ok(files.attendanceProcessor.includes('async function createFirstVisitFollowUps')&&
+  files.attendanceProcessor.includes('JOIN target t ON t.id=pr.session_id')&&
+  files.attendanceProcessor.includes("pr.participation_type='attendance'")&&
+  files.attendanceProcessor.includes("lower(BTRIM(COALESCE(p.type,'')))='visitor'")&&
+  files.attendanceProcessor.includes("s.status='closed'"),
+  'first-visit follow-up must derive from a closed session and confirmed visitor participation');
+assert.ok(files.attendanceUi.includes("publishDataChange('attendance',{saved:true,session_id:session.session_id})"),
+  'Home refresh must publish the saved flag only after the server confirms attendance save');
+assert.ok(files.activationMigration.includes("e.type='PERSON_CREATED'")&&
+  files.activationMigration.includes("o.type='NEW_PERSON'")&&
+  files.activationMigration.includes("status='dismissed'")&&
+  files.activationMigration.includes('UPDATE public.aria_observations')&&
+  files.activationMigration.includes('UPDATE public.people_intelligence')&&
+  files.activationMigration.includes('UPDATE public.aria_person_state'),
+  'the one-time cleanup must resolve machine-generated signals and remove zero-participation welcome projections');
 assert.ok(!files.churchProfile.includes('Allow register-based attendance reviews')&&
   files.churchProfile.includes('Require first-visit follow-up'),
   'the obsolete attendance-care toggle must be removed without removing first-visit care settings');

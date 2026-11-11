@@ -11,15 +11,15 @@ export default withAdmin(async function handler(req,res){
  const client=await pool.connect();
  try{
   await client.query('BEGIN');
-  const message=(await client.query(`SELECT id,recipient_user_id,seen_at
+  const message=(await client.query(`SELECT id,recipient_user_id,support_acknowledged_at
    FROM aria_internal_messages
    WHERE id=$1::uuid AND organization_id=$2 AND status='sent'
      AND metadata->>'kind'='operator_support_request'
    FOR UPDATE`,[messageId,req.org.id])).rows[0];
   if(!message){await client.query('ROLLBACK');return res.status(404).json({error:'That support request is no longer available.'});}
   const updated=(await client.query(`UPDATE aria_internal_messages
-   SET seen_at=COALESCE(seen_at,NOW()),updated_at=NOW()
-   WHERE id=$1 AND organization_id=$2 RETURNING seen_at`,[messageId,req.org.id])).rows[0];
+   SET support_acknowledged_at=COALESCE(support_acknowledged_at,NOW()),support_acknowledged_by=$3,updated_at=NOW()
+   WHERE id=$1 AND organization_id=$2 RETURNING support_acknowledged_at`,[messageId,req.org.id,req.user.id])).rows[0];
   await client.query(`UPDATE aria_daily_queue_items
    SET status='completed',completed_at=COALESCE(completed_at,NOW()),updated_at=NOW()
    WHERE organization_id=$1 AND task_kind='internal_message' AND source_id=$2
@@ -30,7 +30,7 @@ export default withAdmin(async function handler(req,res){
    VALUES($1,$2,$3,'/api/care-oversight/acknowledge','POST','support_request_acknowledged',200,true,'aria_internal_message',$4,$5::jsonb)`,
    [req.org.id,req.user.id,req.user.role,messageId,JSON.stringify({recipient_user_id:message.recipient_user_id})]);
   await client.query('COMMIT');
-  return res.status(200).json({success:true,acknowledged_at:updated?.seen_at||message.seen_at});
+  return res.status(200).json({success:true,acknowledged_at:updated?.support_acknowledged_at||message.support_acknowledged_at});
  }catch(error){
   await client.query('ROLLBACK').catch(()=>{});
   console.error('[CARE OVERSIGHT] acknowledge failed:',error?.message||error);

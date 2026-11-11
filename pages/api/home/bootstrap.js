@@ -119,11 +119,18 @@ export default withOrg(async function handler(req,res){
   const org=base.rows[0]||{},settings=org.settings||{},
     vocabulary=settings?.aria?.vocabulary||{person:'people',members:'members',leaders:'leaders',care:'care',prayer:'prayer'},
     now=new Date(),date=now.toISOString().slice(0,10),count=visibleQueueItems.length,s=org.latest_session||null,c=org.latest_completed_session||null;
+  const championId=String(settings?.adoption?.operator_champion_user_id||'');
+  const operatorChampion=championId?(await pool.query(
+    `SELECT id::text id,name FROM users WHERE id::text=$1 AND organization_id=$2 AND active=true AND role='user' LIMIT 1`,
+    [championId,orgId]
+  )).rows[0]||null:null;
 
   const director={...directorData,legacy_version:ARIA_DIRECTOR_VERSION,pending_scan_reviews:Number(org.review_count)||0,latest_session:s?{id:s.id,name:s.name,status:s.status,aria_processing_status:s.aria_processing_status,aria_processing_error:s.aria_processing_error}:null,latest_completed_session:c?{id:c.id,name:c.name,closed_at:c.closed_at}:null};
 
   return res.status(200).json({
     date,generatedAt:now.toISOString(),director,
+    operator:{id:String(req.user.id),name:req.user.name||'Operator',role:req.user.role},
+    operator_champion:operatorChampion,
     organization:{id:orgId,name:org.name||'your organization',instructions:org.aria_instructions||'',vocabulary},
     attendance:s?{
       active:true,recoverable:false,

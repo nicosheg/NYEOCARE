@@ -18,8 +18,9 @@ export default function FirstExperience({experience,onComplete,onAction,role=nul
 const[visible,setVisible]=useState(false);
 const[saving,setSaving]=useState(false);
 const baseCopy=EXPERIENCE_COPY[experience];
+const homeRoleCopy=experience==='home'&&role==='user'?{eyebrow:'A better way to serve together',title:'Your work should feel clear, not heavier.',body:'NYEOCARE brings the responsibilities assigned to you into one place, helps you understand the next step and lets you ask for support when something is blocked. Authorized leaders can see assigned work, recorded outcomes and help requests so they can support the team—not rank your logins or screen visits.',action:'See my work'}:experience==='home'&&['owner','admin'].includes(role)?{eyebrow:'Lead by making care easier',title:'Give the team clarity and room to do meaningful work.',body:'Your Home still shows your own responsibilities. Care Oversight gives you the organization view: where work is progressing, what needs a decision, who has asked for support and what outcomes have been recorded. Use it to unblock work, not police app activity.',action:'Start with today'}:null;
 const profileRoleCopy=experience==='profile'&&role==='owner'?{eyebrow:'Your organization, your access',title:'Keep your profile and organization in order.',body:'Update your name, manage organization access, invite people, change responsibilities, secure your account and maintain the organization knowledge ARIA uses.',action:'Continue'}:experience==='profile'&&role==='admin'?{eyebrow:'Your profile and access',title:'Keep your work organized.',body:'Update your own profile, manage the organization’s users and invitations, secure your account and maintain the organization knowledge ARIA uses.',action:'Continue'}:experience==='profile'?{eyebrow:'Your profile',title:'Know where your account lives.',body:'Update your name, review your organization access, secure your account and use ARIA from anywhere in NYEOCARE.',action:'Continue'}:null;
-const copy=profileRoleCopy||baseCopy;
+const copy=homeRoleCopy||profileRoleCopy||baseCopy;
 
 useEffect(()=>{
 if(!copy)return;

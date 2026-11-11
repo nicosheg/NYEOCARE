@@ -3086,3 +3086,90 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 - A legacy personal workspace may be reassigned during invitation acceptance only when the account has the exact generated personal-workspace signature, the Auth and membership/workspace creation timestamps match the system-provisioning window, it is the sole membership and sole workspace member, and every public table carrying `organization_id` contains no business data. Technical activity and diagnostic logs are retained in the old workspace; no organization or log is deleted.
 - Any other cross-organization membership conflict fails closed. Do not silently move a user, merge organizations, discard records, or weaken tenant isolation to make login succeed.
 - Regression coverage must verify that ordinary authenticated requests never provision a workspace, standalone creation is explicit, invitation acceptance assigns the invited organization, and recovery of a legacy empty personal workspace fails closed when any tenant data exists.
+
+
+## 67. NOVEMBER 11, 2026 — HUMAN-CENTRED ADOPTION: ONE NYEOCARE, TWO PERSPECTIVES
+
+### Product contract
+
+- Adoption is not a login target. NYEOCARE must make the work easier to understand, complete, coordinate and remember. Do not use login streaks, app-open counts, screen visits, time-in-app or individual leaderboards as measures of commitment.
+- The product serves two different needs through one application and one intelligence system:
+  - Operators need a calm, personal view of the responsibilities assigned to them, the next useful action, confirmation of what happened, and a safe way to ask for help.
+  - Owners and admins need a role-scoped view of organizational care, unresolved responsibilities, support requests, documented outcomes and where leadership can remove obstacles.
+- The two experiences are different views, not separate products, task engines, memory stores or ARIA instances.
+- The canonical operator work source remains `aria_daily_queue_items` and `lib/dailyQueue.js`. Do not introduce a parallel task table for adoption.
+- The canonical organization understanding remains `getDirectorBriefing` from `lib/aria/directorEngine.js`. Care Oversight must reuse it; do not create another director/strategy engine.
+- The canonical private operator-to-operator message system remains `aria_internal_messages` and `lib/aria/internalMessaging.js`. Support requests extend that system through metadata; they are not a new inbox or messaging platform.
+- Attendance remains one source of evidence, not the definition of care or the adoption experience. Adoption changes must not change attendance creation, marking, offline outbox, finalization, participation or review semantics.
+
+### Operator Home and first value
+
+- The authenticated Home should put the operator's personal responsibilities ahead of organization-wide metrics. Use the current user's server-derived role and the existing daily queue; never accept a client-selected role or organization as authority.
+- The Home work preview is intentionally bounded. Opening an item must lead to its existing canonical ARIA action or review flow. The full existing ARIA Today briefing remains available; do not create duplicate item detail routes.
+- Empty states must say when no work is due and allow the operator to leave. Do not manufacture a task to encourage app use.
+- First-time Home onboarding is role-specific. Operators must understand how the product helps their work, how to request assistance, and what authorized leaders can see. Owners/admins must understand how to support the team rather than monitor logins.
+- Attendance, Scan, Review and all existing Home entry points remain available and must keep opening their existing canonical components.
+
+### Operator support and reassignment
+
+- An operator can request help from a responsibility currently assigned to them. The request must reference that queue item and use the existing private internal-message service.
+- A request is not task completion. It must not automatically defer, dismiss, reassign or close the original responsibility.
+- Route a request to the designated active Operator Champion when available; otherwise route it to an active owner/admin. The requester must be told who can see the request and its optional context.
+- Do not encourage operators to place highly sensitive personal details in a support note. Record only the minimum context needed to unblock the workflow.
+- Leadership acknowledgement is distinct from the recipient reading a message. Store explicit `support_acknowledged_at` and `support_acknowledged_by` fields; never reuse `seen_at` to mean that a different leader acknowledged the request.
+- Only owner/admin can reassign a queue responsibility. Reassignment must validate the tenant, active target operator and queue-item state inside a transaction, serialize against queue allocation, and add an audit event. It changes the queue assignment only; it must not rewrite the person record, ARIA evidence, task outcome or message history.
+- Internal-message queue items are not eligible for generic reassignment.
+
+### Weekly operator experience pulse
+
+- The weekly pulse is voluntary and should appear no more than once per operator per organization-local week. It must be dismissible without penalty.
+- The three statements are:
+  1. NYEOCARE makes my responsibilities easier to manage.
+  2. I understand what I am expected to do in NYEOCARE.
+  3. I feel confident using NYEOCARE.
+- Scores are 1–5. Store one response per authenticated operator and week so repeated submissions cannot distort the aggregate.
+- The response is linked to an operator for duplicate prevention; do not promise anonymity. Care Oversight may display response counts and team-level averages only after at least three operators have responded in that week. Below that threshold, do not expose the response count or scores. It must not expose individual answers or create operator ratings.
+- Keep direct browser access denied with forced RLS; access the pulse through tenant-scoped server APIs only.
+
+### Care Oversight and adoption measurement
+
+- Care Oversight is owner/admin-only. It must derive authorization from `withAdmin` and enforce detail visibility in SQL, not only hide UI elements.
+- Owners can see organization-level operator detail. Admins can see active `user` operators and their own details; details about other owners/admins remain restricted. Do not invent new database roles such as `leader` or `worker` for this adoption work.
+- Use existing organizational sources:
+  - Director context from `getDirectorBriefing`.
+  - Queue status and workload from `aria_daily_queue_items`.
+  - Human feedback/outcomes from `care_feedback` and the existing outcome path.
+  - Existing scan/identity review queues.
+  - Explicit support requests from `aria_internal_messages`.
+  - Team-level weekly pulse averages from `operator_experience_pulses`.
+- Initial adoption indicators:
+  - First Value: operators with at least one completed meaningful queue task in the observed population.
+  - Meaningful return: operators completing meaningful work on at least two different organization-local days in the last 30 days. This is not a login/visit metric.
+  - Task progress: open, due and overdue responsibilities.
+  - Care Loop Completion: due follow-up queue items in the stated window with a recorded outcome divided by due follow-up queue items. Show the count, window and a no-data state. Do not present this as proof of improved attendance, giving or organizational growth.
+  - Weekly experience: aggregated ease, clarity and confidence pulse results; never individual rankings.
+- Do not describe the absence of recorded feedback as success. A zero denominator must produce a no-data state, not 0% or 100%.
+- Workload figures are intended to help leadership redistribute work and supply assistance. Do not turn them into performance ratings or public comparative rankings.
+
+### Operator Champion
+
+- An organization may designate one active `user` operator as Operator Champion in organization settings.
+- This designation is a support contact, not a new permission role and not a substitute for owner/admin authorization.
+- The Champion may receive operator help requests. If no valid Champion exists, route requests to an active owner/admin.
+- Explain the limited responsibility clearly. Do not create an unpaid, unlimited technical-support role.
+
+### NYEOCARE Together and leadership practice
+
+- The first Home experience introduces the reason for NYEOCARE, personal responsibilities, support route and leadership visibility. It must not overwhelm a new user with a feature tour.
+- Teach through real work and the existing workflow. Do not require duplicate paper-plus-app reporting or mandatory training forms.
+- First Value is a real completed responsibility with a truthful outcome, not account creation, login or a tutorial click.
+- The weekly operator pulse is the first feedback loop. Use responses and observed friction to improve the workflow; do not send punitive reminders.
+- Care Oversight includes a short leadership review ritual: recognize real progress, identify unresolved work, respond to support requests, rebalance capacity and remove workflow friction.
+- Recognition must remain genuine and based on documented contributions/outcomes. Do not add points, badges, streaks or quantity leaderboards.
+
+### Regression and release protection
+
+- `scripts/operator-adoption-regression.js` is part of the normal test suite and CI.
+- Regressions must cover: personal queue reuse, Home entry-point preservation, role-scoped server access, support request ownership/idempotency, distinct leadership acknowledgement, audited reassignment, voluntary weekly pulse uniqueness/RLS, aggregate-only leadership pulse visibility and the absence of login/activity metrics.
+- Apply the pulse migration before deploying application code that reads its table. Verify the migration ledger, table, forced RLS policy, unique constraint and support acknowledgement columns in production.
+- Production acceptance is not complete until an operator and an owner/admin have both used their respective flows with real roles. Verify on a lower-end Android device as well as a modern browser.

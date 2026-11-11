@@ -127,7 +127,7 @@ export default withAdmin(async function handler(req,res){
        AND q.task_kind<>'internal_message'
      ORDER BY CASE q.task_kind WHEN 'follow_up' THEN 0 WHEN 'scan_review' THEN 1 ELSE 2 END,
        q.priority DESC,q.queue_date ASC,q.created_at ASC
-     LIMIT 18`,[req.org.id,today,req.user.id]),
+     LIMIT 18`,visibilityParams),
    pool.query(`SELECT m.id::text id,m.body,m.sent_at,m.seen_at,m.metadata,
       s.id::text sender_user_id,s.name sender_name,s.role sender_role,
       r.name recipient_name,r.role recipient_role,

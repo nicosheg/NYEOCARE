@@ -157,7 +157,7 @@ export default function CareOversight(){
 
    <section className="coSection">
     <div className="coSectionTop"><div><div className="coSectionEyebrow">A TRUSTED HUMAN POINT OF CONTACT</div><h2>Operator champion</h2></div></div>
-    <p className="coBody">Choose a respected colleague who can help people get comfortable, answer simple questions and bring workflow difficulties back to leadership. This is a small support role—not another permission level or an unpaid technical support department.</p>
+    <p className="coBody">Choose a respected colleague who can help people get comfortable, answer simple questions and bring workflow difficulties back to leadership. This is a small support role—not another permission role or an unpaid technical support department.</p>
     <div className="coChampionRow">
      <div><span className="coMiniLabel">CURRENT CONTACT</span><strong>{data.operator_champion?.name||'Not appointed'}</strong></div>
      <div className="coChampionEdit">

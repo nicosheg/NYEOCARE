@@ -125,7 +125,7 @@ export default function CareOversight(){
       <div className="coRequestTop"><div><strong>{request.sender?.name||'An operator'}</strong><span>{request.sender?.role||'operator'} · {fmtDate(request.sent_at)}</span></div><span className={request.support_acknowledged_at?'coStatusSeen':'coStatusNew'}>{request.support_acknowledged_at?'Acknowledged':'Needs acknowledgement'}</span></div>
       <div className="coRequestTask">{request.task_title}</div>
       <p>{request.body}</p>
-      <div className="coRequestFoot"><span>Sent to {request.recipient?.name||'support contact'}</span>{!request.seen_at&&<button disabled={busy==='support:'+request.id} onClick={()=>acknowledge(request.id)}>{busy==='support:'+request.id?'Saving…':'Acknowledge'}</button>}</div>
+      <div className="coRequestFoot"><span>Sent to {request.recipient?.name||'support contact'}</span>{!request.support_acknowledged_at&&<button disabled={busy==='support:'+request.id} onClick={()=>acknowledge(request.id)}>{busy==='support:'+request.id?'Saving…':'Acknowledge'}</button>}</div>
      </article>)}
     </div>}
     <p className="coFootnote">Acknowledging means a leader has seen the request. It does not mark the underlying responsibility complete; the team still needs to agree and record the real next step.</p>
@@ -152,7 +152,7 @@ export default function CareOversight(){
     <p className="coFootnote">Reassignment changes who carries the queue responsibility. It does not rewrite a person’s record, change an ARIA decision or claim that the work has been completed.</p>
     <div className="coWorkloadTitle">Current workload</div>
     <p className="coFootnote">Use this view to start a capacity conversation. It is not a ranking or an operator performance score.</p>
-    <div className="coWorkloads">{(data.workloads||[]).map(person=><div className="coWorkload" key={person.id}><div><strong>{person.name||'Operator'}</strong><span>{person.role==='user'?'Operator':person.role}</span></div><div className="coWorkloadCounts"><b>{Number(person.due_count)||0} due</b><span>{Number(person.open_count)||0} open · {Number(person.overdue_count)||0} overdue</span></div></div>)}</div>
+    <div className="coWorkloads">{(data.workloads||[]).map(person=><div className="coWorkload" key={person.id}><div><strong>{person.name||'Operator'}</strong><span>{person.role==='user'?'Operator':person.role}</span></div><div className="coWorkloadCounts"><b>{Number(person.due_count)||0} due today</b><span>{Number(person.open_count)||0} open · {Number(person.overdue_count)||0} overdue</span></div></div>)}</div>
    </section>
 
    <section className="coSection">

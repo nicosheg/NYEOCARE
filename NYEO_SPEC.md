@@ -3173,3 +3173,11 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 - Regressions must cover: personal queue reuse, Home entry-point preservation, role-scoped server access, support request ownership/idempotency, distinct leadership acknowledgement, audited reassignment, voluntary weekly pulse uniqueness/RLS, aggregate-only leadership pulse visibility and the absence of login/activity metrics.
 - Apply the pulse migration before deploying application code that reads its table. Verify the migration ledger, table, forced RLS policy, unique constraint and support acknowledgement columns in production.
 - Production acceptance is not complete until an operator and an owner/admin have both used their respective flows with real roles. Verify on a lower-end Android device as well as a modern browser.
+
+
+### Care Oversight metric and support-state semantics
+
+- Open responsibility totals and per-operator workload counts exclude `internal_message` queue items. Private inbox delivery is not care work and must not inflate operator workload.
+- A `due today` count uses the organization-local `queue_date = today`; overdue responsibilities are counted separately and must not be double-counted as due today.
+- The waiting-support-request total is computed across the complete role-visible result set before limiting the number of request cards shown.
+- The leadership acknowledgement action remains available until `support_acknowledged_at` is set. `seen_at` only means the actual recipient opened the message; it is never a substitute for explicit leadership acknowledgement.

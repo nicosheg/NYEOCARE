@@ -69,10 +69,10 @@ export default withAdmin(async function handler(req,res){
    getDirectorBriefing(req.org.id,{limit:6}).catch(error=>{console.error('[CARE OVERSIGHT] director briefing degraded:',error?.message||error);return null;}),
    pool.query(`SELECT
      COUNT(*) FILTER (WHERE status IN('pending','deferred'))::int open_count,
-     COUNT(*) FILTER (WHERE status IN('pending','deferred') AND queue_date<=$2::date)::int due_count,
+     COUNT(*) FILTER (WHERE status IN('pending','deferred') AND queue_date=$2::date)::int due_count,
      COUNT(*) FILTER (WHERE status IN('pending','deferred') AND queue_date<$2::date)::int overdue_count,
      COUNT(*) FILTER (WHERE task_kind='follow_up' AND status IN('pending','deferred') AND queue_date<=$2::date)::int follow_ups_due
-    FROM aria_daily_queue_items WHERE organization_id=$1`,[req.org.id,today]),
+    FROM aria_daily_queue_items WHERE organization_id=$1 AND task_kind<>'internal_message'`,[req.org.id,today]),
    pool.query(`SELECT COUNT(*)::int count
     FROM care_feedback
     WHERE organization_id=$1 AND observed_at>=NOW()-INTERVAL '7 days'`,[req.org.id]),
@@ -110,10 +110,10 @@ export default withAdmin(async function handler(req,res){
      GROUP BY week_start ORDER BY week_start DESC`,[req.org.id,weekStart||today]),
    pool.query(`SELECT u.id::text id,u.name,u.role,
       COUNT(q.id) FILTER (WHERE q.status IN('pending','deferred'))::int open_count,
-      COUNT(q.id) FILTER (WHERE q.status IN('pending','deferred') AND q.queue_date<=$2::date)::int due_count,
+      COUNT(q.id) FILTER (WHERE q.status IN('pending','deferred') AND q.queue_date=$2::date)::int due_count,
       COUNT(q.id) FILTER (WHERE q.status IN('pending','deferred') AND q.queue_date<$2::date)::int overdue_count
      FROM users u LEFT JOIN aria_daily_queue_items q
-       ON q.organization_id=u.organization_id AND q.assigned_user_id=u.id
+       ON q.organization_id=u.organization_id AND q.assigned_user_id=u.id AND q.task_kind<>'internal_message'
      WHERE u.organization_id=$1 AND u.active=true AND ${visibilityClause}
      GROUP BY u.id,u.name,u.role
      ORDER BY CASE u.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END,u.name,u.id`,visibilityParams),
@@ -129,6 +129,7 @@ export default withAdmin(async function handler(req,res){
        q.priority DESC,q.queue_date ASC,q.created_at ASC
      LIMIT 18`,visibilityParams),
    pool.query(`SELECT m.id::text id,m.body,m.sent_at,m.support_acknowledged_at,m.metadata,
+       COUNT(*) FILTER (WHERE m.support_acknowledged_at IS NULL) OVER()::int unacknowledged_total,
       s.id::text sender_user_id,s.name sender_name,s.role sender_role,
       r.name recipient_name,r.role recipient_role,
       linked.payload->>'title' task_title,linked.task_kind
@@ -166,7 +167,7 @@ export default withAdmin(async function handler(req,res){
     due_today:Number(work.due_count)||0,
     overdue:Number(work.overdue_count)||0,
     follow_ups_due:Number(work.follow_ups_due)||0,
-    support_requests:(supportRequests.rows||[]).filter(row=>!row.support_acknowledged_at).length,
+    support_requests:Number(supportRequests.rows[0]?.unacknowledged_total)||0,
     reviews:(Number(reviewSummary.rows[0]?.scan_reviews)||0)+(Number(reviewSummary.rows[0]?.identity_reviews)||0),
     outcomes_recorded_7d:Number(outcomeSummary.rows[0]?.count)||0
    },

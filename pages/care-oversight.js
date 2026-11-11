@@ -178,7 +178,7 @@ export default function CareOversight(){
      <div className="coAdoptionStat"><span>Meaningful return</span><strong>{activeOperators?metricValue(adoption.repeat_operators):'—'}</strong><small>Operators with completed work on 2+ different days in the last 30 days—not app opens.</small></div>
     </div>
     <div className="coPulse">
-     <div><span className="coMiniLabel">WEEKLY OPERATOR PULSE</span><strong>{pulse.current?.sufficient_sample?pulse.current.responses+' responses this week':'Team feedback is private at this sample size'}</strong><p>Scores are shown only after at least three operators respond. Individual answers are never shown in Care Oversight.</p></div>
+     <div><span className="coMiniLabel">WEEKLY OPERATOR PULSE</span><strong>{pulse.current?.sufficient_sample?pulse.current.responses+' responses this week':'Team averages appear after at least three responses'}</strong><p>Scores are shown only after at least three operators respond. Individual answers are never shown in Care Oversight.</p></div>
      {pulse.current?.sufficient_sample&&<div className="coAverages">
       <span>Ease <b>{pulse.current.ease}/5</b></span><span>Clarity <b>{pulse.current.clarity}/5</b></span><span>Confidence <b>{pulse.current.confidence}/5</b></span>
      </div>}

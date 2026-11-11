@@ -119,10 +119,10 @@ export default function CareOversight(){
    {error&&<div className="coError" role="alert">{error}</div>}
 
    <section className="coSection">
-    <div className="coSectionTop"><div><div className="coSectionEyebrow">WHEN PEOPLE ASK FOR SUPPORT</div><h2>Requests that need a response</h2></div><span className="coCount">{supportRequests.filter(x=>!x.seen_at).length} new</span></div>
+    <div className="coSectionTop"><div><div className="coSectionEyebrow">WHEN PEOPLE ASK FOR SUPPORT</div><h2>Requests that need a response</h2></div><span className="coCount">{supportRequests.filter(x=>!x.support_acknowledged_at).length} new</span></div>
     {supportRequests.length===0?<div className="coEmpty">No support requests are waiting right now. Keep the route open for the moment someone needs another pair of hands.</div>:<div className="coStack">
      {supportRequests.map(request=><article className="coRequest" key={request.id}>
-      <div className="coRequestTop"><div><strong>{request.sender?.name||'An operator'}</strong><span>{request.sender?.role||'operator'} · {fmtDate(request.sent_at)}</span></div><span className={request.seen_at?'coStatusSeen':'coStatusNew'}>{request.seen_at?'Acknowledged':'Needs acknowledgement'}</span></div>
+      <div className="coRequestTop"><div><strong>{request.sender?.name||'An operator'}</strong><span>{request.sender?.role||'operator'} · {fmtDate(request.sent_at)}</span></div><span className={request.support_acknowledged_at?'coStatusSeen':'coStatusNew'}>{request.support_acknowledged_at?'Acknowledged':'Needs acknowledgement'}</span></div>
       <div className="coRequestTask">{request.task_title}</div>
       <p>{request.body}</p>
       <div className="coRequestFoot"><span>Sent to {request.recipient?.name||'support contact'}</span>{!request.seen_at&&<button disabled={busy==='support:'+request.id} onClick={()=>acknowledge(request.id)}>{busy==='support:'+request.id?'Saving…':'Acknowledge'}</button>}</div>

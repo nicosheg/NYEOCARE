@@ -1,4 +1,4 @@
--- Voluntary weekly operator experience pulse.
+-- Voluntary weekly operator experience pulse and explicit leadership acknowledgement.
 -- Responses are linked to an operator only to enforce one response per person/week.
 -- Leadership APIs expose team-level aggregates only; there is no individual score view.
 
@@ -24,6 +24,14 @@ CREATE TABLE IF NOT EXISTS public.operator_experience_pulses (
     (submitted_at IS NULL AND ease_score IS NULL AND clarity_score IS NULL AND confidence_score IS NULL)
   )
 );
+
+ALTER TABLE public.aria_internal_messages
+  ADD COLUMN IF NOT EXISTS support_acknowledged_at timestamptz,
+  ADD COLUMN IF NOT EXISTS support_acknowledged_by uuid REFERENCES public.users(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS aria_internal_messages_support_ack_idx
+  ON public.aria_internal_messages (organization_id,support_acknowledged_at,sent_at DESC)
+  WHERE metadata->>'kind'='operator_support_request' AND status='sent';
 
 CREATE INDEX IF NOT EXISTS operator_experience_pulses_org_week_idx
   ON public.operator_experience_pulses (organization_id,week_start DESC,submitted_at);

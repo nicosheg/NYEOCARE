@@ -10,8 +10,11 @@ const joinApi=read('pages/api/users/join.js');
 const createOrg=read('pages/api/auth/create-organization.js');
 const migration=read('supabase/migrations/20261102120000_global_email_identity_and_org_auth_cleanup.sql');
 const docs=read('docs/EMAIL_VERIFICATION.md');
+const redirectHelper=read('lib/authRedirectUrl.js');
+const middleware=read('middleware.js');
 
 const checks=[
+ ['production auth callbacks use one canonical origin and the legacy Vercel alias redirects before the browser client starts',redirectHelper.includes("CANONICAL_PRODUCTION_HOST = 'nyeocare.vercel.app'")&&!redirectHelper.includes('nyeocare-nicosheg.vercel.app')&&middleware.includes("LEGACY_PRODUCTION_HOST = 'nyeocare-nicosheg.vercel.app'")&&middleware.includes("CANONICAL_PRODUCTION_HOST = 'nyeocare.vercel.app'")&&middleware.includes('NextResponse.redirect(destination, 308)')],
  ['standalone signup sends verification back to the NYEOCARE origin',login.includes('/auth/verify?next=')&&login.includes('/auth/complete-signup')],
  ['invitation signup preserves the invitation destination through verification',join.includes('/auth/verify?next=')&&join.includes("'/join/'+token")],
  ['login offers a resend path for pending verification',login.includes('supabase.auth.resend')&&login.includes('Resend verification email')],

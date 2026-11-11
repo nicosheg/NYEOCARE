@@ -178,8 +178,23 @@ export default withAdmin(async function handler(req,res){
     window_days:30
    },
    operator_pulse:{
-    current:currentPulse,recent:pulseRows,
-    disclosure:'Only team-level averages are displayed here. Individual responses are not shown in Care Oversight.'
+    current:currentPulse?{
+     week_start:currentPulse.week_start,
+     sufficient_sample:Number(currentPulse.responses)>=3,
+     responses:Number(currentPulse.responses)>=3?Number(currentPulse.responses):null,
+     ease:Number(currentPulse.responses)>=3?currentPulse.ease:null,
+     clarity:Number(currentPulse.responses)>=3?currentPulse.clarity:null,
+     confidence:Number(currentPulse.responses)>=3?currentPulse.confidence:null
+    }:null,
+    recent:pulseRows.map(row=>({
+     week_start:row.week_start,
+     sufficient_sample:Number(row.responses)>=3,
+     responses:Number(row.responses)>=3?Number(row.responses):null,
+     ease:Number(row.responses)>=3?row.ease:null,
+     clarity:Number(row.responses)>=3?row.clarity:null,
+     confidence:Number(row.responses)>=3?row.confidence:null
+    })),
+    disclosure:'Individual answers are not displayed. Team averages appear only when at least three people have responded.'
    },
    workloads:workloads.rows||[],
    assignments:assignments.rows||[],

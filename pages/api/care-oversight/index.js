@@ -47,7 +47,9 @@ export default withAdmin(async function handler(req,res){
   await getDailyQueue(req.org.id,req.user.id);
   const weekStart=(await pool.query(`SELECT date_trunc('week',NOW() AT TIME ZONE $1)::date::text week_start`,[timeZone])).rows[0]?.week_start;
   const visibilityClause=req.user.role==='owner'?'TRUE':"(u.role='user' OR u.id=$3)";
-  const supportVisibility=req.user.role==='owner'?'TRUE':"(s.role='user' OR s.id=$3)";
+  const supportVisibility=req.user.role==='owner'?'TRUE':"(s.role='user' OR s.id=$2)";
+  const visibilityParams=req.user.role==='owner'?[req.org.id,today]:[req.org.id,today,req.user.id];
+  const supportParams=req.user.role==='owner'?[req.org.id]:[req.org.id,req.user.id];
   const championId=String(org.settings?.adoption?.operator_champion_user_id||'');
 
   const [
@@ -114,7 +116,7 @@ export default withAdmin(async function handler(req,res){
        ON q.organization_id=u.organization_id AND q.assigned_user_id=u.id
      WHERE u.organization_id=$1 AND u.active=true AND ${visibilityClause}
      GROUP BY u.id,u.name,u.role
-     ORDER BY CASE u.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END,u.name,u.id`,[req.org.id,today,req.user.id]),
+     ORDER BY CASE u.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END,u.name,u.id`,visibilityParams),
    pool.query(`SELECT q.id::text queue_item_id,q.task_kind,q.status,q.queue_date::text queue_date,q.priority,
       q.assigned_user_id::text assigned_user_id,u.name assigned_to_name,u.role assigned_to_role,
       COALESCE(q.payload->>'title','Responsibility') title,COALESCE(q.payload->>'message','') message
@@ -129,18 +131,20 @@ export default withAdmin(async function handler(req,res){
    pool.query(`SELECT m.id::text id,m.body,m.sent_at,m.seen_at,m.metadata,
       s.id::text sender_user_id,s.name sender_name,s.role sender_role,
       r.name recipient_name,r.role recipient_role,
-      q.payload->>'title' task_title,q.task_kind
+      linked.payload->>'title' task_title,linked.task_kind
      FROM aria_internal_messages m
      JOIN users s ON s.id=m.sender_user_id AND s.organization_id=m.organization_id
      JOIN users r ON r.id=m.recipient_user_id AND r.organization_id=m.organization_id
-     LEFT JOIN aria_daily_queue_items q
-       ON q.organization_id=m.organization_id AND q.task_kind='internal_message' AND q.source_id=m.id::text
+     LEFT JOIN aria_daily_queue_items message_queue
+       ON message_queue.organization_id=m.organization_id AND message_queue.task_kind='internal_message' AND message_queue.source_id=m.id::text
+      LEFT JOIN aria_daily_queue_items linked
+       ON linked.organization_id=m.organization_id AND linked.id::text=m.metadata->>'queue_item_id'
      WHERE m.organization_id=$1 AND m.status='sent'
        AND m.metadata->>'kind'='operator_support_request'
        AND m.sent_at>=NOW()-INTERVAL '30 days'
        AND ${supportVisibility}
      ORDER BY m.seen_at ASC NULLS FIRST,m.sent_at DESC
-     LIMIT 20`,[req.org.id,req.user.id,req.user.id]),
+     LIMIT 20`,supportParams),
    pool.query(`SELECT u.id::text id,u.name,u.role
      FROM users u
      WHERE u.organization_id=$1 AND u.active=true AND u.role='user' AND u.id::text=$2

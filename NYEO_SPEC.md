@@ -3195,3 +3195,14 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 - Home may render its last authorized in-memory snapshot immediately, but data-change and reconnect events must bypass the ten-second refresh throttle. Coalesce a forced request behind an in-flight Home read instead of dropping it.
 - For offline attendance, finish syncing local mutations and the queued close request before publishing the Home refresh event. A client-side close request alone is not saved attendance; do not activate care until the server confirms the closed session.
 - Regressions must prove that `PERSON_CREATED` cannot create an active actionable `NEW_PERSON` observation, confirmed participation still drives the saved-session care path, and old machine-generated `NEW_PERSON` rows are resolved without deleting People or attendance records.
+
+## 68. NOVEMBER 12, 2026 — ARIA OBSERVATION ACTIONABILITY
+
+- An ARIA observation is evidence or context, not automatically an operator responsibility. The existence of an active observation must never by itself imply that a person needs care or that an operator must act.
+- The canonical allowlist is `lib/aria/actionableObservationTypes.js`. The operator daily queue, ARIA priority queue and director intelligence must all reuse it; do not maintain separate observation-type lists.
+- Only decision-relevant observations may become operator responsibilities: verified attendance non-observation, unusual absence, scan review, ARIA processing failure, conflict, data integrity and security review.
+- `PARTICIPATION_CONFIRMED`, `PERSON_UPDATE` and `EVENT_CONTEXT_CREATED` are informational evidence. They remain available to ARIA memory and history but must never become generic care tasks or consume operator capacity.
+- Unknown/new observation types default to non-actionable until explicitly reviewed and added to the canonical allowlist with a human decision rationale.
+- A confirmed-present attendance record must not be converted into a generic follow-up merely because its `PARTICIPATION_CONFIRMED` observation is active. Genuine, separately evidenced care actions remain eligible and must not be suppressed by attendance alone.
+- Existing queue rows sourced from non-actionable observations are dismissed, not deleted. Preserve observations, events, people, participation records, attendance history and real `aria_actions`.
+- Regression coverage must assert that all three queue/intelligence surfaces share the canonical allowlist, informational observations cannot enter the daily queue, and the cleanup does not delete canonical evidence or approved actions.

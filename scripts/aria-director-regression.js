@@ -13,7 +13,8 @@ const required=[
  ['lib/aria/conversationState.js','get_director_briefing','state.director','human_focus'],
  ['pages/api/aria/daily.js','getDirectorBriefing','director','peopleAddedLast7Days'],
  ['lib/aria/director.js','getDirectorBriefing','briefing'],
- ['lib/aria/priorityQueue.js','ATTENTION_OBSERVATION_TYPES','UNUSUAL_ABSENCE'],
+ ['lib/aria/priorityQueue.js','ATTENTION_OBSERVATION_TYPES_SQL','ACTIONABLE_OBSERVATION_TYPES'],
+ ['lib/aria/actionableObservationTypes.js','UNUSUAL_ABSENCE','ATTENDANCE_NOT_OBSERVED','SCAN_REVIEW_REQUIRED','ARIA_PROCESSING_FAILURE','CONFLICT','DATA_INTEGRITY','SECURITY_REVIEW'],
  ['lib/aria/corePersonality.js','synchronized intelligence','one organizational mind'],
  ['pages/aria.js','todayInsight','daily.director?.primary_focus']
 

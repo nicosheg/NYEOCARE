@@ -15,6 +15,10 @@ const oversight=read('pages/api/care-oversight/index.js');
 const acknowledge=read('pages/api/care-oversight/acknowledge.js');
 const reassignApi=read('pages/api/care-oversight/reassign.js');
 const queue=read('lib/dailyQueue.js');
+const priorityQueue=read('lib/aria/priorityQueue.js');
+const directorEngine=read('lib/aria/directorEngine.js');
+const actionableObservationTypes=read('lib/aria/actionableObservationTypes.js');
+const actionabilityMigration=read('supabase/migrations/20261112113348_daily_queue_actionable_observations_only.sql');
 const messaging=read('lib/aria/internalMessaging.js');
 const oversightPage=read('pages/care-oversight.js');
 const onboarding=read('components/FirstExperience.js');
@@ -22,6 +26,8 @@ const attendance=read('components/AttendanceModal.js');
 const fieldRuntime=read('components/FieldModeRuntime.js');
 
 const checks=[
+ ['Daily work, ARIA attention and director intelligence share one explicit allowlist of decision-relevant observations',actionableObservationTypes.includes("'UNUSUAL_ABSENCE'")&&actionableObservationTypes.includes("'ATTENDANCE_NOT_OBSERVED'")&&actionableObservationTypes.includes("'ARIA_PROCESSING_FAILURE'")&&priorityQueue.includes('ACTIONABLE_OBSERVATION_TYPES')&&directorEngine.includes('ACTIONABLE_OBSERVATION_TYPES')&&queue.includes('ACTIONABLE_OBSERVATION_TYPES')],
+ ['Participation, profile edits and event context remain intelligence evidence, never automatic operator care tasks',!actionableObservationTypes.includes('PARTICIPATION_CONFIRMED')&&!actionableObservationTypes.includes('PERSON_UPDATE')&&!actionableObservationTypes.includes('EVENT_CONTEXT_CREATED')&&queue.includes('o.type=ANY($2::text[])')&&queue.includes('[orgId,ACTIONABLE_OBSERVATION_TYPES]')&&actionabilityMigration.includes('non_actionable_sources')&&actionabilityMigration.includes("status='dismissed'")],
  ['Home uses clear singular/plural copy that also covers messages, not just responsibilities',work.includes("(count===1?'thing':'things')")&&!work.includes("responsibility'+(count===1?'':'ies')")],
  ['Home makes the existing personal daily queue the first actionable surface while preserving ARIA Today',home.includes('import WorkToday')&&home.includes('<WorkToday data={data}')&&home.includes('<button className="nyHomeBrief"')&&home.includes("const AttendanceModal=dynamic(()=>import('../components/AttendanceModal'),{ssr:false})")],
  ['Home passes the authenticated operator role and champion context instead of trusting client-selected role data',home.includes("operatorRole=String(data.operator?.role||'')")&&homeApi.includes('operator:{id:String(req.user.id),name:req.user.name||\'Operator\',role:req.user.role}')&&homeApi.includes('operator_champion:operatorChampion')],

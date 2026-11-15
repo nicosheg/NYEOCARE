@@ -1,5 +1,6 @@
 // scripts/scan-review-regression.js
 import fs from'fs';
+import{isSafeScanPhoneEvidence,isSafeScanNameEvidence}from'../lib/scanPhoneEvidence.mjs';
 const read=p=>fs.readFileSync(p,'utf8');
 const identity=read('lib/identityResolver.js');
 const review=read('components/ReviewCenterTab.js');
@@ -13,10 +14,22 @@ const journeyApi=read('pages/api/person/journey.js');
 const navigationBack=read('components/NavigationBack.js');
 const duplicateAction=read('pages/api/review/duplicate-action.js');
 function assert(v,m){if(!v)throw new Error(m)}
+assert(isSafeScanPhoneEvidence({phone_evidence:'clear',pair_evidence:'clear'},['name_evidence_ambiguous']),'Unclear handwriting alone must not block a phone whose digits and row pairing are both clear.');
+assert(!isSafeScanPhoneEvidence({phone_evidence:'clear',pair_evidence:'ambiguous'},[]),'Ambiguous row pairing must block automatic phone attachment.');
+assert(!isSafeScanPhoneEvidence({phone_evidence:'ambiguous',pair_evidence:'clear'},[]),'Ambiguous phone digits must block automatic phone attachment.');
+assert(!isSafeScanPhoneEvidence({phone_evidence:'clear',pair_evidence:'clear',phone_flags:['digit_uncertain']},[]),'A possible digit error must block automatic phone attachment.');
+assert(!isSafeScanPhoneEvidence({phone_evidence:'clear',pair_evidence:'clear'},['phone_row_linkage_needs_verification']),'A phone that may belong to another row must stay out of the merge.');
+assert(isSafeScanNameEvidence({name_evidence:'clear'},[]),'A clear scan name may update the selected canonical record.');
+assert(!isSafeScanNameEvidence({name_evidence:'ambiguous'},[]),'An unclear scan name must never replace the selected canonical name.');
+assert(!isSafeScanNameEvidence({name_evidence:'clear',phone_flags:['name_uncertain']},[]),'A name uncertainty flag must override a nominally clear name label.');
+assert(!isSafeScanNameEvidence({name_evidence:'clear'},['low_name_evidence']),'Low name confidence must preserve the existing canonical name.');
 assert(/Math\.round\(\(ns\+ps\.score\)\/2\)/.test(identity),'Identity resolver must use balanced 50/50 scoring.');
-assert(/This is a different person/.test(review)&&/Use this person/.test(review)&&/Edit scanned record/.test(review),'Review Center must expose explicit human identity outcomes.');
+assert(/This is a different person/.test(review)&&/Use this person/.test(review)&&/Edit scanned record/.test(review)&&/Edit scanned details/.test(review),'Review Center must expose explicit human identity outcomes and a scan-detail correction path.');
 assert(/name_match_but_phone_not_exact/.test(review)&&/Existing person ·/.test(review),'Review Center must explain name/phone disagreement and distinguish candidate phone from scanned phone.');
 assert(/resolveIdentities/.test(reviewApi)&&/sanitizeReasons/.test(reviewApi)&&/phone_missing/.test(reviewApi),'Review API must refresh pending identity evidence using the canonical resolver and remove stale phone-missing claims when a scan actually has a phone.');
+assert(/scan_phone_merge_safe:isSafeScanPhoneEvidence/.test(reviewApi)&&/scan_name_merge_safe:isSafeScanNameEvidence/.test(reviewApi),'Review Center must expose the same server-defined safe-field merge decisions used by the save endpoint.');
+assert(/scanNameSafe\?target\.display_name/.test(resolveApi),'A one-tap scan merge must preserve an uncertain scanned name rather than overwrite the canonical People name.');
+assert(/mergeScannedPhones/.test(resolveApi)&&/isSafeScanPhoneEvidence\(scanEvidence,review\.review_reasons\|\|\[\]\)/.test(resolveApi)&&/scanPhoneMergeStatus/.test(resolveApi)&&/\[\.\.\.new Set\(\[\.\.\.existingTargetPhones,\.\.\.scannedPhones/.test(resolveApi),'A scan update may append a phone only with clear phone and row evidence, must preserve the existing contact list, and must audit the outcome.');
 assert(/canonicalId:selected,duplicateId:other\.id/.test(review)&&/String\(mergeResult\?\.canonical_id\)!==String\(selected\)/.test(review),'When merging from Review Center, the chosen record ID must be sent as canonical and the response must prove that the same selected record survived.');
 assert(/import\{normalizePhoneList,primaryPhone\}from'\.\.\/\.\.\/\.\.\/lib\/phoneUtils'/.test(reviewApi)&&/phone:primaryPhone\(liveRow\)/.test(reviewApi),'Review candidate summaries must show JSON-backed primary phones consistently with the People directory.');
 assert(/phonesFrom=row=>normalizePhoneList\(row,\{limit:4\}\)/.test(resolveApi),'Review edits must preserve the canonical primary phone before ordered alternate contacts when saving a selected person.');
@@ -42,6 +55,6 @@ assert(/d\.role=c\.role/.test(duplicateAction)&&!/d\.role=c\.role AND d\.status=
 assert(/return_to=/.test(people),'People cards must preserve the source location.');
 assert(navigationBack.includes('nyeocare:navigation-history:v1')&&navigationBack.includes('RESTORE_KEY')&&navigationBack.includes('scrollTo')&&!person.includes('onClick={goBack}'),'Person Journey must use shared history-aware back navigation with scroll restoration.');
 assert(/WITH RECURSIVE merged_lineage/.test(journeyApi)&&/person_id IN\(SELECT person_id FROM merged_lineage\)/.test(journeyApi),'Person Journey must include immutable ARIA history from archived identities merged into the canonical person.');
-assert(/date_of_birth_raw/.test(reviewApi)&&/birthday:/.test(reviewApi)&&/Not visible on this row/.test(review)&&/date_of_birth_evidence/.test(resolveApi),'Scan Review must retain the literal DOB and distinguish a blank source cell from an unverified date.');
+assert(/date_of_birth_raw/.test(reviewApi)&&/birthday:/.test(reviewApi)&&/date_of_birth_raw/.test(review)&&/date_of_birth_evidence/.test(review)&&/date_of_birth_evidence/.test(resolveApi)&&/Needs confirmation/.test(review)&&!/Not visible on this row/.test(review),'Scan Review must retain literal DOB evidence and show only a meaningful ambiguity state, not a blank-cell placeholder.');
 assert(/birthday=COALESCE\(birthday,\$5::date\)/.test(vision)&&/date_of_birth_raw/.test(vision)&&/function parseBirthDate/.test(scanValidation),'Verified scan DOBs may fill an empty birthday but must not overwrite an existing birthday.');
 console.log('[SCAN REVIEW] live refresh + navigation checks passed.');

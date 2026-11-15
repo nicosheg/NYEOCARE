@@ -91,6 +91,7 @@ assert.ok(!people.includes('className="person-card-actions"')&&person.includes('
 const mutationEngine=fs.readFileSync('lib/aria/peopleMutationEngine.js','utf8');
 const identityAction=fs.readFileSync('pages/api/review/person-identity-action.js','utf8');
 const identityMerge=fs.readFileSync('lib/identityMerge.js','utf8');
+const identityDecision=fs.readFileSync('components/PeopleEditIdentityDecision.js','utf8');
 const peopleApi=fs.readFileSync('pages/api/people.js','utf8');
 const reviewApi=fs.readFileSync('pages/api/review/index.js','utf8');
 assert.match(mutationEngine,/source:'people_edit_identity_review'/,'People edit conflicts must be persisted as durable identity reviews');
@@ -108,9 +109,11 @@ assert.match(identityMerge,/export async function mergePeople/,'edit reviews and
 assert.match(review,/initialReviewId/,'Review Center must open an exact pending review by ID');
 assert.match(review,/Same person — merge into selected/,'the edit review must expose an explicit same-person action');
 assert.match(review,/Different people — save edit and keep both/,'the edit review must expose an explicit separate-people action');
-assert.match(people,/Open identity review/,'People edit conflicts must link to Review Center');
-assert.match(person,/Open identity review/,'Person Journey edit conflicts must link to Review Center');
+assert.match(people,/\{editIdentityReview&&<PeopleEditIdentityDecision/,'People edit conflicts must conditionally render the shared identity decision panel only when a durable review exists');
+assert.match(person,/\{editIdentityReview&&<PeopleEditIdentityDecision/,'Person Journey must conditionally render the same shared decision panel only when a durable review exists');
+assert.match(identityDecision,/Open full review/,'The shared identity decision panel must offer a deep link to the full Review Center item');
+assert.match(people,/router\.push\('\/people\?review=1&review_id=/,'People must deep-link to the exact pending Review Center item');
+assert.match(person,/r\.push\(\x60\/people\?review=1&review_id=/,'Person Journey must deep-link to the exact pending Review Center item');
 assert.doesNotMatch(person,/href=\{\x60\/person\/\$\{candidate\.id\}\x60\}/,'Journey candidate navigation must not replace the review decision');
-assert.doesNotMatch(people.slice(people.indexOf('editIdentityReview&&'),people.indexOf('editIdentityReview&&')+3500),/router\.push\('\/person\/'/,'People edit conflict candidates must not navigate to a Journey page');
 
 console.log('NYEOCARE review queue persistence and edit-verification regression checks passed.');

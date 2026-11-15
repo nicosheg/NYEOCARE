@@ -13,6 +13,7 @@ const attendanceApi = read('pages/api/attendance/add-visitor.js');
 const attendanceUi = read('components/AttendanceModal.js');
 const capabilityRegistry = read('lib/aria/capabilityRegistry.js');
 const validation = read('lib/scanValidation.js');
+const decisionPanel = read('components/PeopleEditIdentityDecision.js');
 
 assert.ok(api.includes('normalizeDisplayName(rawName)') && api.includes('identityNameKey(display_name||rawName)'), 'Person creation must normalize names and strip honorifics before identity comparison.');
 assert.ok(validation.includes("replace(/^\\s*\\d+[\\.\\)]\\s*/,'')"), 'Leading printed row numbers should be stripped from identity comparison.');
@@ -30,16 +31,20 @@ const reviewGuardIndex = mutation.indexOf('if(identityCandidates.length&&review?
 assert.ok(exactGuardIndex >= 0 && reviewGuardIndex > exactGuardIndex, 'Relevant candidates must be filtered before the duplicate and human-review guards.');
 assert.ok(mutation.includes("p.status IN ('inactive','archived')"), 'Possible identity matches must include archived records so a former person cannot be re-created as a duplicate.');
 assert.ok(page.includes('I verified these are separate people') && page.includes('Open Review Center') && page.includes('DUPLICATE_IDENTITY_NOT_DISTINCT') && page.includes('Open record'), 'The People screen must expose human review and block a second record for an identical name+phone pair.');
-const editReviewStart=page.indexOf('editIdentityReview&&');
-const editReviewEnd=page.indexOf("<div style={{display:'flex',gap:8,flexWrap:'wrap'}}>",editReviewStart);
-const editReviewPanel=editReviewStart>=0?page.slice(editReviewStart,editReviewEnd>editReviewStart?editReviewEnd:editReviewStart+5000):'';
 assert.ok(
- editReviewPanel.includes('Your edit has not been applied.') &&
- editReviewPanel.includes('Open identity review') &&
- editReviewPanel.includes('Close notice · review stays pending') &&
- !editReviewPanel.includes('Confirm separate identities & save changes') &&
- !editReviewPanel.includes("router.push('/person/'"),
- 'Direct People edits must create a durable pending identity review and link to that review; opening a candidate must not apply or resolve the edit.'
+ page.includes('{editIdentityReview&&<PeopleEditIdentityDecision') &&
+ decisionPanel.includes('Merge records') &&
+ decisionPanel.includes('Keep separate') &&
+ decisionPanel.includes('Open full review') &&
+ decisionPanel.includes("fetch('/api/review/person-identity-action'") &&
+ decisionPanel.includes("data?.review_status !== 'resolved'") &&
+ !decisionPanel.includes("router.push('/person/"),
+ 'A queued People edit must offer merge, keep-separate and full Review Center paths, reuse the verified identity action API, and never navigate to a candidate Journey.'
+);
+assert.ok(
+ page.includes("Boolean(editIdentityReview?.review_id)") && page.includes("'Review pending'") &&
+ decisionPanel.includes('IDENTITY_EDIT_TARGET_STALE') && decisionPanel.includes('remains pending') && decisionPanel.includes('latest changes you just tried were') && decisionPanel.includes('Open existing review'),
+ 'Once a review exists, the stale editor must not create competing drafts and failed/stale decisions must stay pending.'
 );
 assert.ok(
  mutation.includes("source:'people_edit_identity_review'") &&
@@ -72,7 +77,7 @@ for (const name of ['create_person','import_people_roster','update_person_record
 }
 assert.ok(read('lib/aria/commandEngine.js').includes('PERSON_IDENTITY_REVIEW_REQUIRED') && read('lib/aria/commandEngine.js').includes('Open People and use Add one person'), 'ARIA must explain identity conflicts and direct operators to the human-review workflow.');
 assert.ok(read('pages/person/[id].js').includes('editIdentityReview') && read('pages/person/[id].js').includes('PERSON_IDENTITY_REVIEW_REQUIRED'), 'The person profile editor must also offer human identity review rather than fail closed with a generic error.');
-assert.ok(read('pages/person/[id].js').includes('Records in other organizations are excluded from this check.') && read('pages/person/[id].js').includes('data-person-journey-identity-review'), 'Person Journey identity conflicts must visibly name the tenant scope and focus the review panel instead of silently returning.');
+assert.ok(read('pages/person/[id].js').includes('{editIdentityReview&&<PeopleEditIdentityDecision') && decisionPanel.includes('data-person-journey-identity-review') && decisionPanel.includes('Only people in this organization are included.'), 'Person Journey must use the same organization-scoped decision panel as the People card editor.');
 assert.ok(api.includes('discarded_foreign_candidate_count') && api.includes('request_id:req.nyeoRequestId||null'), 'Identity conflicts must be traceable without logging or exposing contact PII.');
 const identityReviewApi = read('pages/api/review/index.js');
 const identityReviewAction = read('pages/api/review/person-identity-action.js');

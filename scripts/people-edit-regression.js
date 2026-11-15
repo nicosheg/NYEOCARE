@@ -7,6 +7,7 @@ import { normalizeDisplayName } from '../lib/scanValidation.js';
 const read=p=>fs.readFileSync(p,'utf8');
 const peoplePage=read('pages/people.js');
 const personPage=read('pages/person/[id].js');
+const identityDecisionPanel=read('components/PeopleEditIdentityDecision.js');
 const peopleApi=read('pages/api/people.js');
 const phoneUtils=read('lib/phoneUtils.js');
 const mutation=read('lib/aria/peopleMutationEngine.js');
@@ -107,8 +108,8 @@ assert.ok(reviewCenter.includes("refreshPeopleAfterReview('review-duplicate-deci
 assert.ok(personPage.includes('const body={id};')&&personPage.includes('if(nextPhone!==originalPhone)body.phone=nextPhone')&&personPage.includes('if(nextEmail!==originalEmail)body.email=nextEmail')&&personPage.includes('if(nextBirthday!==originalBirthday)body.birthday=nextBirthday||null'), 'People Journey edits must submit only fields the operator actually changed; an unchanged shared phone must not be resent as a phone edit.');
 assert.ok(personPage.includes("setP(prev=>({...prev,...d,communications:prev?.communications||[]")&&personPage.includes("String(d.id||'')!==String(id)")&&personPage.includes('await load(activeToken)'), 'A successful People Journey edit must apply the canonical saved row, verify the returned person ID, and reload the record.');
 assert.ok(!peoplePage.includes('className="person-card-actions"')&&!peoplePage.includes("aria-label={'Message '+fullName}")&&!peoplePage.includes("aria-label={'Add note for '+fullName}")&&!peoplePage.includes("aria-label={'More options for '+fullName}")&&peoplePage.includes('personCardPhone(person)')&&peoplePage.includes('primaryPhone(person)'), 'People cards must retain name/contact information while removing the action row.');
-assert.ok(personPage.includes('disabled={busy||!editName.trim()}')&&personPage.includes("busy?'Saving…':'Save changes'"), 'The People Journey editor must prevent repeated submits and show its in-flight save state.');
-assert.ok(personPage.includes('<button onClick={()=>saveEdit()} disabled={busy||!editName.trim()}')&&!personPage.includes('<button onClick={saveEdit} disabled={busy||!editName.trim()}'), 'The normal Journey Save click must not pass a React click event into saveEdit(identityReview).');
+assert.ok(personPage.includes('disabled={busy||!editName.trim()||Boolean(editIdentityReview?.review_id)}')&&personPage.includes("busy?'Saving…':'Save changes'"), 'The People Journey editor must prevent repeated submits, keep the in-flight state, and block edits while an identity review is pending.');
+assert.ok(personPage.includes('<button onClick={()=>saveEdit()} disabled={busy||!editName.trim()||Boolean(editIdentityReview?.review_id)} style={S.primary}>')&&!personPage.includes('<button onClick={saveEdit} disabled={busy||!editName.trim()}'), 'The normal Journey Save click must not pass a React click event into saveEdit(identityReview), and must stay disabled while an identity review is pending.');
 assert.equal(normalizeDisplayName('Caleb $5').display,'Caleb $5','Dollar signs in literal names must survive name normalization.');
 assert.ok(mutation.includes("if(existingName.honorific&&!incomingName.honorific)incoming=existingName.honorific+' '+incoming"), 'A direct name edit must preserve the existing recognized honorific while applying the edited name text.');
 
@@ -118,10 +119,11 @@ assert.ok(personPage.includes('<button style={S.action} aria-label="Edit details
 assert.ok(mutation.includes("organization_id:String(row.organization_id)"),'Identity candidates must carry their trusted organization ID for defense-in-depth validation.');
 assert.ok(peopleApi.includes('filterRowsToOrganization(rawCandidates,orgId)')&&peopleApi.includes('discarded_foreign_candidate_count'),'The People API must re-check the tenant boundary before exposing identity conflicts and log rejected foreign candidates without contact PII.');
 assert.ok(peopleApi.includes("request_id:req.nyeoRequestId||null"),'Person-save conflicts must include the request ID needed for reliable production tracing.');
-assert.ok(peoplePage.includes('data-person-edit-identity-review')&&peoplePage.includes("Records in other organizations are excluded."),'A blocked People editor save must surface a visible explanation and focus the identity-review panel rather than silently returning.');
+assert.ok(peoplePage.includes('{editIdentityReview&&<PeopleEditIdentityDecision')&&identityDecisionPanel.includes('data-person-edit-identity-review')&&identityDecisionPanel.includes('Possible duplicate detected')&&identityDecisionPanel.includes('Only people in this organization are included.')&&identityDecisionPanel.includes('Merge records')&&identityDecisionPanel.includes('Keep separate')&&identityDecisionPanel.includes('Open full review')&&identityDecisionPanel.includes('PERSON_IDENTITY_REVIEW_IN_PROGRESS')&&identityDecisionPanel.includes('Open existing review'),'A People edit conflict must become an actionable same-person/different-people decision with an exact Review Center path.');
+assert.ok(peoplePage.includes("Boolean(editIdentityReview?.review_id)")&&peoplePage.includes("'Review pending'")&&identityDecisionPanel.includes('confirmAction'),'Once an edit is queued, its old form must stop producing competing drafts and require an explicit confirmed outcome.');
 assert.ok(peoplePage.includes('data-person-create-identity-review')&&peoplePage.includes("Records in other organizations are excluded. Review the highlighted panel."),'A blocked person-creation save must show why it was not saved.');
-assert.ok(personPage.includes('data-person-journey-identity-review')&&personPage.includes('Not saved: a possible match inside '),'Person Journey must show an explicit notice and scroll to the review panel when identity review pauses a save.');
-assert.ok(personPage.includes('Organization: {candidate.organization_name||\'Current organization\'}'),'Identity candidates must visibly identify the organization that owns the candidate.');
+assert.ok(personPage.includes('{editIdentityReview&&<PeopleEditIdentityDecision')&&identityDecisionPanel.includes('data-person-journey-identity-review')&&personPage.includes('Review needed. Your proposed edit is safely held in Review Center')&&personPage.includes("'Review pending'"),'Person Journey must use the same actionable decision state and stop presenting a pending identity review as a failed save.');
+assert.ok(identityDecisionPanel.includes('Only people in this organization are included.'),'The shared edit decision panel must make the organization boundary explicit.');
 
 console.log('[PEOPLE EDIT REGRESSION]');
 console.log('PASS: SQL-bound edits, email/type/status persistence, inactive directory filtering, and ARIA synchronization/suppression contracts.');

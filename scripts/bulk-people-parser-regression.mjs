@@ -90,6 +90,22 @@ const commaLineRetry = parseBulkPeopleRows('Alice Example, Bob Example');
 const sameCommaLineRetry = parseBulkPeopleRows('Alice Example, Bob Example');
 assert.deepEqual(commaLineRetry.map(row => row.source_row_key), sameCommaLineRetry.map(row => row.source_row_key));
 
+const orphanPhone = parseBulkPeopleRows('08012345678');
+assert.equal(orphanPhone.length, 1, 'A phone without a preceding name must not disappear.');
+assert.equal(orphanPhone[0].full_name, '');
+assert.equal(orphanPhone[0].phone, '08012345678');
+assert.deepEqual(orphanPhone[0].source_line_numbers, [1]);
+
+const blankSeparatedPhone = parseBulkPeopleRows('Jane Example\n\n08012345678');
+assert.equal(blankSeparatedPhone.length, 2, 'A phone after a blank line must not attach to an earlier person.');
+assert.equal(blankSeparatedPhone[0].full_name, 'Jane Example');
+assert.equal(blankSeparatedPhone[0].phone, '');
+assert.equal(blankSeparatedPhone[1].full_name, '');
+assert.equal(blankSeparatedPhone[1].phone, '08012345678');
+
+const commentSeparatedPhone = parseBulkPeopleRows('Jane Example\n# another list\n08012345678');
+assert.equal(commentSeparatedPhone.length, 2, 'A phone after a comment must not attach to an earlier person.');
+
 const headerOnly = parseBulkPeopleRows('Name, Phone, Type, Email');
 assert.equal(headerOnly.length, 0);
 

@@ -25,6 +25,24 @@ assert.ok(commaList.every(row => JSON.stringify(row.source_line_numbers) === '[1
 const twoNames = parseBulkPeopleRows('Sis Peace, Sis Gospel');
 assert.deepEqual(twoNames.map(row => row.full_name), ['Sis Peace', 'Sis Gospel']);
 
+assert.deepEqual(
+  parseBulkPeopleRows('Jane Example').map(row => row.source_row_key),
+  ['1'],
+  'A one-person row retains its legacy physical-line idempotency key.'
+);
+assert.deepEqual(
+  parseBulkPeopleRows('Jane Example\\n08012345678').map(row => row.source_row_key),
+  ['1'],
+  'An alternating name/phone pair retains its legacy name-line idempotency key.'
+);
+assert.deepEqual(
+  parseBulkPeopleRows('Name, Phone, Type, Email\\nJane Example, 08012345678, member').map(row => row.source_row_key),
+  ['2'],
+  'A structured spreadsheet row retains its legacy physical-line idempotency key.'
+);
+const splitKeys = parseBulkPeopleRows('Alice Example, Bob Example, Carol Example').map(row => row.source_row_key);
+assert.deepEqual(splitKeys, ['1', '1:2', '1:3'], 'Only additional names split from one physical line receive a suffix.');
+
 const csvRows = parseBulkPeopleRows([
   'Name, Phone, Type, Email',
   'Mummy Christiana, 08022597401, visitor',

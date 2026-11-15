@@ -44,7 +44,9 @@ assert.match(review,/Update existing person from scan/,'a scan row must have an 
 assert.match(review,/Confirm match · keep current details/,'identity confirmation must be distinct from editing the person');
 assert.match(review,/Add as a new person/,'creating a new person must be a deliberate alternative');
 assert.match(review,/candidateId:\['approve','edit'\]\.includes\(action\)\?selected:null/,'editing a selected candidate must target that existing person');
-assert.match(review,/onClick=\{\(\)=>save\('edit'\)\}/,'the primary scan action must edit the selected People record');
+assert.match(review,/onClick=\{\(\)=>save\('edit',false,true\)\}/,'the primary scan action must update the selected People record and merge only approved scan evidence');
+assert.match(review,/scan_phone_merge_safe/,'the scan review must explain when a scanned phone can safely be added');
+assert.match(review,/save\(sharedPhoneReview\.action\|\|'edit',true,!!sharedPhoneReview\.includeScannedPhones\)/,'shared-phone confirmation must resume the exact pending scan-update action.');
 assert.match(review,/result\?\.persisted!==true/,'the UI must require a verified persistence response before clearing a review');
 assert.match(review,/if\(!silent\)setLoading\(false\)/,'silent refresh must not temporarily blank the queue');
 

@@ -1,5 +1,6 @@
 // scripts/bulk-people-parser-regression.mjs
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { parseBulkPeopleRows } from '../lib/bulkPeopleParser.mjs';
 
 const names = [
@@ -108,5 +109,16 @@ assert.equal(commentSeparatedPhone.length, 2, 'A phone after a comment must not 
 
 const headerOnly = parseBulkPeopleRows('Name, Phone, Type, Email');
 assert.equal(headerOnly.length, 0);
+
+const bulkApi = fs.readFileSync('pages/api/people/bulk-create.js', 'utf8');
+const peoplePage = fs.readFileSync('pages/people.js', 'utf8');
+assert.match(bulkApi, /source_row_key:sourceRowKey/);
+assert.match(bulkApi, /item\.outcome\.source_row_key/);
+assert.doesNotMatch(bulkApi, /stableIdentityReviewRequestId\(\x60bulk-create:[^\n]*item\.outcome\.row/);
+assert.match(bulkApi, /already_saved: alreadySaved/);
+assert.match(bulkApi, /This phone number has no name/);
+assert.match(peoplePage, /Your session expired\. Sign in again, then retry this list/);
+assert.match(peoplePage, /fetchPeople\(\{token:activeToken/);
+assert.match(peoplePage, /value=\{bulkText\} disabled=\{bulkBusy\}/);
 
 console.log('[BULK PEOPLE PARSER REGRESSION] PASS: comma-separated name lists, spreadsheet rows, optional contacts, alternating phone lines, stable source identity, and partial-number validation are covered.');

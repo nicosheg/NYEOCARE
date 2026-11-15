@@ -28,6 +28,7 @@ export default function PeopleEditIdentityDecision({
 }) {
   const candidates = Array.isArray(review?.candidates) ? review.candidates : [];
   const reviewId = String(review?.review_id || review?.source_review_id || '').replace(/^identity:/, '');
+  const existingDifferentPending = review?.code === 'PERSON_IDENTITY_REVIEW_IN_PROGRESS';
   const activeCandidates = candidates.filter(candidate => String(candidate?.status || '').toLowerCase() === 'active');
   const initialCandidateId = String((activeCandidates[0] || candidates[0])?.id || '');
   const [selectedId, setSelectedId] = useState(initialCandidateId);
@@ -119,15 +120,18 @@ export default function PeopleEditIdentityDecision({
           Identity check · decision needed
         </div>
         <h3 id="people-identity-decision-title" style={{ fontSize: 14, margin: '5px 0 4px', color: '#F3E4B3' }}>
-          Possible duplicate detected
+          {existingDifferentPending ? 'An earlier edit review is already waiting' : 'Possible duplicate detected'}
         </h3>
         <p style={{ fontSize: 12, lineHeight: 1.5, color: 'rgba(255,255,255,.72)', margin: 0 }}>
-          Your proposed edit is safely held in Review Center. <strong>{originalName}</strong> has not been changed.
-          Compare the possible match below, then choose what should happen. Only people in this organization are included.
+          {existingDifferentPending ? (
+            <>A different version of this edit is already waiting in Review Center. The latest changes you just tried were <strong>not added</strong> to that review. To avoid deciding against the wrong details, open the existing item and update its proposal there. <strong>{originalName}</strong> remains unchanged.</>
+          ) : (
+            <>Your proposed edit is safely held in Review Center. <strong>{originalName}</strong> has not been changed. Compare the possible match below, then choose what should happen. Only people in this organization are included.</>
+          )}
         </p>
       </div>
 
-      {candidates.length > 0 ? (
+      {!existingDifferentPending && candidates.length > 0 ? (
         <div style={{ display: 'grid', gap: 6 }}>
           <div style={{ fontSize: 10, color: 'rgba(255,255,255,.44)', textTransform: 'uppercase', letterSpacing: 1 }}>
             Existing people to compare
@@ -185,11 +189,25 @@ export default function PeopleEditIdentityDecision({
         </div>
       ) : (
         <p style={{ fontSize: 11, lineHeight: 1.45, color: 'rgba(255,255,255,.58)', margin: 0 }}>
-          The saved review needs a fresh comparison before a decision can be made. Open the full review to inspect the current records.
+          {existingDifferentPending ? 'Open the existing pending review to inspect and update the version that was actually saved.' : 'The saved review needs a fresh comparison before a decision can be made. Open the full review to inspect the current records.'}
         </p>
       )}
 
       {!confirmAction ? (
+        existingDifferentPending ? (
+          <button
+            type="button"
+            onClick={() => onOpenReview?.(reviewId)}
+            disabled={busy || !reviewId}
+            style={{
+              width: '100%', minHeight: 39, padding: '8px 10px',
+              border: '1px solid rgba(255,255,255,.12)', borderRadius: 10,
+              background: 'rgba(255,255,255,.035)', color: '#F5F7FA', fontSize: 11, fontWeight: 700
+            }}
+          >
+            Open existing review
+          </button>
+        ) : (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7 }}>
           <button
             type="button"
@@ -228,6 +246,7 @@ export default function PeopleEditIdentityDecision({
             Open full review
           </button>
         </div>
+        )
       ) : (
         <div style={{ padding: 10, border: '1px solid rgba(255,255,255,.10)', borderRadius: 11, background: 'rgba(4,9,19,.35)', display: 'grid', gap: 8 }}>
           <strong style={{ fontSize: 12, color: '#F3E4B3' }}>Confirm your choice</strong>

@@ -30,7 +30,25 @@ const reviewGuardIndex = mutation.indexOf('if(identityCandidates.length&&review?
 assert.ok(exactGuardIndex >= 0 && reviewGuardIndex > exactGuardIndex, 'Relevant candidates must be filtered before the duplicate and human-review guards.');
 assert.ok(mutation.includes("p.status IN ('inactive','archived')"), 'Possible identity matches must include archived records so a former person cannot be re-created as a duplicate.');
 assert.ok(page.includes('I verified these are separate people') && page.includes('Open Review Center') && page.includes('DUPLICATE_IDENTITY_NOT_DISTINCT') && page.includes('Open record'), 'The People screen must expose human review and block a second record for an identical name+phone pair.');
-assert.ok(page.includes('Your edit has not been saved yet.') && page.includes('Confirm separate identities & save changes'), 'Direct People edits must clearly explain and require the explicit identity-review confirmation before saving.');
+const editReviewStart=page.indexOf('editIdentityReview&&');
+const editReviewEnd=page.indexOf("<div style={{display:'flex',gap:8,flexWrap:'wrap'}}>",editReviewStart);
+const editReviewPanel=editReviewStart>=0?page.slice(editReviewStart,editReviewEnd>editReviewStart?editReviewEnd:editReviewStart+5000):'';
+assert.ok(
+ editReviewPanel.includes('Your edit has not been applied.') &&
+ editReviewPanel.includes('Open identity review') &&
+ editReviewPanel.includes('Close notice · review stays pending') &&
+ !editReviewPanel.includes('Confirm separate identities & save changes') &&
+ !/router\\.push\\('\\/person\\/'/.test(editReviewPanel),
+ 'Direct People edits must create a durable pending identity review and link to that review; opening a candidate must not apply or resolve the edit.'
+);
+assert.ok(
+ mutation.includes("source:'people_edit_identity_review'") &&
+ mutation.includes('request_context:') &&
+ mutation.includes("review_id:String(durable.id)") &&
+ mutation.includes("await client.query('COMMIT')") &&
+ api.includes("review_id:String(err.review_id)"),
+ 'A conflicting People edit must persist its proposal and source-person reference before exposing the durable review ID to the client.'
+);
 assert.ok(mutation.includes("if(existingName.honorific&&!incomingName.honorific)incoming=existingName.honorific+' '+incoming"), 'A direct numeric-name edit must preserve existing honorifics while retaining the edited name text.');
 assert.ok(mutation.includes("replace(/[^a-z0-9]+/g,' ').trim()"), 'Identity comparison for direct edits must preserve digits within names.');
 assert.ok(access.includes("'owner', 'admin', 'leader', 'worker', 'user'"), 'Legacy user accounts must remain usable as operators until role migration is designed.');

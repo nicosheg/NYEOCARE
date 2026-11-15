@@ -1,7 +1,7 @@
 // pages/api/attendance/people.js
 import pool from '../../../lib/db';
 import { withOrg } from '../../../lib/apiHelpers';
-import { isOrganizationOperator, isOrganizationAdmin } from '../../../lib/attendance/access';
+import { isOrganizationOperator, isOrganizationAdmin, ensureActiveAttendanceSessionMember } from '../../../lib/attendance/access';
 
 function decodeCursor(value){
   if(!value)return null;
@@ -34,16 +34,14 @@ export default withOrg(async function handler(req,res){
 
   try{
     if(!isOrganizationAdmin(req.user?.role)){
-      const sessionAccess=await pool.query(
-        `SELECT 1
-         FROM sessions s
-         JOIN session_users su ON su.session_id=s.id AND su.user_id=$3
-         WHERE s.id=$1 AND s.organization_id=$2
-           AND (s.status='active' OR (s.status='closed' AND s.aria_processing_status IN('pending','processing')))
-         LIMIT 1`,
-        [session_id,orgId,req.user.id]
-      );
-      if(!sessionAccess.rows.length)return res.status(403).json({error:'Join this attendance session before viewing its people.'});
+      const joined=await ensureActiveAttendanceSessionMember(pool,{
+        organizationId:orgId,sessionId:session_id,userId:req.user.id
+      });
+      if(!joined)return res.status(403).json({
+        error:'You do not have active membership in this attendance session.',
+        code:'ATTENDANCE_SESSION_MEMBERSHIP_REQUIRED',
+        request_id:req.nyeoRequestId||null
+      });
     }
     const params=[orgId,session_id];
     const clauses=[

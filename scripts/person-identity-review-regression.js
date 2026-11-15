@@ -88,5 +88,9 @@ assert.ok(identityReviewAction.includes('upsertCreateRequest') && identityReview
 assert.ok(identityReviewQueue.includes('person_identity_review_items') && identityReviewQueue.includes("status='pending'") && identityReviewQueue.includes('PERSON_IDENTITY_REVIEW_IN_PROGRESS'), 'Queue persistence must preserve pending work and refuse to overwrite a review edited elsewhere.');
 assert.ok(bulkCreateApi.includes('persistPersonIdentityReview') && attendanceVisitorApi.includes('persistPersonIdentityReview') && mutation.includes('persistPersonIdentityReview'), 'Bulk add, attendance visitor creation, and ARIA direct creation must use durable review persistence too.');
 assert.ok(duplicateDetector.includes("['keep_separate','not_duplicate'].includes(x.decision)"), 'Human-confirmed not-duplicate decisions must stop repeat duplicate suggestions.');
+const reviewMerge=read('pages/api/review/person-identity-action.js');
+assert.ok(mutation.includes('durable.status!==\'pending\'') && mutation.includes('randomUUID()'), 'A resolved edit review must not be reused as a new pending review when the same proposal is submitted again.');
+assert.ok(mutation.includes('updated_at:current.updated_at?new Date(current.updated_at).toISOString():null'), 'A People edit identity review must capture the source record version when it is queued.');
+assert.ok(reviewMerge.includes('IDENTITY_EDIT_TARGET_STALE') && reviewMerge.includes('The original person changed after this review was created.'), 'A stale edit review must refresh and remain pending rather than overwrite a newer source record.');
 console.log('[PERSON IDENTITY REVIEW REGRESSION]');
 console.log('PASS: honorific normalization, strict identity uniqueness, human review, shared contact evidence, edit review, account access, and profile-name synchronization.');

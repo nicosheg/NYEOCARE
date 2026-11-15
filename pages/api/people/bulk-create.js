@@ -104,7 +104,9 @@ export default withOrg(async function handler(req, res) {
     const outcome = { row: line, source_line_numbers: sourceLines.length ? sourceLines : [line], source_row_key:sourceRowKey, name, review_key, status: 'skipped', reason: '' };
 
     if (!name) {
-      outcome.reason = 'Name is required.';
+      outcome.reason = phoneText
+        ? 'This phone number has no name. Put the person’s name on the line above or in the same row.'
+        : 'Name is required.';
       return { outcome, candidate: null };
     }
     if (name.length > 150) {

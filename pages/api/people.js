@@ -359,7 +359,8 @@ if(req.method==='PUT'){
   const safeMessage=status<500?String(err.message||'Unable to update person.'):'Unable to update person.';
   return res.status(status).json({
    error:safeMessage,code:err?.code||undefined,request_id:req.nyeoRequestId||null,
-   ...(Array.isArray(err?.candidates)?{candidates:scopedCandidates.map(candidate=>({...candidate,organization_id:orgId,organization_name:req.org.name||null}))}:{})
+   ...(Array.isArray(err?.candidates)?{candidates:scopedCandidates.map(candidate=>({...candidate,organization_id:orgId,organization_name:req.org.name||null}))}:{}),
+    ...(err?.review_id?{review_id:String(err.review_id),review_status:err.review_status||'pending'}:{})
   });
  }
 }

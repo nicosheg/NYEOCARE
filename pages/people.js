@@ -5,7 +5,7 @@ import Layout from'../components/Layout';
 const ReviewCenterTab=dynamic(()=>import('../components/ReviewCenterTab'),{ssr:false,loading:()=>null});
 import FirstExperience from'../components/FirstExperience';
 const BirthdayPicker=dynamic(()=>import('../components/BirthdayPicker'),{ssr:false,loading:()=>null});
-import{getClientSession,refreshClientSession}from'../lib/clientSession';import{publishDataChange}from'../lib/appData';import{primaryPhone}from'../lib/phoneUtils';
+import{getClientSession,refreshClientSession}from'../lib/clientSession';import{publishDataChange}from'../lib/appData';import{primaryPhone}from'../lib/phoneUtils';import{personDisplayName}from'../lib/personDisplayName.mjs';
 import{useOnboarding}from'../components/OnboardingProvider';
 import{ATTENDANCE_GROUP_LABELS,ATTENDANCE_GROUP_OPTIONS,ATTENDANCE_GROUP_FILTERS}from'../lib/attendanceSections';
 
@@ -46,7 +46,7 @@ return Math.max(0,Math.ceil((d-today)/86400000));
 const statusColor=s=>s==='alive'?'#8FB7FF':s==='needs_decision'?'#D4AF37':s==='conflict'?'#8FB7FF':'rgba(255,255,255,.4)';
 const statusLabel=s=>s==='alive'?'Living Truth':s==='needs_decision'?'Needs Evidence':s==='conflict'?'Human Review Required':'';
 const statusExplanation=(s,c)=>s==='alive'?`ARIA is highly confident this identity is correct. (Confidence: ${c||90}%)`:s==='needs_decision'?'ARIA needs more evidence before confirming this identity.':s==='conflict'?'ARIA found multiple possible identities and requires human review.':null;
-const personDisplayName=p=>{const display=String(p?.display_name||'').trim(),core=[p?.first_name,p?.last_name].filter(Boolean).join(' ').trim(),prefix=String(p?.honorific||p?.prefix||p?.metadata?.honorific||'').trim();if(display)return display;if(prefix)return `${prefix} ${core||'Unnamed person'}`;return core||'Unnamed person'};
+
 const personCardPhone=person=>{const normalized=primaryPhone(person);if(normalized)return normalized;const entries=Array.isArray(person?.phone_numbers)?person.phone_numbers:[];const values=[person?.phone,...entries.flatMap(entry=>typeof entry==='string'?[entry]:[entry?.normalized,entry?.raw,entry?.phone])];return values.map(value=>String(value||'').trim()).find(Boolean)||'No phone'};
 const formatLastSeen=value=>{if(!value)return'Last seen · —';const d=new Date(value);if(Number.isNaN(d.getTime()))return'Last seen · —';const label=new Intl.DateTimeFormat('en-NG',{month:'short',day:'numeric',timeZone:'Africa/Lagos'}).format(d);return`Last seen · ${label}`};const inputStyle={padding:'10px 12px',borderRadius:10,border:'1px solid rgba(255,255,255,.06)',background:'rgba(20,25,40,.6)',color:'#fff',outline:'none',width:'100%'};
 const labelStyle={display:'block',fontSize:13,color:'rgba(255,255,255,.5)',marginBottom:4};

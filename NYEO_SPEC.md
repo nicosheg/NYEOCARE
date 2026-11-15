@@ -3264,3 +3264,5 @@ The People edit regression must cover the prior PostgreSQL UUID-versus-integer f
 - Regression coverage must include the eight-name comma-separated input shown in the November 15 screenshot, two-name lists, spreadsheet CSV/tab/pipe rows, optional contacts, alternating phone lines, incomplete phone values, stable retry identities after partial success, and API summary counts. No schema or database migration is required for this parser correction.
 
 - Phone-only lines cannot disappear: an immediately preceding name row may own an alternating phone line; a standalone/orphan phone is shown as a visible invalid row. Blank lines and comments break the name/phone pairing. While a bulk write is in flight, the input controls are locked; an expired access token gets one refresh-and-retry with the same idempotent payload.
+
+- Backward compatibility: the first/only logical person on a physical source line keeps the previous production idempotency key (the original row number). Additional names split from one comma-list line receive stable `:<item>` suffixes. Do not rotate ordinary historical bulk-create retry identities during parser migrations.

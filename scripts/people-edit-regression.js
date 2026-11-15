@@ -11,6 +11,7 @@ const identityDecisionPanel=read('components/PeopleEditIdentityDecision.js');
 const peopleApi=read('pages/api/people.js');
 const phoneUtils=read('lib/phoneUtils.js');
 const mutation=read('lib/aria/peopleMutationEngine.js');
+const identityReviewSourceMigration=read('supabase/migrations/20261115202420_allow_people_edit_identity_review_source.sql');
 const recommendations=read('lib/aria/recommendationEngine.js');
 const eventProcessor=read('lib/aria/eventProcessor.js');
 const intelligence=read('lib/aria/peopleIntelligence.js');
@@ -33,6 +34,11 @@ assert.ok(peopleApi.includes('display_name,phone,phone_numbers,email,type') && p
 assert.ok(mutation.includes("source:'aria_direct_create',index:1") && mutation.includes("source:'aria_roster_import',index:1") && mutation.includes('phone,phone_numbers,type'), 'ARIA-created and roster-imported people must also write their primary phone to both storage fields.');
 assert.ok(read('pages/api/people/bulk-create.js').includes('phone,phone_numbers,email,type,attendance_group,birthday') && read('pages/api/people/bulk-create.js').includes("source:'manual',index:1"), 'Bulk People creation must write a synchronized primary phone and attendance section for each newly created person.');
 assert.ok(read('pages/api/identity/resolve.js').includes('phone,phone_numbers,type,status,confidence') && read('pages/api/identity/resolve.js').includes('normalizePhone(rawPhone)'), 'Human scan identity resolution must normalize the phone and persist both primary and JSON phone fields.');
+assert.ok(identityReviewSourceMigration.includes("DROP CONSTRAINT IF EXISTS person_identity_review_items_source_check")
+  && identityReviewSourceMigration.includes("CHECK (source IN ('manual_create', 'bulk_create', 'people_edit_identity_review'))"),
+  'The database constraint must permit the People-edit review source while preserving manual and bulk creation sources.');
+assert.ok(mutation.includes("source:'people_edit_identity_review'"),
+  'A conflicting existing-person edit must persist under the source explicitly allowed by the production identity-review constraint.');
 assert.ok(mutation.includes("const nameFieldsChanged=updatedFields.some(field=>['first_name','last_name','display_name'].includes(field))") && mutation.includes("candidatesRequiringEditIdentityReview(identityCandidates,{nameChanged:nameFieldsChanged,phoneChanged:userPrimaryPhoneChanged})"), 'Existing-person identity review must distinguish name changes from phone-only changes.');
 const archivedSameName={id:'archived-name-only',name_match:true,similar_name:true,phone_match:false};
 const sharedPhoneDifferentName={id:'shared-phone-different-name',name_match:false,similar_name:false,phone_match:true};

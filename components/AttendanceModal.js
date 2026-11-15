@@ -1060,7 +1060,7 @@ export default function AttendanceModal({isOpen,onClose}){
       let s=await getClientSession();if(!s)throw Error('You must be logged in.');
       let response=await fetchAttendanceWithTimeout('/api/attendance/mark',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.access_token},body:JSON.stringify({session_id:session.session_id,people_id:id,present:nextValue})});
       if(response.status===401){s=await getClientSession({forceRefresh:true}).catch(()=>null);if(s)response=await fetchAttendanceWithTimeout('/api/attendance/mark',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.access_token},body:JSON.stringify({session_id:session.session_id,people_id:id,present:nextValue})})}
-      const data=await read(response);if(!response.ok||!data.success)throw Object.assign(Error(data.error||'Could not update attendance.'),{transient:response.status>=500||response.status===0});
+      const data=await read(response);if(!response.ok||!data.success)throw Object.assign(Error(data.error||'Could not update attendance.'),{status:response.status,code:data.code||null,requestId:data.request_id||response.headers.get('x-nyeo-request-id')||null,transient:response.status>=500||response.status===0});
       const actual=data.present===true;
       if(actual!==nextValue){setPresent(value=>Math.max(0,value+(actual?1:-1)));setFieldRoster(current=>current.map(p=>String(p.id)===String(id)?{...p,marked:actual}:p));setPeople(current=>current.map(p=>String(p.id)===String(id)?{...p,marked:actual}:p))}
       await removeFieldMutation(session.session_id,session.user_id,id);await refreshFieldPending(session.session_id);setNotice('');perf('ok');
@@ -1080,7 +1080,15 @@ export default function AttendanceModal({isOpen,onClose}){
       }
       setPeople(current=>current.map(p=>String(p.id)===String(id)?{...p,marked:isMarked,marked_by_name:isMarked?(p.marked_by_name||'You'):null}:p));
       setFieldRoster(current=>current.map(p=>String(p.id)===String(id)?{...p,marked:isMarked,marked_by_name:isMarked?(p.marked_by_name||'You'):null}:p));
-      setPresent(value=>Math.max(0,value+(nextValue?-1:1)));setError(e.message||'Could not update attendance.');perf('error');
+      setPresent(value=>Math.max(0,value+(nextValue?-1:1)));
+      if(e?.code==='ATTENDANCE_SESSION_CLOSED'){
+        setError('');
+        setNotice('This attendance session was saved or closed on another device. NYEOCARE has stopped marking this old session; reopen Attendance to load the latest state.');
+        void load({showLoading:false,forceSnapshot:true}).catch(()=>{});
+      }else{
+        setError(e.message||'Could not update attendance.');
+      }
+      perf('error');
     }finally{markingIds.current.delete(markKey)}
   };
 

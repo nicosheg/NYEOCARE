@@ -36,10 +36,15 @@ assert.ok(openStart>=0&&closeStart>openStart,'Review detail opener must exist');
 const openBody=review.slice(openStart,closeStart);
 assert.ok(openBody.includes('setActive(item)'),'opening a review should only open its detail');
 assert.doesNotMatch(openBody,/api\(|setItems\(/,'opening a review must not resolve/remove it');
-assert.match(review,/Still in Review Center/,'the open detail must keep the pending queue visible');
-assert.match(review,/scan review stays pending until the saved People record is verified/);
+assert.match(review,/active\.kind!=='scan_identity_review'&&<div role="status"/,'the long workflow status must not crowd the scan identity decision screen');
+assert.match(review,/const detail=active\?<ModalPortal>/,'the detail sheet must render outside transformed/scrolling ancestors');
+assert.match(review,/sheetBody:\{flex:'1 1 auto',minHeight:0,overflowY:'auto'/,'review details must scroll independently');
+assert.match(review,/sheetFooter:\{flex:'0 0 auto'/,'decision actions must remain in a pinned footer');
+assert.match(review,/Update existing person from scan/,'a scan row must have an explicit update-existing-person action');
+assert.match(review,/Confirm match · keep current details/,'identity confirmation must be distinct from editing the person');
+assert.match(review,/Add as a new person/,'creating a new person must be a deliberate alternative');
 assert.match(review,/candidateId:\['approve','edit'\]\.includes\(action\)\?selected:null/,'editing a selected candidate must target that existing person');
-assert.match(review,/save\(selected\?'edit':'separate'\)/,'editing must update a selected record, or explicitly create a new one');
+assert.match(review,/onClick=\{\(\)=>save\('edit'\)\}/,'the primary scan action must edit the selected People record');
 assert.match(review,/result\?\.persisted!==true/,'the UI must require a verified persistence response before clearing a review');
 assert.match(review,/if\(!silent\)setLoading\(false\)/,'silent refresh must not temporarily blank the queue');
 
@@ -49,6 +54,7 @@ assert.match(reviewResolve,/REVIEW_CANDIDATES_UNAVAILABLE/,'candidate verificati
 assert.match(reviewResolve,/REVIEW_CANDIDATE_STALE/,'stale edit targets must not silently turn into person creation');
 assert.match(reviewResolve,/REVIEW_PERSISTENCE_VERIFICATION_FAILED/);
 assert.match(reviewResolve,/const savedResult=await db\.query/);
+assert.match(reviewResolve,/previousTargetName&&normalizeName\(previousTargetName\)!==normalizeName\(finalName\)/,'a corrected existing display name must retain the former canonical name as an alias');
 assert.match(reviewResolve,/persisted\.identity_verification_status/);
 assert.match(reviewResolve,/record_persisted:true,record_verified:true/);
 assert.match(reviewResolve,/WHERE id=\$1 AND organization_id=\$5 AND status='pending' RETURNING id,status/);

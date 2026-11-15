@@ -108,9 +108,11 @@ assert.match(identityMerge,/export async function mergePeople/,'edit reviews and
 assert.match(review,/initialReviewId/,'Review Center must open an exact pending review by ID');
 assert.match(review,/Same person — merge into selected/,'the edit review must expose an explicit same-person action');
 assert.match(review,/Different people — save edit and keep both/,'the edit review must expose an explicit separate-people action');
-assert.match(people,/Open identity review/,'People edit conflicts must link to Review Center');
-assert.match(person,/Open identity review/,'Person Journey edit conflicts must link to Review Center');
+assert.match(people,/<PeopleEditIdentityDecision/,'People edit conflicts must use the shared identity decision panel');
+assert.match(person,/<PeopleEditIdentityDecision/,'Person Journey edit conflicts must use the same shared identity decision panel');
+assert.match(identityMerge,/Open full review/,'The shared identity decision panel must offer a deep link to the full Review Center item');
+assert.match(people,/router\.push\('\/people\?review=1&review_id=/,'People must deep-link to the exact pending Review Center item');
+assert.match(person,/r\.push\(\x60\/people\?review=1&review_id=/,'Person Journey must deep-link to the exact pending Review Center item');
 assert.doesNotMatch(person,/href=\{\x60\/person\/\$\{candidate\.id\}\x60\}/,'Journey candidate navigation must not replace the review decision');
-assert.doesNotMatch(people.slice(people.indexOf('editIdentityReview&&'),people.indexOf('editIdentityReview&&')+3500),/router\.push\('\/person\/'/,'People edit conflict candidates must not navigate to a Journey page');
 
 console.log('NYEOCARE review queue persistence and edit-verification regression checks passed.');

@@ -76,7 +76,7 @@ assert.match(reviewResolve,/human_confirmed_review_edit_shared_phone/,'reviewed 
 assert.match(review,/Confirm shared phone & save/,'Review Center must offer an explicit human confirmation for a legitimate shared phone');
 assert.match(review,/sharedPhoneOwnerIds:sharedPhoneReview\.phone_owners\.map/,'the server must receive the exact owner set the operator reviewed');
 assert.match(review,/e\?\.code\|\|''\)\)\)\{setSharedPhoneReview/,'the UI must keep the edit open and show the shared-phone review instead of discarding the error');
-const duplicateAction=fs.readFileSync('pages/api/review/duplicate-action.js','utf8');
+const duplicateAction=fs.readFileSync('pages/api/review/duplicate-action.js','utf8')+'\n'+fs.readFileSync('lib/identityMerge.js','utf8');
 assert.match(review,/canonicalId:selected,duplicateId:other\.id/,'the selected duplicate candidate must be the canonical record');
 assert.match(review,/mergeResult\?\.canonical_id\)!==String\(selected\)/,'the UI must verify that the selected person is the canonical merge survivor before closing the review');
 assert.match(review,/mergeResult\?\.archived_id\)!==String\(other\.id\)/,'the UI must verify that only the other selected record was archived');

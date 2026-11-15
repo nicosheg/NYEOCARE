@@ -6,6 +6,7 @@ import { normalizePhone, normalizePhoneList, primaryPhone } from '../../../lib/p
 import { normalizeDisplayName, normalizeName } from '../../../lib/scanValidation';
 import { identityNameKey, findIdentityCandidates } from '../../../lib/aria/peopleMutationEngine';
 import { personIdentityPayloadHash } from '../../../lib/personIdentityReviewQueue';
+import { person, phoneList, mergePeople } from '../../../lib/identityMerge';
 import { emitAriaEvent } from '../../../lib/aria/eventEmitter';
 import { directAriaEvent } from '../../../lib/aria/director';
 
@@ -48,7 +49,7 @@ function parseProposed(row,body){
   return {
     ...parsed,full_name:parsed.display_name,
     phone:phoneEntries[0]?.normalized||null,
-    phone_numbers:phoneEntries,email,birthday,type,request_context:old.request_context||null
+    phone_numbers:phoneEntries,email,birthday,type,status:String(body.status??old.status??'active'),request_context:old.request_context||null
   };
 }
 function candidatePayload(candidate){
@@ -62,12 +63,12 @@ function candidatePayload(candidate){
     similar_name:candidate.similar_name===true
   };
 }
-async function currentCandidates(db,orgId,proposal){
+async function currentCandidates(db,orgId,proposal,excludePersonId=null){
   const nameKey=identityNameKey(proposal.display_name||proposal.full_name);
   const numbers=normalizePhoneList(proposal,{limit:4});
   const seen=new Map();
   for(const phone of [null,...numbers]){
-    const matches=await findIdentityCandidates(orgId,nameKey,phone,db);
+    const matches=await findIdentityCandidates(orgId,nameKey,phone,db,excludePersonId);
     for(const match of matches)seen.set(String(match.id),match);
   }
   return [...seen.values()].map(candidatePayload);
@@ -165,7 +166,18 @@ export default withOrg(async function handler(req,res){
     if(!found){await db.query('ROLLBACK');finished=true;return res.status(404).json({error:'This identity review is no longer pending. Refresh Review Center.',code:'IDENTITY_REVIEW_NOT_FOUND'})}
     const proposal=parseProposed(found,req.body||{});
     const payloadHash=personIdentityPayloadHash(proposal);
-    const candidates=await currentCandidates(db,req.org.id,proposal);
+    const editTargetId=proposal.request_context?.kind==='people_edit_identity_review'
+      ?String(proposal.request_context?.target_person_id||''):null;
+    let editTarget=null;
+    if(editTargetId){
+      editTarget=(await db.query(
+        `SELECT id,organization_id,first_name,last_name,display_name,phone,phone_numbers,email,birthday,type,status,identity_verification_status,metadata,living_truth
+         FROM people WHERE id=$1 AND organization_id=$2 AND status IN('active','inactive') FOR UPDATE`,
+        [editTargetId,req.org.id]
+      )).rows[0]||null;
+      if(!editTarget)throw Object.assign(new Error('The person being edited is no longer available. The review remains pending; refresh People and review the current record.'),{status:409,code:'IDENTITY_EDIT_TARGET_NOT_FOUND'});
+    }
+    const candidates=await currentCandidates(db,req.org.id,proposal,editTargetId);
     const persistedIds=Array.isArray(found.candidate_person_ids)?found.candidate_person_ids.map(String):[];
     const freshIds=candidates.map(c=>String(c.id));
     if(action==='edit'){
@@ -180,14 +192,71 @@ export default withOrg(async function handler(req,res){
     }
     const proposedPhones=normalizePhoneList(proposal,{limit:4});
     let person=null,finalId=null;
-    if(action==='merge'){
+    if(action==='merge'&&editTargetId){
+      if(!canonicalId)throw Object.assign(new Error('Choose the existing person who should remain as the main record.'),{status:400,code:'CANONICAL_PERSON_REQUIRED'});
+      if(String(canonicalId)===String(editTargetId))throw Object.assign(new Error('The person being edited cannot be selected as their own merge target.'),{status:400,code:'INVALID_CANONICAL_PERSON'});
+      const selected=candidates.find(candidate=>String(candidate.id)===String(canonicalId));
+      if(!selected)throw Object.assign(new Error('The selected person is no longer a current match. Refresh this review and compare the current records.'),{status:409,code:'INVALID_CANONICAL_PERSON'});
+      if(String(editTarget.status)!=='active')throw Object.assign(new Error('This person is inactive. Restore the record before merging it into another person. The review remains pending.'),{status:409,code:'IDENTITY_EDIT_TARGET_INACTIVE'});
+      const canonical=await person(db,canonicalId,req.org.id);
+      if(!canonical)throw Object.assign(new Error('The selected main person is no longer active. Refresh this review and choose a current record.'),{status:409,code:'CANONICAL_PERSON_NOT_ACTIVE'});
+      const oldCanonicalName=String(canonical.display_name||[canonical.first_name,canonical.last_name].filter(Boolean).join(' ')).trim();
+      const expectedPhones=[...new Set([...phoneList(canonical),...phoneList(editTarget),...proposedPhones])];
+      const mergeEvidence=identityEvidence(found,candidates,proposal,req.user.id,'merge',canonicalId);
+      await mergePeople(db,req.org.id,String(canonicalId),String(editTargetId),req.user.id,mergeEvidence);
+      const mergedCanonical=(await db.query(
+        `SELECT id,organization_id,first_name,last_name,display_name,phone,phone_numbers,email,birthday,type,status,identity_verification_status,metadata,living_truth
+         FROM people WHERE id=$1 AND organization_id=$2 AND status='active' FOR UPDATE`,
+        [String(canonicalId),req.org.id]
+      )).rows[0];
+      if(!mergedCanonical)throw Object.assign(new Error('The selected main person could not be read after history reconciliation. The review remains pending.'),{status:409,code:'IDENTITY_EDIT_MERGE_READBACK_FAILED'});
+      const allPhones=[...new Set([...phoneList(mergedCanonical),...proposedPhones])];
+      const primary=normalizePhone(mergedCanonical.phone)||primaryPhone(mergedCanonical)||allPhones[0]||null;
+      const orderedPhones=allPhones.map((value,index)=>({raw:value,normalized:normalizePhone(value)||null,source:'people_edit_identity_review_merge',index:index+1}));
+      const parts=splitName(proposal.display_name);
+      const metadata={identity_verified:true,last_identity_edit_merge:{review_id:String(found.id),source_person_id:String(editTargetId),canonical_person_id:String(canonicalId),proposed_name:proposal.display_name,decided_by:req.user.id,decided_at:new Date().toISOString()}};
+      const saved=(await db.query(
+        `UPDATE people SET first_name=$3,last_name=$4,display_name=$5,phone=$6,phone_numbers=$7::jsonb,
+          email=COALESCE(NULLIF(email,''),$8),birthday=COALESCE(birthday,$9::date),
+          type=CASE WHEN type='visitor' AND $10='member' THEN 'member' ELSE type END,
+          identity_verification_status='verified',identity_verified_at=COALESCE(identity_verified_at,NOW()),
+          identity_verified_by=$11,identity_verification_source='human_identity_review',
+          metadata=COALESCE(metadata,'{}'::jsonb)||$12::jsonb,updated_at=NOW()
+         WHERE id=$1 AND organization_id=$2 AND status='active'
+         RETURNING id,organization_id,first_name,last_name,display_name,phone,phone_numbers,email,birthday,type,status,identity_verification_status,metadata,living_truth`,
+        [String(canonicalId),req.org.id,parts.first_name,parts.last_name,proposal.display_name||null,primary,JSON.stringify(orderedPhones),proposal.email,proposal.birthday,proposal.type,req.user.id,JSON.stringify(metadata)]
+      )).rows[0];
+      if(oldCanonicalName&&normalizeName(oldCanonicalName)!==normalizeName(proposal.display_name)){
+        await db.query(
+          `INSERT INTO person_aliases(organization_id,person_id,alias,created_by)
+           SELECT $1,$2,$3,$4
+           WHERE $3<>'' AND NOT EXISTS(SELECT 1 FROM person_aliases WHERE organization_id=$1 AND person_id=$2 AND lower(alias)=lower($3))`,
+          [req.org.id,String(canonicalId),oldCanonicalName,req.user.id]
+        );
+      }
+      const verifiedCanonical=(await db.query(
+        `SELECT id,display_name,phone,phone_numbers,status,identity_verification_status FROM people WHERE id=$1 AND organization_id=$2`,
+        [String(canonicalId),req.org.id]
+      )).rows[0];
+      const archivedSource=(await db.query(
+        `SELECT id,status,living_truth,metadata FROM people WHERE id=$1 AND organization_id=$2`,
+        [String(editTargetId),req.org.id]
+      )).rows[0];
+      const actualPhones=verifiedCanonical?phoneList(verifiedCanonical):[];
+      const missingPhones=expectedPhones.filter(value=>!actualPhones.includes(value));
+      const redirect=String(archivedSource?.living_truth?.merged_into||archivedSource?.metadata?.identity_merged_into||'');
+      if(!saved||!verifiedCanonical||String(verifiedCanonical.id)!==String(canonicalId)||
+         verifiedCanonical.status!=='active'||verifiedCanonical.identity_verification_status!=='verified'||
+         normalizeName(verifiedCanonical.display_name)!==normalizeName(proposal.display_name)||
+         !archivedSource||archivedSource.status!=='archived'||redirect!==String(canonicalId)||missingPhones.length){
+        throw Object.assign(new Error('NYEOCARE could not verify the edited identity, preserved contact details and reconciled history. The transaction was rolled back; the review remains pending.'),{status:409,code:'IDENTITY_EDIT_MERGE_VERIFICATION_FAILED'});
+      }
+      person=verifiedCanonical;finalId=String(canonicalId);
+    }else if(action==='merge'){
       if(!canonicalId)throw Object.assign(new Error('Select the existing person you want to keep as the main record.'),{status:400,code:'CANONICAL_PERSON_REQUIRED'});
       const selected=candidates.find(c=>String(c.id)===String(canonicalId));
       if(!selected)throw Object.assign(new Error('The selected person is no longer a current identity match. Refresh Review Center and select a current record.'),{status:409,code:'INVALID_CANONICAL_PERSON'});
-      person=(await db.query(
-        `SELECT * FROM people WHERE id=$1 AND organization_id=$2 AND status='active' FOR UPDATE`,
-        [String(canonicalId),req.org.id]
-      )).rows[0];
+      person=(await db.query(`SELECT * FROM people WHERE id=$1 AND organization_id=$2 AND status='active' FOR UPDATE`,[String(canonicalId),req.org.id])).rows[0];
       if(!person)throw Object.assign(new Error('The selected person is no longer active. Refresh Review Center and choose another current record, or keep the proposed person separate.'),{status:409,code:'CANONICAL_PERSON_NOT_ACTIVE'});
       const existingPhones=normalizePhoneList(person,{limit:4});
       const mergedPhones=[...new Set([...existingPhones,...proposedPhones])].slice(0,4);
@@ -199,18 +268,15 @@ export default withOrg(async function handler(req,res){
       const meta={review_id:String(found.id),actor_id:req.user.id,proposed_name:proposal.display_name,merged_at:new Date().toISOString(),source:found.source||'manual_create'};
       const requestContext=proposal.request_context&&typeof proposal.request_context==='object'?proposal.request_context:null;
       const attendanceMetadata=requestContext?.kind==='attendance_add_visitor'?{
-        attendance_add_visitor_request_id:String(requestContext.request_id||''),
-        attendance_add_visitor_session_id:String(requestContext.session_id||''),
+        attendance_add_visitor_request_id:String(requestContext.request_id||''),attendance_add_visitor_session_id:String(requestContext.session_id||''),
         ...(proposedPhones.length?{contact_consent:{phone:true,status:requestContext.contact_consent===true?'granted':'unknown',source:'attendance_add_visitor',recorded_by:req.user.id,recorded_at:new Date().toISOString()}}:{})
       }:{};
       const saved=(await db.query(
-        `UPDATE people SET phone=$3,phone_numbers=$4::jsonb,
-          email=COALESCE(NULLIF(email,''),$5),birthday=COALESCE(birthday,$6::date),
+        `UPDATE people SET phone=$3,phone_numbers=$4::jsonb,email=COALESCE(NULLIF(email,''),$5),birthday=COALESCE(birthday,$6::date),
           type=CASE WHEN type='visitor' AND $7='member' THEN 'member' ELSE type END,
-          identity_verification_status='verified',identity_verified_at=NOW(),
-          identity_verified_by=$8,identity_verification_source='human_identity_review',
-          metadata=COALESCE(metadata,'{}'::jsonb)||jsonb_build_object('last_identity_merge',$9::jsonb)||$10::jsonb,
-          updated_at=NOW()
+          identity_verification_status='verified',identity_verified_at=NOW(),identity_verified_by=$8,
+          identity_verification_source='human_identity_review',
+          metadata=COALESCE(metadata,'{}'::jsonb)||jsonb_build_object('last_identity_merge',$9::jsonb)||$10::jsonb,updated_at=NOW()
          WHERE id=$1 AND organization_id=$2 AND status='active'
          RETURNING id,organization_id,first_name,last_name,display_name,phone,phone_numbers,email,birthday,type,status,identity_verification_status`,
         [person.id,req.org.id,primary,JSON.stringify(orderedPhones),proposal.email,proposal.birthday,proposal.type,req.user.id,JSON.stringify(meta),JSON.stringify(attendanceMetadata)]
@@ -219,14 +285,39 @@ export default withOrg(async function handler(req,res){
       const savedPhones=normalizePhoneList(saved,{limit:4});
       if(proposedPhones.some(phone=>!savedPhones.includes(phone)))throw Object.assign(new Error('A proposed contact number could not be retained on the main person record. The review remains pending.'),{status:409,code:'IDENTITY_MERGE_CONTACT_VERIFICATION_FAILED'});
       if(normalizeName(proposal.display_name)!==normalizeName(saved.display_name||[saved.first_name,saved.last_name].filter(Boolean).join(' '))){
-        await db.query(
-          `INSERT INTO person_aliases(organization_id,person_id,alias,created_by)
-           SELECT $1,$2,$3,$4
-           WHERE NOT EXISTS(SELECT 1 FROM person_aliases WHERE organization_id=$1 AND person_id=$2 AND lower(alias)=lower($3))`,
-          [req.org.id,person.id,proposal.display_name,req.user.id]
-        );
+        await db.query(`INSERT INTO person_aliases(organization_id,person_id,alias,created_by) SELECT $1,$2,$3,$4
+         WHERE NOT EXISTS(SELECT 1 FROM person_aliases WHERE organization_id=$1 AND person_id=$2 AND lower(alias)=lower($3))`,
+         [req.org.id,person.id,proposal.display_name,req.user.id]);
       }
       person=saved;finalId=String(saved.id);
+    }else if(action==='keep_separate'&&editTargetId){
+      const parts=splitName(proposal.display_name),now=new Date().toISOString();
+      const retainedPhones=[...new Set([...proposedPhones,...phoneList(editTarget).filter(value=>value!==primaryPhone(editTarget))])];
+      const phoneNumbers=retainedPhones.map((value,index)=>({raw:value,normalized:normalizePhone(value)||null,source:'people_edit_identity_review',index:index+1}));
+      const oldName=String(editTarget.display_name||[editTarget.first_name,editTarget.last_name].filter(Boolean).join(' ')).trim();
+      const editMetadata={identity_verified:true,last_identity_review:{review_id:String(found.id),source:'people_edit_identity_review',action:'keep_separate',decided_by:req.user.id,decided_at:now,candidate_person_ids:candidates.map(candidate=>String(candidate.id))}};
+      const saved=(await db.query(
+        `UPDATE people SET first_name=$3,last_name=$4,display_name=$5,phone=$6,phone_numbers=$7::jsonb,email=$8,birthday=$9::date,
+          type=$10,status=$11,identity_verification_status='verified',identity_verified_at=COALESCE(identity_verified_at,NOW()),
+          identity_verified_by=$12,identity_verification_source='human_identity_review',metadata=COALESCE(metadata,'{}'::jsonb)||$13::jsonb,
+          updated_at=NOW() WHERE id=$1 AND organization_id=$2 AND status IN('active','inactive')
+         RETURNING id,organization_id,first_name,last_name,display_name,phone,phone_numbers,email,birthday,type,status,identity_verification_status,metadata`,
+        [String(editTargetId),req.org.id,parts.first_name,parts.last_name,proposal.display_name||null,retainedPhones[0]||null,JSON.stringify(phoneNumbers),proposal.email,proposal.birthday,proposal.type,proposal.status||editTarget.status,req.user.id,JSON.stringify(editMetadata)]
+      )).rows[0];
+      if(oldName&&normalizeName(oldName)!==normalizeName(proposal.display_name)){
+        await db.query(`INSERT INTO person_aliases(organization_id,person_id,alias,created_by) SELECT $1,$2,$3,$4
+          WHERE NOT EXISTS(SELECT 1 FROM person_aliases WHERE organization_id=$1 AND person_id=$2 AND lower(alias)=lower($3))`,
+          [req.org.id,String(editTargetId),oldName,req.user.id]);
+      }
+      await recordSeparatePair(db,{orgId:req.org.id,actorId:req.user.id,person:saved,candidates,proposedPhones:retainedPhones,reviewId:found.id});
+      const verifiedEdit=(await db.query(`SELECT id,display_name,phone,phone_numbers,status,identity_verification_status FROM people WHERE id=$1 AND organization_id=$2`,[String(editTargetId),req.org.id])).rows[0];
+      const savedPhones=verifiedEdit?normalizePhoneList(verifiedEdit,{limit:4}):[];
+      if(!saved||!verifiedEdit||String(verifiedEdit.id)!==String(editTargetId)||normalizeName(verifiedEdit.display_name)!==normalizeName(proposal.display_name)||
+         verifiedEdit.status!==String(proposal.status||editTarget.status)||verifiedEdit.identity_verification_status!=='verified'||
+         retainedPhones.some(value=>!savedPhones.includes(value))){
+        throw Object.assign(new Error('NYEOCARE could not verify the edited People record and separate-identity decision. The review remains pending.'),{status:409,code:'IDENTITY_EDIT_SEPARATE_VERIFICATION_FAILED'});
+      }
+      person=verifiedEdit;finalId=String(editTargetId);
     }else if(action==='keep_separate'){
       const parts=splitName(proposal.display_name);
       const now=new Date().toISOString();
@@ -234,18 +325,15 @@ export default withOrg(async function handler(req,res){
       const requestContext=proposal.request_context&&typeof proposal.request_context==='object'?proposal.request_context:null;
       const personMetadata={
         ...(requestContext?.kind==='attendance_add_visitor'?{
-          attendance_add_visitor_request_id:String(requestContext.request_id||''),
-          attendance_add_visitor_session_id:String(requestContext.session_id||''),
+          attendance_add_visitor_request_id:String(requestContext.request_id||''),attendance_add_visitor_session_id:String(requestContext.session_id||''),
           ...(proposedPhones.length?{contact_consent:{phone:true,status:requestContext.contact_consent===true?'granted':'unknown',source:'attendance_add_visitor',recorded_by:req.user.id,recorded_at:now}}:{})
         }:{}),
         identity_review:{review_id:String(found.id),source:found.source||'manual_create',action:'keep_separate',decided_by:req.user.id,decided_at:now}
       };
       person=(await db.query(
-        `INSERT INTO people(
-          organization_id,first_name,last_name,display_name,phone,phone_numbers,email,type,birthday,
-          created_by,metadata,living_truth,status,source,identity_verification_status,identity_verified_at,identity_verified_by,identity_verification_source
-        ) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9::date,$10,$11::jsonb,$12::jsonb,'active','manual','verified',NOW(),$10,'human_identity_review')
-        RETURNING id,organization_id,first_name,last_name,display_name,phone,phone_numbers,email,type,birthday,status,identity_verification_status`,
+        `INSERT INTO people(organization_id,first_name,last_name,display_name,phone,phone_numbers,email,type,birthday,created_by,metadata,living_truth,status,source,identity_verification_status,identity_verified_at,identity_verified_by,identity_verification_source)
+         VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9::date,$10,$11::jsonb,$12::jsonb,'active','manual','verified',NOW(),$10,'human_identity_review')
+         RETURNING id,organization_id,first_name,last_name,display_name,phone,phone_numbers,email,type,birthday,status,identity_verification_status`,
         [req.org.id,parts.first_name,parts.last_name,proposal.display_name||null,proposedPhones[0]||null,JSON.stringify(phoneNumbers),proposal.email,proposal.type,proposal.birthday,req.user.id,JSON.stringify(personMetadata),JSON.stringify({status:'alive',confidence:100,source:'human_identity_review',updated_at:now})]
       )).rows[0];
       if(!person||person.status!=='active'||person.identity_verification_status!=='verified')throw Object.assign(new Error('NYEOCARE could not verify the newly created person record. The review remains pending.'),{status:409,code:'IDENTITY_CREATE_VERIFICATION_FAILED'});
@@ -253,13 +341,13 @@ export default withOrg(async function handler(req,res){
       finalId=String(person.id);
     }
     const evidence=identityEvidence(found,candidates,proposal,req.user.id,action,action==='merge'?canonicalId:null);
-    await upsertCreateRequest(db,{orgId:req.org.id,requestId:found.client_request_id,payloadHash:found.request_payload_hash||found.payload_hash,personId:finalId,actorId:req.user.id});
+    if(!editTargetId)await upsertCreateRequest(db,{orgId:req.org.id,requestId:found.client_request_id,payloadHash:found.request_payload_hash||found.payload_hash,personId:finalId,actorId:req.user.id});
     await resolveReview(db,{row:found,orgId:req.org.id,actorId:req.user.id,personId:finalId,action,evidence});
     await db.query('COMMIT');finished=true;
-    eventData={organizationId:req.org.id,personId:finalId,actorId:req.user.id,action,reviewId:String(found.id)};
+    eventData={organizationId:req.org.id,personId:finalId,actorId:req.user.id,action,reviewId:String(found.id),editReview:Boolean(editTargetId)};
   }catch(err){
     if(!finished)await db.query('ROLLBACK').catch(()=>{});
-    const status=[400,403,404,409].includes(Number(err?.status))?Number(err.status):500;
+    const status=[400,403,404,409].includes(Number(err?.status||err?.statusCode))?Number(err.status||err.statusCode):500;
     console.error('[PERSON_IDENTITY_REVIEW] Action failed:',{organization_id:req.org.id,review_id:String(id),code:err?.code||null,message:err?.message||String(err)});
     return res.status(status).json({error:status<500?String(err.message||'Identity review failed.'):'The identity decision could not be completed safely. Nothing was changed; the item remains pending.',code:err?.code||'PERSON_IDENTITY_REVIEW_ACTION_FAILED'});
   }finally{
@@ -269,13 +357,13 @@ export default withOrg(async function handler(req,res){
     try{
       const event=await emitAriaEvent({
         organizationId:eventData.organizationId,personId:eventData.personId,
-        type:eventData.action==='merge'?'PERSON_UPDATED':'PERSON_CREATED',
+        type:eventData.editReview||eventData.action==='merge'?'PERSON_UPDATED':'PERSON_CREATED',
         source:'human_identity_review',actorId:eventData.actorId,
-        metadata:{review_id:eventData.reviewId,action:eventData.action},
+        metadata:{review_id:eventData.reviewId,action:eventData.action,edit_review:eventData.editReview},
         eventKey:`person-identity-review:${eventData.reviewId}:${eventData.action}:${eventData.personId}`
       });
       if(event)await directAriaEvent(event);
     }catch(error){console.warn('[PERSON_IDENTITY_REVIEW] ARIA event skipped:',error?.message||error)}
   }
-  return res.status(200).json({ok:true,verified:true,persisted:true,review_status:'resolved',action,review_id:String(id),person_id:eventData?.personId||null});
+  return res.status(200).json({ok:true,verified:true,persisted:true,review_status:'resolved',action,edit_review:Boolean(eventData?.editReview),review_id:String(id),person_id:eventData?.personId||null});
 });

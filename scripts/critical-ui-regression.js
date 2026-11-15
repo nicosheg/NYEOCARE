@@ -11,6 +11,7 @@ const navigationBack=read('components/NavigationBack.js');
 const duplicateApi=read('pages/api/review/duplicate-action.js')+'\n'+read('lib/identityMerge.js');
 const home=read('pages/index.js');
 const peoplePage=read('pages/people.js');
+const bulkPeopleParser=read('lib/bulkPeopleParser.mjs');
 const personPage=read('pages/person/[id].js');
 const journeyActionsStart=personPage.indexOf('<div style={S.actions}>');
 const journeyActionsEnd=personPage.indexOf('</div>',journeyActionsStart);

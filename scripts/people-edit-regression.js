@@ -7,6 +7,7 @@ import { normalizeDisplayName } from '../lib/scanValidation.js';
 const read=p=>fs.readFileSync(p,'utf8');
 const peoplePage=read('pages/people.js');
 const personPage=read('pages/person/[id].js');
+const identityDecisionPanel=read('components/PeopleEditIdentityDecision.js');
 const peopleApi=read('pages/api/people.js');
 const phoneUtils=read('lib/phoneUtils.js');
 const mutation=read('lib/aria/peopleMutationEngine.js');

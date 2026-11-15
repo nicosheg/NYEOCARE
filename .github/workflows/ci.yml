@@ -57,6 +57,7 @@ jobs:
       - run: npm run test:aria-bulk-people-type
       - run: npm run test:people-edit
       - run: npm run test:people-attendance-groups
+      - run: npm run test:attendance-name-prefix
       - run: npm run test:diagnostics
       - run: npm run test:aria-today
       - run: npm run test:aria-universal

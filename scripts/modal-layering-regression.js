@@ -45,5 +45,11 @@ for (const [name, source] of [
 }
 assert.match(attendanceSource, /const mobileModal=\{\.\.\.modal,width:'100%',height:'88vh',maxHeight:'88vh'/, 'Attendance mobile sizing must have a vh fallback for browsers without dvh or min().');
 assert.match(historySource, /height:compact\?'100vh':'90vh',maxHeight:compact\?'100vh':860/, 'Attendance history sizing must use the legacy viewport unit.');
+assert.match(reviewSource, /import ModalPortal from'\.\/ModalPortal'/, 'Review detail must use the shared body-level portal.');
+assert.match(reviewSource, /const detail=active\?<ModalPortal>/, 'Review detail must not remain nested inside the list modal.');
+assert.match(reviewSource, /pointerEvents:'auto'/, 'The portalled detail overlay must remain interactive.');
+assert.match(reviewSource, /sheetBody:\{flex:'1 1 auto',minHeight:0,overflowY:'auto'/, 'Review detail content must own its scroll area.');
+assert.match(reviewSource, /sheetFooter:\{flex:'0 0 auto'/, 'Review actions must have a persistent footer.');
+assert.match(reviewSource, /role="dialog" aria-modal="true"/, 'Review detail must expose dialog semantics.');
 
 console.log('Modal layering regression checks passed.');

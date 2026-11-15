@@ -29,16 +29,17 @@ export default function PeopleEditIdentityDecision({
   const candidates = Array.isArray(review?.candidates) ? review.candidates : [];
   const reviewId = String(review?.review_id || review?.source_review_id || '').replace(/^identity:/, '');
   const activeCandidates = candidates.filter(candidate => String(candidate?.status || '').toLowerCase() === 'active');
-  const [selectedId, setSelectedId] = useState('');
+  const initialCandidateId = String((activeCandidates[0] || candidates[0])?.id || '');
+  const [selectedId, setSelectedId] = useState(initialCandidateId);
   const [confirmAction, setConfirmAction] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    setSelectedId(String((activeCandidates[0] || candidates[0])?.id || ''));
+    setSelectedId(initialCandidateId);
     setConfirmAction('');
     setError('');
-  }, [reviewId]);
+  }, [reviewId, initialCandidateId]);
 
   const selectedCandidate = candidates.find(candidate => String(candidate.id) === String(selectedId));
   const selectedCanBeMain = String(selectedCandidate?.status || '').toLowerCase() === 'active';
@@ -82,7 +83,11 @@ export default function PeopleEditIdentityDecision({
         throw new Error('NYEOCARE did not verify the decision. This review remains pending; no information was cleared.');
       }
       setConfirmAction('');
-      await onResolved?.(action, data);
+      try {
+        await onResolved?.(action, data);
+      } catch (refreshFailure) {
+        setError('Your decision was saved and verified. This screen could not refresh automatically; reopen People or Review Center to confirm the updated record.');
+      }
     } catch (failure) {
       setError(reviewMessage(failure));
     } finally {

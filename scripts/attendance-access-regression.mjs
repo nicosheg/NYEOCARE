@@ -42,7 +42,7 @@ const contracts = [
   ['pages/api/attendance/join-session.js', ['isOrganizationOperator', 'Only authorized organization operators can join attendance sessions.']],
   ['pages/api/attendance/field-roster.js', ['isOrganizationOperator', 'session_users su']],
   ['pages/api/attendance/field-changes.js', ['isOrganizationOperator', 'session_users su']],
-  ['pages/api/attendance/people.js', ['isOrganizationOperator', 'session_users su']],
+  ['pages/api/attendance/people.js', ['isOrganizationOperator', 'ensureActiveAttendanceSessionMember']],
   ['pages/api/attendance/search.js', ['isOrganizationOperator', 'session_id', 'session_users su']],
   ['pages/api/attendance/mark.js', ['isOrganizationOperator', 'Only authorized organization operators can mark attendance.']],
   ['pages/api/attendance/sync.js', ['isOrganizationOperator', 'Only authorized organization operators can sync attendance.']],

@@ -50,6 +50,7 @@ jobs:
       - run: npm run test:identity-evidence
       - run: npm run test:scan-review
       - run: npm run test:aria-internal-messaging
+      - run: npm run test:bulk-people-parser
       - run: npm run test:critical-ui
       - run: npm run test:modal-layering
       - run: npm run test:experience

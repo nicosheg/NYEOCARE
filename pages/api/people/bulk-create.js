@@ -177,7 +177,7 @@ export default withOrg(async function handler(req, res) {
       item.outcome.payload_hash=personIdentityPayloadHash(item.outcome.proposed_payload);
       item.outcome.duplicate_row=seenNames.get(nameKey);
       item.outcome.identity_review_required=true;
-      item.outcome.review_request_id=stableIdentityReviewRequestId(`bulk-create:${req.org.id}:${req.user?.id||''}:${item.outcome.row}:${item.outcome.payload_hash}`);
+      item.outcome.review_request_id=stableIdentityReviewRequestId(`bulk-create:${req.org.id}:${req.user?.id||''}:${item.outcome.source_row_key}:${item.outcome.payload_hash}`);
       item.candidate = null;
       continue;
     }
@@ -310,7 +310,7 @@ export default withOrg(async function handler(req, res) {
         if(createdOwner)candidates=[...candidates,{...createdOwner,organization_id:organizationId,status:'active'}];
       }
       const payloadHash=item.outcome.payload_hash||personIdentityPayloadHash(item.outcome.proposed_payload);
-      const reviewRequestId=item.outcome.review_request_id||stableIdentityReviewRequestId(`bulk-create:${organizationId}:${req.user.id}:${item.outcome.row}:${payloadHash}`);
+      const reviewRequestId=item.outcome.review_request_id||stableIdentityReviewRequestId(`bulk-create:${organizationId}:${req.user.id}:${item.outcome.source_row_key}:${payloadHash}`);
       const saved=await persistPersonIdentityReview(client,{
         organizationId,actorId:req.user.id,clientRequestId:reviewRequestId,payloadHash,
         proposedPayload:item.outcome.proposed_payload,candidates,

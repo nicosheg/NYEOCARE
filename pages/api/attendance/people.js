@@ -42,6 +42,20 @@ export default withOrg(async function handler(req,res){
         code:'ATTENDANCE_SESSION_MEMBERSHIP_REQUIRED',
         request_id:req.nyeoRequestId||null
       });
+      const sessionAccess=await pool.query(
+        `SELECT 1
+         FROM sessions s
+         JOIN session_users su ON su.session_id=s.id AND su.user_id=$3
+         WHERE s.id=$1 AND s.organization_id=$2
+           AND (s.status='active' OR (s.status='closed' AND s.aria_processing_status IN('pending','processing')))
+         LIMIT 1`,
+        [session_id,orgId,req.user.id]
+      );
+      if(!sessionAccess.rows.length)return res.status(409).json({
+        error:'This attendance session is no longer available.',
+        code:'ATTENDANCE_SESSION_UNAVAILABLE',
+        request_id:req.nyeoRequestId||null
+      });
     }
     const params=[orgId,session_id];
     const clauses=[

@@ -42,7 +42,7 @@ assert.deepEqual(candidatesRequiringEditIdentityReview([archivedSameName,sharedP
 assert.deepEqual(candidatesRequiringEditIdentityReview([archivedSameName,sharedPhoneDifferentName],{nameChanged:false,phoneChanged:false}),[], 'Fields unrelated to identity must not trigger identity review.');
 assert.ok(mutation.includes("p.metadata->>'identity_merged_into'")&&mutation.includes("p.living_truth->>'merged_into'")&&mutation.includes('AS alias_name_match')&&mutation.includes('row.alias_name_match===true'), 'Merged archive rows must not reappear as independent identity candidates; their aliases must resolve to the canonical survivor.');
 const reviewCenter=read('components/ReviewCenterTab.js');
-const duplicateAction=read('pages/api/review/duplicate-action.js');
+const duplicateAction=read('pages/api/review/duplicate-action.js')+'\n'+read('lib/identityMerge.js');
 const reviewResolve=read('pages/api/review/resolve.js');
 assert.ok(reviewCenter.includes('selectedCandidate=(item.candidates||[]).find(c=>String(c.id)===String(initialSelected))') && reviewCenter.includes("contactPhones=item.kind==='person_identity_review'?phones(proposal):(item.kind!=='database_duplicate'&&selectedCandidate?phones(selectedCandidate):p)"), 'Scan edits must prefill from the selected canonical person, while unsaved manual-create reviews must retain the proposal phones until the operator explicitly merges.');
 assert.ok(reviewCenter.includes('function selectCandidate(candidate)') && reviewCenter.includes('onClick={()=>selectCandidate(c)}') && reviewCenter.includes("setPhone(existingPhones[0]||'');setPhone2(existingPhones[1]||'')"), 'Changing the selected review target must refresh the phone fields to that exact target before saving.');

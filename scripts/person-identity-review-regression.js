@@ -43,7 +43,7 @@ assert.ok(
 );
 assert.ok(
  page.includes("Boolean(editIdentityReview?.review_id)") && page.includes("'Review pending'") &&
- decisionPanel.includes('IDENTITY_EDIT_TARGET_STALE') && decisionPanel.includes('remains pending'),
+ decisionPanel.includes('IDENTITY_EDIT_TARGET_STALE') && decisionPanel.includes('remains pending') && decisionPanel.includes('latest changes you just tried were') && decisionPanel.includes('Open existing review'),
  'Once a review exists, the stale editor must not create competing drafts and failed/stale decisions must stay pending.'
 );
 assert.ok(

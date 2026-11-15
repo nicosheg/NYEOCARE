@@ -9,6 +9,7 @@ import{getClientSession,refreshClientSession}from'../lib/clientSession';import{p
 import{useOnboarding}from'../components/OnboardingProvider';
 import PeopleEditIdentityDecision from'../components/PeopleEditIdentityDecision';
 import{ATTENDANCE_GROUP_LABELS,ATTENDANCE_GROUP_OPTIONS,ATTENDANCE_GROUP_FILTERS}from'../lib/attendanceSections';
+import{parseBulkPeopleRows}from'../lib/bulkPeopleParser.mjs';
 
 const ICONS={
 visitor:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D4AF37" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-7 8-7s8 3 8 7"/></svg>,
@@ -52,60 +53,6 @@ const personCardPhone=person=>{const normalized=primaryPhone(person);if(normaliz
 const formatLastSeen=value=>{if(!value)return'Last seen · —';const d=new Date(value);if(Number.isNaN(d.getTime()))return'Last seen · —';const label=new Intl.DateTimeFormat('en-NG',{month:'short',day:'numeric',timeZone:'Africa/Lagos'}).format(d);return`Last seen · ${label}`};const inputStyle={padding:'10px 12px',borderRadius:10,border:'1px solid rgba(255,255,255,.06)',background:'rgba(20,25,40,.6)',color:'#fff',outline:'none',width:'100%'};
 const labelStyle={display:'block',fontSize:13,color:'rgba(255,255,255,.5)',marginBottom:4};
 const birthdayButtonStyle=value=>({width:'100%',padding:'12px 16px',borderRadius:10,border:'1px solid rgba(255,255,255,.06)',background:'rgba(20,25,40,.6)',color:value?'#f0f0f0':'rgba(255,255,255,.3)',fontSize:15,textAlign:'left',cursor:'pointer',outline:'none'});
-
-function parseBulkPeopleRows(text, defaultType='visitor'){
-  const lines=String(text||'').split(/\r?\n/);
-  const prepared=[];
-  for(let index=0;index<lines.length;index++){
-    const line=lines[index].trim();
-    if(!line||line.startsWith('#'))continue;
-    const phoneOnly=line.match(/^(?:\+?234\d{10}|0\d{10}|\d{10})$/);
-    if(phoneOnly){
-      const previous=prepared[prepared.length-1];
-      if(previous&&!previous.delimited&&!previous.phone&&!/(?:\+?234\d{10}|0\d{10}|\b\d{10}\b)\s*$/.test(previous.line)){
-        previous.phone=phoneOnly[0];
-        previous.source_line_numbers.push(index+1);
-      }else{
-        prepared.push({line:'',phone:phoneOnly[0],row_number:index+1,source_line_numbers:[index+1],delimited:false});
-      }
-      continue;
-    }
-    prepared.push({
-      line,
-      phone:'',
-      row_number:index+1,
-      source_line_numbers:[index+1],
-      delimited:line.includes('\t')||line.includes('|')||line.includes(',')
-    });
-  }
-  return prepared.flatMap(item=>{
-    const line=item.line.trim();
-    if(!line)return [];
-    let columns;
-    if(line.includes('\t'))columns=line.split('\t');
-    else if(line.includes('|'))columns=line.split('|');
-    else if(line.includes(','))columns=line.split(',');
-    else{
-      let remainder=line,type=defaultType;
-      const typeMatch=remainder.match(/\s+(member|visitor)\s*$/i);
-      if(typeMatch){type=typeMatch[1].toLowerCase();remainder=remainder.slice(0,typeMatch.index).trim()}
-      let phone=item.phone||'';
-      if(!phone){
-        const phoneMatch=remainder.match(/(?:\+?234\d{10}|0\d{10}|\b\d{10}\b)\s*$/);
-        if(phoneMatch){phone=phoneMatch[0].trim();remainder=remainder.slice(0,phoneMatch.index).replace(/[\s|,;:-]+$/,'').trim()}
-      }
-      const name=remainder;
-      if(/^(full\s+name|name|person)$/i.test(name))return [];
-      return [{full_name:name,phone,type,email:'',row_number:item.row_number,source_line_numbers:item.source_line_numbers}];
-    }
-    const name=String(columns[0]||'').trim();
-    const phone=String(columns[1]||'').trim();
-    const typeText=String(columns[2]||'').trim().toLowerCase();
-    const email=String(columns[3]||'').trim();
-    if(/^(full\s+name|name|person)$/i.test(name)&&/phone/i.test(phone))return [];
-    return [{full_name:name,phone,type:typeText||defaultType,email,row_number:item.row_number,source_line_numbers:item.source_line_numbers}];
-  });
-}
 
 function LoadingSkeleton(){
 return <><div style={{maxWidth:1100,margin:'0 auto',padding:20}}><div className="people-skeleton-title"/><div className="people-skeleton-grid">{[1,2,3,4,5,6].map(i=><div key={i} className="fiducia-card people-skeleton-card"/>)}</div></div><style jsx global>{` .people-skeleton-title{height:32px;width:30%;min-width:150px;border-radius:9px;margin-bottom:20px;background:rgba(255,255,255,.045);background-image:linear-gradient(105deg,rgba(255,255,255,.045) 0%,rgba(210,232,255,.08) 45%,rgba(255,255,255,.045) 70%);background-size:220% 100%;animation:peopleSoftBreeze 3.6s ease-in-out infinite}.people-skeleton-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}.people-skeleton-card{height:104px!important;min-height:0!important;padding:0!important;background-image:linear-gradient(105deg,rgba(255,255,255,.045) 0%,rgba(210,232,255,.075) 45%,rgba(255,255,255,.045) 70%);background-size:220% 100%;animation:peopleSoftBreeze 3.6s ease-in-out infinite;animation-delay:120ms}@keyframes peopleSoftBreeze{0%,100%{background-position:100% 0}50%{background-position:0 0}}@media(prefers-reduced-motion:reduce){.people-skeleton-title,.people-skeleton-card{animation:none!important}} `}</style></>;
@@ -287,16 +234,20 @@ const bulkAddPeople=async()=>{
   if(!res.ok||!data.success)throw new Error(data.error||'Could not add people.');
   setBulkResult(data);
   setBulkIdentityReviews(prev=>{const next={...prev};for(const row of data.results||[])if(row.status==='needs_review')delete next[row.review_key];for(const row of data.results||[])if(row.status==='created')delete next[row.review_key];return next});
-  const skippedRows=new Set((data.results||[]).filter(row=>row.status!=='created').flatMap(row=>Array.isArray(row.source_line_numbers)?row.source_line_numbers:[row.row]).map(Number));
+  const needsAttention=(data.results||[]).filter(row=>row.status!=='created'&&row.status!=='already_saved');
+  const skippedSourceLines=new Set(needsAttention.flatMap(row=>Array.isArray(row.source_line_numbers)?row.source_line_numbers:[row.row]).map(Number));
   const sourceLines=bulkText.split(/\r?\n/);
-  setBulkText(skippedRows.size?sourceLines.filter((line,index)=>skippedRows.has(index+1)).join('\n'):'');
+  // Preserve blank source-line placeholders so stable idempotency keys do not shift after partial success.
+  setBulkText(skippedSourceLines.size?sourceLines.map((line,index)=>skippedSourceLines.has(index+1)?line:'').join('\n'):'');
   if(data.created>0){
    publishDataChange('people');
    await fetchPeople({token:accessToken,reset:true,searchValue:search,typeValue:roleFilter,livingValue:showLivingTruthOnly});
   }
   if(data.created>0&&data.skipped===0){setShowBulkAdd(false);flash('Added '+data.created+' people.')}
-  else if(data.created>0)flash('Added '+data.created+'. '+data.skipped+' row(s) need attention; only skipped rows remain in the box.','error');
-  else flash('No people were added. Review the '+(data.skipped||rows.length)+' skipped row(s) below.','error');
+  else if(data.created>0)flash('Added '+data.created+'. '+data.skipped+' row(s) still need attention; completed rows are protected from duplicates.','error');
+  else if(data.skipped>0)flash('No new people were added. '+data.skipped+' row(s) need attention below.','error');
+  else if(Number(data.already_saved)>0){setShowBulkAdd(false);flash(data.already_saved+' people were already saved. No duplicates were created.')}
+  else flash('No people were added. Check the pasted rows and try again.','error');
  }catch(err){flash(err.message||'Bulk add failed.','error')}
  finally{setBulkBusy(false)}
 };
@@ -372,14 +323,14 @@ return <Layout><div style={{maxWidth:1100,margin:'0 auto',padding:20,paddingBott
 `}</style>
 {showAdd&&<form onSubmit={addPerson} className="fiducia-card add-form" style={{display:'grid',gap:10,marginBottom:20}}><input placeholder="Full Name" value={form.full_name} onChange={e=>setForm({...form,full_name:e.target.value})} required style={inputStyle}/><input placeholder="Phone" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} style={inputStyle}/><input type="email" placeholder="Email (optional)" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} style={inputStyle}/><div><label style={labelStyle}><span style={{color:'#D4AF37',marginRight:6}}>●</span>Birthday <span style={{fontSize:12,color:'rgba(255,255,255,.3)',marginLeft:6}}>When should ARIA celebrate?</span></label><button type="button" onClick={()=>{setPickerTarget('add');setShowPicker(true)}} style={birthdayButtonStyle(form.birthday)}>{form.birthday?new Date(`${form.birthday}T00:00:00`).toLocaleDateString():'Add birthday'}</button>{form.birthday&&<div style={{fontSize:12,color:'rgba(255,255,255,.3)',marginTop:4}}>Next birthday in {getNextBirthday(form.birthday)} days</div>}</div><select value={form.type} onChange={e=>setForm({...form,type:e.target.value})} style={inputStyle}><option value="visitor">Visitor</option><option value="member">Member</option></select><div><label style={labelStyle}>Attendance section <span style={{fontWeight:400,color:'rgba(255,255,255,.3)'}}>· Optional</span></label><select value={form.attendance_group} onChange={e=>setForm({...form,attendance_group:e.target.value})} style={inputStyle}><option value="">Unassigned</option><option value="men">Men</option><option value="women">Women</option><option value="youth">Youth</option></select></div>{duplicateReview&&<div role="alert" data-person-create-identity-review className="fiducia-card" style={{padding:14,border:'1px solid rgba(212,175,55,.35)',background:'rgba(212,175,55,.06)',display:'grid',gap:8}}><strong style={{color:'#f3df9c'}}>{duplicateReview.code==='DUPLICATE_IDENTITY_NOT_DISTINCT'?'Same identity already exists':'Review possible identity matches'}</strong><p style={{margin:0,fontSize:13,lineHeight:1.5,color:'rgba(255,255,255,.72)'}}>{duplicateReview.message}</p>{duplicateReview.candidates.map(candidate=><div key={candidate.id} style={{padding:'9px 10px',borderRadius:10,background:'rgba(255,255,255,.035)',display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}><div><strong style={{display:'block',color:'#f2f4f8',fontSize:13}}>{candidate.display_name||[candidate.first_name,candidate.last_name].filter(Boolean).join(' ')||'Unnamed person'}</strong><span style={{display:'block',fontSize:12,color:'rgba(255,255,255,.48)',marginTop:3}}>{candidate.phone||'No phone recorded'}{candidate.status?' · '+candidate.status:''}</span><span style={{display:'block',fontSize:10,color:'rgba(255,255,255,.32)',marginTop:2}}>Organization: {candidate.organization_name||'Current organization'}</span><span style={{display:'block',fontSize:10,color:'rgba(255,255,255,.32)',marginTop:2}}>Organization: {candidate.organization_name||'Current organization'}</span><span style={{display:'block',fontSize:11,color:'rgba(255,255,255,.38)',marginTop:2}}>{candidate.name_match?'Same normalized name · ':candidate.similar_name?'Similar name · ':''}{candidate.phone_match?'Same phone number':''}</span></div><span style={{fontSize:10,color:'rgba(255,255,255,.4)'}}>Candidate to compare</span></div>)}<button type="button" className="fiducia-button fiducia-button-primary" disabled={duplicateReview.code==='PERSON_IDENTITY_REVIEW_IN_PROGRESS'} onClick={()=>addPerson(null,{confirmed:true,candidate_ids:duplicateReview.candidates.map(candidate=>candidate.id)})}>I verified these are separate people</button><button type="button" className="fiducia-button fiducia-button-ghost" onClick={()=>router.push('/people?review=1')}>Open Review Center</button><button type="button" className="fiducia-button fiducia-button-ghost" onClick={()=>setDuplicateReview(null)}>Close review</button></div>}<div style={{display:'flex',gap:8}}><button type="submit" className="fiducia-button fiducia-button-primary">Save</button><button type="button" onClick={()=>setShowAdd(false)} className="fiducia-button fiducia-button-ghost">Cancel</button></div></form>}
 {showBulkAdd&&<form onSubmit={e=>{e.preventDefault();bulkAddPeople()}} className="fiducia-card add-form" style={{display:'grid',gap:12,marginBottom:20}}>
- <div><strong style={{fontSize:17,color:'#f0f0f0'}}>Add many people at once</strong><p style={{fontSize:12,lineHeight:1.6,color:'rgba(255,255,255,.48)',margin:'5px 0 0'}}>Paste rows from Excel/Google Sheets, one person per line, or alternating name-then-phone lines. Phone and email are optional. You can add up to 200 people at a time.</p></div>
+ <div><strong style={{fontSize:17,color:'#f0f0f0'}}>Add many people at once</strong><p style={{fontSize:12,lineHeight:1.6,color:'rgba(255,255,255,.48)',margin:'5px 0 0'}}>Paste one name per line, a comma-separated list of names, or spreadsheet rows with Name, Phone, Type and Email. You can also paste alternating name-then-phone lines. Phone and email are optional; up to 200 people per batch.</p></div>
  <div><label style={labelStyle}>Default type for rows without a type</label><select value={bulkDefaultType} onChange={e=>setBulkDefaultType(e.target.value)} style={inputStyle}><option value="visitor">Visitor</option><option value="member">Member</option></select></div>
  <div><label style={labelStyle}>Attendance section <span style={{fontWeight:400,color:'rgba(255,255,255,.3)'}}>· Optional for this batch</span></label><select value={bulkDefaultAttendanceGroup} onChange={e=>setBulkDefaultAttendanceGroup(e.target.value)} style={inputStyle}><option value="">Leave unassigned</option><option value="men">Men</option><option value="women">Women</option><option value="youth">Youth</option></select></div>
  <label style={labelStyle}>People list <span style={{fontWeight:400,color:'rgba(255,255,255,.3)'}}>· Name, Phone, Type, Email (optional)</span></label>
- <textarea value={bulkText} onChange={e=>{setBulkText(e.target.value);setBulkResult(null)}} rows={8} placeholder={'Mummy Christiana, 08022597401, visitor\nSIS Sandra Isiocha, 08039579758, member\nBro John Doe, , member\nJane Example'} style={{...inputStyle,minHeight:170,resize:'vertical',fontFamily:'ui-monospace,SFMono-Regular,monospace',fontSize:13,lineHeight:1.6}}/>
- <div style={{display:'flex',justifyContent:'space-between',gap:8,alignItems:'center',flexWrap:'wrap'}}><span style={{fontSize:12,color:bulkPreviewRows.length>200?'#FCA5A5':'rgba(255,255,255,.48)'}}>{bulkPreviewRows.length} row(s) detected{bulkPreviewRows.length>200?' · exceeds 200-row limit':''}</span><span style={{fontSize:11,color:'rgba(255,255,255,.28)'}}>Tab, comma, or | separated · name-only rows supported</span></div>
+ <textarea value={bulkText} onChange={e=>{setBulkText(e.target.value);setBulkResult(null)}} rows={8} placeholder={'Sis Grace\nSis Debby\nOR Sis Grace, Sis Debby\n\nMummy Christiana, 08022597401, visitor'} style={{...inputStyle,minHeight:170,resize:'vertical',fontFamily:'ui-monospace,SFMono-Regular,monospace',fontSize:13,lineHeight:1.6}}/>
+ <div style={{display:'flex',justifyContent:'space-between',gap:8,alignItems:'center',flexWrap:'wrap'}}><span style={{fontSize:12,color:bulkPreviewRows.length>200?'#FCA5A5':'rgba(255,255,255,.48)'}}>{bulkPreviewRows.length} row(s) detected{bulkPreviewRows.length>200?' · exceeds 200-row limit':''}</span><span style={{fontSize:11,color:'rgba(255,255,255,.28)'}}>Names: one per line or separated by commas · details: Name, Phone, Type, Email</span></div>
  {bulkPreviewRows.length>0&&<div style={{fontSize:12,color:'rgba(255,255,255,.42)'}}>Preview: {bulkPreviewRows.slice(0,3).map(row=>row.full_name||'Unnamed row').join(' · ')}{bulkPreviewRows.length>3?' …':''}</div>}
- {bulkResult&&<div role="status" style={{padding:12,borderRadius:10,background:'rgba(255,255,255,.035)',border:'1px solid rgba(255,255,255,.08)',fontSize:13,color:bulkResult.skipped?'#FCA5A5':'#6EE7B7'}}><strong>{bulkResult.created} added · {bulkResult.skipped} skipped</strong>{bulkResult.skipped>0&&<ul style={{margin:'8px 0 0',paddingLeft:20,color:'rgba(255,255,255,.7)'}}>{bulkResult.results.filter(row=>row.status!=='created').slice(0,10).map((row,index)=><li key={String(row.row)+'-'+index} style={{marginBottom:row.candidates?.length?8:0}}>Row {row.row}: {row.name||'Unnamed'} — {row.reason||'Check this row'}{row.candidates?.map(candidate=><div key={candidate.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,marginTop:6,padding:'7px 8px',borderRadius:8,background:'rgba(255,255,255,.035)'}}><div><strong style={{display:'block',fontSize:12}}>{candidate.display_name||[candidate.first_name,candidate.last_name].filter(Boolean).join(' ')||'Unnamed person'}</strong><span style={{display:'block',fontSize:11,opacity:.65}}>{candidate.phone||'No phone recorded'}{candidate.status?' · '+candidate.status:''}</span><span style={{display:'block',fontSize:10,opacity:.55}}>{candidate.name_match?'Same normalized name · ':candidate.similar_name?'Similar name · ':''}{candidate.phone_match?'Same phone number':''}</span></div><button type="button" className="fiducia-button fiducia-button-ghost" onClick={()=>router.push('/person/'+candidate.id)}>Open record</button></div>)}{row.status==='needs_review'&&row.candidates?.length>0&&<button type="button" className="fiducia-button fiducia-button-primary" style={{marginTop:6,padding:'6px 10px',fontSize:11}} onClick={()=>setBulkIdentityReviews(prev=>({...prev,[row.review_key]:{confirmed:true,candidate_ids:row.candidates.map(candidate=>candidate.id)}}))}>{bulkIdentityReviews[row.review_key]?'Confirmed — submit to save':'Verified: this is a separate person'}</button>}{row.status==='needs_review'&&<button type="button" className="fiducia-button fiducia-button-ghost" style={{marginTop:6,padding:'6px 10px',fontSize:11}} onClick={()=>router.push('/people?review=1')}>Open Review Center</button>}</li>)}</ul>}{bulkResult.skipped>10&&<div style={{marginTop:6}}>Showing the first 10 skipped rows. Fix the remaining rows in the box and submit again.</div>}</div>}
+ {bulkResult&&<div role="status" style={{padding:12,borderRadius:10,background:'rgba(255,255,255,.035)',border:'1px solid rgba(255,255,255,.08)',fontSize:13,color:bulkResult.skipped?'#FCA5A5':'#6EE7B7'}}><strong>{bulkResult.created} added{Number(bulkResult.already_saved)>0?' · '+bulkResult.already_saved+' already saved':''} · {bulkResult.skipped} need attention</strong>{bulkResult.skipped>0&&<ul style={{margin:'8px 0 0',paddingLeft:20,color:'rgba(255,255,255,.7)'}}>{bulkResult.results.filter(row=>row.status!=='created'&&row.status!=='already_saved').slice(0,10).map((row,index)=><li key={String(row.row)+'-'+index} style={{marginBottom:row.candidates?.length?8:0}}>Row {row.row}: {row.name||'Unnamed'} — {row.reason||'Check this row'}{row.candidates?.map(candidate=><div key={candidate.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,marginTop:6,padding:'7px 8px',borderRadius:8,background:'rgba(255,255,255,.035)'}}><div><strong style={{display:'block',fontSize:12}}>{candidate.display_name||[candidate.first_name,candidate.last_name].filter(Boolean).join(' ')||'Unnamed person'}</strong><span style={{display:'block',fontSize:11,opacity:.65}}>{candidate.phone||'No phone recorded'}{candidate.status?' · '+candidate.status:''}</span><span style={{display:'block',fontSize:10,opacity:.55}}>{candidate.name_match?'Same normalized name · ':candidate.similar_name?'Similar name · ':''}{candidate.phone_match?'Same phone number':''}</span></div><button type="button" className="fiducia-button fiducia-button-ghost" onClick={()=>router.push('/person/'+candidate.id)}>Open record</button></div>)}{row.status==='needs_review'&&row.candidates?.length>0&&<button type="button" className="fiducia-button fiducia-button-primary" style={{marginTop:6,padding:'6px 10px',fontSize:11}} onClick={()=>setBulkIdentityReviews(prev=>({...prev,[row.review_key]:{confirmed:true,candidate_ids:row.candidates.map(candidate=>candidate.id)}}))}>{bulkIdentityReviews[row.review_key]?'Confirmed — submit to save':'Verified: this is a separate person'}</button>}{row.status==='needs_review'&&<button type="button" className="fiducia-button fiducia-button-ghost" style={{marginTop:6,padding:'6px 10px',fontSize:11}} onClick={()=>router.push('/people?review=1')}>Open Review Center</button>}</li>)}</ul>}{bulkResult.skipped>10&&<div style={{marginTop:6}}>Showing the first 10 rows needing attention. Fix the remaining rows in the box and submit again.</div>}</div>}
  <div style={{display:'flex',gap:8,flexWrap:'wrap'}}><button type="submit" disabled={bulkBusy||!accessToken||!bulkPreviewRows.length||bulkPreviewRows.length>200} className="fiducia-button fiducia-button-primary" style={{opacity:bulkBusy||!accessToken||!bulkPreviewRows.length||bulkPreviewRows.length>200?0.55:1}}>{bulkBusy?'Adding people…':'Add '+bulkPreviewRows.length+' people'}</button><button type="button" onClick={()=>{setShowBulkAdd(false);setBulkResult(null);setBulkIdentityReviews({})}} className="fiducia-button fiducia-button-ghost">Close</button></div>
  </form>}
 {loading&&people.length>0&&<div role="status" style={{margin:'-10px 0 12px',padding:'7px 10px',borderRadius:10,background:'rgba(143,175,214,.05)',border:'1px solid rgba(143,175,214,.08)',color:'rgba(245,247,250,.42)',fontSize:10}}>Updating the people you’re viewing…</div>}{msg&&<div className="fiducia-card" style={{padding:10,marginBottom:15,color:msgKind==='error'?'#FCA5A5':'#34D399',textAlign:'center'}}>{msg}</div>}

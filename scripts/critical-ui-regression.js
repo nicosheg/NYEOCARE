@@ -417,7 +417,7 @@ const checks=[
   journeyActionRow.includes('aria-label="More options"')&&
   journeyActionRow.includes('aria-label="Edit details"')],
  ['People page exposes fast bulk add with a row preview and skipped-row feedback',
-  /Bulk add/.test(peoplePage)&&/parseBulkPeopleRows/.test(peoplePage)&&/parseBulkPeopleRows/.test(bulkPeopleParser)&&/isCommaSeparatedNameList/.test(bulkPeopleParser)&&/source_row_key/.test(bulkPeopleParser)&&/Add many people at once/.test(peoplePage)&&/bulkPreviewRows\.length>200/.test(peoplePage)&&/source lines containing rows that need attention remain in the box/.test(peoplePage)&&/already_saved/.test(peoplePage)],
+  /Bulk add/.test(peoplePage)&&/parseBulkPeopleRows/.test(peoplePage)&&/parseBulkPeopleRows/.test(bulkPeopleParser)&&/isCommaSeparatedNameList/.test(bulkPeopleParser)&&/source_row_key/.test(bulkPeopleParser)&&/Add many people at once/.test(peoplePage)&&/bulkPreviewRows\.length>200/.test(peoplePage)&&/source lines containing rows that need attention remain in the box/.test(peoplePage)&&/already_saved/.test(peoplePage)&&/Your session expired/.test(peoplePage)&&/disabled={bulkBusy}/.test(peoplePage)&&/orphan_phone/.test(bulkPeopleParser)],
  ['Bulk person creation is bounded, authorized, and duplicate-safe',
   /withOrg/.test(bulkPeopleApi)&&/\['owner',\s*'admin',\s*'leader',\s*'worker',\s*'user'\]/.test(bulkPeopleApi)&&/MAX_ROWS = 200/.test(bulkPeopleApi)&&/pg_advisory_xact_lock/.test(bulkPeopleApi)&&/findIdentityCandidates/.test(bulkPeopleApi)&&/recordIdentityReview/.test(bulkPeopleApi)&&/Phone number duplicates row/.test(bulkPeopleApi)],
  ['Bulk person creation schedules ARIA updates after the main insert',

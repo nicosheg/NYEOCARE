@@ -7,6 +7,7 @@ import{supabase}from'../lib/supabaseClient';import AriaProcessingStatus from'./A
 import{getFieldSession,getFieldPeople,isFieldRosterSnapshotComplete,saveFieldSession,saveFieldPeople,enqueueFieldMutation,removeFieldMutation,getFieldPendingCount,getPendingFieldMutations,getUnattributedPendingFieldMutationCount,removeFieldPerson,localRosterSearch,clearFieldSession,syncFieldMode}from'../lib/attendanceFieldMode';
 import{measurePerformance}from'../lib/performanceTelemetry';import ModalPortal from'./ModalPortal';
 import AttendanceHistoryPanel from'./AttendanceHistoryPanel';
+import{personDisplayName}from'../lib/personDisplayName.mjs';
 
 const FAST_SYNC_FALLBACK_MS=2500;
 const SLOW_SYNC_FALLBACK_MS=5000;
@@ -1384,7 +1385,7 @@ export default function AttendanceModal({isOpen,onClose}){
                 </div>
                 <div style={{minWidth:0}}>
                   <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',minWidth:0}}>
-                    <strong style={compactViewport?mobilePersonName:undefined}>{p.first_name} {p.last_name||''}</strong>
+                    <strong style={compactViewport?mobilePersonName:undefined}>{personDisplayName(p)}</strong>
                     {attendanceGroupFilter==='all'&&Object.prototype.hasOwnProperty.call(p,'attendance_group')&&<small style={{padding:'2px 6px',borderRadius:999,border:'1px solid rgba(255,255,255,.08)',background:'rgba(255,255,255,.035)',color:'rgba(245,247,250,.43)',fontSize:9,lineHeight:1.2}}>{attendanceGroupLabel(p.attendance_group||'unassigned')}</small>}
                   </div>
                   {p.marked&&<small style={{display:'block',...(compactViewport?mobilePresentMeta:{})}}>{'Present'+(p.marked_by_name?' · '+p.marked_by_name:'')}</small>}
@@ -1399,7 +1400,7 @@ export default function AttendanceModal({isOpen,onClose}){
                               style={{...firstVisitWelcomeButton,...((!networkOnline||pendingCount>0||closing||session.status!=='active'||welcomeSavingIds.includes(String(p.id)))?firstVisitWelcomeButtonDisabled:{})}}
                               disabled={!networkOnline||pendingCount>0||closing||session.status!=='active'||welcomeSavingIds.includes(String(p.id))}
                               onClick={()=>recordFirstVisitWelcome(p)}
-                              aria-label={`Record in-person welcome for ${p.first_name||'this visitor'}`}
+                              aria-label={`Record in-person welcome for ${personDisplayName(p)}`}
                             >
                               {welcomeSavingIds.includes(String(p.id))?'Saving…':!networkOnline||pendingCount>0?'Sync to record':'Welcomed in person'}
                             </button>

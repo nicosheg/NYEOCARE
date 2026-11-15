@@ -2,7 +2,7 @@
 import pool from'../../../lib/db';
 import{withOrg}from'../../../lib/apiHelpers';
 import{eventAttendanceDate}from'../../../lib/attendance/eventDate';
-import{isOrganizationOperator}from'../../../lib/attendance/access';
+import{isOrganizationOperator,ensureActiveAttendanceSessionMember}from'../../../lib/attendance/access';
 
 export default withOrg(async function handler(req,res){
 if(req.method!=='POST')return res.status(405).json({error:'Method not allowed'});
@@ -24,9 +24,9 @@ if(!person.rows.length){await client.query('ROLLBACK');return res.status(404).js
 const existing=await client.query(`SELECT id,confirmed,present FROM attendance_records WHERE organization_id=$1 AND people_id=$2 AND session_id=$3 LIMIT 1`,[orgId,people_id,session_id]);
 
 if(!historical){
-if(session.rows[0].status!=='active'){await client.query('ROLLBACK');return res.status(403).json({error:'This attendance session is no longer active.'})}
-const membership=await client.query(`SELECT 1 FROM session_users WHERE session_id=$1 AND user_id=$2 LIMIT 1`,[session_id,userId]);
-if(!membership.rows.length){await client.query('ROLLBACK');return res.status(403).json({error:'Join this attendance session before marking attendance.'})}
+if(session.rows[0].status!=='active'){await client.query('ROLLBACK');return res.status(409).json({error:'This attendance session has already been saved or closed on another device.',code:'ATTENDANCE_SESSION_CLOSED',request_id:req.nyeoRequestId||null})}
+const membership=await ensureActiveAttendanceSessionMember(client,{organizationId:orgId,sessionId:session_id,userId});
+if(!membership){await client.query('ROLLBACK');return res.status(403).json({error:'You cannot join this attendance session with the current organization account.',code:'ATTENDANCE_SESSION_MEMBERSHIP_REQUIRED',request_id:req.nyeoRequestId||null})}
 if(existing.rows[0]?.confirmed){await client.query('COMMIT');return res.status(200).json({success:true,present:Boolean(existing.rows[0].present),confirmed:true,changed:false,attendance_id:existing.rows[0].id,person:person.rows[0]})}
 if(!present){
 const current=existing.rows[0];

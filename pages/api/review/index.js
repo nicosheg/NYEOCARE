@@ -69,10 +69,15 @@ const identityItems=identityReviewRows.map(row=>{
   phone:proposed.phone||null,phone_numbers:Array.isArray(proposed.phone_numbers)?proposed.phone_numbers:[],
   phones:phonesOf(proposed),email:proposed.email||null,birthday:proposed.birthday||null,
   type:proposed.type||'visitor',status:row.status||'pending',
-  reason:row.match_evidence?.code==='DUPLICATE_IDENTITY_NOT_DISTINCT'
-   ?'The proposed name and phone exactly match an existing record. Confirm whether this is the same person or a genuinely separate person.'
-   :'A possible identity match was found before this addition was saved. The new record has not been created yet.',
-  suggestion:'Compare the proposed details with the existing records, then explicitly merge or keep the person separate.',
+  reason:row.source==='people_edit_identity_review'
+   ?'An edit to an existing person matched one or more other records. The original record has not been changed; decide whether it is the same person or should remain separate.'
+   :row.match_evidence?.code==='DUPLICATE_IDENTITY_NOT_DISTINCT'
+    ?'The proposed name and phone exactly match an existing record. Confirm whether this is the same person or a genuinely separate person.'
+    :'A possible identity match was found before this addition was saved. The new record has not been created yet.',
+  suggestion:row.source==='people_edit_identity_review'
+   ?'Compare the proposed edit with the original person and the existing matches. Merge only when they are the same person; otherwise save the edit and keep both people.'
+   :'Compare the proposed details with the existing records, then explicitly merge or keep the person separate.',
+  source_person_id:row.source==='people_edit_identity_review'?String(proposed.request_context?.target_person_id||''):null,
   review_reasons:reasons,duplicate_evidence:reasons,
   candidates,score:Number(row.match_evidence?.score||top?.score||0),
   created_at:row.created_at,updated_at:row.updated_at

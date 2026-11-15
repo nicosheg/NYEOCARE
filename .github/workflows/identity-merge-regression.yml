@@ -17,6 +17,8 @@ jobs:
       - name: Syntax check identity merge modules
         run: |
           node --experimental-default-type=module --check pages/api/review/duplicate-action.js
+          node --experimental-default-type=module --check lib/identityMerge.js
+          node --experimental-default-type=module --check pages/api/review/person-identity-action.js
           node --experimental-default-type=module --check lib/identityResolver.js
           node --experimental-default-type=module --check lib/visionProcessor.js
       - name: Run identity/review regression

@@ -76,7 +76,7 @@ assert.match(reviewResolve,/human_confirmed_review_edit_shared_phone/,'reviewed 
 assert.match(review,/Confirm shared phone & save/,'Review Center must offer an explicit human confirmation for a legitimate shared phone');
 assert.match(review,/sharedPhoneOwnerIds:sharedPhoneReview\.phone_owners\.map/,'the server must receive the exact owner set the operator reviewed');
 assert.match(review,/e\?\.code\|\|''\)\)\)\{setSharedPhoneReview/,'the UI must keep the edit open and show the shared-phone review instead of discarding the error');
-const duplicateAction=fs.readFileSync('pages/api/review/duplicate-action.js','utf8');
+const duplicateAction=fs.readFileSync('pages/api/review/duplicate-action.js','utf8')+'\n'+fs.readFileSync('lib/identityMerge.js','utf8');
 assert.match(review,/canonicalId:selected,duplicateId:other\.id/,'the selected duplicate candidate must be the canonical record');
 assert.match(review,/mergeResult\?\.canonical_id\)!==String\(selected\)/,'the UI must verify that the selected person is the canonical merge survivor before closing the review');
 assert.match(review,/mergeResult\?\.archived_id\)!==String\(other\.id\)/,'the UI must verify that only the other selected record was archived');
@@ -86,5 +86,31 @@ assert.match(duplicateAction,/UPDATE people SET status='archived'.*\[duplicateId
 
 assert.ok(review.includes("refreshPeopleAfterReview('review-duplicate-decision'")&&review.includes("refreshPeopleAfterReview('review-identity-decision'")&&review.includes("publishDataChange('people'")&&review.includes("nyeocare:app-refresh"), 'Every verified Review Center identity decision must invalidate People data and refresh mounted directory surfaces.');
 assert.ok(!people.includes('className="person-card-actions"')&&person.includes('<div style={S.actions}>')&&person.includes('<button style={S.action} aria-label="Edit details" onClick={openEdit}>Edit</button>')&&person.includes('<button style={S.action} disabled={!phone} onClick={message}>Message</button>')&&person.includes('<button style={S.action} onClick={()=>setNote(true)}>Note</button>'), 'People cards must stay uncluttered while the Journey row exposes accessible Message, Note, More, and Edit actions.');
+
+
+const mutationEngine=fs.readFileSync('lib/aria/peopleMutationEngine.js','utf8');
+const identityAction=fs.readFileSync('pages/api/review/person-identity-action.js','utf8');
+const identityMerge=fs.readFileSync('lib/identityMerge.js','utf8');
+const peopleApi=fs.readFileSync('pages/api/people.js','utf8');
+const reviewApi=fs.readFileSync('pages/api/review/index.js','utf8');
+assert.match(mutationEngine,/source:'people_edit_identity_review'/,'People edit conflicts must be persisted as durable identity reviews');
+assert.match(mutationEngine,/await client\.query\('COMMIT'\)[\s\S]*review_status:'pending'/,'the review must commit before the edit API returns its conflict');
+assert.match(mutationEngine,/if\(!error\?\.committed\)await client\.query\('ROLLBACK'\)/,'a committed pending review must not be rolled back by the error handler');
+assert.match(peopleApi,/review_id:String\(err\.review_id\)/,'the People API must return the durable review identifier');
+assert.match(reviewApi,/source_person_id:row\.source==='people_edit_identity_review'/,'Review Center must identify the edited source record');
+assert.match(identityAction,/currentCandidates\(db,req\.org\.id,proposal,editTargetId\)/,'candidate matching must exclude the original edited person');
+assert.match(identityAction,/await mergePeople\(db,req\.org\.id,String\(canonicalId\),String\(editTargetId\)/,'same-person resolution must merge the edited record into the selected survivor');
+assert.match(identityAction,/proposedPhones:retainedPhones/,'different-person resolution must retain the original record and record its separate-person pair decisions');
+assert.match(identityAction,/IDENTITY_EDIT_MERGE_VERIFICATION_FAILED/,'failed merge verification must roll back and preserve the pending review');
+assert.match(identityAction,/IDENTITY_EDIT_SEPARATE_VERIFICATION_FAILED/,'failed edit verification must roll back and preserve the pending review');
+assert.match(identityAction,/if\(!editTargetId\)await upsertCreateRequest/,'edit reviews must not be treated as new-person creation requests');
+assert.match(identityMerge,/export async function mergePeople/,'edit reviews and duplicate reviews must share history reconciliation');
+assert.match(review,/initialReviewId/,'Review Center must open an exact pending review by ID');
+assert.match(review,/Same person — merge into selected/,'the edit review must expose an explicit same-person action');
+assert.match(review,/Different people — save edit and keep both/,'the edit review must expose an explicit separate-people action');
+assert.match(people,/Open identity review/,'People edit conflicts must link to Review Center');
+assert.match(person,/Open identity review/,'Person Journey edit conflicts must link to Review Center');
+assert.doesNotMatch(person,/href=\{\x60\/person\/\$\{candidate\.id\}\x60\}/,'Journey candidate navigation must not replace the review decision');
+assert.doesNotMatch(people.slice(people.indexOf('editIdentityReview&&'),people.indexOf('editIdentityReview&&')+3500),/router\.push\('\/person\/'/,'People edit conflict candidates must not navigate to a Journey page');
 
 console.log('NYEOCARE review queue persistence and edit-verification regression checks passed.');

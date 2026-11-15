@@ -171,13 +171,40 @@ export default withOrg(async function handler(req,res){
     let editTarget=null;
     if(editTargetId){
       editTarget=(await db.query(
-        `SELECT id,organization_id,first_name,last_name,display_name,phone,phone_numbers,email,birthday,type,status,identity_verification_status,metadata,living_truth
+        `SELECT id,organization_id,first_name,last_name,display_name,phone,phone_numbers,email,birthday,type,status,identity_verification_status,metadata,living_truth,updated_at
          FROM people WHERE id=$1 AND organization_id=$2 AND status IN('active','inactive') FOR UPDATE`,
         [editTargetId,req.org.id]
       )).rows[0]||null;
       if(!editTarget)throw Object.assign(new Error('The person being edited is no longer available. The review remains pending; refresh People and review the current record.'),{status:409,code:'IDENTITY_EDIT_TARGET_NOT_FOUND'});
     }
     const candidates=await currentCandidates(db,req.org.id,proposal,editTargetId);
+    if(editTargetId){
+      const original=proposal.request_context?.original_person||{};
+      const originalAt=Date.parse(String(original.updated_at||''));
+      const liveAt=editTarget?.updated_at?new Date(editTarget.updated_at).getTime():NaN;
+      if(Number.isFinite(originalAt)&&Number.isFinite(liveAt)&&originalAt!==liveAt){
+        const refreshedProposal={
+          ...proposal,
+          request_context:{
+            ...(proposal.request_context||{}),
+            original_person:{
+              ...original,
+              display_name:editTarget.display_name||[editTarget.first_name,editTarget.last_name].filter(Boolean).join(' '),
+              phone:primaryPhone(editTarget)||null,email:editTarget.email||null,
+              birthday:editTarget.birthday?String(editTarget.birthday).slice(0,10):null,
+              type:editTarget.type||'visitor',status:editTarget.status||'active',
+              updated_at:new Date(editTarget.updated_at).toISOString()
+            }
+          }
+        };
+        await savePendingDraft(db,{row:found,orgId:req.org.id,actorId:req.user.id,proposal:refreshedProposal,candidates});
+        await db.query('COMMIT');finished=true;
+        return res.status(409).json({
+          error:'The original person changed after this review was created. The review has been refreshed; compare the updated original record before making a decision.',
+          code:'IDENTITY_EDIT_TARGET_STALE',review_id:found.id,review_status:'pending'
+        });
+      }
+    }
     const persistedIds=Array.isArray(found.candidate_person_ids)?found.candidate_person_ids.map(String):[];
     const freshIds=candidates.map(c=>String(c.id));
     if(action==='edit'){

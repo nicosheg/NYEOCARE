@@ -131,6 +131,7 @@ assert.equal(headerOnly.length, 0);
 const bulkApi = fs.readFileSync('pages/api/people/bulk-create.js', 'utf8');
 const peoplePage = fs.readFileSync('pages/people.js', 'utf8');
 assert.match(bulkApi, /source_row_key:sourceRowKey/);
+assert.match(bulkApi, /\.slice\(0,80\)\|\|String\(line\)/);
 assert.match(bulkApi, /item\.outcome\.source_row_key/);
 assert.doesNotMatch(bulkApi, /stableIdentityReviewRequestId\(\x60bulk-create:[^\n]*item\.outcome\.row/);
 assert.match(bulkApi, /already_saved: alreadySaved/);

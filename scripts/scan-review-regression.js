@@ -1,6 +1,6 @@
 // scripts/scan-review-regression.js
 import fs from'fs';
-import{isSafeScanPhoneEvidence}from'../lib/scanPhoneEvidence.mjs';
+import{isSafeScanPhoneEvidence,isSafeScanNameEvidence}from'../lib/scanPhoneEvidence.mjs';
 const read=p=>fs.readFileSync(p,'utf8');
 const identity=read('lib/identityResolver.js');
 const review=read('components/ReviewCenterTab.js');
@@ -19,11 +19,16 @@ assert(!isSafeScanPhoneEvidence({phone_evidence:'clear',pair_evidence:'ambiguous
 assert(!isSafeScanPhoneEvidence({phone_evidence:'ambiguous',pair_evidence:'clear'},[]),'Ambiguous phone digits must block automatic phone attachment.');
 assert(!isSafeScanPhoneEvidence({phone_evidence:'clear',pair_evidence:'clear',phone_flags:['digit_uncertain']},[]),'A possible digit error must block automatic phone attachment.');
 assert(!isSafeScanPhoneEvidence({phone_evidence:'clear',pair_evidence:'clear'},['phone_row_linkage_needs_verification']),'A phone that may belong to another row must stay out of the merge.');
+assert(isSafeScanNameEvidence({name_evidence:'clear'},[]),'A clear scan name may update the selected canonical record.');
+assert(!isSafeScanNameEvidence({name_evidence:'ambiguous'},[]),'An unclear scan name must never replace the selected person's saved name.');
+assert(!isSafeScanNameEvidence({name_evidence:'clear',phone_flags:['name_uncertain']},[]),'A name uncertainty flag must override a nominally clear name label.');
+assert(!isSafeScanNameEvidence({name_evidence:'clear'},['low_name_evidence']),'Low name confidence must preserve the existing canonical name.');
 assert(/Math\.round\(\(ns\+ps\.score\)\/2\)/.test(identity),'Identity resolver must use balanced 50/50 scoring.');
 assert(/This is a different person/.test(review)&&/Use this person/.test(review)&&/Edit scanned record/.test(review)&&/Edit scanned details/.test(review),'Review Center must expose explicit human identity outcomes and a scan-detail correction path.');
 assert(/name_match_but_phone_not_exact/.test(review)&&/Existing person ·/.test(review),'Review Center must explain name/phone disagreement and distinguish candidate phone from scanned phone.');
 assert(/resolveIdentities/.test(reviewApi)&&/sanitizeReasons/.test(reviewApi)&&/phone_missing/.test(reviewApi),'Review API must refresh pending identity evidence using the canonical resolver and remove stale phone-missing claims when a scan actually has a phone.');
-assert(/scan_phone_merge_safe:isSafeScanPhoneEvidence/.test(reviewApi),'Review Center must expose the same server-defined safe-phone merge decision used by the save endpoint.');
+assert(/scan_phone_merge_safe:isSafeScanPhoneEvidence/.test(reviewApi)&&/scan_name_merge_safe:isSafeScanNameEvidence/.test(reviewApi),'Review Center must expose the same server-defined safe-field merge decisions used by the save endpoint.');
+assert(/scanNameSafe\?target\.display_name/.test(resolveApi),'A one-tap scan merge must preserve an uncertain scanned name rather than overwrite the canonical People name.');
 assert(/mergeScannedPhones/.test(resolveApi)&&/isSafeScanPhoneEvidence\(scanEvidence,review\.review_reasons\|\|\[\]\)/.test(resolveApi)&&/scanPhoneMergeStatus/.test(resolveApi)&&/\[\.\.\.new Set\(\[\.\.\.existingTargetPhones,\.\.\.scannedPhones/.test(resolveApi),'A scan update may append a phone only with clear phone and row evidence, must preserve the existing contact list, and must audit the outcome.');
 assert(/canonicalId:selected,duplicateId:other\.id/.test(review)&&/String\(mergeResult\?\.canonical_id\)!==String\(selected\)/.test(review),'When merging from Review Center, the chosen record ID must be sent as canonical and the response must prove that the same selected record survived.');
 assert(/import\{normalizePhoneList,primaryPhone\}from'\.\.\/\.\.\/\.\.\/lib\/phoneUtils'/.test(reviewApi)&&/phone:primaryPhone\(liveRow\)/.test(reviewApi),'Review candidate summaries must show JSON-backed primary phones consistently with the People directory.');

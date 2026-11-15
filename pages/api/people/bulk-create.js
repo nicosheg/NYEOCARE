@@ -100,10 +100,13 @@ export default withOrg(async function handler(req, res) {
     const line = rowNumber(row, index);
     const sourceLines = Array.isArray(row.source_line_numbers) ? row.source_line_numbers.map(Number).filter(value => Number.isInteger(value) && value > 0) : [line];
     const review_key = `${name.trim().toLowerCase()}|${phoneText.trim()}`;
-    const outcome = { row: line, source_line_numbers: sourceLines.length ? sourceLines : [line], name, review_key, status: 'skipped', reason: '' };
+    const sourceRowKey=String(row.source_row_key||'').trim().slice(0,80)||String(line);
+    const outcome = { row: line, source_line_numbers: sourceLines.length ? sourceLines : [line], source_row_key:sourceRowKey, name, review_key, status: 'skipped', reason: '' };
 
     if (!name) {
-      outcome.reason = 'Name is required.';
+      outcome.reason = phoneText
+        ? 'This phone number has no name. Put the person’s name on the line above or in the same row.'
+        : 'Name is required.';
       return { outcome, candidate: null };
     }
     if (name.length > 150) {
@@ -165,7 +168,7 @@ export default withOrg(async function handler(req, res) {
       item.outcome.payload_hash=personIdentityPayloadHash(item.outcome.proposed_payload);
       item.outcome.duplicate_row=seenPhones.get(candidate.phone);
       item.outcome.identity_review_required=true;
-      item.outcome.review_request_id=stableIdentityReviewRequestId(`bulk-create:${req.org.id}:${req.user?.id||''}:${item.outcome.row}:${item.outcome.payload_hash}`);
+      item.outcome.review_request_id=stableIdentityReviewRequestId(`bulk-create:${req.org.id}:${req.user?.id||''}:${item.outcome.source_row_key}:${item.outcome.payload_hash}`);
       item.candidate = null;
       continue;
     }
@@ -176,7 +179,7 @@ export default withOrg(async function handler(req, res) {
       item.outcome.payload_hash=personIdentityPayloadHash(item.outcome.proposed_payload);
       item.outcome.duplicate_row=seenNames.get(nameKey);
       item.outcome.identity_review_required=true;
-      item.outcome.review_request_id=stableIdentityReviewRequestId(`bulk-create:${req.org.id}:${req.user?.id||''}:${item.outcome.row}:${item.outcome.payload_hash}`);
+      item.outcome.review_request_id=stableIdentityReviewRequestId(`bulk-create:${req.org.id}:${req.user?.id||''}:${item.outcome.source_row_key}:${item.outcome.payload_hash}`);
       item.candidate = null;
       continue;
     }
@@ -213,7 +216,7 @@ export default withOrg(async function handler(req, res) {
       const currentIds=candidatePayload.map(match=>match.id).sort();
       const payload=proposedPayload(candidate);
       const payloadHash=personIdentityPayloadHash(payload);
-      const reviewRequestId=stableIdentityReviewRequestId(`bulk-create:${organizationId}:${req.user.id}:${item.outcome.row}:${payloadHash}`);
+      const reviewRequestId=stableIdentityReviewRequestId(`bulk-create:${organizationId}:${req.user.id}:${item.outcome.source_row_key}:${payloadHash}`);
       item.outcome.proposed_payload=payload;
       item.outcome.payload_hash=payloadHash;
       item.outcome.review_request_id=reviewRequestId;
@@ -309,7 +312,7 @@ export default withOrg(async function handler(req, res) {
         if(createdOwner)candidates=[...candidates,{...createdOwner,organization_id:organizationId,status:'active'}];
       }
       const payloadHash=item.outcome.payload_hash||personIdentityPayloadHash(item.outcome.proposed_payload);
-      const reviewRequestId=item.outcome.review_request_id||stableIdentityReviewRequestId(`bulk-create:${organizationId}:${req.user.id}:${item.outcome.row}:${payloadHash}`);
+      const reviewRequestId=item.outcome.review_request_id||stableIdentityReviewRequestId(`bulk-create:${organizationId}:${req.user.id}:${item.outcome.source_row_key}:${payloadHash}`);
       const saved=await persistPersonIdentityReview(client,{
         organizationId,actorId:req.user.id,clientRequestId:reviewRequestId,payloadHash,
         proposedPayload:item.outcome.proposed_payload,candidates,
@@ -336,10 +339,12 @@ export default withOrg(async function handler(req, res) {
     }
   }
 
-  const skipped = results.filter(item => item.outcome.status !== 'created');
+  const alreadySaved = results.filter(item => item.outcome.status === 'already_saved').length;
+  const skipped = results.filter(item => item.outcome.status !== 'created' && item.outcome.status !== 'already_saved');
   return res.status(200).json({
     success: true,
     created: insertedPeople.length,
+    already_saved: alreadySaved,
     skipped: skipped.length,
     max_rows: MAX_ROWS,
     results: results.map(item => item.outcome)

@@ -20,7 +20,7 @@ assert(!isSafeScanPhoneEvidence({phone_evidence:'ambiguous',pair_evidence:'clear
 assert(!isSafeScanPhoneEvidence({phone_evidence:'clear',pair_evidence:'clear',phone_flags:['digit_uncertain']},[]),'A possible digit error must block automatic phone attachment.');
 assert(!isSafeScanPhoneEvidence({phone_evidence:'clear',pair_evidence:'clear'},['phone_row_linkage_needs_verification']),'A phone that may belong to another row must stay out of the merge.');
 assert(isSafeScanNameEvidence({name_evidence:'clear'},[]),'A clear scan name may update the selected canonical record.');
-assert(!isSafeScanNameEvidence({name_evidence:'ambiguous'},[]),'An unclear scan name must never replace the selected person's saved name.');
+assert(!isSafeScanNameEvidence({name_evidence:'ambiguous'},[]),'An unclear scan name must never replace the selected canonical name.');
 assert(!isSafeScanNameEvidence({name_evidence:'clear',phone_flags:['name_uncertain']},[]),'A name uncertainty flag must override a nominally clear name label.');
 assert(!isSafeScanNameEvidence({name_evidence:'clear'},['low_name_evidence']),'Low name confidence must preserve the existing canonical name.');
 assert(/Math\.round\(\(ns\+ps\.score\)\/2\)/.test(identity),'Identity resolver must use balanced 50/50 scoring.');

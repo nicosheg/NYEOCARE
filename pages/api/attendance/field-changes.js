@@ -3,7 +3,7 @@
 // This is a polling fallback for Realtime; the server/database remains canonical.
 import pool from '../../../lib/db';
 import { withOrg } from '../../../lib/apiHelpers';
-import { isOrganizationOperator } from '../../../lib/attendance/access';
+import { isOrganizationOperator, ensureActiveAttendanceSessionMember } from '../../../lib/attendance/access';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const OVERLAP_MS = 60000;
@@ -38,6 +38,19 @@ export default withOrg(async function handler(req, res) {
   const orgId = req.org.id;
   const userId = req.user.id;
   try {
+    const joined = await ensureActiveAttendanceSessionMember(pool, {
+      organizationId: orgId,
+      sessionId,
+      userId
+    });
+    if (!joined) {
+      return res.status(409).json({
+        error: 'This attendance session is no longer active or you cannot join it.',
+        code: 'ATTENDANCE_SESSION_MEMBERSHIP_REQUIRED',
+        request_id: req.nyeoRequestId || null
+      });
+    }
+
     const access = await pool.query(
       `SELECT s.id, s.started_at
        FROM sessions s

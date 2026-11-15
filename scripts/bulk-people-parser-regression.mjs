@@ -31,12 +31,12 @@ assert.deepEqual(
   'A one-person row retains its legacy physical-line idempotency key.'
 );
 assert.deepEqual(
-  parseBulkPeopleRows('Jane Example\\n08012345678').map(row => row.source_row_key),
+  parseBulkPeopleRows('Jane Example\n08012345678').map(row => row.source_row_key),
   ['1'],
   'An alternating name/phone pair retains its legacy name-line idempotency key.'
 );
 assert.deepEqual(
-  parseBulkPeopleRows('Name, Phone, Type, Email\\nJane Example, 08012345678, member').map(row => row.source_row_key),
+  parseBulkPeopleRows('Name, Phone, Type, Email\nJane Example, 08012345678, member').map(row => row.source_row_key),
   ['2'],
   'A structured spreadsheet row retains its legacy physical-line idempotency key.'
 );

@@ -38,7 +38,7 @@ assert.ok(
  editReviewPanel.includes('Open identity review') &&
  editReviewPanel.includes('Close notice · review stays pending') &&
  !editReviewPanel.includes('Confirm separate identities & save changes') &&
- !/router\\.push\\('\\/person\\/'/.test(editReviewPanel),
+ !editReviewPanel.includes("router.push('/person/'")
  'Direct People edits must create a durable pending identity review and link to that review; opening a candidate must not apply or resolve the edit.'
 );
 assert.ok(

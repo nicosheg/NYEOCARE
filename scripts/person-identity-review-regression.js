@@ -32,7 +32,7 @@ assert.ok(exactGuardIndex >= 0 && reviewGuardIndex > exactGuardIndex, 'Relevant 
 assert.ok(mutation.includes("p.status IN ('inactive','archived')"), 'Possible identity matches must include archived records so a former person cannot be re-created as a duplicate.');
 assert.ok(page.includes('I verified these are separate people') && page.includes('Open Review Center') && page.includes('DUPLICATE_IDENTITY_NOT_DISTINCT') && page.includes('Open record'), 'The People screen must expose human review and block a second record for an identical name+phone pair.');
 assert.ok(
- page.includes('<PeopleEditIdentityDecision') &&
+ page.includes('{editIdentityReview&&<PeopleEditIdentityDecision') &&
  decisionPanel.includes('Merge records') &&
  decisionPanel.includes('Keep separate') &&
  decisionPanel.includes('Open full review') &&
@@ -77,7 +77,7 @@ for (const name of ['create_person','import_people_roster','update_person_record
 }
 assert.ok(read('lib/aria/commandEngine.js').includes('PERSON_IDENTITY_REVIEW_REQUIRED') && read('lib/aria/commandEngine.js').includes('Open People and use Add one person'), 'ARIA must explain identity conflicts and direct operators to the human-review workflow.');
 assert.ok(read('pages/person/[id].js').includes('editIdentityReview') && read('pages/person/[id].js').includes('PERSON_IDENTITY_REVIEW_REQUIRED'), 'The person profile editor must also offer human identity review rather than fail closed with a generic error.');
-assert.ok(read('pages/person/[id].js').includes('<PeopleEditIdentityDecision') && decisionPanel.includes('data-person-journey-identity-review') && decisionPanel.includes('Only people in this organization are included.'), 'Person Journey must use the same organization-scoped decision panel as the People card editor.');
+assert.ok(read('pages/person/[id].js').includes('{editIdentityReview&&<PeopleEditIdentityDecision') && decisionPanel.includes('data-person-journey-identity-review') && decisionPanel.includes('Only people in this organization are included.'), 'Person Journey must use the same organization-scoped decision panel as the People card editor.');
 assert.ok(api.includes('discarded_foreign_candidate_count') && api.includes('request_id:req.nyeoRequestId||null'), 'Identity conflicts must be traceable without logging or exposing contact PII.');
 const identityReviewApi = read('pages/api/review/index.js');
 const identityReviewAction = read('pages/api/review/person-identity-action.js');

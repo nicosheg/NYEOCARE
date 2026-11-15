@@ -12,7 +12,7 @@ const scanValidation=read('lib/scanValidation.js');
 const person=read('pages/person/[id].js');
 const journeyApi=read('pages/api/person/journey.js');
 const navigationBack=read('components/NavigationBack.js');
-const duplicateAction=read('pages/api/review/duplicate-action.js');
+const duplicateAction=read('pages/api/review/duplicate-action.js')+'\n'+read('lib/identityMerge.js');
 function assert(v,m){if(!v)throw new Error(m)}
 assert(isSafeScanPhoneEvidence({phone_evidence:'clear',pair_evidence:'clear'},['name_evidence_ambiguous']),'Unclear handwriting alone must not block a phone whose digits and row pairing are both clear.');
 assert(!isSafeScanPhoneEvidence({phone_evidence:'clear',pair_evidence:'ambiguous'},[]),'Ambiguous row pairing must block automatic phone attachment.');

@@ -84,7 +84,16 @@ export default function ClientDiagnostics(){
     const duration=Math.round(performance.now()-started);
     if(pathname.startsWith('/api/')&&pathname!=='/api/diagnostics/client-error'){
      const key='api:'+pathname+':'+response.status;
-     if((response.status>=500||response.status===408||response.status===429)&&shouldSend(key)){
+     if(pathname.startsWith('/api/attendance/')&&response.status===403&&shouldSend(key)){
+      void send({
+       kind:'client_api_forbidden',
+       severity:'warning',
+       surface:'fetch',
+       message:'Attendance API denied the request: '+pathname,
+       requestId:response.headers.get('x-nyeo-request-id'),
+       metadata:{status:response.status,duration_ms:duration,method:String(args[1]?.method||'GET').slice(0,12)}
+      });
+     }else if((response.status>=500||response.status===408||response.status===429)&&shouldSend(key)){
       void send({
        kind:'client_api_error',
        severity:response.status>=500?'error':'warning',

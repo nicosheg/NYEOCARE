@@ -5,7 +5,7 @@
 import pool from '../../../lib/db';
 import { withOrg } from '../../../lib/apiHelpers';
 import { eventAttendanceDate } from '../../../lib/attendance/eventDate';
-import { isOrganizationOperator } from '../../../lib/attendance/access';
+import { isOrganizationOperator, ensureActiveAttendanceSessionMember } from '../../../lib/attendance/access';
 
 export default withOrg(async function handler(req,res){
   if(req.method!=='POST'){
@@ -45,16 +45,17 @@ export default withOrg(async function handler(req,res){
     // Match individual and offline marks: the event's start date is authoritative.
     const attendanceDate=eventAttendanceDate(session.rows[0].started_at,session.rows[0].organization_timezone);
 
-    const assignment=await client.query(
-      `SELECT 1 FROM session_users
-       WHERE session_id=$1 AND user_id=$2
-       LIMIT 1`,
-      [session_id,userId]
-    );
+    const assignment=await ensureActiveAttendanceSessionMember(client,{
+      organizationId:orgId,sessionId:session_id,userId
+    });
 
-    if(!assignment.rows.length){
+    if(!assignment){
       await client.query('ROLLBACK');
-      return res.status(403).json({error:'You are not assigned to this session.'});
+      return res.status(403).json({
+        error:'You cannot join this attendance session with the current organization account.',
+        code:'ATTENDANCE_SESSION_MEMBERSHIP_REQUIRED',
+        request_id:req.nyeoRequestId||null
+      });
     }
 
     const section=await client.query(

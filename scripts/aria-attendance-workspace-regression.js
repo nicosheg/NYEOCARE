@@ -8,6 +8,7 @@ const createApi=read('pages/api/attendance/create-session.js');
 const closeApi=read('pages/api/attendance/close-session.js');
 const workspace=read('lib/aria/universalWorkspace.js');
 const processor=read('lib/aria/attendanceProcessor.js');
+const attendanceAccess=read('lib/attendance/access.js');
 
 assert.ok(createApi.includes("import { createAttendanceSession } from '../../../lib/attendance/sessionLifecycle';"),
   'the normal Attendance API must import the canonical session creator');
@@ -28,8 +29,12 @@ assert.ok(closeApi.includes('await finalizeAttendanceSession({')&&!closeApi.incl
   'the normal Attendance API must delegate finalization rather than duplicate the database finalizer');
 assert.ok(closeApi.indexOf('pg_advisory_xact_lock')>=0&&closeApi.indexOf('pg_advisory_xact_lock')<closeApi.indexOf('FOR UPDATE'),
   'the normal Attendance API must acquire the organization lifecycle lock before locking the session row to avoid create/close deadlocks');
-assert.ok(closeApi.includes('isOrganizationOperator')&&closeApi.includes('session_users'),
-  'the normal Attendance API must preserve operator and active-session membership authorization');
+assert.ok(closeApi.includes('isOrganizationOperator')&&closeApi.includes('ensureActiveAttendanceSessionMember'),
+  'the normal Attendance API must preserve operator and active-session membership authorization through the shared access policy');
+assert.ok(attendanceAccess.includes('public.session_users')&&attendanceAccess.includes('s.organization_id = $2')&&
+  attendanceAccess.includes('u.organization_id = s.organization_id')&&attendanceAccess.includes('u.active = true')&&
+  attendanceAccess.includes('s.status = \'active\'')&&attendanceAccess.includes('ANY($4::text[])'),
+  'the shared Attendance membership policy must require the same organization, an active operator, and an active session for new joins');
 
 const ariaClose=workspace.slice(workspace.indexOf("if(op==='close_session')"),workspace.indexOf("if(op==='discard_session')"));
 assert.ok(ariaClose.includes('await finalizeAttendanceSession({')&&!ariaClose.includes('UPDATE sessions SET status='),

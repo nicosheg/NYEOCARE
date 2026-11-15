@@ -3,7 +3,7 @@
 // request_id makes retries safe when a weak connection loses the response after commit.
 import pool from '../../../lib/db';
 import { withOrg } from '../../../lib/apiHelpers';
-import { isOrganizationOperator } from '../../../lib/attendance/access';
+import { isOrganizationOperator, ensureActiveAttendanceSessionMember } from '../../../lib/attendance/access';
 import { normalizePhone } from '../../../lib/phoneUtils';
 import { normalizeDisplayName } from '../../../lib/scanValidation';
 import { emitAriaEvent } from '../../../lib/aria/eventEmitter';
@@ -113,13 +113,16 @@ export default withOrg(async function handler(req,res){
         return res.status(409).json({error:'This attendance session is no longer active. Refresh attendance before adding a visitor.'});
       }
 
-      const joined=(await client.query(
-        'SELECT 1 FROM session_users WHERE session_id=$1 AND user_id=$2 LIMIT 1',
-        [sessionId,userId]
-      )).rows[0];
+      const joined=await ensureActiveAttendanceSessionMember(client,{
+        organizationId:orgId,sessionId,userId
+      });
       if(!joined){
         await client.query('ROLLBACK');
-        return res.status(403).json({error:'Join this attendance session before adding a visitor.'});
+        return res.status(403).json({
+          error:'You cannot join this attendance session with the current organization account.',
+          code:'ATTENDANCE_SESSION_MEMBERSHIP_REQUIRED',
+          request_id:req.nyeoRequestId||null
+        });
       }
 
       const incomingNameKey=identityNameKey(normalizedName.display||rawName);

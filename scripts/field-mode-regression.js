@@ -1,5 +1,6 @@
 import{existsSync,readFileSync}from'node:fs';
 const read=p=>readFileSync(p,'utf8');
+const attendanceAccess=read('lib/attendance/access.js');
 const checks=[
  ['Field Mode runtime is globally mounted',/FieldModeRuntime/.test(read('pages/_app.js'))],
  ['Offline reopen keeps a safe app shell',read('public/sw.js').includes("APP_SHELL='/'")&&read('public/sw.js').includes('caches.match(APP_SHELL)')&&!read('public/sw.js').split("if(event.request.mode==='navigate')")[0].includes('fetch(event.request)')],
@@ -33,7 +34,7 @@ const checks=[
  ['Reconnect sync batches operations',/api\/attendance\/sync/.test(read('lib/attendanceFieldMode.js'))&&/chunks\(pending,100\)/.test(read('lib/attendanceFieldMode.js'))],
  ['Reconnect sync is automatic',/addEventListener\('online'/.test(read('components/FieldModeRuntime.js'))&&/setInterval\(run,60000\)/.test(read('components/FieldModeRuntime.js'))],
  ['Large field roster is paginated',/MAX_LIMIT=5000/.test(read('pages/api/attendance/field-roster.js'))&&/base64url/.test(read('pages/api/attendance/field-roster.js'))],
- ['Batch sync validates session membership and active people',/session_users/.test(read('pages/api/attendance/sync.js'))&&/id\s*=\s*ANY\(\$2::uuid\[\]\)/.test(read('pages/api/attendance/sync.js'))],
+ ['Batch sync validates active operator session membership and active people',/ensureActiveAttendanceSessionMember/.test(read('pages/api/attendance/sync.js'))&&/public\.session_users/.test(attendanceAccess)&&/s\.organization_id = \$2/.test(attendanceAccess)&&/u\.active = true/.test(attendanceAccess)&&/s\.status = 'active'/.test(attendanceAccess)&&/id\s*=\s*ANY\(\$2::uuid\[\]\)/.test(read('pages/api/attendance/sync.js'))],
  ['Closed-session late marks are rejected by the server and retained for admin review',/session\.status === 'closed'/.test(read('pages/api/attendance/sync.js'))&&/requires_admin_verification: true/.test(read('pages/api/attendance/sync.js'))&&/status:'needs_admin_review'/.test(read('lib/attendanceFieldMode.js'))&&/verified!==true/.test(read('pages/api/attendance/aria-correction.js'))],
  ['Server idempotency remains unique person/session',/ON CONFLICT \(organization_id, people_id, session_id\)/.test(read('pages/api/attendance/sync.js'))],
  ['Service worker does not cache authenticated HTML',/event\.request\.mode==='navigate'/.test(read('public/sw.js'))&&!/cache\.put\(event\.request/.test(read('public/sw.js').split("event.request.mode==='navigate'")[1].split("url.pathname")[0])],

@@ -3,7 +3,7 @@
 
 import pool from '../../../lib/db';
 import { withOrg } from '../../../lib/apiHelpers';
-import { isOrganizationOperator } from '../../../lib/attendance/access';
+import { isOrganizationOperator, ensureActiveAttendanceSessionMember } from '../../../lib/attendance/access';
 
 export default withOrg(async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -41,12 +41,16 @@ export default withOrg(async function handler(req, res) {
       });
     }
 
-    await pool.query(
-      `INSERT INTO session_users (session_id,user_id)
-       VALUES ($1,$2)
-       ON CONFLICT DO NOTHING`,
-      [session_id, userId]
-    );
+    const joined=await ensureActiveAttendanceSessionMember(pool,{
+      organizationId:orgId,sessionId:session_id,userId
+    });
+    if(!joined){
+      return res.status(403).json({
+        error:'You cannot join this attendance session with the current organization account.',
+        code:'ATTENDANCE_SESSION_MEMBERSHIP_REQUIRED',
+        request_id:req.nyeoRequestId||null
+      });
+    }
 
     return res.status(200).json({
       success: true,

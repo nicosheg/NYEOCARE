@@ -1,7 +1,7 @@
 // pages/api/attendance/close-session.js
 import pool from '../../../lib/db';
 import { withOrg } from '../../../lib/apiHelpers';
-import { isOrganizationOperator } from '../../../lib/attendance/access';
+import { isOrganizationOperator, ensureActiveAttendanceSessionMember } from '../../../lib/attendance/access';
 import { finalizeAttendanceSession } from '../../../lib/attendance/sessionLifecycle';
 import { getAttendanceSessionSummary } from '../../../lib/attendance/history';
 
@@ -27,13 +27,16 @@ export default withOrg(async function handler(req,res){
       return res.status(404).json({error:'Attendance session not found.'});
     }
     if(!isAdmin){
-      const membership=await client.query(
-        'SELECT 1 FROM session_users WHERE session_id=$1 AND user_id=$2 LIMIT 1',
-        [session_id,userId]
-      );
-      if(!membership.rows.length){
+      const membership=await ensureActiveAttendanceSessionMember(client,{
+        organizationId:orgId,sessionId:session_id,userId
+      });
+      if(!membership){
         await client.query('ROLLBACK');
-        return res.status(403).json({error:'Join this attendance session before saving it.'});
+        return res.status(403).json({
+          error:'You cannot join this attendance session with the current organization account.',
+          code:'ATTENDANCE_SESSION_MEMBERSHIP_REQUIRED',
+          request_id:req.nyeoRequestId||null
+        });
       }
     }
 

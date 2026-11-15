@@ -2,7 +2,7 @@
 import pool from '../../../lib/db';
 import { withOrg } from '../../../lib/apiHelpers';
 import { eventAttendanceDate } from '../../../lib/attendance/eventDate';
-import { isOrganizationOperator } from '../../../lib/attendance/access';
+import { isOrganizationOperator, ensureActiveAttendanceSessionMember } from '../../../lib/attendance/access';
 
 const MAX_OPERATIONS = 100;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -79,13 +79,18 @@ export default withOrg(async function handler(req, res) {
       return res.status(409).json({ error: 'This attendance session is no longer available.' });
     }
 
-    const member = (await client.query(
-      'SELECT 1 FROM session_users WHERE session_id = $1 AND user_id = $2 LIMIT 1',
-      [session_id, userId]
-    )).rows[0];
+    const member = await ensureActiveAttendanceSessionMember(client, {
+      organizationId: orgId,
+      sessionId: session_id,
+      userId
+    });
     if (!member) {
       await client.query('ROLLBACK');
-      return res.status(403).json({ error: 'Join this attendance session before syncing attendance.' });
+      return res.status(403).json({
+        error: 'You cannot join this attendance session with the current organization account.',
+        code: 'ATTENDANCE_SESSION_MEMBERSHIP_REQUIRED',
+        request_id: req.nyeoRequestId || null
+      });
     }
 
     const valid = (await client.query(

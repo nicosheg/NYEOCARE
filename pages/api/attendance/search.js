@@ -4,7 +4,7 @@
 
 import pool from '../../../lib/db';
 import { withOrg } from '../../../lib/apiHelpers';
-import { isOrganizationOperator, isOrganizationAdmin } from '../../../lib/attendance/access';
+import { isOrganizationOperator, isOrganizationAdmin, ensureActiveAttendanceSessionMember } from '../../../lib/attendance/access';
 
 async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -21,6 +21,21 @@ async function handler(req, res) {
   }
 
   try {
+    if (!isOrganizationAdmin(req.user?.role)) {
+      const joined = await ensureActiveAttendanceSessionMember(pool, {
+        organizationId: orgId,
+        sessionId: session_id,
+        userId: req.user.id
+      });
+      if (!joined) {
+        return res.status(403).json({
+          error: 'You cannot join this attendance session with the current organization account.',
+          code: 'ATTENDANCE_SESSION_MEMBERSHIP_REQUIRED',
+          request_id: req.nyeoRequestId || null
+        });
+      }
+    }
+
     const sessionAccess = await pool.query(
       `SELECT 1 FROM sessions s
        WHERE s.id=$1 AND s.organization_id=$2 AND s.status='active'

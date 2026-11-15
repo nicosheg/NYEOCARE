@@ -100,7 +100,7 @@ export default withOrg(async function handler(req, res) {
     const line = rowNumber(row, index);
     const sourceLines = Array.isArray(row.source_line_numbers) ? row.source_line_numbers.map(Number).filter(value => Number.isInteger(value) && value > 0) : [line];
     const review_key = `${name.trim().toLowerCase()}|${phoneText.trim()}`;
-    const sourceRowKey=String(row.source_row_key||'').trim().slice(0,80)||String((sourceLines.length?sourceLines:[line]).join('.'));
+    const sourceRowKey=String(row.source_row_key||'').trim().slice(0,80)||String(line);
     const outcome = { row: line, source_line_numbers: sourceLines.length ? sourceLines : [line], source_row_key:sourceRowKey, name, review_key, status: 'skipped', reason: '' };
 
     if (!name) {

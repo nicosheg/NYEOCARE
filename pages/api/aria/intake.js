@@ -125,7 +125,7 @@ async function persistNoContact(client, organizationId, personId, actorId, actor
      FROM aria_actions a
      WHERE q.organization_id=a.organization_id
        AND q.source_id=a.id::text
-       AND q.task_kind='follow_up'
+       AND q.task_kind IN('follow_up','action')
        AND q.status IN('pending','deferred')
        AND a.organization_id=$1 AND a.person_id=$2
        AND a.status='cancelled'
@@ -184,8 +184,16 @@ async function listIntake(req, res) {
      LIMIT $5`,
     [req.org.id, req.user.id, role, status, limit]
   );
+  const reviewOperators = ['owner','admin','leader'].includes(role)
+    ? (await pool.query(
+        `SELECT id::text id,name,role FROM users
+         WHERE organization_id=$1 AND active=true AND role=ANY($2::text[])
+         ORDER BY CASE role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'leader' THEN 2 ELSE 3 END,name,id`,
+        [req.org.id, ['owner','admin','leader','worker','user']]
+      )).rows
+    : [];
 
-  return res.status(200).json({ success: true, items: result.rows });
+  return res.status(200).json({ success: true, items: result.rows, review_operators: reviewOperators });
 }
 
 async function createIntake(req, res) {

@@ -82,13 +82,13 @@ jobs:
       - name: Install Vercel CLI
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: npm install --global vercel@66.6.0
-      - name: Reset Vercel project link
+      - name: Write verified Vercel project link
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           rm -rf .vercel
-          vercel link --yes --project "$VERCEL_PROJECT_ID" --scope nicosheg
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          mkdir -p .vercel
+          printf '{"projectId":"%s","orgId":"%s"}\\n' "$VERCEL_PROJECT_ID" "$VERCEL_ORG_ID" > .vercel/project.json
+          node -e 'const p=require("./.vercel/project.json");if(p.projectId!==process.env.VERCEL_PROJECT_ID||p.orgId!==process.env.VERCEL_ORG_ID)process.exit(1)'
       - name: Pull Vercel production configuration
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: vercel pull --yes --environment=production

@@ -133,6 +133,10 @@ assert.ok(contactPreference.includes('aria_care_contexts') &&
   contactPreference.includes('COMMUNICATION_PREFERENCE_CHANGED') &&
   contactPreference.includes("return 'unknown'"),
   'contact permission must resolve from the canonical no-contact context and latest preference event');
+
+assert.ok(contactPreference.includes("if(restriction.rows.length)return 'do_not_contact'") &&
+  review.includes("if (doNotContact.rows.length || contactPermission === 'do_not_contact')"),
+  'a saved no-contact restriction must remain fail-closed; an ordinary later allowed selection cannot silently override it');
 assert.ok(followUp.includes('getRecordedContactPermission') &&
   followUp.includes('contactOutcomes') &&
   followUp.includes('const safeNote = privateAction ?') &&

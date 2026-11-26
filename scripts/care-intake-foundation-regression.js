@@ -97,6 +97,7 @@ assert.ok(review.includes('resolved_person_id') &&
   review.includes('linked_person_id') &&
   review.includes('identity_linked_by'),
   'anonymous intake must be linkable only through an explicit human decision');
+assert.ok(review.includes("String(intake.consent_status || 'unknown').toLowerCase() !== 'granted'"), 'identified care work requires explicit recorded consent');
 assert.ok(review.includes('assigned_user_id') && review.includes('due_date') &&
   review.includes('Do not create an outreach responsibility'),
   'approved work must have an accountable operator/date and respect contact suppression');

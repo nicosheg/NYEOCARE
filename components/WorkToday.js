@@ -39,7 +39,7 @@ export default function WorkToday({data,role,onOpenItem,onOpenCareOversight,onOp
    <p>{later?'Your next responsibilities are already scheduled. You do not need to keep the app open.':'You can step away. NYEOCARE will show the next responsibility when it is due.'}</p>
   </div>}
   <footer className="workFooter">
-   <span>Today for you · {count}</span><span>Scheduled later · {later}</span><button type="button" className="workAll" onClick={onOpenAll}>Open ARIA Today →</button>
+   <span>Today for you · {count}</span><span>Scheduled later · {later}</span><button type="button" className="workAll" onClick={onOpenAll} aria-label="Open the full ARIA Today workspace">Open ARIA Today →</button>
   </footer>
   <style jsx>{`
    .workToday{box-sizing:border-box;width:100%;margin:5px 0 10px;padding:11px 12px 9px;border-radius:20px;border:1px solid rgba(255,255,255,.09);background:linear-gradient(145deg,rgba(255,255,255,.048),rgba(255,255,255,.015));box-shadow:0 12px 30px rgba(0,0,0,.10)}
@@ -65,7 +65,7 @@ export default function WorkToday({data,role,onOpenItem,onOpenCareOversight,onOp
    .workEmptyLine{width:34px;height:1px;margin-bottom:10px;background:linear-gradient(90deg,transparent,rgba(214,184,106,.45),transparent)}
    .workEmpty strong{font-size:11.5px;color:var(--ny-text);font-weight:600}
    .workEmpty p{max-width:290px;margin:5px 0 0;color:var(--ny-text-muted);font-size:9.5px;line-height:1.45}
-   .workFooter{display:flex;align-items:center;flex-wrap:wrap;gap:6px 11px;padding-top:8px;margin-top:8px;border-top:1px solid var(--ny-border-subtle);color:var(--ny-text-whisper);font-size:8px;line-height:1.3}.workAll{min-height:36px;margin-left:auto;padding:0 10px;border:1px solid rgba(214,184,106,.24);border-radius:10px;background:rgba(214,184,106,.07);color:var(--ny-gold-soft);font-size:9px;font-weight:650;white-space:nowrap;cursor:pointer}.workAll:focus-visible{outline:2px solid rgba(214,184,106,.62);outline-offset:2px}
+   .workFooter{display:flex;align-items:center;flex-wrap:wrap;gap:6px 11px;padding-top:8px;margin-top:8px;border-top:1px solid var(--ny-border-subtle);color:var(--ny-text-whisper);font-size:8px;line-height:1.3}.workAll{min-height:44px;margin-left:auto;padding:0 10px;border:1px solid rgba(214,184,106,.24);border-radius:10px;background:rgba(214,184,106,.07);color:var(--ny-gold-soft);font-size:9px;font-weight:650;white-space:nowrap;cursor:pointer}.workAll:focus-visible{outline:2px solid rgba(214,184,106,.62);outline-offset:2px}
    .workFooter span{margin-right:0}
    @media(max-width:400px){
     .workToday{padding:10px 9px 8px;border-radius:17px}

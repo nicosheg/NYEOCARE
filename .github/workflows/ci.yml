@@ -86,7 +86,7 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           rm -rf .vercel
-          vercel link --yes --project "$VERCEL_PROJECT_ID" --scope nicosheg
+          vercel link --yes --project "$VERCEL_PROJECT_ID" --scope "$VERCEL_ORG_ID"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       - name: Pull Vercel production configuration

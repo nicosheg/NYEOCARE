@@ -34,6 +34,7 @@ async function handler(req, res) {
   const title = clean(body.title, 100);
   const description = clean(body.description, 600);
   const assignedUserId = clean(body.assigned_user_id, 80);
+  const contactPermission = clean(body.contact_permission || 'unknown', 30).toLowerCase();
   const resolvedPersonId = clean(body.resolved_person_id, 80);
   const dueDate = clean(body.due_date, 10);
   const priority = ['low', 'medium', 'high'].includes(String(body.priority || '').toLowerCase())
@@ -45,6 +46,7 @@ async function handler(req, res) {
   if (!['approved', 'dismissed', 'deferred'].includes(decision)) {
     return res.status(400).json({ error: 'Decision must be approved, dismissed or deferred.' });
   }
+  if (!['unknown','allowed'].includes(contactPermission)) return res.status(400).json({ error: 'Contact permission must be unknown or explicitly verified as allowed.' });
   if (resolvedPersonId && !UUID.test(resolvedPersonId)) return res.status(400).json({ error: 'The resolved person link is invalid.' });
   if (decision === 'approved' && (!UUID.test(assignedUserId) || !title || !datePattern.test(dueDate))) {
     return res.status(400).json({ error: 'Approval requires a person, accountable operator, task title and due date.' });
@@ -208,6 +210,24 @@ async function handler(req, res) {
         await client.query('ROLLBACK');
         return res.status(409).json({ error: 'This person has a do-not-contact restriction. Do not create an outreach responsibility.' });
       }
+      if (contactPermission === 'allowed' && ['declined','withdrawn'].includes(String(intake.consent_status||'unknown'))) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ error: 'Contact cannot be marked allowed after consent was declined or withdrawn.' });
+      }
+      if (contactPermission === 'allowed') {
+        const preferenceEvent=await emitAriaEvent({
+          organizationId,personId:linkedPersonId,
+          type:'COMMUNICATION_PREFERENCE_CHANGED',
+          source:'care_intake_review',
+          actorId:req.user.id,actorRole:role,
+          evidenceKind:'human_report',verificationStatus:'verified',confidence:1,
+          privacyClass:intake.privacy_class||'sensitive',
+          consentStatus:intake.consent_status||'unknown',
+          eventKey:'care-contact-preference-reviewed:'+intakeEventId,
+          metadata:{contact_permission:'allowed',verified_by:req.user.id,source_intake_event_id:intakeEventId}
+        },client);
+        if(!preferenceEvent)throw new Error('The verified contact preference could not be recorded.');
+      }
 
       action = await planActionFromObservation({
         organizationId,
@@ -230,7 +250,8 @@ async function handler(req, res) {
           privacy_reporter_id: intake.actor_id || null,
           privacy_required_role: intake.privacy_class === 'restricted' ? 'admin' : (intake.privacy_class === 'sensitive' ? 'leader' : 'operator'),
           consent_status: intake.consent_status || 'unknown',
-          contact_permission: intake.metadata?.intake?.contact_permission || 'unknown',
+          contact_permission: contactPermission,
+          contact_permission_verified_by: contactPermission==='allowed'?req.user.id:null,
           assigned_user_id: assignee.id,
           due_date: dueDate,
           responsibility_created_by: req.user.id,
@@ -279,6 +300,7 @@ async function handler(req, res) {
         linked_person_id: action ? (intake.person_id || resolvedPersonId) : intake.person_id,
         identity_linked_by: action && !intake.person_id ? req.user.id : null,
         decision,
+        contact_permission: action ? contactPermission : null,
         reason: reason || null,
         defer_until: deferUntilStored,
         action_id: actionId,

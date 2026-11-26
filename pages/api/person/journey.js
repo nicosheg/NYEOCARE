@@ -184,10 +184,14 @@ SELECT
    SELECT * FROM care_feedback WHERE organization_id=$1 AND person_id=$2 ORDER BY observed_at DESC,created_at DESC LIMIT 50
  )x),'[]'::json) AS feedback,
  COALESCE((SELECT json_agg(x) FROM(
-   SELECT e.* FROM aria_events e WHERE e.organization_id=$1 AND e.person_id IN(SELECT person_id FROM merged_lineage) AND e.type<>'ATTENDANCE_SESSION_RESET' AND NOT (e.source='attendance' AND COALESCE(e.metadata->>'session_id',e.metadata #>> '{memory,value,session_id}') IS NOT NULL AND EXISTS(SELECT 1 FROM aria_events session_reset WHERE session_reset.organization_id=e.organization_id AND session_reset.type='ATTENDANCE_SESSION_RESET' AND session_reset.source='manual' AND session_reset.metadata->>'session_id'=COALESCE(e.metadata->>'session_id',e.metadata #>> '{memory,value,session_id}'))) ORDER BY e.occurred_at DESC,e.created_at DESC LIMIT 100
+   SELECT e.* FROM aria_events e WHERE e.organization_id=$1 AND e.person_id IN(SELECT person_id FROM merged_lineage) AND e.type<>'ATTENDANCE_SESSION_RESET'
+     AND (e.privacy_class='standard'
+       OR (e.privacy_class='sensitive' AND (e.actor_id=$4::uuid OR $3::text IN('owner','admin','leader')))
+       OR (e.privacy_class='restricted' AND (e.actor_id=$4::uuid OR $3::text IN('owner','admin'))))
+     AND NOT (e.source='attendance' AND COALESCE(e.metadata->>'session_id',e.metadata #>> '{memory,value,session_id}') IS NOT NULL AND EXISTS(SELECT 1 FROM aria_events session_reset WHERE session_reset.organization_id=e.organization_id AND session_reset.type='ATTENDANCE_SESSION_RESET' AND session_reset.source='manual' AND session_reset.metadata->>'session_id'=COALESCE(e.metadata->>'session_id',e.metadata #>> '{memory,value,session_id}'))) ORDER BY e.occurred_at DESC,e.created_at DESC LIMIT 100
  )x),'[]'::json) AS aria_events
 FROM person
-`,[orgId,id])).rows[0];
+`,[orgId,id,String(req.user?.role||'').toLowerCase(),req.user.id])).rows[0];
 if(!journey?.person)return res.status(404).json({error:'Person not found'});
 const data={person:journey.person};
 for(const key of ['timeline','observations','actions','memory','learning','brain_feed','communications','conversations','relationships','groups','roles','fields','lifecycle','tasks','documents','aliases','outcomes','feedback','aria_events'])data[key]=Array.isArray(journey[key])?journey[key]:[];

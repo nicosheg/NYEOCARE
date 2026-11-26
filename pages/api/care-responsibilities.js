@@ -59,18 +59,19 @@ export default withAdmin(async function handler(req,res){
    await client.query('ROLLBACK');
    return res.status(400).json({error:'Due date cannot be in the past.'});
   }
-  const latestDate=new Date(Date.now()+30*86400000).toISOString().slice(0,10);
+  const latestDate=new Date(Date.parse(today+'T12:00:00Z')+30*86400000).toISOString().slice(0,10);
   if(dueDate>latestDate){
    await client.query('ROLLBACK');
    return res.status(400).json({error:'Choose a due date within the next 30 days.'});
   }
   const message=description||title;
+  const actionKey='human-care:'+idempotencyKey;
   action=await planActionFromObservation({
    organizationId:orgId,
    personId:person.id,
    actionType:'CARE_FOLLOW_UP',
    priority,
-   actionKey:'human-care:'+idempotencyKey,
+   actionKey,
    actionMetadata:{
     kind:'manual_care_responsibility',
     title,
@@ -87,6 +88,9 @@ export default withAdmin(async function handler(req,res){
     source:'human_care_plan'
    }
   },client);
+  if(!action){
+   action=(await client.query('SELECT * FROM aria_actions WHERE organization_id=$1 AND action_key=$2 LIMIT 1 FOR UPDATE',[orgId,actionKey])).rows[0]||null;
+  }
   if(!action)throw new Error('The care responsibility could not be created.');
   await emitAriaEvent({
    organizationId:orgId,

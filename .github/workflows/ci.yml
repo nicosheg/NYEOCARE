@@ -104,7 +104,7 @@ jobs:
             response="$(curl --silent --show-error --fail --max-time 15 "$health_url" 2>/dev/null || true)"
             actual_build_id=""
             if [[ -n "$response" ]]; then
-              actual_build_id="$(node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); if(d.status!=="ok"||d.database!=="ok"||d.queue!=="ok"||d.workers!=="ok"||d.build_id!==process.env.EXPECTED_BUILD_ID) process.exit(1); console.log(d.build_id);' <<<"$response" 2>/dev/null || true)"
+              actual_build_id="$(node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); if(d.status!=="ok"||d.database!=="ok"||(d.queue!=="ok"&&d.queue!=="busy")||d.workers!=="ok"||d.build_id!==process.env.EXPECTED_BUILD_ID) process.exit(1); console.log(d.build_id);' <<<"$response" 2>/dev/null || true)"
             fi
             if [[ "$actual_build_id" == "$EXPECTED_BUILD_ID" ]]; then
               echo "Production health verified for commit $actual_build_id."

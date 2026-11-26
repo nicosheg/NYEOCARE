@@ -66,6 +66,17 @@ jobs:
       - run: npm run test:aria
       - run: npm run test:auth
       - run: npm run test:operator-adoption
+      - run: npm run test:legacy-attendance-care
+      - run: npm run test:canonical-care-workspace
+      - name: Syntax-check canonical care entry points
+        run: |
+          node --check pages/api/care-responsibilities.js
+          node --check pages/api/person/journey.js
+          node --check pages/person/[id].js
+          node --check components/CareLeadershipPanel.js
+          node --check pages/index.js
+          node --check lib/dailyQueue.js
+          node --check pages/api/daily-queue/complete-follow-up.js
       - run: npm run test:system-scale
       - run: npm run test:field-mode
       - name: Build application

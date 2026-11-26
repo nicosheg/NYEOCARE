@@ -41,7 +41,7 @@ const validPrivacyForRole = (privacyClass, role, actorId, eventActorId) => {
   return ['owner', 'admin'].includes(role);
 };
 
-async function persistNoContact(client, organizationId, personId, actorId, intakeEvent, privacyClass, consentStatus) {
+async function persistNoContact(client, organizationId, personId, actorId, actorRole, intakeEvent, privacyClass, consentStatus) {
   await client.query(
     'SELECT pg_advisory_xact_lock(hashtextextended($1,0))',
     ['nyeocare:do-not-contact:' + organizationId + ':' + personId]
@@ -82,7 +82,7 @@ async function persistNoContact(client, organizationId, personId, actorId, intak
     type: 'COMMUNICATION_PREFERENCE_CHANGED',
     source: 'care_intake',
     actorId,
-    actorRole: null,
+    actorRole,
     evidenceKind: 'human_report',
     verificationStatus: 'reported',
     confidence: 1,
@@ -95,6 +95,15 @@ async function persistNoContact(client, organizationId, personId, actorId, intak
       summary: 'Person asked the organization not to initiate further contact.'
     }
   }, client);
+
+  await client.query(
+    `UPDATE person_communications
+     SET status='cancelled',
+         metadata=COALESCE(metadata,'{}'::jsonb)||jsonb_build_object('cancelled_by_do_not_contact',true),
+         updated_at=NOW()
+     WHERE organization_id=$1 AND person_id=$2 AND direction='outbound' AND status='draft'`,
+    [organizationId, personId]
+  );
 
   await client.query(
     `UPDATE aria_actions
@@ -282,12 +291,13 @@ async function createIntake(req, res) {
     if (!storedEvent) throw new Error('The care signal could not be persisted.');
 
     const savedPermission = storedEvent.metadata?.intake?.contact_permission;
-    if (personId && savedPermission === 'do_not_contact') {
+    if (storedEvent.person_id && savedPermission === 'do_not_contact') {
       await persistNoContact(
         client,
         organizationId,
-        personId,
+        storedEvent.person_id,
         req.user.id,
+        req.user.role,
         storedEvent,
         storedEvent.privacy_class || privacyClass,
         storedEvent.consent_status || consentStatus

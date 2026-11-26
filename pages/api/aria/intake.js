@@ -179,7 +179,7 @@ async function listIntake(req, res) {
          $4::text='all'
          OR ($4::text='pending' AND (
            r.decision IS NULL
-           OR (r.decision='deferred' AND r.defer_until IS NOT NULL AND r.defer_until::date<=CURRENT_DATE)
+           OR (r.decision='deferred' AND r.defer_until IS NOT NULL AND r.defer_until::date<=$6::date)
          ))
          OR ($4::text='reviewed' AND r.decision IS NOT NULL)
        )

@@ -195,6 +195,7 @@ const now=Date.now(),year=365*86400000,all=[...data.timeline.map(x=>({...x,_kind
 data.temporal={past:all.filter(x=>new Date(x._date).getTime()<now-year),present:all.filter(x=>{const t=new Date(x._date).getTime();return t>=now-year&&t<=now}),future:all.filter(x=>new Date(x._date).getTime()>now)};
 const canCreateCare=['owner','admin'].includes(String(req.user?.role||'').toLowerCase());
 data.permissions={can_create_care_responsibility:canCreateCare};
+data.time_zone=(await pool.query("SELECT COALESCE(settings->>'timezone','Africa/Lagos') AS time_zone FROM organizations WHERE id=$1 LIMIT 1",[orgId])).rows[0]?.time_zone||'Africa/Lagos';
 data.current_operator_id=String(req.user.id);
 data.operators=canCreateCare?(await pool.query("SELECT id::text id,name,role FROM users WHERE organization_id=$1 AND active=true AND role IN('owner','admin','leader','worker','user') ORDER BY CASE role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'leader' THEN 2 ELSE 3 END,name,id",[orgId])).rows:[];
 return res.status(200).json(data);

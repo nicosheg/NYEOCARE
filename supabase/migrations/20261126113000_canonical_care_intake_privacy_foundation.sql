@@ -437,15 +437,27 @@ BEGIN
 
   PERFORM pg_advisory_xact_lock(hashtextextended('nyeocare:do-not-contact:'||NEW.organization_id||':'||NEW.person_id::text,0));
 
-  -- Metadata-only updates to an already-recorded historical contact are safe.
-  IF TG_OP='UPDATE'
-     AND NEW.status IS NOT DISTINCT FROM OLD.status
-     AND NEW.content IS NOT DISTINCT FROM OLD.content
-     AND NEW.direction IS NOT DISTINCT FROM OLD.direction
-     AND NEW.person_id IS NOT DISTINCT FROM OLD.person_id
-     AND NEW.organization_id IS NOT DISTINCT FROM OLD.organization_id
-  THEN
-    RETURN NEW;
+  IF TG_OP='UPDATE' THEN
+    -- Delivery/read callbacks for a message sent before the restriction are historical.
+    IF OLD.status IN ('sent','delivered','read')
+       AND NEW.status IN ('delivered','read','completed')
+       AND NEW.content IS NOT DISTINCT FROM OLD.content
+       AND NEW.direction='outbound'
+       AND NEW.person_id IS NOT DISTINCT FROM OLD.person_id
+       AND NEW.organization_id IS NOT DISTINCT FROM OLD.organization_id
+    THEN
+      RETURN NEW;
+    END IF;
+
+    -- Metadata-only updates to an already-recorded historical contact are safe.
+    IF NEW.status IS NOT DISTINCT FROM OLD.status
+       AND NEW.content IS NOT DISTINCT FROM OLD.content
+       AND NEW.direction IS NOT DISTINCT FROM OLD.direction
+       AND NEW.person_id IS NOT DISTINCT FROM OLD.person_id
+       AND NEW.organization_id IS NOT DISTINCT FROM OLD.organization_id
+    THEN
+      RETURN NEW;
+    END IF;
   END IF;
 
   -- Cancelling an unsent draft is always allowed.

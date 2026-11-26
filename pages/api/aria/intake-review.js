@@ -34,7 +34,7 @@ async function handler(req, res) {
   const title = clean(body.title, 100);
   const description = clean(body.description, 600);
   const assignedUserId = clean(body.assigned_user_id, 80);
-  const contactPermission = clean(body.contact_permission || 'unknown', 30).toLowerCase();
+  const contactPermission = 'unknown';
   const resolvedPersonId = clean(body.resolved_person_id, 80);
   const dueDate = clean(body.due_date, 10);
   const priority = ['low', 'medium', 'high'].includes(String(body.priority || '').toLowerCase())
@@ -87,6 +87,8 @@ async function handler(req, res) {
       await client.query('ROLLBACK');
       return res.status(403).json({ error: 'This care signal is restricted to care leadership.' });
     }
+
+    const contactPermission = String(intake.metadata?.intake?.contact_permission || 'unknown').toLowerCase();
 
     const duplicateKey = 'care-intake-review:' + intakeEventId + ':' + idempotencyKey;
     const duplicate = await client.query(
@@ -206,7 +208,7 @@ async function handler(req, res) {
          LIMIT 1`,
         [organizationId, linkedPersonId]
       );
-      if (doNotContact.rows.length) {
+      if (doNotContact.rows.length || contactPermission === 'do_not_contact') {
         await client.query('ROLLBACK');
         return res.status(409).json({ error: 'This person has a do-not-contact restriction. Do not create an outreach responsibility.' });
       }

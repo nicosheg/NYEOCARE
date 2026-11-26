@@ -4,6 +4,7 @@ import { withOrg } from '../../../lib/apiHelpers';
 import { emitAriaEvent } from '../../../lib/aria/eventEmitter';
 import { processAriaEvent } from '../../../lib/aria/eventProcessor';
 import { learnFromFeedback } from '../../../lib/aria/learningEngine';
+import { getRecordedContactPermission } from '../../../lib/aria/contactPreference';
 
 const OUTCOMES = {
   met_in_person: { label: 'Welcomed in person', feedbackType: 'other', sentiment: 'positive' },
@@ -67,7 +68,7 @@ export default withOrg(async function handler(req, res) {
     const privacyClass = ['standard','sensitive','restricted'].includes(row.action_metadata?.privacy_class) ? row.action_metadata.privacy_class : 'standard';
     const consentStatus = ['unknown','granted','declined','withdrawn','not_required'].includes(row.action_metadata?.consent_status) ? row.action_metadata.consent_status : 'unknown';
     const privacyReporterId = row.action_metadata?.privacy_reporter_id || null;
-    const contactPermission = row.action_metadata?.contact_permission || 'unknown';
+    const contactPermission = await getRecordedContactPermission(client, req.org.id, row.person_id, row.action_metadata);
     const privateAction = privacyClass !== 'standard';
     const firstVisitRequired = row.action_metadata?.first_visit_required === true;
     const manualCare = row.action_metadata?.kind === 'manual_care_responsibility';

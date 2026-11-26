@@ -23,6 +23,15 @@ const followUp = read('pages/api/daily-queue/complete-follow-up.js');
 const capture = read('components/CareIntakeCapture.js');
 const reviewUi = read('components/CareIntakeReview.js');
 const workToday = read('components/WorkToday.js');
+const personOperatingSystem=read('lib/peopleOperatingSystem.js');
+const personOperatingApi=read('pages/api/people/operating-system.js');
+const timelineApi=read('pages/api/timeline.js');
+const outcomeEngine=read('lib/aria/outcomeEngine.js');
+const relationshipScore=read('lib/aria/relationshipScore.js');
+const priorityQueue=read('lib/aria/priorityQueue.js');
+const careContacts=read('lib/aria/careContacts.js');
+const directorEngine=read('lib/aria/directorEngine.js');
+const universalWorkspace=read('lib/aria/universalWorkspace.js');
 
 assert.ok(/ALTER TABLE public\.aria_events/.test(migration) &&
   /ADD COLUMN IF NOT EXISTS privacy_class/.test(migration) &&
@@ -160,5 +169,31 @@ assert.ok(reviewUi.includes('setCandidates(Array.isArray(body.review_operators)'
 assert.ok(workToday.includes('CareIntakeCapture') && workToday.includes('CareIntakeReview') &&
   workToday.includes("['owner','admin','leader'].includes(role)"),
   'intake and review must live inside the canonical ARIA Today surface');
+
+
+assert.ok(personOperatingSystem.includes("getPerson360(orgId,personId,{role='user',actorId=null}={})") &&
+  personOperatingSystem.includes("COALESCE(metadata->>'privacy_class','standard')='standard'") &&
+  personOperatingSystem.includes("COALESCE(action_metadata->>'privacy_class','standard')='standard'") &&
+  personOperatingApi.includes("role:req.user?.role,actorId:req.user?.id"),
+  'Person 360 must enforce authenticated viewer privacy scope');
+assert.ok(timelineApi.includes("t.metadata->>'privacy_reporter_id'=$4::text") &&
+  timelineApi.includes('delete safeMetadata.privacy_class') &&
+  timelineApi.includes("COALESCE(t.metadata->>'privacy_class','standard')='standard'"),
+  'generic timeline endpoint must enforce visibility and reject client-supplied privacy tags');
+assert.ok(outcomeEngine.includes("privacyClass,consentStatus:actionMetadata.consent_status||'unknown'") &&
+  outcomeEngine.includes("if(privacyClass==='standard')") &&
+  outcomeEngine.includes("COALESCE(evidence->>'privacy_class','standard')='standard'"),
+  'generic outcome recording must preserve private tags and avoid shared learning');
+assert.ok(relationshipScore.includes("COALESCE(evidence->>'privacy_class','standard')='standard'") &&
+  careContacts.includes("COALESCE(io.evidence->>'privacy_class','standard')='standard'") &&
+  priorityQueue.includes("COALESCE(action_metadata->>'privacy_class','standard')='standard'"),
+  'relationship scores, care-contact suggestions and priority queue must exclude private care records');
+assert.ok(directorEngine.includes("e.privacy_class='standard'") &&
+  directorEngine.includes("COALESCE(action_metadata->>'privacy_class','standard')='standard'") &&
+  directorEngine.includes("COALESCE(io.evidence->>'privacy_class','standard')='standard'"),
+  'director-level aggregate intelligence must exclude private care evidence');
+assert.ok(universalWorkspace.includes("COALESCE(t.metadata->>'privacy_class','standard')='standard'") &&
+  universalWorkspace.includes("COALESCE(pc.metadata->>'privacy_class','standard')='standard'"),
+  'workspace activity and communication snapshot must exclude private care records');
 
 console.log('[CARE INTAKE FOUNDATION] canonical intake, human review, provenance, privacy, no-contact serialization and no-duplicate architecture passed.');

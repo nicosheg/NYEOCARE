@@ -63,25 +63,23 @@ export default function CareIntakeCapture() {
     try{
       const session=await getClientSession();
       if(!session?.access_token)throw new Error('Sign in again to record this care signal.');
+      const payload = {
+        category,
+        person_id:person?.id||null,
+        consent_status:consent,
+        contact_permission:contact,
+        channel,
+        statement:consent==='granted'||(!person&&consent==='not_required')?statement:'',
+        summary:consent==='granted'||(!person&&consent==='not_required')?statement.slice(0,240):''
+      };
+      const fingerprint = JSON.stringify(payload);
+      if(submissionRef.current.fingerprint !== fingerprint){
+        submissionRef.current = { fingerprint, key: uuid() };
+      }
       const response=await fetch('/api/aria/intake',{
         method:'POST',
         headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},
-        body:JSON.stringify((() => {
-          const payload = {
-            category,
-            person_id:person?.id||null,
-            consent_status:consent,
-            contact_permission:contact,
-            channel,
-            statement:consent==='granted'||(!person&&consent==='not_required')?statement:'',
-            summary:consent==='granted'||(!person&&consent==='not_required')?statement.slice(0,240):''
-          };
-          const fingerprint = JSON.stringify(payload);
-          if(submissionRef.current.fingerprint !== fingerprint){
-            submissionRef.current = { fingerprint, key: uuid() };
-          }
-          return { ...payload, idempotency_key: submissionRef.current.key };
-        })())
+        body:JSON.stringify({ ...payload, idempotency_key: submissionRef.current.key })
       });
       const body=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(body.error||'The care signal could not be saved.');

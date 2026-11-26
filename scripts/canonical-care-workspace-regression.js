@@ -17,7 +17,7 @@ const actionable=read('lib/aria/actionableObservationTypes.js');
 
 assert.ok(home.includes("import CareLeadershipPanel")&&home.includes("setBriefTab('team')")&&home.includes("router.query.briefing")&&home.includes("role={operatorRole} initialTab={briefTab}"),
  'ARIA Today must be the canonical modal entry point for both personal work and leader care');
-assert.ok(home.includes('focus=data?.director?.primary_focus')&&home.includes('ARIA FOCUS')&&home.includes('>My work</button>')&&home.includes('>Team care</button>')&&home.includes('<CareLeadershipPanel/>'),
+assert.ok(home.includes('focus=data?.director?.primary_focus')&&home.includes('FOCUS</span>')&&home.includes('>My work</button>')&&home.includes('>Team care</button>')&&home.includes('<CareLeadershipPanel/>'),
  'only leaders must get the Team care tab within the existing briefing');
 assert.ok(work.includes('Team care <span>↗</span>')&&work.includes('onOpenCareOversight'),
  'the Home leadership link must open the canonical Team care tab');

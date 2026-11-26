@@ -56,7 +56,7 @@ assert.ok(intake.includes('prayer_request') && intake.includes('personal_need') 
   intake.includes('complaint') && intake.includes('first_visit') &&
   intake.includes('contact_permission') && intake.includes('consent_status') && intake.includes('review_operators') && intake.includes("r.defer_until::date<=$6::date"),
   'intake must support core care signal categories and consent/contact preferences');
-assert.ok(intake.includes("consentDeclined ? null") &&
+assert.ok(intake.includes("detailsPermitted ? statementInput || null : null") &&
   intake.includes("if (storedEvent.person_id && savedPermission === 'do_not_contact')") &&
   intake.includes("UPDATE person_communications") &&
   intake.includes("UPDATE aria_actions") &&

@@ -18,8 +18,9 @@ const addDay=value=>{
   return date.toISOString().slice(0,10);
 };
 
-export default function CareIntakeReview({operatorCandidates=[],today=''}) {
+export default function CareIntakeReview({today=''}) {
   const [items,setItems]=useState([]);
+  const [candidates,setCandidates]=useState([]);
   const [loading,setLoading]=useState(true);
   const [busy,setBusy]=useState('');
   const [error,setError]=useState('');
@@ -39,6 +40,7 @@ export default function CareIntakeReview({operatorCandidates=[],today=''}) {
       const body=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(body.error||'Care signals could not be loaded.');
       setItems(Array.isArray(body.items)?body.items:[]);
+      setCandidates(Array.isArray(body.review_operators)?body.review_operators:[]);
     }catch(e){setError(e.message||'Care signals could not be loaded.')}
     finally{setLoading(false)}
   },[]);
@@ -55,7 +57,7 @@ export default function CareIntakeReview({operatorCandidates=[],today=''}) {
   }));
   const getDraft=item=>{
     const role=String(item.privacy_class||'sensitive');
-    const allowed=operatorCandidates.filter(candidate=>
+    const allowed=candidates.filter(candidate=>
       role==='restricted'?['owner','admin'].includes(String(candidate.role).toLowerCase()):
       role==='sensitive'?['owner','admin','leader'].includes(String(candidate.role).toLowerCase()):
       true
@@ -135,7 +137,7 @@ export default function CareIntakeReview({operatorCandidates=[],today=''}) {
     {loading?<div className="reviewEmpty">Loading care signals…</div>:items.length===0?<div className="reviewEmpty">No care signals waiting for review.</div>:
       items.map(item=>{
         const d=getDraft(item);
-        const allowed=operatorCandidates.filter(candidate=>
+        const allowed=candidates.filter(candidate=>
           item.privacy_class==='restricted'?['owner','admin'].includes(String(candidate.role).toLowerCase()):
           item.privacy_class==='sensitive'?['owner','admin','leader'].includes(String(candidate.role).toLowerCase()):
           true

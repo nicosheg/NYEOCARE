@@ -63,6 +63,7 @@ export default withOrg(async function handler(req, res) {
     }
     const firstVisitRequired = row.action_metadata?.first_visit_required === true;
     const routineKinds = new Set([
+      'manual_care_responsibility',
       'care_first_check_in',
       'attendance_absence_check_in',
       'returned_after_absence',

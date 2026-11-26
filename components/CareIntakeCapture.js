@@ -1,5 +1,5 @@
 // components/CareIntakeCapture.js
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { getClientSession } from '../lib/clientSession';
 
 const CATEGORIES = [
@@ -33,6 +33,7 @@ export default function CareIntakeCapture() {
   const [matches,setMatches] = useState([]);
   const [person,setPerson] = useState(null);
   const [searching,setSearching] = useState(false);
+  const submissionRef = useRef({ fingerprint: null, key: null });
 
   const findPerson = async () => {
     if(!personQuery.trim())return;
@@ -65,20 +66,27 @@ export default function CareIntakeCapture() {
       const response=await fetch('/api/aria/intake',{
         method:'POST',
         headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},
-        body:JSON.stringify({
-          category,
-          person_id:person?.id||null,
-          idempotency_key:uuid(),
-          consent_status:consent,
-          contact_permission:contact,
-          channel,
-          statement:consent==='granted'||(!person&&consent==='not_required')?statement:'',
-          summary:consent==='granted'||(!person&&consent==='not_required')?statement.slice(0,240):''
-        })
+        body:JSON.stringify((() => {
+          const payload = {
+            category,
+            person_id:person?.id||null,
+            consent_status:consent,
+            contact_permission:contact,
+            channel,
+            statement:consent==='granted'||(!person&&consent==='not_required')?statement:'',
+            summary:consent==='granted'||(!person&&consent==='not_required')?statement.slice(0,240):''
+          };
+          const fingerprint = JSON.stringify(payload);
+          if(submissionRef.current.fingerprint !== fingerprint){
+            submissionRef.current = { fingerprint, key: uuid() };
+          }
+          return { ...payload, idempotency_key: submissionRef.current.key };
+        })())
       });
       const body=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(body.error||'The care signal could not be saved.');
       setNotice(body.duplicate?'This signal was already recorded.':'Signal saved for human review. No task or message was created.');
+      submissionRef.current = { fingerprint: null, key: null };
       setStatement('');
       setPerson(null);setPersonQuery('');setMatches([]);
       setConsent('unknown');setContact('unknown');setCategory('general');

@@ -12,7 +12,7 @@ const dueLabel=(date,today)=>{
 
 export default function CareLeadershipPanel(){
  const[data,setData]=useState(null),[busy,setBusy]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState('');
- const[targets,setTargets]=useState({}),[showAll,setShowAll]=useState(false);
+ const[targets,setTargets]=useState({}),[showAll,setShowAll]=useState(false),[championDraft,setChampionDraft]=useState('');
  const load=useCallback(async()=>{
   setError('');
   try{
@@ -21,7 +21,7 @@ export default function CareLeadershipPanel(){
    const response=await fetch('/api/care-oversight',{headers:{Authorization:'Bearer '+session.access_token},cache:'no-store'});
    const body=await response.json().catch(()=>({}));
    if(!response.ok)throw new Error(body.error||'Team care could not be loaded.');
-   setData(body);
+   setData(body);setChampionDraft(body.operator_champion?.id||'');
   }catch(e){setError(e.message||'Team care could not be loaded.')}
  },[]);
  useEffect(()=>{load()},[load]);
@@ -37,6 +37,20 @@ export default function CareLeadershipPanel(){
    setNotice('Request acknowledged.');
    await load();
   }catch(e){setError(e.message||'Could not acknowledge the request.')}
+  finally{setBusy('')}
+ };
+
+ const saveChampion=async()=>{
+  if(busy)return;
+  setBusy('champion');setError('');setNotice('');
+  try{
+   const session=await getClientSession();
+   const response=await fetch('/api/care-oversight',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},body:JSON.stringify({action:'set_champion',user_id:championDraft||null})});
+   const body=await response.json().catch(()=>({}));
+   if(!response.ok)throw new Error(body.error||'Could not save the support contact.');
+   setNotice('Support contact updated.');
+   await load();
+  }catch(e){setError(e.message||'Could not save the support contact.')}
   finally{setBusy('')}
  };
 
@@ -83,6 +97,11 @@ export default function CareLeadershipPanel(){
    </article>):<div className="careEmpty">No requests waiting.</div>}
   </section>
 
+  <section className="careSection careChampion">
+   <header><h3>Support contact</h3></header>
+   <div className="careChampionRow"><select aria-label="Choose team support contact" value={championDraft} onChange={e=>setChampionDraft(e.target.value)}><option value="">No champion</option>{candidates.map(person=><option key={person.id} value={person.id}>{person.name||'Operator'}</option>)}</select><button className="careAction" disabled={busy==='champion'||championDraft===(data.operator_champion?.id||'')} onClick={saveChampion}>{busy==='champion'?'Saving…':'Save'}</button></div>
+  </section>
+
   <section className="careSection">
    <header><h3>Needs coordination</h3><span>{assignments.length}</span></header>
    {visible.length?visible.map(item=><article className="careAssignment" key={item.queue_item_id}>
@@ -118,6 +137,7 @@ const styles=`
  .careSection{min-width:0}
  .careSection>header{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}
  .careSection h3{margin:0;font-size:12px;font-weight:650}
+ .careChampionRow{display:flex;gap:7px}.careChampionRow select{flex:1;min-width:0;min-height:38px;padding:0 9px;border:1px solid var(--ny-border-subtle);border-radius:10px;background:#0B1326;color:var(--ny-text);font-size:10px}
  .careSection>header>span{color:var(--ny-text-muted);font-size:10px}
  .careRequest,.careAssignment{padding:10px;border:1px solid var(--ny-border-subtle);border-radius:12px;background:rgba(255,255,255,.025)}
  .careRequest+.careRequest,.careAssignment+.careAssignment{margin-top:7px}

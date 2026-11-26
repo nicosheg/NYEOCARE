@@ -17,7 +17,14 @@ async function handler(req,res){
   try{
    const person=await pool.query(`SELECT id FROM people WHERE id=$1 AND organization_id=$2 LIMIT 1`,[personId,orgId]);
    if(!person.rows.length)return res.status(404).json({error:'Person not found'});
-   const{rows}=await pool.query(`SELECT t.* FROM timeline_events t JOIN people p ON p.id=t.people_id AND p.organization_id=$2 WHERE t.people_id=$1 ORDER BY COALESCE(t.occurred_at,t.created_at) DESC,t.created_at DESC`,[personId,orgId]);
+   const role=String(req.user?.role||'').toLowerCase();
+   const{rows}=await pool.query(`SELECT t.* FROM timeline_events t
+     JOIN people p ON p.id=t.people_id AND p.organization_id=$2
+     WHERE t.people_id=$1
+       AND (COALESCE(t.metadata->>'privacy_class','standard')='standard'
+         OR (t.metadata->>'privacy_class'='sensitive' AND (t.metadata->>'privacy_reporter_id'=$4::text OR $3::text IN('owner','admin','leader')))
+         OR (t.metadata->>'privacy_class'='restricted' AND (t.metadata->>'privacy_reporter_id'=$4::text OR $3::text IN('owner','admin'))))
+     ORDER BY COALESCE(t.occurred_at,t.created_at) DESC,t.created_at DESC`,[personId,orgId,role,req.user.id]);
    return res.status(200).json(rows);
   }catch(err){
    console.error('GET timeline error:',err);
@@ -31,7 +38,11 @@ async function handler(req,res){
   try{
    const person=await pool.query(`SELECT id FROM people WHERE id=$1 AND organization_id=$2 LIMIT 1`,[person_id,orgId]);
    if(!person.rows.length)return res.status(404).json({error:'Person not found'});
-   const result=await pool.query(`INSERT INTO timeline_events(people_id,event_type,title,description,metadata,source,occurred_at,created_at) VALUES($1,$2,$3,$4,$5,$6,COALESCE($7::timestamptz,NOW()),NOW()) RETURNING *`,[person_id,event_type,title||event_type,description||'',metadata&&typeof metadata==='object'?metadata:{},source||'human',occurred_at||null]);
+   const safeMetadata=metadata&&typeof metadata==='object'?{...metadata}:{};
+   delete safeMetadata.privacy_class;
+   delete safeMetadata.privacy_reporter_id;
+   delete safeMetadata.consent_status;
+   const result=await pool.query(`INSERT INTO timeline_events(people_id,event_type,title,description,metadata,source,occurred_at,created_at) VALUES($1,$2,$3,$4,$5,$6,COALESCE($7::timestamptz,NOW()),NOW()) RETURNING *`,[person_id,event_type,title||event_type,description||'',safeMetadata,source||'human',occurred_at||null]);
    return res.status(201).json(result.rows[0]);
   }catch(err){
    console.error('POST timeline error:',err);

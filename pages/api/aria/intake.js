@@ -145,7 +145,7 @@ async function listIntake(req, res) {
     `SELECT
        e.id,e.person_id,e.source,e.actor_id,e.actor_role,e.occurred_at,e.created_at,
        e.privacy_class,e.consent_status,e.metadata->'intake' AS intake,
-       r.decision AS review_decision,r.reason AS review_reason,
+       r.linked_person_id,r.decision AS review_decision,r.reason AS review_reason,
        r.defer_until,r.reviewed_at,r.action_id
      FROM aria_events e
      LEFT JOIN LATERAL (
@@ -154,6 +154,7 @@ async function listIntake(req, res) {
          d.metadata->>'reason' AS reason,
          d.metadata->>'defer_until' AS defer_until,
          d.metadata->>'action_id' AS action_id,
+         d.metadata->>'linked_person_id' AS linked_person_id,
          d.occurred_at AS reviewed_at
        FROM aria_events d
        WHERE d.organization_id=e.organization_id

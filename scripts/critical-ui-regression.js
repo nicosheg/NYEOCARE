@@ -86,7 +86,7 @@ const homeBootstrap=read('pages/api/home/bootstrap.js');
 const dailyQueue=read('lib/dailyQueue.js');
 const dailyQueueDefer=read('pages/api/daily-queue/defer.js');
 const dailyQueueMigration=read('supabase/migrations/20260927060000_add_aria_daily_queue.sql');
-const homeBootstrap=read('pages/api/home/bootstrap.js');
+
 const durableMigration=read('supabase/migrations/20260920154000_durable_attendance_processing.sql');
 const recoveryMigration=read('supabase/migrations/20260920154500_harden_attendance_queue_recovery.sql');
 const backgroundIndexMigration=read('supabase/migrations/20260920154800_include_needs_attention_in_background_session_index.sql');

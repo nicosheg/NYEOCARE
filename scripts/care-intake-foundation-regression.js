@@ -34,6 +34,14 @@ assert.ok(/aria_events_privacy_class_check/.test(migration) &&
   /OLD\.consent_status IS DISTINCT FROM NEW\.consent_status/.test(migration),
   'privacy and consent must be constrained and immutable');
 assert.ok(!/CREATE TABLE/i.test(migration), 'Phase 1 must not create a duplicate intake, case or task table');
+const feedbackUpdatePolicy=migration.slice(
+  migration.indexOf('DROP POLICY IF EXISTS care_feedback_actor_or_admin_update'),
+  migration.indexOf('DROP POLICY IF EXISTS care_feedback_insert')
+);
+assert.ok(feedbackUpdatePolicy.includes('is_admin()') &&
+  feedbackUpdatePolicy.includes('actor_id IN') &&
+  feedbackUpdatePolicy.includes('can_access_care_privacy'),
+  'care feedback updates must retain actor/admin authorization while applying private-record visibility');
 assert.ok(migration.includes('can_access_care_privacy') &&
   migration.includes('person_communications_org_select') &&
   migration.includes('timeline_events_select_same_organization') &&

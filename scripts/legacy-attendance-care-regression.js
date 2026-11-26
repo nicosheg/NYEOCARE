@@ -1,8 +1,8 @@
 // scripts/legacy-attendance-care-regression.js
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
-const migration=fs.readFileSync('supabase/migrations/20261126100000_disable_legacy_attendance_absence_actions.sql','utf8');
-const retireRemaining=fs.readFileSync('supabase/migrations/20261126103000_retire_remaining_automatic_attendance_care.sql','utf8');
+const migration=fs.readFileSync('supabase/migrations/20261126040102_disable_legacy_attendance_absence_actions.sql','utf8');
+const retireRemaining=fs.readFileSync('supabase/migrations/20261126040952_retire_remaining_automatic_attendance_care.sql','utf8');
 const processor=fs.readFileSync('lib/aria/attendanceProcessor.js','utf8');
 const queue=fs.readFileSync('lib/dailyQueue.js','utf8');
 const actionable=fs.readFileSync('lib/aria/actionableObservationTypes.js','utf8');

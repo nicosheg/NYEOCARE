@@ -33,7 +33,7 @@ const checks=[
  ['Living Truth surfaces recent conflicting memory claims',files.truth.includes("OR(verification_status='conflicted'")&&files.truth.includes("memory.rows.filter(m=>m.verification_status==='conflicted')")],
  ['Care contact signals use relationships and successful outcomes',files.careContacts.includes('person_relationships')&&files.careContacts.includes('intelligence_outcomes')&&files.careContacts.includes('success_count')],
  ['Care does not auto-assign a contact; it stores ranked evidence candidates',files.care.includes('care_contact_candidates')&&files.care.includes('requires_human_approval')],
- ['ARIA actions persist concise evidence summaries',files.recommendation.includes('evidence_summary')&&/facts\\s*:\\s*Array\\.isArray\\((?:ev|evidence)\\.facts\\)/.test(files.recommendation)],
+ ['ARIA actions persist concise evidence summaries',files.recommendation.includes('evidence_summary')&&/facts\s*:\s*Array\.isArray\((?:ev|evidence)\.facts\)/.test(files.recommendation)],
  ['Budget reservations serialize on the organization, not the purpose',files.budget.includes('nyeocare-budget:'+organizationExpression)&&!files.budget.includes('purpose}')&&files.budget.includes('WHERE organization_id=$1')],
  ['Voice transcription is behind the same budget guard',files.gateway.includes("reserveBudget(organizationId,purpose,STT_MODEL_KEY,{idempotencyKey}")&&files.gateway.includes('confirmReservation(reservationId,reservationCost)')],
  ['Voice synthesis is behind the same budget guard',files.gateway.includes("reserveBudget(organizationId,purpose,TTS_MODEL_KEY,{idempotencyKey}")&&files.gateway.includes("confirmReservation(reservationId,reservationCost)")],

@@ -3,9 +3,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const read = path => fs.readFileSync(path, 'utf8');
 
-const migration = read('supabase/migrations/20261126113000_canonical_care_intake_privacy_foundation.sql');
-const privacyFunctionMoveMigration = read('supabase/migrations/20261126120000_harden_care_privacy_function_exposure.sql');
-const privatePrivacyGuardMigration = read('supabase/migrations/20261126124500_use_private_definer_care_privacy_guard.sql');
+const migration = read('supabase/migrations/20261126080910_canonical_care_intake_privacy_foundation.sql');
+const privacyFunctionMoveMigration = read('supabase/migrations/20261126093944_harden_care_privacy_function_exposure.sql');
+const privatePrivacyGuardMigration = read('supabase/migrations/20261126094045_use_private_definer_care_privacy_guard.sql');
 const intake = read('pages/api/aria/intake.js');
 const review = read('pages/api/aria/intake-review.js');
 const emitter = read('lib/aria/eventEmitter.js');

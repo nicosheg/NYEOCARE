@@ -191,3 +191,16 @@ WHERE o.type = 'UNUSUAL_ABSENCE'
       AND s.register_reviewed_at IS NOT NULL
       AND s.register_reviewed_by IS NOT NULL
   );
+
+-- Catch queue projections whose action had no resolvable source session.
+UPDATE public.aria_daily_queue_items q
+SET status = 'dismissed',
+    completed_at = COALESCE(q.completed_at, NOW()),
+    updated_at = NOW()
+FROM public.aria_actions a
+WHERE q.organization_id = a.organization_id
+  AND q.source_id = a.id::text
+  AND q.task_kind = 'follow_up'
+  AND q.status IN ('pending', 'deferred')
+  AND a.status = 'cancelled'
+  AND a.failure_reason LIKE 'Retired: legacy attendance processing created an outreach task without a verified%';

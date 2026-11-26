@@ -1,5 +1,5 @@
 // pages/api/care-queue.js
-import pool from'../../lib/db';import{withOrg}from'../../lib/apiHelpers';import{resolveCareWorkInTransaction}from'../../lib/aria/canonicalCare';
+import pool from'../../lib/db';import{withOrg}from'../../lib/apiHelpers';import{resolveCareWorkInTransaction}from'../../lib/aria/canonicalCare';import{ACTIONABLE_OBSERVATION_TYPES}from'../../lib/aria/actionableObservationTypes';
 function nextAction(type,action){if(action){return({SEND_MESSAGE:'Reach out personally',REQUEST_REVIEW:'Review this person',ESCALATE:'Give this person closer attention',MARK_ATTENDANCE:'Review attendance',SCAN:'Review the latest scan',DO_NOTHING:'Keep observing'})[action.type]||'Review this signal'}return({NEW_PERSON:'Welcome this person',UNUSUAL_ABSENCE:'Review attendance evidence',ATTENDANCE_NOT_OBSERVED:'Review attendance evidence',LOW_ENGAGEMENT:'Review this care signal',ATTENDANCE_CHANGE:'Review attendance evidence',CARE_RISK:'Review this care signal',POSSIBLE_DUPLICATE:'Review this person',PATTERN:'Review the emerging pattern'})[type]||'Review this signal'}
 function signalText(o){if(['UNUSUAL_ABSENCE','ATTENDANCE_NOT_OBSERVED'].includes(String(o?.type||'')))return'Attendance was not confirmed in this register.';const e=o?.evidence||{};if(e.inference)return e.inference;return({NEW_PERSON:'A new person was discovered.',UNUSUAL_ABSENCE:'A change from this person’s usual attendance pattern was noticed.',LOW_ENGAGEMENT:'Engagement appears to be changing.',ATTENDANCE_CHANGE:'A change in attendance was detected.',CARE_RISK:'ARIA detected a care-related signal.',POSSIBLE_DUPLICATE:'This person may need a record review.',PATTERN:'ARIA detected an emerging pattern.'})[o?.type]||'ARIA detected a meaningful signal.'}
 async function handler(req,res){if(req.method==='POST')return report(req,res);if(req.method!=='GET'){res.setHeader('Allow','GET, POST');return res.status(405).json({error:'Method not allowed'})}const orgId=req.org.id;
@@ -9,7 +9,7 @@ try{
   SELECT * FROM(
     SELECT o.*,ROW_NUMBER() OVER(PARTITION BY o.person_id ORDER BY o.attention_score DESC,o.detected_at DESC) rn
     FROM aria_observations o
-    WHERE o.organization_id=$1 AND o.status='active' AND(o.expires_at IS NULL OR o.expires_at>NOW())
+    WHERE o.organization_id=$1 AND o.status='active' AND o.type=ANY($2::text[]) AND(o.expires_at IS NULL OR o.expires_at>NOW())
   )x WHERE rn=1
  ),
  pending_action AS(
@@ -42,7 +42,7 @@ try{
   COALESCE(o.attention_score,0) DESC,
   COALESCE(a.proposed_at,o.detected_at) ASC
  LIMIT 100
- `,[orgId]);
+ `,[orgId,ACTIONABLE_OBSERVATION_TYPES]);
  return res.status(200).json(result.rows.map(row=>({
   id:row.observation_id||row.action_id||`care:${row.person_id}`,
   person_id:row.person_id,

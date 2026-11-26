@@ -229,6 +229,8 @@ async function handler(req, res) {
           privacy_class: intake.privacy_class || 'sensitive',
           privacy_reporter_id: intake.actor_id || null,
           privacy_required_role: intake.privacy_class === 'restricted' ? 'admin' : (intake.privacy_class === 'sensitive' ? 'leader' : 'operator'),
+          consent_status: intake.consent_status || 'unknown',
+          contact_permission: intake.metadata?.intake?.contact_permission || 'unknown',
           assigned_user_id: assignee.id,
           due_date: dueDate,
           responsibility_created_by: req.user.id,

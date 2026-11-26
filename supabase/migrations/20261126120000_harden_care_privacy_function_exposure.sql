@@ -139,5 +139,14 @@ REVOKE ALL ON FUNCTION private.block_outbound_when_do_not_contact() FROM PUBLIC;
 REVOKE ALL ON FUNCTION private.block_outbound_when_do_not_contact() FROM anon;
 REVOKE ALL ON FUNCTION private.block_outbound_when_do_not_contact() FROM authenticated;
 
-ALTER FUNCTION public.timeline_events_select_same_organization
-  SET SCHEMA private;
+
+ALTER POLICY timeline_events_select_same_organization
+  ON public.timeline_events TO authenticated;
+ALTER POLICY timeline_events_insert_same_organization
+  ON public.timeline_events TO authenticated;
+ALTER POLICY timeline_events_update_same_organization
+  ON public.timeline_events TO authenticated;
+ALTER POLICY timeline_events_delete_same_organization
+  ON public.timeline_events TO authenticated;
+
+COMMIT;

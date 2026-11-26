@@ -146,8 +146,10 @@ assert.ok(queue.includes('meta.followUpPolicy.workerDailyCapacity') &&
   queue.includes("role IN('owner','admin','leader','worker','user')") &&
   queue.includes("m?.first_visit_required===true?100"),
   'the queue must distribute work across operators, honour capacity, and prioritize required first-visit outcomes');
-assert.ok(briefing.includes('capacityPerOperator:queue.capacityPerOperator||5'),
-  'ARIA Today must show the configured worker capacity');
+assert.ok(briefing.includes("export {default} from '../home/bootstrap'") &&
+  homeBootstrap.includes('capacityPerOperator:dailyQueue.capacityPerOperator||5') &&
+  homeBootstrap.includes('capacityExceeded'),
+  'ARIA Today must expose configured capacity and overflow through its single canonical bootstrap');
 
 assert.ok(recommendationEngine.includes("COALESCE(action_metadata->>'first_visit_required','false')<>'true'") &&
   canonicalCare.includes("current.rows[0]?.action_metadata?.first_visit_required===true") &&

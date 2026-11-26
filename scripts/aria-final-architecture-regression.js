@@ -48,7 +48,7 @@ const checks=[
  ['Attendance-derived care follow-up is paused and register audit remains protected',files.attendanceProcessor.includes('ATTENDANCE_CARE_FOLLOW_UP_ENABLED = false')&&files.registerMigration.includes('attendance_register_events')&&files.registerMigration.includes('FORCE ROW LEVEL SECURITY')],
  ['Provider-specific duplicate implementation is not part of the active scan path',files.hybrid.includes('callOne')&&/compatibility facade/i.test(files.legacyProvider)],
  ['Final architecture is documented in the repository',files.spec.includes('## 58. SEPTEMBER 26, 2026')&&/provider agnosticism/i.test(files.spec)&&/failure handling/i.test(files.spec)],
- ['CI still targets the production Vercel project explicitly',files.workflow.includes('VERCEL_PROJECT_ID: prj_flnxmzr4QNgJK3SthDetLN0OLFKK')],
+ ['CI relies on the Vercel Git integration and verifies the exact healthy production commit',files.workflow.includes('Verify Git-integrated Vercel production deployment')&&files.workflow.includes('nyeocare.vercel.app/api/health')&&files.workflow.includes('EXPECTED_BUILD_ID: ${{ github.sha }}')&&files.workflow.includes('d.build_id!==process.env.EXPECTED_BUILD_ID')&&!files.workflow.includes('VERCEL_PROJECT_ID')&&!files.workflow.includes('VERCEL_TOKEN')&&!files.workflow.includes('api.vercel.com/v13/deployments')],
  ['No legacy unauthenticated AI/scan test endpoints remain',!existsSync('pages/api/ai/correct-scan.js')&&!existsSync('pages/api/test-scan.js')&&!existsSync('pages/api/test-ocr-space.js')]
 ];
 

@@ -93,7 +93,7 @@ LANGUAGE sql
 STABLE
 SECURITY DEFINER
 SET search_path TO pg_catalog, public
-AS $
+AS $phase1$
   SELECT
     COALESCE(p_privacy_class, 'standard') = 'standard'
     OR EXISTS (
@@ -114,7 +114,7 @@ AS $
           )
         )
     );
-$;
+$phase1$;
 
 REVOKE ALL ON FUNCTION public.can_access_care_privacy(text,text,text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.can_access_care_privacy(text,text,text) TO authenticated, anon;
@@ -389,7 +389,7 @@ CREATE OR REPLACE FUNCTION public.protect_communication_privacy_metadata()
 RETURNS trigger
 LANGUAGE plpgsql
 SET search_path TO pg_catalog
-AS $
+AS $phase1$
 BEGIN
   IF COALESCE(OLD.metadata->>'privacy_class','standard')
        IS DISTINCT FROM COALESCE(NEW.metadata->>'privacy_class','standard')
@@ -402,7 +402,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$;
+$phase1$;
 
 DROP TRIGGER IF EXISTS protect_person_communication_privacy_trigger ON public.person_communications;
 CREATE TRIGGER protect_person_communication_privacy_trigger
@@ -419,7 +419,7 @@ CREATE OR REPLACE FUNCTION public.protect_care_feedback_privacy()
 RETURNS trigger
 LANGUAGE plpgsql
 SET search_path TO pg_catalog
-AS $
+AS $phase1$
 BEGIN
   IF COALESCE(OLD.context->>'privacy_class','standard')
        IS DISTINCT FROM COALESCE(NEW.context->>'privacy_class','standard')
@@ -432,7 +432,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$;
+$phase1$;
 
 DROP TRIGGER IF EXISTS protect_care_feedback_privacy_trigger ON public.care_feedback;
 CREATE TRIGGER protect_care_feedback_privacy_trigger
@@ -444,7 +444,7 @@ RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path TO pg_catalog, public
-AS $
+AS $phase1$
 DECLARE
   blocked boolean := false;
 BEGIN
@@ -501,7 +501,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$;
+$phase1$;
 
 DROP TRIGGER IF EXISTS block_outbound_when_do_not_contact_trigger ON public.person_communications;
 CREATE TRIGGER block_outbound_when_do_not_contact_trigger

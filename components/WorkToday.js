@@ -26,7 +26,7 @@ export default function WorkToday({data,role,onOpenItem,onOpenCareOversight}){
      <button className="workItemOpen" onClick={()=>onOpenItem(item)} aria-label={'Open '+title}>
       <span className="workItemContent">
        <span className="workItemHead"><span className="workItemType">{kindLabel(item)}</span><strong>{title}</strong></span>
-       {item.message&&<span className="workItemMessage">{item.message}</span>}
+       {(item.person_name||item.message)&&<span className="workItemMessage">{item.person_name?`For ${item.person_name}${item.message?' · '+item.message:''}`:item.message}</span>}
       </span>
       <span className="workItemArrow" aria-hidden="true">→</span>
      </button>

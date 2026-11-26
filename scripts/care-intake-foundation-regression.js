@@ -183,6 +183,13 @@ assert.ok(capture.includes("useRef, useState") &&
 assert.ok(reviewUi.includes('setCandidates(Array.isArray(body.review_operators)') &&
   reviewUi.includes('(showAll?items:items.slice(0,3)).map(item=>{') && reviewUi.includes('Approve & assign'),
   'review UI must use server-authorized assignees and stay compact by default');
+
+assert.ok(reviewUi.includes('useMemo,useRef,useState') &&
+  reviewUi.includes('reviewSubmissionRef = useRef({})') &&
+  reviewUi.includes('previous.fingerprint!==fingerprint') &&
+  reviewUi.includes('body.idempotency_key=reviewSubmissionRef.current[item.id].key') &&
+  reviewUi.includes('delete reviewSubmissionRef.current[item.id]'),
+  'an unchanged leader decision must reuse its review idempotency key after a lost response; changed decisions must rotate it');
 assert.ok(workToday.includes('CareIntakeCapture') && workToday.includes('CareIntakeReview') &&
   workToday.includes("['owner','admin','leader'].includes(role)"),
   'intake and review must live inside the canonical ARIA Today surface');

@@ -54,7 +54,7 @@ assert.ok(intake.includes('care_responsibility_created: false') &&
 assert.ok(intake.includes('prayer_request') && intake.includes('personal_need') &&
   intake.includes('practical_support') && intake.includes('relationship_request') &&
   intake.includes('complaint') && intake.includes('first_visit') &&
-  intake.includes('contact_permission') && intake.includes('consent_status') && intake.includes('review_operators') && intake.includes("r.defer_until::date<=$6::date"),
+  intake.includes('contact_permission') && intake.includes('consent_status') && intake.includes('review_operators') && intake.includes("r.defer_until::date<=CURRENT_DATE"),
   'intake must support core care signal categories and consent/contact preferences');
 assert.ok(intake.includes("detailsPermitted ? statementInput || null : null") &&
   intake.includes("if (storedEvent.person_id && savedPermission === 'do_not_contact')") &&

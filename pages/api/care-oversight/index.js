@@ -119,7 +119,7 @@ export default withAdmin(async function handler(req,res){
      ORDER BY CASE u.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END,u.name,u.id`,visibilityParams),
    pool.query(`SELECT q.id::text queue_item_id,q.task_kind,q.status,q.queue_date::text queue_date,q.priority,
       q.assigned_user_id::text assigned_user_id,u.name assigned_to_name,u.role assigned_to_role,
-      COALESCE(q.payload->>'title','Responsibility') title,COALESCE(q.payload->>'message','') message
+      COALESCE(q.payload->>'title','Responsibility') title,COALESCE(q.payload->>'person_name','') person_name,COALESCE(q.payload->>'message','') message
      FROM aria_daily_queue_items q
      JOIN users u ON u.id=q.assigned_user_id AND u.organization_id=q.organization_id
      WHERE q.organization_id=$1 AND q.status IN('pending','deferred') AND q.queue_date<=$2::date

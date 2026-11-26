@@ -177,7 +177,7 @@ async function handler(req, res) {
       }
 
       const assignee = (await client.query(
-        `SELECT id FROM users
+        `SELECT id,role FROM users
          WHERE id=$1::uuid AND organization_id=$2 AND active=true AND role=ANY($3::text[])
          LIMIT 1`,
         [assignedUserId, organizationId, OPERATORS]
@@ -185,6 +185,14 @@ async function handler(req, res) {
       if (!assignee) {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: 'Choose an active operator in this organization.' });
+      }
+      if (intake.privacy_class === 'restricted' && !['owner', 'admin'].includes(String(assignee.role).toLowerCase())) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ error: 'Restricted care can only be assigned to an owner or administrator.' });
+      }
+      if (intake.privacy_class === 'sensitive' && !['owner', 'admin', 'leader'].includes(String(assignee.role).toLowerCase())) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ error: 'Confidential care can only be assigned to a care leader or administrator.' });
       }
 
       await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', ['nyeocare:do-not-contact:' + organizationId + ':' + linkedPersonId]);
@@ -209,11 +217,18 @@ async function handler(req, res) {
         actionKey: 'care-intake:' + intakeEventId,
         actionMetadata: {
           kind: 'manual_care_responsibility',
-          title,
-          summary: description || null,
-          message: description || null,
-          reason: reason || 'A human reviewed a care signal and approved a next step.',
-          suggestion: 'Complete the agreed next step and record what actually happened.',
+          title: intake.privacy_class === 'standard' ? title : (intake.privacy_class === 'restricted' ? 'Review restricted care signal' : 'Review confidential care signal'),
+          summary: intake.privacy_class === 'standard' ? (description || null) : null,
+          message: intake.privacy_class === 'standard' ? (description || null) : null,
+          reason: intake.privacy_class === 'standard'
+            ? (reason || 'A human reviewed a care signal and approved a next step.')
+            : 'An authorized leader approved a private care signal. Review its details through the permission-scoped care record.',
+          suggestion: intake.privacy_class === 'standard'
+            ? 'Complete the agreed next step and record what actually happened.'
+            : 'Open the private care record using your authorized access, then complete the agreed next step without copying sensitive details into general notes.',
+          privacy_class: intake.privacy_class || 'sensitive',
+          privacy_reporter_id: intake.actor_id || null,
+          privacy_required_role: intake.privacy_class === 'restricted' ? 'admin' : (intake.privacy_class === 'sensitive' ? 'leader' : 'operator'),
           assigned_user_id: assignee.id,
           due_date: dueDate,
           responsibility_created_by: req.user.id,

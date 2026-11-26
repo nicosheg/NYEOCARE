@@ -114,7 +114,11 @@ SELECT
    SELECT * FROM aria_observations WHERE organization_id=$1 AND person_id=$2 ORDER BY detected_at DESC LIMIT 50
  )x),'[]'::json) AS observations,
  COALESCE((SELECT json_agg(x) FROM(
-   SELECT * FROM aria_actions WHERE organization_id=$1 AND person_id=$2 ORDER BY created_at DESC LIMIT 50
+   SELECT * FROM aria_actions WHERE organization_id=$1 AND person_id=$2
+     AND (COALESCE(action_metadata->>'privacy_class','standard')='standard'
+       OR (action_metadata->>'privacy_class'='sensitive' AND ($3::text IN('owner','admin','leader') OR action_metadata->>'privacy_reporter_id'=$4::text))
+       OR (action_metadata->>'privacy_class'='restricted' AND ($3::text IN('owner','admin') OR action_metadata->>'privacy_reporter_id'=$4::text)))
+     ORDER BY created_at DESC LIMIT 50
  )x),'[]'::json) AS actions,
  COALESCE((SELECT json_agg(x) FROM(
    SELECT * FROM person_memory WHERE organization_id=$1 AND person_id=$2 AND active=true

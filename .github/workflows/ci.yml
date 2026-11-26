@@ -93,47 +93,83 @@ jobs:
       - run: npm run test:system-scale
       - run: npm run test:field-mode
       - name: Build application
-        if: github.event_name != 'push' || github.ref != 'refs/heads/main'
         run: npm run build
-      - name: Install Vercel CLI
+      - name: Create Vercel production deployment through the project API
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: npm install --global vercel@66.6.0
-      - name: Write verified Vercel project link
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        id: vercel_deployment
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          rm -rf .vercel
-          mkdir -p .vercel
-          printf '{"projectId":"%s","orgId":"%s"}\n' "$VERCEL_PROJECT_ID" "$VERCEL_ORG_ID" > .vercel/project.json
-          node -e 'const p=require("./.vercel/project.json");if(p.projectId!==process.env.VERCEL_PROJECT_ID||p.orgId!==process.env.VERCEL_ORG_ID)process.exit(1)'
-      - name: Pull Vercel production configuration
+          set -euo pipefail
+          payload="$(jq -n \
+            --arg name "nyeocare" \
+            --arg project "$VERCEL_PROJECT_ID" \
+            --arg sha "$GITHUB_SHA" \
+            --arg message "NYEOCARE production build $GITHUB_SHA" \
+            '{
+              name: $name,
+              project: $project,
+              target: "production",
+              gitSource: {
+                type: "github",
+                org: "nicosheg",
+                repo: "NYEOCARE",
+                ref: "main",
+                sha: $sha
+              },
+              meta: {
+                githubCommitRef: "main",
+                githubCommitSha: $sha,
+                githubCommitMessage: $message,
+                githubRepo: "NYEOCARE",
+                githubOrg: "nicosheg"
+              }
+            }')"
+          response="$(curl --fail-with-body --silent --show-error \
+            --request POST \
+            "https://api.vercel.com/v13/deployments?teamId=${VERCEL_ORG_ID}&forceNew=1&skipAutoDetectionConfirmation=1" \
+            --header "Authorization: Bearer ${VERCEL_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data "$payload")"
+          deployment_id="$(jq -r '.id // empty' <<<"$response")"
+          deployment_url="$(jq -r '.url // empty' <<<"$response")"
+          if [[ -z "$deployment_id" || -z "$deployment_url" ]]; then
+            echo "Vercel did not return a deployment ID and URL."
+            jq '{error, message, readyState, state}' <<<"$response"
+            exit 1
+          fi
+          echo "id=$deployment_id" >> "$GITHUB_OUTPUT"
+          echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
+          echo "Created production deployment $deployment_id."
+      - name: Wait for Vercel production deployment
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: vercel pull --yes --environment=production
+        id: vercel_ready
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      - name: Build Vercel prebuilt artifact
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: vercel build --prod
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      - name: Verify Vercel prebuilt artifact
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+          DEPLOYMENT_ID: ${{ steps.vercel_deployment.outputs.id }}
+          DEPLOYMENT_URL: ${{ steps.vercel_deployment.outputs.url }}
         run: |
-          test -f .vercel/output/config.json
-          test -d .vercel/output
-          echo "Vercel prebuilt output is ready."
-      - name: Preserve Vercel build artifact
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: nyeocare-vercel-output-${{ github.sha }}
-          path: .vercel/output
-          if-no-files-found: error
-          retention-days: 7
-      - name: Deploy Vercel prebuilt artifact
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: vercel deploy --prebuilt --prod --archive=tgz
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          set -euo pipefail
+          for attempt in $(seq 1 36); do
+            response="$(curl --fail-with-body --silent --show-error \
+              "https://api.vercel.com/v13/deployments/${DEPLOYMENT_ID}?teamId=${VERCEL_ORG_ID}" \
+              --header "Authorization: Bearer ${VERCEL_TOKEN}")"
+            state="$(jq -r '.readyState // .state // "UNKNOWN"' <<<"$response")"
+            echo "Vercel deployment state: $state (attempt $attempt/36)"
+            case "$state" in
+              READY)
+                echo "url=$DEPLOYMENT_URL" >> "$GITHUB_OUTPUT"
+                exit 0
+                ;;
+              ERROR|CANCELED|BLOCKED)
+                jq '{id, url, readyState, errorCode, errorMessage}' <<<"$response"
+                exit 1
+                ;;
+            esac
+            sleep 10
+          done
+          echo "Vercel deployment did not become READY within the polling window."
+          exit 1
       - name: Verify production health after deploy
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: curl --fail --silent --show-error --retry 6 --retry-delay 3 --retry-all-errors --max-time 15 https://nyeocare.vercel.app/api/health

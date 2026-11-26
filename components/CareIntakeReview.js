@@ -18,7 +18,7 @@ const addDay=value=>{
   return date.toISOString().slice(0,10);
 };
 
-export default function CareIntakeReview({today=''}) {
+export default function CareIntakeReview() {
   const [items,setItems]=useState([]);
   const [showAll,setShowAll]=useState(false);
   const [candidates,setCandidates]=useState([]);

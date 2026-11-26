@@ -77,6 +77,7 @@ export default function CareLeadershipPanel(){
  const requests=(data.support_requests||[]).filter(x=>!x.support_acknowledged_at);
  const assignments=data.assignments||[];
  const candidates=data.operator_candidates||[];
+ const careAssignees=data.care_assignees||candidates;
  const visible=showAll?assignments:assignments.slice(0,5);
 
  return <section className="careTeam" aria-label="Team care">
@@ -86,7 +87,7 @@ export default function CareLeadershipPanel(){
    <div><strong>{count(summary.support_requests)}</strong><span>Help waiting</span></div>
    <div><strong>{count(summary.outcomes_recorded_7d)}</strong><span>Outcomes · 7d</span></div>
   </div>
-  <CareIntakeReview operatorCandidates={candidates} today={today}/>
+  <CareIntakeReview operatorCandidates={careAssignees} today={today}/>
   {(notice||error)&&<div className={error?'careTeamError':'careTeamNotice'} role="status">{error||notice}</div>}
 
   <section className="careSection">

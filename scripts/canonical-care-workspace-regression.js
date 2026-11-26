@@ -12,7 +12,7 @@ const journeyApi=read('pages/api/person/journey.js');
 const person=read('pages/person/[id].js');
 const queue=read('lib/dailyQueue.js');
 const outcome=read('pages/api/daily-queue/complete-follow-up.js');
-const safety=read('supabase/migrations/20261126100000_disable_legacy_attendance_absence_actions.sql');
+const safety=read('supabase/migrations/20261126040102_disable_legacy_attendance_absence_actions.sql');
 const actionable=read('lib/aria/actionableObservationTypes.js');
 
 assert.ok(home.includes("import CareLeadershipPanel")&&home.includes("setBriefTab('team')")&&home.includes("router.query.briefing")&&home.includes("role={operatorRole} initialTab={briefTab}"),

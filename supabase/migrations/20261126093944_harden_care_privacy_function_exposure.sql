@@ -1,4 +1,4 @@
--- supabase/migrations/20261126120000_harden_care_privacy_function_exposure.sql
+-- supabase/migrations/20261126093944_harden_care_privacy_function_exposure.sql
 -- Move care privacy and communication trigger functions out of the exposed public schema.
 -- The RLS helper runs with caller privileges; only the database trigger keeps definer privileges.
 BEGIN;

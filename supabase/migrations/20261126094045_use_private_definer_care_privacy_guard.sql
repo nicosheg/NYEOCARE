@@ -1,4 +1,4 @@
--- supabase/migrations/20261126124500_use_private_definer_care_privacy_guard.sql
+-- supabase/migrations/20261126094045_use_private_definer_care_privacy_guard.sql
 -- SECURITY DEFINER is limited to a non-exposed schema and authenticated callers only.
 -- The body rejects requests without an authenticated Supabase UID.
 BEGIN;

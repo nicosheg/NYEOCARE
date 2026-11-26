@@ -3,9 +3,11 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const read = path => fs.readFileSync(path, 'utf8');
 
-const migration = read('supabase/migrations/20261126113000_canonical_care_intake_privacy_foundation.sql');
-const privacyFunctionMoveMigration = read('supabase/migrations/20261126120000_harden_care_privacy_function_exposure.sql');
-const privatePrivacyGuardMigration = read('supabase/migrations/20261126124500_use_private_definer_care_privacy_guard.sql');
+const disableLegacyAttendanceMigration = read('supabase/migrations/20261126040102_disable_legacy_attendance_absence_actions.sql');
+const retireAttendanceCareMigration = read('supabase/migrations/20261126040952_retire_remaining_automatic_attendance_care.sql');
+const migration = read('supabase/migrations/20261126080910_canonical_care_intake_privacy_foundation.sql');
+const privacyFunctionMoveMigration = read('supabase/migrations/20261126093944_harden_care_privacy_function_exposure.sql');
+const privatePrivacyGuardMigration = read('supabase/migrations/20261126094045_use_private_definer_care_privacy_guard.sql');
 const intake = read('pages/api/aria/intake.js');
 const review = read('pages/api/aria/intake-review.js');
 const emitter = read('lib/aria/eventEmitter.js');
@@ -200,6 +202,16 @@ assert.ok(universalWorkspace.includes("COALESCE(t.metadata->>'privacy_class','st
   universalWorkspace.includes("COALESCE(pc.metadata->>'privacy_class','standard')='standard'"),
   'workspace activity and communication snapshot must exclude private care records');
 
+
+assert.ok(disableLegacyAttendanceMigration.startsWith('-- supabase/migrations/20261126040102_disable_legacy_attendance_absence_actions.sql') &&
+  retireAttendanceCareMigration.startsWith('-- supabase/migrations/20261126040952_retire_remaining_automatic_attendance_care.sql') &&
+  migration.startsWith('-- supabase/migrations/20261126080910_canonical_care_intake_privacy_foundation.sql') &&
+  privacyFunctionMoveMigration.startsWith('-- supabase/migrations/20261126093944_harden_care_privacy_function_exposure.sql') &&
+  privatePrivacyGuardMigration.startsWith('-- supabase/migrations/20261126094045_use_private_definer_care_privacy_guard.sql'),
+  'migration filenames and embedded headers must match the applied production versions exactly');
+
+assert.ok(disableLegacyAttendanceMigration.includes('RENAME TO nyeocare_attendance_stage_legacy_20261126') && disableLegacyAttendanceMigration.includes('automatic_attendance_care_paused') && disableLegacyAttendanceMigration.includes('absence_meaningful IS DISTINCT FROM TRUE'), 'legacy attendance SQL stage must preserve observations but suppress unverified absence outreach');
+assert.ok(retireAttendanceCareMigration.includes('Attendance observations are evidence') && retireAttendanceCareMigration.includes('attendance_absence_check_in') && retireAttendanceCareMigration.includes('A human may create a new responsibility'), 'legacy attendance-created contact duties must be retired without deleting attendance evidence');
 
 assert.ok(privacyFunctionMoveMigration.includes('CREATE SCHEMA IF NOT EXISTS private') &&
   privacyFunctionMoveMigration.includes('ALTER FUNCTION public.can_access_care_privacy(text,text,text) SET SCHEMA private') &&

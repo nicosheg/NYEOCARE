@@ -1,4 +1,4 @@
--- supabase/migrations/20261126100000_disable_legacy_attendance_absence_actions.sql
+-- supabase/migrations/20261126040102_disable_legacy_attendance_absence_actions.sql
 -- The durable Supabase worker still calls the legacy SQL attendance stage.
 -- Its absence branch predates register provenance and the current opt-in policy.
 -- Keep the evidence pipeline, but stop that legacy stage from inventing care work.

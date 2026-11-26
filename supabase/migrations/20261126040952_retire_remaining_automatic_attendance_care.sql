@@ -1,4 +1,4 @@
--- supabase/migrations/20261126103000_retire_remaining_automatic_attendance_care.sql
+-- supabase/migrations/20261126040952_retire_remaining_automatic_attendance_care.sql
 -- Attendance observations are evidence. They are not automatic contact duties.
 -- Retire any open outreach proposals created by older attendance processors,
 -- including cases with verified registers. Keep all observations and outcomes.

@@ -1,4 +1,4 @@
--- supabase/migrations/20261126113000_canonical_care_intake_privacy_foundation.sql
+-- supabase/migrations/20261126080910_canonical_care_intake_privacy_foundation.sql
 -- Extend the existing immutable ARIA event spine. No parallel intake or task tables.
 BEGIN;
 

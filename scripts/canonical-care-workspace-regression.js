@@ -53,7 +53,7 @@ assert.ok(queue.includes("m?.kind==='manual_care_responsibility'?'follow_up'")&&
  'human-created responsibilities must use the canonical follow-up queue, fixed owner and requested date');
 assert.ok(queue.includes("if(/^\\d{4}-\\d{2}-\\d{2}$/.test(requested)")&&queue.includes('const chosen=item.fixed_assignee_id?preferred:loads.sort'),
  'the due date and chosen owner must be preserved, never silently rerouted when that owner becomes inactive');
-assert.ok(outcome.includes("'manual_care_responsibility'")&&outcome.includes('CARE_OUTCOME_RECORDED')&&outcome.includes('learnFromFeedback'),
+assert.ok(outcome.includes("'manual_care_responsibility'")&&outcome.includes("'completed'")&&outcome.includes("'unable_to_complete'")&&outcome.includes("'person_declined'")&&outcome.includes("type: 'CARE_OUTCOME_RECORDED'")&&outcome.includes('completed_successfully')&&outcome.includes('learnFromFeedback')&&home.includes("completeFirstVisit('completed')")&&home.includes("completeFirstVisit('unable_to_complete')")&&home.includes("completeFirstVisit('person_declined')"),
  'manual care responsibilities must close through the existing human outcome and ARIA learning path');
 assert.ok(!actionable.includes("'UNUSUAL_ABSENCE'")&&safety.includes("'automatic_attendance_care_paused'"),
  'attendance non-observation cannot become a new actionable care responsibility');

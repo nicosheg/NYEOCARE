@@ -7,6 +7,10 @@ const expect=(condition,message)=>{if(!condition)failures.push(message)};
 const queue=read('lib/dailyQueue.js');
 const home=read('pages/api/home/bootstrap.js');
 const index=read('pages/index.js');
+const work=read('components/WorkToday.js');
+const legacyAriaHome=read('pages/api/aria/home.js');
+const legacyDailyBriefing=read('pages/api/daily-briefing/latest.js');
+const legacyBriefingGenerator=read('pages/api/daily-briefing/generate.js');
 const layout=read('components/Layout.js');
 const navigationBack=read('components/NavigationBack.js');
 const app=read('pages/_app.js');
@@ -101,6 +105,12 @@ expect(diagnostics.includes('.toLowerCase().slice(0,500)'),'Diagnostic fingerpri
 expect(clientDiagnostics.includes('isExpectedAbort'),'Client telemetry must ignore expected browser aborts.');
 expect(peopleMutationEngine.includes("status IN('active','inactive')")&&!peopleMutationEngine.includes("COALESCE(living_truth->>'status','alive') NOT IN"),'People updates must allow missing/conflicting Living Truth while keeping archived records protected.');
 expect(peopleMutationEngine.includes("await client.query('BEGIN')")&&peopleMutationEngine.includes("},client)")&&peopleMutationEngine.includes("await client.query('COMMIT')"),'Confirmed People updates must atomically persist the record and provenance event.');
+
+expect(index.includes('<WorkToday data={data}')&&index.includes('onOpenAll={openBriefing}')&&!index.includes('nyHomeBrief'),'Home must expose one ARIA Today card, with the full briefing opened from that card.');
+expect(work.includes('workEyebrow">ARIA TODAY')&&work.includes('onOpenAll')&&work.includes('Open ARIA Today →'),'The canonical work card must retain a clear, accessible route to the full ARIA Today workspace.');
+expect(legacyAriaHome.includes("export {default} from '../home/bootstrap'")&&!legacyAriaHome.includes('attendance_records'),'The legacy ARIA Home API must not run a second attendance-oriented intelligence query.');
+expect(legacyDailyBriefing.includes("export {default} from '../home/bootstrap'")&&!legacyDailyBriefing.includes('getDirectorState'),'The legacy Daily Briefing read API must resolve through the canonical Home bootstrap.');
+expect(legacyBriefingGenerator.includes("LEGACY_DAILY_BRIEFING_RETIRED")&&!legacyBriefingGenerator.includes('generateDailyBriefing')&&!legacyBriefingGenerator.includes('runCareCycle'),'Legacy snapshot generation must not execute a second care cycle or write parallel briefing state.');
 
 console.log('[ARIA TODAY REGRESSION]');
 console.log('Canonical queue, Tell ARIA resolution, People import/update and Profile launcher checks.');

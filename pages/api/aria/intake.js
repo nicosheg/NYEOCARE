@@ -143,11 +143,12 @@ async function listIntake(req, res) {
 
   const result = await pool.query(
     `SELECT
-       e.id,e.person_id,e.source,e.actor_id,e.actor_role,e.occurred_at,e.created_at,
+       e.id,e.person_id,p.display_name,e.source,e.actor_id,e.actor_role,e.occurred_at,e.created_at,
        e.privacy_class,e.consent_status,e.metadata->'intake' AS intake,
        r.linked_person_id,r.decision AS review_decision,r.reason AS review_reason,
        r.defer_until,r.reviewed_at,r.action_id
      FROM aria_events e
+     LEFT JOIN people p ON p.id=e.person_id AND p.organization_id=e.organization_id
      LEFT JOIN LATERAL (
        SELECT
          d.metadata->>'decision' AS decision,

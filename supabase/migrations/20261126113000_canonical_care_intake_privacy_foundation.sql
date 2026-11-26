@@ -397,6 +397,31 @@ CREATE TRIGGER protect_timeline_privacy_trigger
 BEFORE UPDATE ON public.timeline_events
 FOR EACH ROW EXECUTE FUNCTION public.protect_communication_privacy_metadata();
 
+
+CREATE OR REPLACE FUNCTION public.protect_care_feedback_privacy()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path TO pg_catalog
+AS $
+BEGIN
+  IF COALESCE(OLD.context->>'privacy_class','standard')
+       IS DISTINCT FROM COALESCE(NEW.context->>'privacy_class','standard')
+     OR OLD.context->>'privacy_reporter_id'
+       IS DISTINCT FROM NEW.context->>'privacy_reporter_id'
+     OR OLD.context->>'consent_status'
+       IS DISTINCT FROM NEW.context->>'consent_status'
+  THEN
+    RAISE EXCEPTION 'Care feedback privacy metadata is immutable';
+  END IF;
+  RETURN NEW;
+END;
+$;
+
+DROP TRIGGER IF EXISTS protect_care_feedback_privacy_trigger ON public.care_feedback;
+CREATE TRIGGER protect_care_feedback_privacy_trigger
+BEFORE UPDATE ON public.care_feedback
+FOR EACH ROW EXECUTE FUNCTION public.protect_care_feedback_privacy();
+
 CREATE OR REPLACE FUNCTION public.block_outbound_when_do_not_contact()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -409,6 +434,8 @@ BEGIN
   IF NEW.direction <> 'outbound' THEN
     RETURN NEW;
   END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtextextended('nyeocare:do-not-contact:'||NEW.organization_id||':'||NEW.person_id::text,0));
 
   -- Metadata-only updates to an already-recorded historical contact are safe.
   IF TG_OP='UPDATE'

@@ -43,6 +43,7 @@ assert.ok(/aria_events_privacy_class_check/.test(migration) &&
   /OLD\.consent_status IS DISTINCT FROM NEW\.consent_status/.test(migration),
   'privacy and consent must be constrained and immutable');
 assert.ok(!/CREATE TABLE/i.test(migration), 'Phase 1 must not create a duplicate intake, case or task table');
+assert.ok(!/AS \$\n/.test(migration) && (migration.match(/AS \$phase1\$/g)||[]).length===4 && (migration.match(/\$phase1\$;/g)||[]).length===4, 'every new SQL function must have a valid matching dollar-quote delimiter');
 const feedbackUpdatePolicy=migration.slice(
   migration.indexOf('DROP POLICY IF EXISTS care_feedback_actor_or_admin_update'),
   migration.indexOf('DROP POLICY IF EXISTS care_feedback_insert')

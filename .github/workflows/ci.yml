@@ -1,5 +1,5 @@
 name: NYEOCARE CI
-# Production deploy path verified: push to main runs the full test gate and Vercel prebuilt deployment.
+# Vercel Git integration deploys main; CI tests, builds, then verifies the deployed commit.
 
 on:
   push:
@@ -19,8 +19,6 @@ env:
   NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
   NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
   DATABASE_URL: postgres://ci:ci@127.0.0.1:5432/ci
-  VERCEL_ORG_ID: team_Hfzh4uRE9xewPAaGVjun6h19
-  VERCEL_PROJECT_ID: prj_flnxmzr4QNgJK3SthDetLN0OLFKK
 
 jobs:
   build:
@@ -94,82 +92,27 @@ jobs:
       - run: npm run test:field-mode
       - name: Build application
         run: npm run build
-      - name: Create Vercel production deployment through the project API
+      # The Vercel Git integration deploys pushes to main. Do not create a second deployment here.
+      - name: Verify Git-integrated Vercel production deployment
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        id: vercel_deployment
         env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          EXPECTED_BUILD_ID: ${{ github.sha }}
         run: |
           set -euo pipefail
-          payload="$(jq -n \
-            --arg name "nyeocare" \
-            --arg project "$VERCEL_PROJECT_ID" \
-            --arg sha "$GITHUB_SHA" \
-            --arg message "NYEOCARE production build $GITHUB_SHA" \
-            '{
-              name: $name,
-              project: $project,
-              target: "production",
-              gitSource: {
-                type: "github",
-                org: "nicosheg",
-                repo: "NYEOCARE",
-                ref: "main",
-                sha: $sha
-              },
-              meta: {
-                githubCommitRef: "main",
-                githubCommitSha: $sha,
-                githubCommitMessage: $message,
-                githubRepo: "NYEOCARE",
-                githubOrg: "nicosheg"
-              }
-            }')"
-          response="$(curl --fail-with-body --silent --show-error \
-            --request POST \
-            "https://api.vercel.com/v13/deployments?teamId=${VERCEL_ORG_ID}&forceNew=1&skipAutoDetectionConfirmation=1" \
-            --header "Authorization: Bearer ${VERCEL_TOKEN}" \
-            --header "Content-Type: application/json" \
-            --data "$payload")"
-          deployment_id="$(jq -r '.id // empty' <<<"$response")"
-          deployment_url="$(jq -r '.url // empty' <<<"$response")"
-          if [[ -z "$deployment_id" || -z "$deployment_url" ]]; then
-            echo "Vercel did not return a deployment ID and URL."
-            jq '{error, message, readyState, state}' <<<"$response"
-            exit 1
-          fi
-          echo "id=$deployment_id" >> "$GITHUB_OUTPUT"
-          echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
-          echo "Created production deployment $deployment_id."
-      - name: Wait for Vercel production deployment
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        id: vercel_ready
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          DEPLOYMENT_ID: ${{ steps.vercel_deployment.outputs.id }}
-          DEPLOYMENT_URL: ${{ steps.vercel_deployment.outputs.url }}
-        run: |
-          set -euo pipefail
+          health_url="https://nyeocare.vercel.app/api/health"
           for attempt in $(seq 1 36); do
-            response="$(curl --fail-with-body --silent --show-error \
-              "https://api.vercel.com/v13/deployments/${DEPLOYMENT_ID}?teamId=${VERCEL_ORG_ID}" \
-              --header "Authorization: Bearer ${VERCEL_TOKEN}")"
-            state="$(jq -r '.readyState // .state // "UNKNOWN"' <<<"$response")"
-            echo "Vercel deployment state: $state (attempt $attempt/36)"
-            case "$state" in
-              READY)
-                echo "url=$DEPLOYMENT_URL" >> "$GITHUB_OUTPUT"
-                exit 0
-                ;;
-              ERROR|CANCELED|BLOCKED)
-                jq '{id, url, readyState, errorCode, errorMessage}' <<<"$response"
-                exit 1
-                ;;
-            esac
+            response="$(curl --silent --show-error --fail --max-time 15 "$health_url" 2>/dev/null || true)"
+            actual_build_id=""
+            if [[ -n "$response" ]]; then
+              actual_build_id="$(node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); if(d.status!=="ok"||d.database!=="ok"||d.queue!=="ok"||d.workers!=="ok"||d.build_id!==process.env.EXPECTED_BUILD_ID) process.exit(1); console.log(d.build_id);' <<<"$response" 2>/dev/null || true)"
+            fi
+            if [[ "$actual_build_id" == "$EXPECTED_BUILD_ID" ]]; then
+              echo "Production health verified for commit $actual_build_id."
+              exit 0
+            fi
+            echo "Waiting for Vercel Git deployment: expected $EXPECTED_BUILD_ID, observed ${actual_build_id:-not-ready} (attempt $attempt/36)."
             sleep 10
           done
-          echo "Vercel deployment did not become READY within the polling window."
+          echo "Production did not become healthy on expected commit $EXPECTED_BUILD_ID."
           exit 1
-      - name: Verify production health after deploy
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: curl --fail --silent --show-error --retry 6 --retry-delay 3 --retry-all-errors --max-time 15 https://nyeocare.vercel.app/api/health

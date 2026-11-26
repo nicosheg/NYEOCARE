@@ -87,7 +87,7 @@ jobs:
         run: |
           rm -rf .vercel
           mkdir -p .vercel
-          printf '{"projectId":"%s","orgId":"%s"}\\n' "$VERCEL_PROJECT_ID" "$VERCEL_ORG_ID" > .vercel/project.json
+          printf '{"projectId":"%s","orgId":"%s"}\n' "$VERCEL_PROJECT_ID" "$VERCEL_ORG_ID" > .vercel/project.json
           node -e 'const p=require("./.vercel/project.json");if(p.projectId!==process.env.VERCEL_PROJECT_ID||p.orgId!==process.env.VERCEL_ORG_ID)process.exit(1)'
       - name: Pull Vercel production configuration
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'

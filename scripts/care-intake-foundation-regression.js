@@ -169,6 +169,13 @@ assert.ok(feedbackEngine.includes("COALESCE(context->>'privacy_class','standard'
 assert.ok(capture.includes('consent_status') && capture.includes('contact_permission') &&
   capture.includes('Signal saved for human review. No task or message was created.'),
   'capture UI must communicate consent, contact preference and no automatic task creation');
+
+assert.ok(capture.includes("useRef, useState") &&
+  capture.includes("submissionRef = useRef({ fingerprint: null, key: null })") &&
+  capture.includes("submissionRef.current.fingerprint !== fingerprint") &&
+  capture.includes("idempotency_key: submissionRef.current.key") &&
+  capture.includes("submissionRef.current = { fingerprint: null, key: null }"),
+  'an unchanged care-intake payload must reuse its idempotency key after a timeout/retry, while a changed payload receives a new key');
 assert.ok(reviewUi.includes('setCandidates(Array.isArray(body.review_operators)') &&
   reviewUi.includes('(showAll?items:items.slice(0,3)).map(item=>{') && reviewUi.includes('Approve & assign'),
   'review UI must use server-authorized assignees and stay compact by default');

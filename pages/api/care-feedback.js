@@ -10,12 +10,12 @@ async function handler(req,res){
   if(req.method==='GET'){
    const personId=String(req.query.person_id||'');
    if(!personId)return res.status(400).json({error:'person_id is required'});
-   return res.status(200).json(await getCareFeedback({organizationId,personId,limit:100}));
+   return res.status(200).json(await getCareFeedback({organizationId,personId,limit:100,role:req.user.role,actorId:req.user.id}));
   }
   if(req.method==='POST'){
    const{person_id,action_id,feedback_type,sentiment,note,context,observed_at}=req.body||{};
    if(!person_id||!feedback_type)return res.status(400).json({error:'person_id and feedback_type are required'});
-   const result=await recordCareFeedback({organizationId,personId:person_id,actionId:action_id||null,feedbackType:feedback_type,sentiment:sentiment||'neutral',note,context,observedAt:observed_at||null,actorId:req.user.id});
+   const result=await recordCareFeedback({organizationId,personId:person_id,actionId:action_id||null,feedbackType:feedback_type,sentiment:sentiment||'neutral',note,context,observedAt:observed_at||null,actorId:req.user.id,actorRole:req.user.role});
    return res.status(201).json({success:true,...result});
   }
   res.setHeader('Allow','GET,POST');

@@ -21,6 +21,7 @@ try{
     FROM aria_actions a
     WHERE a.organization_id=$1 AND a.status IN('proposed','approved')
       AND(a.expires_at IS NULL OR a.expires_at>NOW())
+      AND COALESCE(a.action_metadata->>'privacy_class','standard')='standard'
   )x WHERE rn=1
  )
  SELECT
@@ -35,7 +36,7 @@ try{
  LEFT JOIN pending_action a ON a.person_id=p.id
  LEFT JOIN aria_person_state aps ON aps.person_id=p.id AND aps.organization_id=p.organization_id
  WHERE p.organization_id=$1 AND p.status='active'
-   AND(o.id IS NOT NULL OR a.id IS NOT NULL OR COALESCE(aps.open_observation_count,0)>0 OR COALESCE(aps.open_action_count,0)>0)
+   AND(o.id IS NOT NULL OR a.id IS NOT NULL OR COALESCE(aps.open_observation_count,0)>0)
  ORDER BY
   CASE COALESCE(a.priority,o.severity,aps.attention_level,'low')
     WHEN'critical'then 4 WHEN'high'then 3 WHEN'medium'then 2 ELSE 1 END DESC,

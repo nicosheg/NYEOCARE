@@ -4,6 +4,7 @@ import { withOrg } from '../../../lib/apiHelpers';
 import { emitAriaEvent } from '../../../lib/aria/eventEmitter';
 import { processAriaEvent } from '../../../lib/aria/eventProcessor';
 import { learnFromFeedback } from '../../../lib/aria/learningEngine';
+import { getRecordedContactPermission } from '../../../lib/aria/contactPreference';
 
 const OUTCOMES = {
   met_in_person: { label: 'Welcomed in person', feedbackType: 'other', sentiment: 'positive' },
@@ -64,6 +65,11 @@ export default withOrg(async function handler(req, res) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'This follow-up is no longer assigned to you.' });
     }
+    const privacyClass = ['standard','sensitive','restricted'].includes(row.action_metadata?.privacy_class) ? row.action_metadata.privacy_class : 'standard';
+    const consentStatus = ['unknown','granted','declined','withdrawn','not_required'].includes(row.action_metadata?.consent_status) ? row.action_metadata.consent_status : 'unknown';
+    const privacyReporterId = row.action_metadata?.privacy_reporter_id || null;
+    const contactPermission = await getRecordedContactPermission(client, req.org.id, row.person_id, row.action_metadata);
+    const privateAction = privacyClass !== 'standard';
     const firstVisitRequired = row.action_metadata?.first_visit_required === true;
     const manualCare = row.action_metadata?.kind === 'manual_care_responsibility';
     const routineKinds = new Set([
@@ -99,6 +105,30 @@ export default withOrg(async function handler(req, res) {
       return res.status(400).json({ error: 'Confirm a saved draft or provide the message content to record that it was sent.' });
     }
     personId = row.person_id;
+    const contactOutcomes = new Set(['message_sent','reached','no_response','met_in_person']);
+    if (contactOutcomes.has(outcome) && contactPermission !== 'allowed') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'The person’s contact preference is not confirmed as allowed. Verify it before recording any outreach or contact.' });
+    }
+    if (contactOutcomes.has(outcome) || outcome === 'do_not_contact') {
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',
+        ['nyeocare:do-not-contact:' + req.org.id + ':' + row.person_id]);
+    }
+    if (contactOutcomes.has(outcome)) {
+      const restriction = await client.query(
+        `SELECT 1 FROM aria_care_contexts
+         WHERE organization_id=$1 AND person_id=$2 AND kind='other'
+           AND metadata->>'do_not_contact'='true'
+           AND (ends_on IS NULL OR ends_on>=CURRENT_DATE)
+         LIMIT 1`,
+        [req.org.id, row.person_id]
+      );
+      if (restriction.rows.length) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ error: 'This person has asked not to be contacted. The contact action is blocked.' });
+      }
+    }
+    const safeNote = privateAction ? '' : note;
     const context = {
       source: firstVisitRequired ? 'required_first_visit_follow_up' : manualCare ? 'human_care_responsibility_outcome' : 'routine_follow_up_outcome',
       first_visit_required: firstVisitRequired,
@@ -109,11 +139,15 @@ export default withOrg(async function handler(req, res) {
       communication_id: communicationId,
       outcome,
       outcome_label: option.label,
+      privacy_class: privacyClass,
+      privacy_reporter_id: privacyReporterId,
+      consent_status: consentStatus,
+      contact_permission: contactPermission,
       queue_item_id: queueItemId,
       action_id: row.action_id,
       session_id: row.action_metadata?.session_id || null,
       service_key: row.action_metadata?.service_key || null,
-      note
+      note: safeNote
     };
 
     feedback = (await client.query(
@@ -122,7 +156,7 @@ export default withOrg(async function handler(req, res) {
         observed_at,evidence_kind,verification_status,confidence,created_at,updated_at
       ) VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,NOW(),'human_report','reported',1,NOW(),NOW())
       RETURNING id,feedback_type,sentiment,observed_at`,
-      [req.org.id, row.person_id, row.action_id, req.user.id, option.feedbackType, option.sentiment, note, JSON.stringify(context)]
+      [req.org.id, row.person_id, row.action_id, req.user.id, option.feedbackType, option.sentiment, safeNote, JSON.stringify(context)]
     )).rows[0];
 
     await client.query(
@@ -148,7 +182,10 @@ export default withOrg(async function handler(req, res) {
             follow_up_action_id: row.action_id,
             follow_up_outcome: outcome,
             confirmed_sent_by: req.user.id,
-            source: context.source
+            source: context.source,
+            privacy_class: privacyClass,
+            privacy_reporter_id: privacyReporterId,
+            consent_status: consentStatus
           }), communicationId, req.org.id, row.person_id, row.action_id]
         );
         communication = updated.rows[0] || null;
@@ -167,7 +204,10 @@ export default withOrg(async function handler(req, res) {
             follow_up_action_id: row.action_id,
             follow_up_outcome: outcome,
             confirmed_sent_by: req.user.id,
-            source: context.source
+            source: context.source,
+            privacy_class: privacyClass,
+            privacy_reporter_id: privacyReporterId,
+            consent_status: consentStatus
           }), req.user.id]
         )).rows[0];
       }
@@ -183,7 +223,10 @@ export default withOrg(async function handler(req, res) {
             follow_up_action_id: row.action_id,
             follow_up_outcome: outcome,
             contact_attempt_recorded_by: req.user.id,
-            source: context.source
+            source: context.source,
+            privacy_class: privacyClass,
+            privacy_reporter_id: privacyReporterId,
+            consent_status: consentStatus
           }), req.user.id]
       )).rows[0];
     }
@@ -223,14 +266,20 @@ export default withOrg(async function handler(req, res) {
     await client.query(
       `INSERT INTO timeline_events(people_id,event_type,title,description,metadata,source,occurred_at,created_at)
        VALUES($1,$2,$3,$4,$5::jsonb,'human',NOW(),NOW())`,
-      [row.person_id, firstVisitRequired ? 'first_visit_follow_up' : manualCare ? 'care_responsibility_outcome' : 'follow_up_outcome', firstVisitRequired ? 'First-visit follow-up' : manualCare ? 'Care responsibility outcome' : 'Follow-up outcome', option.label + (note ? ': ' + note : ''), JSON.stringify(context)]
+      [row.person_id, firstVisitRequired ? 'first_visit_follow_up' : manualCare ? 'care_responsibility_outcome' : 'follow_up_outcome', firstVisitRequired ? 'First-visit follow-up' : manualCare ? 'Care responsibility outcome' : 'Follow-up outcome', option.label + (safeNote ? ': ' + safeNote : ''), JSON.stringify(context)]
     );
 
     if (outcome === 'do_not_contact') {
       await client.query(
         `INSERT INTO aria_care_contexts(
           organization_id,person_id,kind,starts_on,ends_on,service_type,note,metadata,created_by
-        ) VALUES($1,$2,'other',CURRENT_DATE,NULL,NULL,$3,$4::jsonb,$5)`,
+        ) SELECT $1,$2,'other',CURRENT_DATE,NULL,NULL,$3,$4::jsonb,$5
+        WHERE NOT EXISTS(
+          SELECT 1 FROM aria_care_contexts
+          WHERE organization_id=$1 AND person_id=$2 AND kind='other'
+            AND metadata->>'do_not_contact'='true'
+            AND (ends_on IS NULL OR ends_on>=CURRENT_DATE)
+        )`,
         [req.org.id, row.person_id, 'Person asked the organization not to initiate further contact.', JSON.stringify({
           do_not_contact: true,
           source: context.source,
@@ -247,7 +296,7 @@ export default withOrg(async function handler(req, res) {
       completed_successfully: context.completed_successfully,
       result: outcome,
       label: option.label,
-      note,
+      note: safeNote,
       completed_by: req.user.id,
       completed_at: new Date().toISOString()
     };
@@ -265,16 +314,40 @@ export default withOrg(async function handler(req, res) {
     );
 
     if (outcome === 'do_not_contact') {
-      // An explicit no-contact preference must also close other pending proactive messages.
       await client.query(
-        `UPDATE aria_actions
-         SET status='cancelled',
-             failure_reason='Person asked not to be contacted; proactive message cancelled.',
-             updated_at=NOW()
-         WHERE organization_id=$1 AND person_id=$2 AND id<>$3
-           AND type='SEND_MESSAGE' AND status IN('proposed','approved')`,
-        [req.org.id, row.person_id, row.action_id]
+        `UPDATE person_communications SET status='cancelled',
+           metadata=COALESCE(metadata,'{}'::jsonb)||jsonb_build_object('cancelled_by_do_not_contact',true),
+           updated_at=NOW()
+         WHERE organization_id=$1 AND person_id=$2 AND direction='outbound' AND status='draft'`,
+        [req.org.id,row.person_id]
       );
+      const contactTypes=['SEND_MESSAGE','CARE_FOLLOW_UP','FOLLOW_UP','CHECK_IN','CALL','VISIT','CARE_CONTACT'];
+      await client.query(
+        `UPDATE aria_actions SET status='cancelled',
+           failure_reason='Person asked not to be contacted; contact responsibility cancelled.',updated_at=NOW()
+         WHERE organization_id=$1 AND person_id=$2 AND id<>$3
+           AND status IN('proposed','approved','executing') AND upper(type)=ANY($4::text[])`,
+        [req.org.id,row.person_id,row.action_id,contactTypes]
+      );
+      await client.query(
+        `UPDATE aria_daily_queue_items q
+         SET status='dismissed',completed_at=COALESCE(q.completed_at,NOW()),updated_at=NOW()
+         FROM aria_actions a
+         WHERE q.organization_id=a.organization_id AND q.source_id=a.id::text
+           AND q.status IN('pending','deferred')
+           AND a.organization_id=$1 AND a.person_id=$2 AND a.status='cancelled'
+           AND upper(a.type)=ANY($3::text[])`,
+        [req.org.id,row.person_id,contactTypes]
+      );
+      await emitAriaEvent({
+        organizationId:req.org.id,personId:row.person_id,
+        type:'COMMUNICATION_PREFERENCE_CHANGED',source:'human',
+        actorId:req.user.id,actorRole:req.user.role,
+        evidenceKind:'human_report',verificationStatus:'reported',confidence:1,
+        privacyClass:privateAction?privacyClass:'sensitive',consentStatus,
+        eventKey:'care-contact-preference:'+row.action_id,
+        metadata:{contact_preference:'do_not_contact',source_action_id:row.action_id,summary:'Person asked the organization not to initiate further contact.'}
+      },client);
     }
 
     event = await emitAriaEvent({
@@ -287,11 +360,15 @@ export default withOrg(async function handler(req, res) {
       evidenceKind: 'human_report',
       verificationStatus: 'reported',
       confidence: 1,
+      privacyClass,
+      consentStatus,
       metadata: {
         feedback_id: feedback.id,
         feedback_type: option.feedbackType,
         sentiment: option.sentiment,
-        statement: note || option.label,
+        statement: privateAction ? option.label : (note || option.label),
+        privacy_class: privacyClass,
+        privacy_reporter_id: privacyReporterId,
         outcome: { outcome, action_id: row.action_id, feedback_id: feedback.id },
         follow_up_context: context
       },
@@ -306,8 +383,9 @@ export default withOrg(async function handler(req, res) {
         console.error('[ARIA] Follow-up event processing failed:', error?.message || error);
       }
     }
-    try {
-      await learnFromFeedback({
+    if (!privateAction && event) {
+      try {
+        await learnFromFeedback({
         organizationId: req.org.id,
         personId: row.person_id,
         feedbackId: feedback.id,
@@ -316,9 +394,10 @@ export default withOrg(async function handler(req, res) {
         sentiment: option.sentiment,
         context,
         actorId: req.user.id
-      });
-    } catch (error) {
-      console.error('[ARIA] Follow-up learning failed:', error?.message || error);
+        });
+      } catch (error) {
+        console.error('[ARIA] Follow-up learning failed:', error?.message || error);
+      }
     }
 
     return res.status(200).json({ success: true, completed: true, outcome, first_visit_required: firstVisitRequired, feedback_id: feedback.id, communication_id: communication?.id || communicationId || null });

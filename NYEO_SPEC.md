@@ -1643,6 +1643,26 @@ This implementation strengthens the existing ARIA intelligence core rather than 
 
 Operational reality enters through existing NYEOCARE mutations and observation surfaces. Where an event is appropriate, the canonical ARIA event spine records immutable historical evidence plus provenance, confidence, verification state, scope, expiry and processing state. The existing durable event worker processes those events incrementally; there is no second Sunday-sized intelligence queue.
 
+### Unified care intake and privacy foundation (Phase 1)
+
+Care signals are captured through the existing immutable `aria_events` spine as `CARE_INTAKE_RECORDED`. The canonical intake endpoint supports first visits, prayer requests, personal needs, practical support, relationship requests, complaints, check-ins and general care notes. The person link is optional; an anonymous signal does not create a person record or guess an identity.
+
+Every intake record retains its authenticated reporter, organization, optional person link, source channel, event time, evidence kind, confidence, verification state, consent status, confidentiality class and client idempotency key. Repeated submissions using the same key resolve to the original event. A human report remains a report; it is never silently promoted into a verified fact.
+
+Recording an intake signal does **not** create an observation, care action, queue item, message draft or external contact. Non-standard privacy events remain only in their privacy-scoped immutable event records; they are not promoted into shared observations, person memory, learning, person state or general ARIA activity summaries. Human decisions append `CARE_INTAKE_REVIEWED` events. Only explicit approval creates a responsibility through the existing `aria_actions` table and existing daily-queue projection. Approval requires a linked active person, an active accountable operator and a valid due date. Dismissal and deferral are auditable decisions; the original report is never deleted or rewritten.
+
+Event privacy classes:
+- `standard`: visible to organization operators;
+- `sensitive`: visible to owner/admin/leader roles and the authenticated reporter;
+- `restricted`: visible to owner/admin roles and the authenticated reporter.
+
+Prayer requests, personal needs and complaints default to restricted. Other care intake defaults to sensitive. When consent is unknown for an identified person, or consent is declined/withdrawn, the event is restricted. When consent is declined/withdrawn, narrative details are not retained; only the minimum signal and any explicit no-contact preference remain. Unknown consent is never treated as granted. Privacy and consent fields are immutable once written.
+
+A no-contact request is saved through the existing server-only `aria_care_contexts` source of truth and linked to its intake event. The same transaction records a communication-preference event, cancels pending contact responsibilities and unsent drafts, and dismisses affected queue items. Canonical action creation/execution and message drafting check the restriction server-side using a shared per-person transaction lock. A later positive or neutral interaction does not erase an explicit no-contact preference.
+
+The intake review endpoint uses append-only review events. An approved responsibility is stored in `aria_actions` and materialized through the existing daily queue; there is no new case table, task table, intake table or second ARIA workspace. Attendance non-observation alone never creates a care intake or asserts that a person has a need.
+
+
 The intended loop is:
 
 OBSERVE → UNDERSTAND → DECIDE → HUMAN ACTS → OUTCOME RECORDED → ARIA LEARNS → BETTER FUTURE DECISION.

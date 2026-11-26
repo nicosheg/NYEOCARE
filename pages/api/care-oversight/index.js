@@ -64,7 +64,8 @@ export default withAdmin(async function handler(req,res){
    assignments,
    supportRequests,
    champion,
-   candidates
+   candidates,
+   careAssignees
   ]=await Promise.all([
    getDirectorBriefing(req.org.id,{limit:6}).catch(error=>{console.error('[CARE OVERSIGHT] director briefing degraded:',error?.message||error);return null;}),
    pool.query(`SELECT
@@ -152,7 +153,10 @@ export default withAdmin(async function handler(req,res){
      LIMIT 1`,[req.org.id,championId]),
    pool.query(`SELECT id::text id,name,role FROM users
      WHERE organization_id=$1 AND active=true AND role='user'
-     ORDER BY name,id`,[req.org.id])
+     ORDER BY name,id`,[req.org.id]),
+   pool.query(`SELECT id::text id,name,role FROM users
+     WHERE organization_id=$1 AND active=true AND role IN('owner','admin','leader','worker','user')
+     ORDER BY CASE role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'leader' THEN 2 ELSE 3 END,name,id`,[req.org.id])
   ]);
 
   const work=workSummary.rows[0]||{},loop=careLoop.rows[0]||{};
@@ -210,6 +214,7 @@ export default withAdmin(async function handler(req,res){
    })),
    operator_champion:champion.rows[0]||null,
    operator_candidates:candidates.rows||[],
+   care_assignees:careAssignees.rows||[],
    permissions:{can_reassign:true,can_manage_champion:true,role:req.user.role}
   });
  }catch(error){

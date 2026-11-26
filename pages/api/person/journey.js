@@ -27,6 +27,9 @@ const personRows=await safe(`SELECT p.*,pi.lifecycle_state AS intelligence_lifec
           SELECT MAX(pc.occurred_at) AS at
           FROM person_communications pc
           WHERE pc.organization_id=p.organization_id AND pc.person_id=p.id
+            AND (COALESCE(pc.metadata->>'privacy_class','standard')='standard'
+      OR (pc.metadata->>'privacy_class'='sensitive' AND ($3::text IN('owner','admin','leader') OR pc.metadata->>'privacy_reporter_id'=$4::text))
+      OR (pc.metadata->>'privacy_class'='restricted' AND ($3::text IN('owner','admin') OR pc.metadata->>'privacy_reporter_id'=$4::text)))
             AND (
               (pc.direction='inbound' AND pc.status IN('received','completed','sent','delivered','read'))
               OR (pc.direction='outbound' AND pc.status IN('completed','sent','delivered','read'))
@@ -35,14 +38,20 @@ const personRows=await safe(`SELECT p.*,pi.lifecycle_state AS intelligence_lifec
           SELECT MAX(cf.observed_at) AS at
           FROM care_feedback cf
           WHERE cf.organization_id=p.organization_id AND cf.person_id=p.id
+            AND (COALESCE(cf.context->>'privacy_class','standard')='standard'
+      OR (cf.context->>'privacy_class'='sensitive' AND ($3::text IN('owner','admin','leader') OR cf.context->>'privacy_reporter_id'=$4::text))
+      OR (cf.context->>'privacy_class'='restricted' AND ($3::text IN('owner','admin') OR cf.context->>'privacy_reporter_id'=$4::text)))
             AND COALESCE(cf.feedback_type,'')<>'no_response'
           UNION ALL
           SELECT MAX(te.occurred_at) AS at
           FROM timeline_events te
           WHERE te.people_id=p.id
+            AND (COALESCE(te.metadata->>'privacy_class','standard')='standard'
+      OR (te.metadata->>'privacy_class'='sensitive' AND ($3::text IN('owner','admin','leader') OR te.metadata->>'privacy_reporter_id'=$4::text))
+      OR (te.metadata->>'privacy_class'='restricted' AND ($3::text IN('owner','admin') OR te.metadata->>'privacy_reporter_id'=$4::text)))
             AND te.source IN('human','conversation_import')
             AND te.event_type NOT IN('identity_review','aria_draft','scan_review','note','person_archived')
-        )z) AS last_interaction_at,rs.score AS relationship_score,rs.relationship_state,aps.engagement_state,aps.care_state,aps.followup_state,aps.open_observation_count,aps.open_action_count,aps.attention_reason FROM people p LEFT JOIN people_intelligence pi ON pi.organization_id=p.organization_id AND pi.person_id=p.id LEFT JOIN engagement_metrics em ON em.organization_id=p.organization_id AND em.person_id=p.id LEFT JOIN relationship_scores rs ON rs.organization_id=p.organization_id AND rs.person_id=p.id LEFT JOIN aria_person_state aps ON aps.organization_id=p.organization_id AND aps.person_id=p.id WHERE p.organization_id=$1 AND p.id=$2 LIMIT 1`,[orgId,id]);
+        )z) AS last_interaction_at,rs.score AS relationship_score,rs.relationship_state,aps.engagement_state,aps.care_state,aps.followup_state,aps.open_observation_count,aps.open_action_count,aps.attention_reason FROM people p LEFT JOIN people_intelligence pi ON pi.organization_id=p.organization_id AND pi.person_id=p.id LEFT JOIN engagement_metrics em ON em.organization_id=p.organization_id AND em.person_id=p.id LEFT JOIN relationship_scores rs ON rs.organization_id=p.organization_id AND rs.person_id=p.id LEFT JOIN aria_person_state aps ON aps.organization_id=p.organization_id AND aps.person_id=p.id WHERE p.organization_id=$1 AND p.id=$2 LIMIT 1`,[orgId,id,String(req.user?.role||'').toLowerCase(),req.user.id]);
 if(!personRows.length)return res.status(404).json({error:'Person not found'});
 const journey=(await pool.query(`
 WITH RECURSIVE merged_lineage AS(
@@ -72,6 +81,9 @@ person AS(
           SELECT MAX(pc.occurred_at) AS at
           FROM person_communications pc
           WHERE pc.organization_id=p.organization_id AND pc.person_id=p.id
+            AND (COALESCE(pc.metadata->>'privacy_class','standard')='standard'
+      OR (pc.metadata->>'privacy_class'='sensitive' AND ($3::text IN('owner','admin','leader') OR pc.metadata->>'privacy_reporter_id'=$4::text))
+      OR (pc.metadata->>'privacy_class'='restricted' AND ($3::text IN('owner','admin') OR pc.metadata->>'privacy_reporter_id'=$4::text)))
             AND (
               (pc.direction='inbound' AND pc.status IN('received','completed','sent','delivered','read'))
               OR (pc.direction='outbound' AND pc.status IN('completed','sent','delivered','read'))
@@ -80,11 +92,17 @@ person AS(
           SELECT MAX(cf.observed_at) AS at
           FROM care_feedback cf
           WHERE cf.organization_id=p.organization_id AND cf.person_id=p.id
+            AND (COALESCE(cf.context->>'privacy_class','standard')='standard'
+      OR (cf.context->>'privacy_class'='sensitive' AND ($3::text IN('owner','admin','leader') OR cf.context->>'privacy_reporter_id'=$4::text))
+      OR (cf.context->>'privacy_class'='restricted' AND ($3::text IN('owner','admin') OR cf.context->>'privacy_reporter_id'=$4::text)))
             AND COALESCE(cf.feedback_type,'')<>'no_response'
           UNION ALL
           SELECT MAX(te.occurred_at) AS at
           FROM timeline_events te
           WHERE te.people_id=p.id
+            AND (COALESCE(te.metadata->>'privacy_class','standard')='standard'
+      OR (te.metadata->>'privacy_class'='sensitive' AND ($3::text IN('owner','admin','leader') OR te.metadata->>'privacy_reporter_id'=$4::text))
+      OR (te.metadata->>'privacy_class'='restricted' AND ($3::text IN('owner','admin') OR te.metadata->>'privacy_reporter_id'=$4::text)))
             AND te.source IN('human','conversation_import')
             AND te.event_type NOT IN('identity_review','aria_draft','scan_review','note','person_archived')
         )z) AS last_interaction_at,
@@ -107,6 +125,9 @@ SELECT
      ON timeline_person.id=te.people_id
     AND timeline_person.organization_id=$1
    WHERE te.people_id=$2
+     AND (COALESCE(te.metadata->>'privacy_class','standard')='standard'
+      OR (te.metadata->>'privacy_class'='sensitive' AND ($3::text IN('owner','admin','leader') OR te.metadata->>'privacy_reporter_id'=$4::text))
+      OR (te.metadata->>'privacy_class'='restricted' AND ($3::text IN('owner','admin') OR te.metadata->>'privacy_reporter_id'=$4::text)))
    ORDER BY COALESCE(te.occurred_at,te.created_at) DESC
    LIMIT 100
  )x),'[]'::json) AS timeline,
@@ -114,7 +135,11 @@ SELECT
    SELECT * FROM aria_observations WHERE organization_id=$1 AND person_id=$2 ORDER BY detected_at DESC LIMIT 50
  )x),'[]'::json) AS observations,
  COALESCE((SELECT json_agg(x) FROM(
-   SELECT * FROM aria_actions WHERE organization_id=$1 AND person_id=$2 ORDER BY created_at DESC LIMIT 50
+   SELECT * FROM aria_actions WHERE organization_id=$1 AND person_id=$2
+     AND (COALESCE(action_metadata->>'privacy_class','standard')='standard'
+       OR (action_metadata->>'privacy_class'='sensitive' AND ($3::text IN('owner','admin','leader') OR action_metadata->>'privacy_reporter_id'=$4::text))
+       OR (action_metadata->>'privacy_class'='restricted' AND ($3::text IN('owner','admin') OR action_metadata->>'privacy_reporter_id'=$4::text)))
+     ORDER BY created_at DESC LIMIT 50
  )x),'[]'::json) AS actions,
  COALESCE((SELECT json_agg(x) FROM(
    SELECT * FROM person_memory WHERE organization_id=$1 AND person_id=$2 AND active=true
@@ -127,7 +152,11 @@ SELECT
    SELECT * FROM aria_brain_feed WHERE organization_id=$1 AND person_id=$2 ORDER BY created_at DESC LIMIT 50
  )x),'[]'::json) AS brain_feed,
  COALESCE((SELECT json_agg(x) FROM(
-   SELECT * FROM person_communications WHERE organization_id=$1 AND person_id=$2 ORDER BY occurred_at DESC,created_at DESC LIMIT 50
+   SELECT * FROM person_communications WHERE organization_id=$1 AND person_id=$2
+     AND (COALESCE(metadata->>'privacy_class','standard')='standard'
+      OR (metadata->>'privacy_class'='sensitive' AND ($3::text IN('owner','admin','leader') OR metadata->>'privacy_reporter_id'=$4::text))
+      OR (metadata->>'privacy_class'='restricted' AND ($3::text IN('owner','admin') OR metadata->>'privacy_reporter_id'=$4::text)))
+   ORDER BY occurred_at DESC,created_at DESC LIMIT 50
  )x),'[]'::json) AS communications,
  COALESCE((SELECT json_agg(x) FROM(
    SELECT c.id,c.status,c.created_at,c.updated_at,
@@ -178,16 +207,28 @@ SELECT
    SELECT * FROM person_aliases WHERE organization_id=$1 AND person_id=$2 ORDER BY created_at DESC LIMIT 50
  )x),'[]'::json) AS aliases,
  COALESCE((SELECT json_agg(x) FROM(
-   SELECT * FROM intelligence_outcomes WHERE organization_id=$1 AND person_id=$2 ORDER BY observed_at DESC,created_at DESC LIMIT 50
+   SELECT * FROM intelligence_outcomes WHERE organization_id=$1 AND person_id=$2
+     AND (COALESCE(evidence->>'privacy_class','standard')='standard'
+       OR (evidence->>'privacy_class'='sensitive' AND ($3::text IN('owner','admin','leader') OR evidence->>'privacy_reporter_id'=$4::text))
+       OR (evidence->>'privacy_class'='restricted' AND ($3::text IN('owner','admin') OR evidence->>'privacy_reporter_id'=$4::text)))
+   ORDER BY observed_at DESC,created_at DESC LIMIT 50
  )x),'[]'::json) AS outcomes,
  COALESCE((SELECT json_agg(x) FROM(
-   SELECT * FROM care_feedback WHERE organization_id=$1 AND person_id=$2 ORDER BY observed_at DESC,created_at DESC LIMIT 50
+   SELECT * FROM care_feedback WHERE organization_id=$1 AND person_id=$2
+     AND (COALESCE(context->>'privacy_class','standard')='standard'
+       OR (context->>'privacy_class'='sensitive' AND ($3::text IN('owner','admin','leader') OR context->>'privacy_reporter_id'=$4::text))
+       OR (context->>'privacy_class'='restricted' AND ($3::text IN('owner','admin') OR context->>'privacy_reporter_id'=$4::text)))
+   ORDER BY observed_at DESC,created_at DESC LIMIT 50
  )x),'[]'::json) AS feedback,
  COALESCE((SELECT json_agg(x) FROM(
-   SELECT e.* FROM aria_events e WHERE e.organization_id=$1 AND e.person_id IN(SELECT person_id FROM merged_lineage) AND e.type<>'ATTENDANCE_SESSION_RESET' AND NOT (e.source='attendance' AND COALESCE(e.metadata->>'session_id',e.metadata #>> '{memory,value,session_id}') IS NOT NULL AND EXISTS(SELECT 1 FROM aria_events session_reset WHERE session_reset.organization_id=e.organization_id AND session_reset.type='ATTENDANCE_SESSION_RESET' AND session_reset.source='manual' AND session_reset.metadata->>'session_id'=COALESCE(e.metadata->>'session_id',e.metadata #>> '{memory,value,session_id}'))) ORDER BY e.occurred_at DESC,e.created_at DESC LIMIT 100
+   SELECT e.* FROM aria_events e WHERE e.organization_id=$1 AND e.person_id IN(SELECT person_id FROM merged_lineage) AND e.type<>'ATTENDANCE_SESSION_RESET'
+     AND (e.privacy_class='standard'
+       OR (e.privacy_class='sensitive' AND (e.actor_id=$4::uuid OR $3::text IN('owner','admin','leader')))
+       OR (e.privacy_class='restricted' AND (e.actor_id=$4::uuid OR $3::text IN('owner','admin'))))
+     AND NOT (e.source='attendance' AND COALESCE(e.metadata->>'session_id',e.metadata #>> '{memory,value,session_id}') IS NOT NULL AND EXISTS(SELECT 1 FROM aria_events session_reset WHERE session_reset.organization_id=e.organization_id AND session_reset.type='ATTENDANCE_SESSION_RESET' AND session_reset.source='manual' AND session_reset.metadata->>'session_id'=COALESCE(e.metadata->>'session_id',e.metadata #>> '{memory,value,session_id}'))) ORDER BY e.occurred_at DESC,e.created_at DESC LIMIT 100
  )x),'[]'::json) AS aria_events
 FROM person
-`,[orgId,id])).rows[0];
+`,[orgId,id,String(req.user?.role||'').toLowerCase(),req.user.id])).rows[0];
 if(!journey?.person)return res.status(404).json({error:'Person not found'});
 const data={person:journey.person};
 for(const key of ['timeline','observations','actions','memory','learning','brain_feed','communications','conversations','relationships','groups','roles','fields','lifecycle','tasks','documents','aliases','outcomes','feedback','aria_events'])data[key]=Array.isArray(journey[key])?journey[key]:[];

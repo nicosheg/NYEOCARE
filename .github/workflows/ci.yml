@@ -47,6 +47,7 @@ jobs:
       - run: npm run test:strict-tenant-api
       - run: npm run test:daily-briefing
       - run: npm run test:follow-up-policy
+      - run: npm run test:care-intake-foundation
       - run: npm run test:identity-evidence
       - run: npm run test:scan-review
       - run: npm run test:aria-internal-messaging
@@ -71,6 +72,21 @@ jobs:
       - name: Syntax-check canonical care entry points
         run: |
           node --check pages/api/care-responsibilities.js
+          node --check pages/api/aria/intake.js
+          node --check pages/api/aria/intake-review.js
+          node --check pages/api/person/journey.js
+          node --check lib/aria/eventEmitter.js
+          node --check lib/aria/eventProcessor.js
+          node --check lib/aria/recommendationEngine.js
+          node --check lib/aria/draftEngine.js
+          node --check lib/aria/communicationOutcome.js
+          node --check lib/aria/contactPreference.js
+          node --check lib/aria/temporalEngine.js
+          node --check lib/aria/attendanceIntelligence.js
+          node --check lib/aria/feedbackEngine.js
+          node --check pages/api/care-feedback.js
+          node --check pages/api/daily-queue/complete-follow-up.js
+          node --check lib/aria/careEngine.js
           node --check pages/api/person/journey.js
           node --check lib/dailyQueue.js
           node --check pages/api/daily-queue/complete-follow-up.js

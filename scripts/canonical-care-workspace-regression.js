@@ -39,7 +39,7 @@ assert.ok(createApi.includes("actionKey='human-care:'+idempotencyKey")&&createAp
  'duplicate submits must be idempotent and serialized');
 assert.ok(createApi.includes("type:'CARE_CONTEXT_RECORDED'")&&createApi.includes("source:'human_care_plan'")&&createApi.includes('getDailyQueue'),
  'human-created care must enter the ARIA event stream and canonical queue rather than a parallel task table');
-assert.ok(createApi.includes('uuidPattern.test(personId)')&&createApi.includes('const message=description;')&&journeyApi.includes("AS time_zone")&&person.includes('organizationToday(p?.time_zone)'),
+assert.ok(createApi.includes('uuidPattern.test(personId)')&&createApi.includes('const message=description;')&&journeyApi.includes("AS time_zone")&&person.includes('organizationToday(p?.time_zone)')&&person.includes('makeIdempotencyKey'),
  'care assignment must validate real identifiers, avoid duplicated text and use the organization-local date');
 assert.ok(createApi.includes("Choose a due date within the next 30 days."),
  'manual due dates must stay within the queue scheduling horizon');

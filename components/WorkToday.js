@@ -17,7 +17,7 @@ export default function WorkToday({data,role,onOpenItem,onOpenCareOversight}){
  return <section className="workToday" aria-labelledby="work-today-heading">
   <header className="workHeader">
    <div className="workHeading"><span className="workEyebrow">YOUR WORK TODAY</span><h2 id="work-today-heading">What needs you?</h2><p>{count?count+' '+(count===1?'thing':'things')+' ready for today.':'Your day is clear for now.'}</p></div>
-   {['owner','admin'].includes(role)&&<button className="oversightLink" onClick={onOpenCareOversight}>Care Oversight <span>↗</span></button>}
+   {['owner','admin'].includes(role)&&<button className="oversightLink" onClick={onOpenCareOversight}>Team care <span>↗</span></button>}
   </header>
   {items.length>0?<div className="workList">
    {items.slice(0,3).map((item,index)=>{
@@ -26,7 +26,7 @@ export default function WorkToday({data,role,onOpenItem,onOpenCareOversight}){
      <button className="workItemOpen" onClick={()=>onOpenItem(item)} aria-label={'Open '+title}>
       <span className="workItemContent">
        <span className="workItemHead"><span className="workItemType">{kindLabel(item)}</span><strong>{title}</strong></span>
-       {item.message&&<span className="workItemMessage">{item.message}</span>}
+       {(item.person_name||item.message)&&<span className="workItemMessage">{item.person_name?`For ${item.person_name}${item.message?' · '+item.message:''}`:item.message}</span>}
       </span>
       <span className="workItemArrow" aria-hidden="true">→</span>
      </button>

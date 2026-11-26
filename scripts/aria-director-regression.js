@@ -14,11 +14,14 @@ const required=[
  ['pages/api/aria/daily.js','getDirectorBriefing','director','peopleAddedLast7Days'],
  ['lib/aria/director.js','getDirectorBriefing','briefing'],
  ['lib/aria/priorityQueue.js','ATTENTION_OBSERVATION_TYPES_SQL','ACTIONABLE_OBSERVATION_TYPES'],
- ['lib/aria/actionableObservationTypes.js','UNUSUAL_ABSENCE','ATTENDANCE_NOT_OBSERVED','SCAN_REVIEW_REQUIRED','ARIA_PROCESSING_FAILURE','CONFLICT','DATA_INTEGRITY','SECURITY_REVIEW'],
+ ['lib/aria/actionableObservationTypes.js','SCAN_REVIEW_REQUIRED','ARIA_PROCESSING_FAILURE','CONFLICT','DATA_INTEGRITY','SECURITY_REVIEW'],
  ['lib/aria/corePersonality.js','synchronized intelligence','one organizational mind'],
  ['pages/aria.js','todayInsight','daily.director?.primary_focus']
 
 ];
+
+const actionable=read('lib/aria/actionableObservationTypes.js');
+if(actionable.includes('UNUSUAL_ABSENCE')||actionable.includes('ATTENDANCE_NOT_OBSERVED'))throw new Error('Attendance non-observation must remain evidence, not an actionable work item.');
 
 for(const [file,...needles] of required){
  const content=read(file);

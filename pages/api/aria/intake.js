@@ -240,6 +240,7 @@ async function createIntake(req, res) {
   }
   if (personId && consentStatus !== 'granted') privacyClass = 'restricted';
   if (consentDeclined) privacyClass = 'restricted';
+  if (!personId && (statement || summary)) privacyClass = 'restricted';
 
   const organizationId = req.org.id;
   const client = await pool.connect();

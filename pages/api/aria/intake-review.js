@@ -105,6 +105,11 @@ async function handler(req, res) {
       });
     }
 
+    const reviewTimeZone = (await client.query(
+      "SELECT COALESCE(settings->>'timezone','Africa/Lagos') AS time_zone FROM organizations WHERE id=$1 LIMIT 1",
+      [organizationId]
+    )).rows[0]?.time_zone || 'Africa/Lagos';
+    const reviewToday = todayInZone(reviewTimeZone);
     const prior = await client.query(
       `SELECT metadata,occurred_at
        FROM aria_events
@@ -118,7 +123,7 @@ async function handler(req, res) {
       const previous = prior.rows[0];
       const previousDecision = previous.metadata?.decision;
       const previousDeferUntil = previous.metadata?.defer_until;
-      if (previousDecision !== 'deferred' || (previousDeferUntil && previousDeferUntil >= new Date().toISOString().slice(0, 10))) {
+      if (previousDecision !== 'deferred' || (previousDeferUntil && previousDeferUntil >= reviewToday)) {
         await client.query('ROLLBACK');
         return res.status(409).json({ error: 'This care signal already has a recorded decision.' });
       }

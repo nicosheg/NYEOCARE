@@ -64,21 +64,6 @@ async function handler(req, res) {
       ['nyeocare:care-intake-review:' + organizationId + ':' + intakeEventId]
     );
 
-    const duplicateKey = 'care-intake-review:' + intakeEventId + ':' + idempotencyKey;
-    const duplicate = await client.query(
-      'SELECT id,metadata FROM aria_events WHERE organization_id=$1 AND event_key=$2 LIMIT 1',
-      [organizationId, duplicateKey]
-    );
-    if (duplicate.rows.length) {
-      await client.query('COMMIT');
-      return res.status(200).json({
-        success: true,
-        duplicate: true,
-        review_event_id: duplicate.rows[0].id,
-        action_id: duplicate.rows[0].metadata?.action_id || null
-      });
-    }
-
     intake = (await client.query(
       `SELECT * FROM aria_events
        WHERE id=$1::uuid AND organization_id=$2 AND type='CARE_INTAKE_RECORDED'
@@ -97,6 +82,21 @@ async function handler(req, res) {
     if (intake.privacy_class === 'sensitive' && !['owner', 'admin', 'leader'].includes(role)) {
       await client.query('ROLLBACK');
       return res.status(403).json({ error: 'This care signal is restricted to care leadership.' });
+    }
+
+    const duplicateKey = 'care-intake-review:' + intakeEventId + ':' + idempotencyKey;
+    const duplicate = await client.query(
+      'SELECT id,metadata FROM aria_events WHERE organization_id=$1 AND event_key=$2 LIMIT 1',
+      [organizationId, duplicateKey]
+    );
+    if (duplicate.rows.length) {
+      await client.query('COMMIT');
+      return res.status(200).json({
+        success: true,
+        duplicate: true,
+        review_event_id: duplicate.rows[0].id,
+        action_id: duplicate.rows[0].metadata?.action_id || null
+      });
     }
 
     const prior = await client.query(

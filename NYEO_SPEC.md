@@ -3295,3 +3295,32 @@ Regression coverage: `test:legacy-attendance-care` protects the database worker 
 - The durable `aria_daily_queue_items` table is a server-managed projection, not a second task truth: it has a unique `(organization_id, task_kind, source_id)` key, organization/date/assignee indexes, FORCE RLS, and a deny policy for direct browser roles. `aria_actions`, `aria_observations`, scan reviews, and unseen internal messages remain source records; `getDailyQueue` reconciles/deduplicates them before Home reads the operator's queue. Do not collapse these source records into a duplicate task table.
 - Legacy `/api/aria/home` and `/api/daily-briefing/latest` URLs are compatibility aliases to the canonical Home bootstrap, not independent query implementations. The old `/api/daily-briefing/generate` endpoint is retired (HTTP 410); it must not run a parallel care cycle or write persisted daily briefing snapshots. The `daily_briefings` table contained zero rows at the 2026-11-26 audit and is not the active ARIA Today source.
 - Regression suites protect one visible card, the in-card full-view entry point, compatibility routing, messaging projection, queue capacity and the leader workspace. No database schema or user data migration is needed for this frontend/API consolidation.
+
+## 72. NOVEMBER 26, 2026 — UNIFIED CARE FOUNDATION: PHASE 1
+
+### Canonical model
+
+- A care report is first recorded as an immutable `CARE_INTAKE_RECORDED` event in `aria_events`. It is evidence for human review, not an action, message, or automatic responsibility.
+- A leader's explicit decision is another immutable `CARE_INTAKE_REVIEWED` event. Only an approved decision may create a `manual_care_responsibility` in `aria_actions`, using the existing `aria_daily_queue_items` projection. Do not create care-intake, care-case, or second task tables.
+- Private care intake is deliberately not copied into the shared `aria_observations`, person memory, organization memory or shared learning surfaces. The current observation schema/RLS is organization-visible and has no private-care visibility contract. Keep the private evidence in the protected canonical event stream until a privacy-aware observation model is explicitly designed.
+- Each event records actor, role, source, evidence kind, verification state, confidence, consent status and privacy class. Event evidence and privacy classifications are immutable; processing status may advance independently.
+
+### Consent and confidentiality
+
+- Unknown consent is not permission. Identifiable care responsibility requires explicit recorded consent; narrative details are withheld when consent is unknown, declined or withdrawn.
+- Minimum privacy classification is enforced by category. Prayer requests, personal needs and complaints are restricted; other intake categories are at least sensitive. Sensitive visibility is reporter plus care leaders/admins; restricted visibility is reporter plus owners/admins.
+- No-contact requests fail closed across drafts, action planning, follow-up outcomes and the database communication trigger. A later operator-entered `allowed` value must not silently override an active no-contact restriction.
+- The current active no-contact context has no user-facing, audited reactivation workflow. Until one exists, the restriction remains effective. Any future reactivation must capture a fresh, direct confirmation from the person, identify who verified it and how, expire the active restriction transactionally, append a new immutable preference event, and preserve the original request. It must not revive cancelled responsibilities automatically.
+
+### Duplicate and retry contract
+
+- Intake retries for an unchanged payload reuse the same idempotency key. A changed payload gets a new key. The database uniqueness of `(organization_id,event_key)` suppresses replay of that event.
+- A given intake can create at most one canonical responsibility because its action key is stable (`care-intake:<intake-event-id>`); the Daily Queue remains a projection of that action.
+- Similar-looking reports are not automatically merged or discarded. Repeated reports can represent new evidence or an ongoing need. Preserve each independently submitted report; surface relationships for human review rather than fuzzy-deduplicating by person/category alone.
+- Regression coverage must prove retry-key stability, changed-payload key rotation, one-action-per-intake, no-contact fail-closed behavior, tenant isolation and private-data exclusion from shared timelines and ARIA intelligence.
+
+### Production acceptance still outstanding
+
+- The live database contained no `CARE_INTAKE_RECORDED`, `CARE_INTAKE_REVIEWED` or `manual_care_responsibility` records at the 26 November 2026 audit. The code and migrations are present, but the workflow has not yet been proven with real role-based intake, review, assignment and outcome records.
+- Before claiming Phase 1 complete, exercise: anonymous intake with narrative withheld; identified intake with unknown consent; restricted prayer/personal-need intake; reporter/leader/admin visibility boundaries; approved assignment and recorded outcome; duplicate retry; no-contact suppression; and confirmation that private details do not appear in ordinary person timelines, organization activity, drafts or shared learning.
+

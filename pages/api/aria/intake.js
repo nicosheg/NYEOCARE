@@ -141,6 +141,9 @@ async function listIntake(req, res) {
     ? String(req.query.status || 'pending')
     : 'pending';
   const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 40, 1), 100);
+  const timeZoneResult = await pool.query("SELECT COALESCE(settings->>'timezone','Africa/Lagos') AS time_zone FROM organizations WHERE id=$1 LIMIT 1",[req.org.id]);
+  const timeZone = timeZoneResult.rows[0]?.time_zone || 'Africa/Lagos';
+  const today = new Intl.DateTimeFormat('en-CA',{timeZone}).format(new Date());
 
   const result = await pool.query(
     `SELECT
@@ -182,7 +185,7 @@ async function listIntake(req, res) {
        )
      ORDER BY e.occurred_at DESC,e.created_at DESC
      LIMIT $5`,
-    [req.org.id, req.user.id, role, status, limit]
+    [req.org.id, req.user.id, role, status, limit, today]
   );
   const reviewOperators = ['owner','admin','leader'].includes(role)
     ? (await pool.query(

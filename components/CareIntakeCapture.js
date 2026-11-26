@@ -115,7 +115,7 @@ export default function CareIntakeCapture() {
         <label>Contact preference
           <select value={contact} onChange={e=>setContact(e.target.value)}>
             <option value="unknown">Not known</option>
-            <option value="allowed">Contact is okay</option>
+            <option value="allowed">Person said contact is okay</option>
             <option value="do_not_contact">Do not contact</option>
           </select>
         </label>

@@ -196,7 +196,7 @@ async function listIntake(req, res) {
       )).rows
     : [];
 
-  return res.status(200).json({ success: true, items: result.rows, review_operators: reviewOperators });
+  return res.status(200).json({ success: true, items: result.rows, review_operators: reviewOperators, today, time_zone: timeZone });
 }
 
 async function createIntake(req, res) {

@@ -203,6 +203,13 @@ assert.ok(universalWorkspace.includes("COALESCE(t.metadata->>'privacy_class','st
   'workspace activity and communication snapshot must exclude private care records');
 
 
+assert.ok(disableLegacyAttendanceMigration.startsWith('-- supabase/migrations/20261126040102_disable_legacy_attendance_absence_actions.sql') &&
+  retireAttendanceCareMigration.startsWith('-- supabase/migrations/20261126040952_retire_remaining_automatic_attendance_care.sql') &&
+  migration.startsWith('-- supabase/migrations/20261126080910_canonical_care_intake_privacy_foundation.sql') &&
+  privacyFunctionMoveMigration.startsWith('-- supabase/migrations/20261126093944_harden_care_privacy_function_exposure.sql') &&
+  privatePrivacyGuardMigration.startsWith('-- supabase/migrations/20261126094045_use_private_definer_care_privacy_guard.sql'),
+  'migration filenames and embedded headers must match the applied production versions exactly');
+
 assert.ok(disableLegacyAttendanceMigration.includes('RENAME TO nyeocare_attendance_stage_legacy_20261126') && disableLegacyAttendanceMigration.includes('automatic_attendance_care_paused') && disableLegacyAttendanceMigration.includes('absence_meaningful IS DISTINCT FROM TRUE'), 'legacy attendance SQL stage must preserve observations but suppress unverified absence outreach');
 assert.ok(retireAttendanceCareMigration.includes('Attendance observations are evidence') && retireAttendanceCareMigration.includes('attendance_absence_check_in') && retireAttendanceCareMigration.includes('A human may create a new responsibility'), 'legacy attendance-created contact duties must be retired without deleting attendance evidence');
 

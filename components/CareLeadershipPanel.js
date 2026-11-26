@@ -1,6 +1,7 @@
 // components/CareLeadershipPanel.js
 import{useCallback,useEffect,useState}from'react';
 import{getClientSession}from'../lib/clientSession';
+import CareIntakeReview from './CareIntakeReview';
 
 const count=value=>Number(value||0).toLocaleString();
 const dueLabel=(date,today)=>{
@@ -85,6 +86,7 @@ export default function CareLeadershipPanel(){
    <div><strong>{count(summary.support_requests)}</strong><span>Help waiting</span></div>
    <div><strong>{count(summary.outcomes_recorded_7d)}</strong><span>Outcomes · 7d</span></div>
   </div>
+  <CareIntakeReview operatorCandidates={candidates} today={today}/>
   {(notice||error)&&<div className={error?'careTeamError':'careTeamNotice'} role="status">{error||notice}</div>}
 
   <section className="careSection">

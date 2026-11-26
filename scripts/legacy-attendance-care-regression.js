@@ -25,7 +25,7 @@ assert.ok(migration.includes("status IN ('proposed', 'approved')")&&
   migration.includes('No message was sent.')&&
   migration.includes("status = 'dismissed'"),
   'cleanup must be restricted to open, unsent proposals and dismiss only their pending queue rows');
-assert.ok(migration.includes('FROM public.aria_observations o')&&
+assert.ok(migration.includes('UPDATE public.aria_observations o')&&
   migration.includes("o.type = 'UNUSUAL_ABSENCE'")&&
   migration.includes("SET status = 'resolved'")&&migration.includes('resolved_at = COALESCE(o.resolved_at, NOW())'),
   'invalid legacy observations must be resolved without deleting attendance or person history');

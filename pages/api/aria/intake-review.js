@@ -123,7 +123,7 @@ async function handler(req, res) {
       const previous = prior.rows[0];
       const previousDecision = previous.metadata?.decision;
       const previousDeferUntil = previous.metadata?.defer_until;
-      if (previousDecision !== 'deferred' || (previousDeferUntil && previousDeferUntil >= reviewToday)) {
+      if (previousDecision !== 'deferred' || (previousDeferUntil && previousDeferUntil > reviewToday)) {
         await client.query('ROLLBACK');
         return res.status(409).json({ error: 'This care signal already has a recorded decision.' });
       }

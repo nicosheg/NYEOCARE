@@ -115,4 +115,3 @@ jobs:
           done
           echo "Production did not become healthy on expected commit $EXPECTED_BUILD_ID."
           exit 1
-        run: curl --fail --silent --show-error --retry 6 --retry-delay 3 --retry-all-errors --max-time 15 https://nyeocare.vercel.app/api/health

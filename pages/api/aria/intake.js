@@ -214,8 +214,9 @@ async function createIntake(req, res) {
   const statementInput = clean(body.statement, 1800);
   const summaryInput = clean(body.summary, 260);
   const consentDeclined = consentStatus === 'declined' || consentStatus === 'withdrawn';
-  const statement = consentDeclined ? null : statementInput || null;
-  const summary = consentDeclined ? null : summaryInput || null;
+  const detailsPermitted = consentStatus === 'granted' || (!personId && consentStatus === 'not_required');
+  const statement = detailsPermitted ? statementInput || null : null;
+  const summary = detailsPermitted ? summaryInput || null : null;
 
   let privacyClass = requestedPrivacy;
   if (PRIVACY_RANK[CATEGORY_MINIMUM[category]] > PRIVACY_RANK[privacyClass]) {
@@ -272,7 +273,7 @@ async function createIntake(req, res) {
           channel,
           contact_permission: contactPermission,
           requires_human_review: true,
-          details_withheld: consentDeclined
+          details_withheld: !detailsPermitted
         },
         provenance: {
           reporter_user_id: req.user.id,

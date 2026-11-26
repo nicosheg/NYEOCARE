@@ -181,10 +181,27 @@ USING (
 )
 WITH CHECK (
   organization_id = current_user_org_id()
-  AND public.can_access_care_privacy(
-    organization_id,
-    context->>'privacy_class',
-    context->>'privacy_reporter_id'
+  AND (
+    (
+      COALESCE(context->>'privacy_class','standard')='standard'
+      AND (
+        is_admin()
+        OR actor_id IN (
+          SELECT u.id FROM public.users u
+          WHERE u.organization_id=current_user_org_id()
+            AND u.supabase_user_id=auth.uid()
+            AND u.active=true
+        )
+      )
+    )
+    OR (
+      COALESCE(context->>'privacy_class','standard')<>'standard'
+      AND public.can_access_care_privacy(
+        organization_id,
+        context->>'privacy_class',
+        context->>'privacy_reporter_id'
+      )
+    )
   )
 );
 

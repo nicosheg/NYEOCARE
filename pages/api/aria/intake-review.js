@@ -34,6 +34,7 @@ async function handler(req, res) {
   const title = clean(body.title, 100);
   const description = clean(body.description, 600);
   const assignedUserId = clean(body.assigned_user_id, 80);
+  const resolvedPersonId = clean(body.resolved_person_id, 80);
   const dueDate = clean(body.due_date, 10);
   const priority = ['low', 'medium', 'high'].includes(String(body.priority || '').toLowerCase())
     ? String(body.priority).toLowerCase()
@@ -44,6 +45,7 @@ async function handler(req, res) {
   if (!['approved', 'dismissed', 'deferred'].includes(decision)) {
     return res.status(400).json({ error: 'Decision must be approved, dismissed or deferred.' });
   }
+  if (resolvedPersonId && !UUID.test(resolvedPersonId)) return res.status(400).json({ error: 'The resolved person link is invalid.' });
   if (decision === 'approved' && (!UUID.test(assignedUserId) || !title || !datePattern.test(dueDate))) {
     return res.status(400).json({ error: 'Approval requires a person, accountable operator, task title and due date.' });
   }
@@ -136,9 +138,14 @@ async function handler(req, res) {
     }
 
     if (decision === 'approved') {
-      if (!intake.person_id) {
+      if (intake.person_id && resolvedPersonId && String(intake.person_id) !== resolvedPersonId) {
         await client.query('ROLLBACK');
-        return res.status(409).json({ error: 'This signal has no confirmed person link. Resolve the person identity before creating a responsibility.' });
+        return res.status(409).json({ error: 'This intake already has a person link. A different person cannot replace it during review.' });
+      }
+      const linkedPersonId = intake.person_id || resolvedPersonId || null;
+      if (!linkedPersonId) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ error: 'Link this signal to a confirmed person before creating a care responsibility.' });
       }
 
       const organization = (await client.query(
@@ -162,7 +169,7 @@ async function handler(req, res) {
         `SELECT id FROM people
          WHERE id=$1 AND organization_id=$2 AND COALESCE(status,'active')='active'
          LIMIT 1 FOR SHARE`,
-        [intake.person_id, organizationId]
+        [linkedPersonId, organizationId]
       )).rows[0];
       if (!person) {
         await client.query('ROLLBACK');
@@ -180,13 +187,14 @@ async function handler(req, res) {
         return res.status(400).json({ error: 'Choose an active operator in this organization.' });
       }
 
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', ['nyeocare:do-not-contact:' + organizationId + ':' + linkedPersonId]);
       const doNotContact = await client.query(
         `SELECT 1 FROM aria_care_contexts
          WHERE organization_id=$1 AND person_id=$2 AND kind='other'
            AND metadata->>'do_not_contact'='true'
            AND (ends_on IS NULL OR ends_on>=CURRENT_DATE)
          LIMIT 1`,
-        [organizationId, intake.person_id]
+        [organizationId, linkedPersonId]
       );
       if (doNotContact.rows.length) {
         await client.query('ROLLBACK');
@@ -195,7 +203,7 @@ async function handler(req, res) {
 
       action = await planActionFromObservation({
         organizationId,
-        personId: intake.person_id,
+        personId: linkedPersonId,
         actionType: 'CARE_FOLLOW_UP',
         priority,
         actionKey: 'care-intake:' + intakeEventId,
@@ -238,7 +246,7 @@ async function handler(req, res) {
 
     reviewEvent = await emitAriaEvent({
       organizationId,
-      personId: intake.person_id,
+      personId: (intake.person_id || (decision === 'approved' ? resolvedPersonId : null)),
       type: 'CARE_INTAKE_REVIEWED',
       source: 'care_intake_review',
       actorId: req.user.id,
@@ -251,6 +259,8 @@ async function handler(req, res) {
       eventKey: duplicateKey,
       metadata: {
         intake_event_id: intakeEventId,
+        linked_person_id: action ? (intake.person_id || resolvedPersonId) : intake.person_id,
+        identity_linked_by: action && !intake.person_id ? req.user.id : null,
         decision,
         reason: reason || null,
         defer_until: deferUntilStored,

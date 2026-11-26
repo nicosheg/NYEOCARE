@@ -175,6 +175,11 @@ async function handler(req, res) {
         return res.status(400).json({ error: 'Choose a due date within the next 30 days.' });
       }
 
+      if (String(intake.consent_status || 'unknown').toLowerCase() !== 'granted') {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ error: 'This person’s consent has not been explicitly confirmed. Record a new care signal with their consent before creating an identifiable responsibility.' });
+      }
+
       const person = (await client.query(
         `SELECT id FROM people
          WHERE id=$1 AND organization_id=$2 AND COALESCE(status,'active')='active'

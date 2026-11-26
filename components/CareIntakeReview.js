@@ -136,7 +136,7 @@ export default function CareIntakeReview() {
     <header><div><h3>Care signals to review</h3><p>Reports are not tasks until a leader decides the next step.</p></div><button type="button" onClick={load} aria-label="Refresh care signals">↻</button></header>
     {(error||notice)&&<div className={error?'reviewError':'reviewNotice'} role="status">{error||notice}</div>}
     {loading?<div className="reviewEmpty">Loading care signals…</div>:items.length===0?<div className="reviewEmpty">No care signals waiting for review.</div>:
-      items.map(item=>{
+      (showAll?items:items.slice(0,3)).map(item=>{
         const d=getDraft(item);
         const allowed=candidates.filter(candidate=>
           item.privacy_class==='restricted'?['owner','admin'].includes(String(candidate.role).toLowerCase()):

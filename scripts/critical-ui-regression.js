@@ -82,6 +82,7 @@ const intelligence=read('lib/aria/attendanceIntelligence.js');
 const director=read('lib/aria/director.js');
 const eventProcessor=read('lib/aria/eventProcessor.js');
 const briefing=read('pages/api/daily-briefing/latest.js');
+const homeBootstrap=read('pages/api/home/bootstrap.js');
 const dailyQueue=read('lib/dailyQueue.js');
 const dailyQueueDefer=read('pages/api/daily-queue/defer.js');
 const dailyQueueMigration=read('supabase/migrations/20260927060000_add_aria_daily_queue.sql');
@@ -330,7 +331,7 @@ const checks=[
  ['ARIA launcher is isolated from page-wide client failures',
   /ClientErrorBoundary surface="aria-launcher"/.test(layout)&&/fallback=\{null\}/.test(layout)],
 
- ['Daily briefing is a per-operator compressed queue',/getDailyQueue/.test(briefing)&&/capacityPerOperator:queue\.capacityPerOperator\|\|5/.test(briefing)&&/laterCount/.test(briefing)&&/aria_daily_queue_items/.test(dailyQueue)],
+ ['ARIA Today is backed by one canonical per-operator compressed queue',/export \{default\} from '\.\.\/home\/bootstrap'/.test(briefing)&&/getDailyQueue/.test(homeBootstrap)&&/capacityPerOperator:dailyQueue\.capacityPerOperator\|\|5/.test(homeBootstrap)&&/laterCount/.test(homeBootstrap)&&/aria_daily_queue_items/.test(dailyQueue)],
  ['Daily queue distributes work across active operators with configurable capacity',/role IN\('owner','admin','leader','worker'(?:,'user')?\)/.test(dailyQueue)&&/DAY_CAPACITY=5/.test(dailyQueue)&&/HORIZON_DAYS=31/.test(dailyQueue)&&/followUpPolicy\.workerDailyCapacity/.test(dailyQueue)],
  ['Daily queue defers work without rejecting the underlying ARIA action',/deferDailyQueueItem/.test(dailyQueueDefer)&&/queue_date/.test(dailyQueueDefer)&&/\/api\/daily-queue\/defer/.test(scanModal)===false&&/\/api\/daily-queue\/defer/.test(read('pages/index.js'))],
  ['Daily queue has durable one-source scheduling',/UNIQUE \(organization_id, task_kind, source_id\)/.test(dailyQueueMigration)],

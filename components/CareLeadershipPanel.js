@@ -106,6 +106,7 @@ export default function CareLeadershipPanel(){
    <header><h3>Needs coordination</h3><span>{assignments.length}</span></header>
    {visible.length?visible.map(item=><article className="careAssignment" key={item.queue_item_id}>
     <div className="careAssignmentTop"><strong>{item.title||'Responsibility'}</strong><span className={item.queue_date<today?'careOverdue':'careDate'}>{dueLabel(item.queue_date,today)}</span></div>
+    {item.person_name&&<div className="careRequestBody">For {item.person_name}</div>}
     {item.message&&<div className="careRequestBody">{item.message}</div>}
     <div className="careAssigned">With {item.assigned_to_name||'Unassigned'}</div>
     <div className="careMove">

@@ -133,6 +133,10 @@ assert.ok(contactPreference.includes('aria_care_contexts') &&
   contactPreference.includes('COMMUNICATION_PREFERENCE_CHANGED') &&
   contactPreference.includes("return 'unknown'"),
   'contact permission must resolve from the canonical no-contact context and latest preference event');
+
+assert.ok(contactPreference.includes("if(restriction.rows.length)return 'do_not_contact'") &&
+  review.includes("if (doNotContact.rows.length || contactPermission === 'do_not_contact')"),
+  'a saved no-contact restriction must remain fail-closed; an ordinary later allowed selection cannot silently override it');
 assert.ok(followUp.includes('getRecordedContactPermission') &&
   followUp.includes('contactOutcomes') &&
   followUp.includes('const safeNote = privateAction ?') &&
@@ -169,9 +173,23 @@ assert.ok(feedbackEngine.includes("COALESCE(context->>'privacy_class','standard'
 assert.ok(capture.includes('consent_status') && capture.includes('contact_permission') &&
   capture.includes('Signal saved for human review. No task or message was created.'),
   'capture UI must communicate consent, contact preference and no automatic task creation');
+
+assert.ok(capture.includes("useRef, useState") &&
+  capture.includes("submissionRef = useRef({ fingerprint: null, key: null })") &&
+  capture.includes("submissionRef.current.fingerprint !== fingerprint") &&
+  capture.includes("idempotency_key: submissionRef.current.key") &&
+  capture.includes("submissionRef.current = { fingerprint: null, key: null }"),
+  'an unchanged care-intake payload must reuse its idempotency key after a timeout/retry, while a changed payload receives a new key');
 assert.ok(reviewUi.includes('setCandidates(Array.isArray(body.review_operators)') &&
   reviewUi.includes('(showAll?items:items.slice(0,3)).map(item=>{') && reviewUi.includes('Approve & assign'),
   'review UI must use server-authorized assignees and stay compact by default');
+
+assert.ok(reviewUi.includes('useMemo,useRef,useState') &&
+  reviewUi.includes('reviewSubmissionRef = useRef({})') &&
+  reviewUi.includes('previous.fingerprint!==fingerprint') &&
+  reviewUi.includes('body.idempotency_key=reviewSubmissionRef.current[item.id].key') &&
+  reviewUi.includes('delete reviewSubmissionRef.current[item.id]'),
+  'an unchanged leader decision must reuse its review idempotency key after a lost response; changed decisions must rotate it');
 assert.ok(workToday.includes('CareIntakeCapture') && workToday.includes('CareIntakeReview') &&
   workToday.includes("['owner','admin','leader'].includes(role)"),
   'intake and review must live inside the canonical ARIA Today surface');

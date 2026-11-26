@@ -1,5 +1,5 @@
 // components/CareIntakeReview.js
-import { useCallback,useEffect,useMemo,useState } from 'react';
+import { useCallback,useEffect,useMemo,useRef,useState } from 'react';
 import { getClientSession } from '../lib/clientSession';
 
 const uuid = () => globalThis.crypto?.randomUUID?.() ||
@@ -30,6 +30,7 @@ export default function CareIntakeReview() {
   const [drafts,setDrafts]=useState({});
   const [matches,setMatches]=useState({});
   const [searching,setSearching]=useState('');
+  const reviewSubmissionRef = useRef({});
 
   const load=useCallback(async()=>{
     setLoading(true);setError('');
@@ -108,7 +109,6 @@ export default function CareIntakeReview() {
       const session=await getClientSession();
       const body={
         intake_event_id:item.id,
-        idempotency_key:uuid(),
         decision,
         reason:decision==='dismissed'?'Reviewed by an authorized leader.':''
       };
@@ -120,6 +120,12 @@ export default function CareIntakeReview() {
         body.resolved_person_id=d.resolved_person_id||undefined;
       }
       if(decision==='deferred')body.defer_until=d.defer_until;
+      const fingerprint=JSON.stringify(body);
+      const previous=reviewSubmissionRef.current[item.id];
+      if(!previous||previous.fingerprint!==fingerprint){
+        reviewSubmissionRef.current[item.id]={fingerprint,key:uuid()};
+      }
+      body.idempotency_key=reviewSubmissionRef.current[item.id].key;
       const response=await fetch('/api/aria/intake-review',{
         method:'POST',
         headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},
@@ -127,6 +133,7 @@ export default function CareIntakeReview() {
       });
       const result=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(result.error||'The review decision could not be saved.');
+      delete reviewSubmissionRef.current[item.id];
       setNotice(decision==='approved'?'Care responsibility approved and assigned.':decision==='dismissed'?'Care signal dismissed with an audit record.':'Care signal deferred with a review date.');
       await load();
       if(typeof window!=='undefined')window.dispatchEvent(new Event('nyeocare:care-intake-reviewed'));

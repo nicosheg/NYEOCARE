@@ -127,6 +127,7 @@ export default withOrg(async function handler(req, res) {
         return res.status(409).json({ error: 'This person has asked not to be contacted. The contact action is blocked.' });
       }
     }
+    const safeNote = privateAction ? '' : note;
     const context = {
       source: firstVisitRequired ? 'required_first_visit_follow_up' : manualCare ? 'human_care_responsibility_outcome' : 'routine_follow_up_outcome',
       first_visit_required: firstVisitRequired,
@@ -145,7 +146,7 @@ export default withOrg(async function handler(req, res) {
       action_id: row.action_id,
       session_id: row.action_metadata?.session_id || null,
       service_key: row.action_metadata?.service_key || null,
-      note
+      note: safeNote
     };
 
     feedback = (await client.query(
@@ -154,7 +155,7 @@ export default withOrg(async function handler(req, res) {
         observed_at,evidence_kind,verification_status,confidence,created_at,updated_at
       ) VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,NOW(),'human_report','reported',1,NOW(),NOW())
       RETURNING id,feedback_type,sentiment,observed_at`,
-      [req.org.id, row.person_id, row.action_id, req.user.id, option.feedbackType, option.sentiment, note, JSON.stringify(context)]
+      [req.org.id, row.person_id, row.action_id, req.user.id, option.feedbackType, option.sentiment, safeNote, JSON.stringify(context)]
     )).rows[0];
 
     await client.query(
@@ -264,7 +265,7 @@ export default withOrg(async function handler(req, res) {
     await client.query(
       `INSERT INTO timeline_events(people_id,event_type,title,description,metadata,source,occurred_at,created_at)
        VALUES($1,$2,$3,$4,$5::jsonb,'human',NOW(),NOW())`,
-      [row.person_id, firstVisitRequired ? 'first_visit_follow_up' : manualCare ? 'care_responsibility_outcome' : 'follow_up_outcome', firstVisitRequired ? 'First-visit follow-up' : manualCare ? 'Care responsibility outcome' : 'Follow-up outcome', option.label + (!privateAction && note ? ': ' + note : ''), JSON.stringify(context)]
+      [row.person_id, firstVisitRequired ? 'first_visit_follow_up' : manualCare ? 'care_responsibility_outcome' : 'follow_up_outcome', firstVisitRequired ? 'First-visit follow-up' : manualCare ? 'Care responsibility outcome' : 'Follow-up outcome', option.label + (safeNote ? ': ' + safeNote : ''), JSON.stringify(context)]
     );
 
     if (outcome === 'do_not_contact') {
@@ -294,7 +295,7 @@ export default withOrg(async function handler(req, res) {
       completed_successfully: context.completed_successfully,
       result: outcome,
       label: option.label,
-      note,
+      note: safeNote,
       completed_by: req.user.id,
       completed_at: new Date().toISOString()
     };

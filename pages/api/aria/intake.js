@@ -134,6 +134,7 @@ async function persistNoContact(client, organizationId, personId, actorId, actor
 }
 
 async function listIntake(req, res) {
+  if (!isOrganizationOperator(req.user?.role)) return res.status(403).json({ error: 'Organization operator access is required.' });
   const role = String(req.user.role || '').toLowerCase();
   const status = ['pending', 'reviewed', 'all'].includes(String(req.query.status || 'pending'))
     ? String(req.query.status || 'pending')

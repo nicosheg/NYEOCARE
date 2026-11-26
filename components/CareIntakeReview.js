@@ -20,6 +20,7 @@ const addDay=value=>{
 
 export default function CareIntakeReview() {
   const [items,setItems]=useState([]);
+  const [today,setToday]=useState('');
   const [showAll,setShowAll]=useState(false);
   const [candidates,setCandidates]=useState([]);
   const [loading,setLoading]=useState(true);
@@ -41,6 +42,7 @@ export default function CareIntakeReview() {
       const body=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(body.error||'Care signals could not be loaded.');
       setItems(Array.isArray(body.items)?body.items:[]);
+      setToday(body.today||'');
       setCandidates(Array.isArray(body.review_operators)?body.review_operators:[]);
     }catch(e){setError(e.message||'Care signals could not be loaded.')}
     finally{setLoading(false)}

@@ -68,7 +68,8 @@ export default function CareIntakeReview({operatorCandidates=[],today=''}) {
       due_date:due,
       defer_until:existing.defer_until||addDay(due),
       assigned_user_id:existing.assigned_user_id||allowed[0]?.id||'',
-      resolved_person_id:existing.resolved_person_id||''
+      resolved_person_id:existing.resolved_person_id||'',
+      contact_permission:existing.contact_permission||item.intake?.contact_permission||'unknown'
     };
   };
 
@@ -110,6 +111,7 @@ export default function CareIntakeReview({operatorCandidates=[],today=''}) {
         body.assigned_user_id=d.assigned_user_id;
         body.due_date=d.due_date;
         body.title=d.title;
+        body.contact_permission=d.contact_permission;
         body.resolved_person_id=d.resolved_person_id||undefined;
       }
       if(decision==='deferred')body.defer_until=d.defer_until;
@@ -142,13 +144,17 @@ export default function CareIntakeReview({operatorCandidates=[],today=''}) {
           <div className="reviewTop"><strong>{categoryLabel(item.intake?.category)}</strong><span>{item.privacy_class||'sensitive'}</span></div>
           <div className="reviewPerson">{item.display_name||item.person_name||(item.person_id?'Linked person':'Person not linked yet')}</div>
           {(item.intake?.summary||item.intake?.statement)&&<p className="reviewStatement">{item.intake.summary||item.intake.statement}</p>}
-          <p className="reviewMeta">{item.intake?.channel||'operator note'} · {item.consent_status||'unknown'} consent · Reported {new Date(item.occurred_at).toLocaleDateString()}</p>
+          <p className="reviewMeta">{item.intake?.channel||'operator note'} · {item.consent_status||'unknown'} consent · Contact: {item.intake?.contact_permission||'unknown'} · Reported {new Date(item.occurred_at).toLocaleDateString()}</p>
           {!item.person_id&&<div className="reviewLink">
             <div className="reviewSearch"><input value={d.person_search||''} placeholder="Search to link the right person" onChange={e=>update(item.id,{person_search:e.target.value})}/><button type="button" disabled={searching===item.id} onClick={()=>searchPeople(item)}>{searching===item.id?'Searching…':'Search'}</button></div>
             {(matches[item.id]||[]).map(person=><button type="button" className="reviewMatch" key={person.id} onClick={()=>{update(item.id,{resolved_person_id:person.id,person_search:person.display_name||person.first_name});setMatches(current=>({...current,[item.id]:[]}))}}>{person.display_name||[person.first_name,person.last_name].filter(Boolean).join(' ')}{person.phone?' · '+person.phone:''}</button>)}
             {d.resolved_person_id&&<small>Person link selected. It will be recorded as a human review decision.</small>}
           </div>}
           <div className="reviewFields">
+            <label>Contact permission verified<select value={d.contact_permission} onChange={e=>update(item.id,{contact_permission:e.target.value})}>
+              <option value="unknown">Not confirmed</option>
+              <option value="allowed">Person confirmed contact is okay</option>
+            </select></label>
             <label>Accountable person<select value={d.assigned_user_id} onChange={e=>update(item.id,{assigned_user_id:e.target.value})}>
               <option value="">Choose an operator</option>{allowed.map(person=><option key={person.id} value={person.id}>{person.name} · {person.role}</option>)}
             </select></label>

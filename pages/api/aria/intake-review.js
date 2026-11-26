@@ -34,7 +34,7 @@ async function handler(req, res) {
   const title = clean(body.title, 100);
   const description = clean(body.description, 600);
   const assignedUserId = clean(body.assigned_user_id, 80);
-  const contactPermission = 'unknown';
+  const requestedContactPermission = clean(body.contact_permission || 'unknown', 30).toLowerCase();
   const resolvedPersonId = clean(body.resolved_person_id, 80);
   const dueDate = clean(body.due_date, 10);
   const priority = ['low', 'medium', 'high'].includes(String(body.priority || '').toLowerCase())
@@ -46,7 +46,7 @@ async function handler(req, res) {
   if (!['approved', 'dismissed', 'deferred'].includes(decision)) {
     return res.status(400).json({ error: 'Decision must be approved, dismissed or deferred.' });
   }
-  if (!['unknown','allowed'].includes(contactPermission)) return res.status(400).json({ error: 'Contact permission must be unknown or explicitly verified as allowed.' });
+  if (!['unknown','allowed'].includes(requestedContactPermission)) return res.status(400).json({ error: 'Contact permission must be unknown or explicitly verified as allowed.' });
   if (resolvedPersonId && !UUID.test(resolvedPersonId)) return res.status(400).json({ error: 'The resolved person link is invalid.' });
   if (decision === 'approved' && (!UUID.test(assignedUserId) || !title || !datePattern.test(dueDate))) {
     return res.status(400).json({ error: 'Approval requires a person, accountable operator, task title and due date.' });
@@ -88,7 +88,8 @@ async function handler(req, res) {
       return res.status(403).json({ error: 'This care signal is restricted to care leadership.' });
     }
 
-    const contactPermission = String(intake.metadata?.intake?.contact_permission || 'unknown').toLowerCase();
+    const intakeContactPermission = String(intake.metadata?.intake?.contact_permission || 'unknown').toLowerCase();
+    const contactPermission = requestedContactPermission === 'allowed' ? 'allowed' : intakeContactPermission;
 
     const duplicateKey = 'care-intake-review:' + intakeEventId + ':' + idempotencyKey;
     const duplicate = await client.query(

@@ -20,6 +20,7 @@ const addDay=value=>{
 
 export default function CareIntakeReview({today=''}) {
   const [items,setItems]=useState([]);
+  const [showAll,setShowAll]=useState(false);
   const [candidates,setCandidates]=useState([]);
   const [loading,setLoading]=useState(true);
   const [busy,setBusy]=useState('');
@@ -172,6 +173,7 @@ export default function CareIntakeReview({today=''}) {
         </article>;
       })
     }
+    {!loading&&items.length>3&&<button type="button" className="reviewShowAll" onClick={()=>setShowAll(v=>!v)}>{showAll?'Show less':'Show all '+items.length+' signals'}</button>}
     <style jsx>{`
       .intakeReview{display:grid;gap:9px;padding:12px;border:1px solid var(--ny-border-subtle);border-radius:14px;background:rgba(255,255,255,.02)}
       .intakeReview>header{display:flex;justify-content:space-between;align-items:center;gap:8px}
@@ -191,6 +193,7 @@ export default function CareIntakeReview({today=''}) {
       .reviewSearch{display:flex;gap:6px}.reviewSearch input{flex:1}.reviewSearch button{border:1px solid var(--ny-border-subtle);border-radius:8px;background:rgba(255,255,255,.04);color:var(--ny-text);padding:0 9px;font-size:10px}
       .reviewMatch{width:100%;margin-top:4px;text-align:left;min-height:32px;border:1px solid var(--ny-border-subtle);border-radius:8px;background:rgba(255,255,255,.03);color:var(--ny-text);font-size:10px;padding:6px}
       .reviewLink small{display:block;margin-top:5px;color:var(--ny-text-muted);font-size:9px}
+      .reviewShowAll{justify-self:start;border:0;background:transparent;color:var(--ny-gold-soft);font-size:10px;padding:4px 0}
       .reviewActions{display:flex;justify-content:flex-end;gap:6px;flex-wrap:wrap}
       .reviewActions button{min-height:34px;padding:0 10px;border-radius:9px;font-size:9px}
       .reviewDismiss{border:1px solid var(--ny-border-subtle);background:transparent;color:var(--ny-text-muted)}

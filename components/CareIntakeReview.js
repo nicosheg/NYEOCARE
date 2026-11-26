@@ -153,6 +153,7 @@ export default function CareIntakeReview() {
             {(matches[item.id]||[]).map(person=><button type="button" className="reviewMatch" key={person.id} onClick={()=>{update(item.id,{resolved_person_id:person.id,person_search:person.display_name||person.first_name});setMatches(current=>({...current,[item.id]:[]}))}}>{person.display_name||[person.first_name,person.last_name].filter(Boolean).join(' ')}{person.phone?' · '+person.phone:''}</button>)}
             {d.resolved_person_id&&<small>Person link selected. It will be recorded as a human review decision.</small>}
           </div>}
+          {item.consent_status!=='granted'&&<small className="reviewConsent">Consent must be explicitly confirmed before this signal can become an identifiable care responsibility. Record a new signal with the person's consent first.</small>}
           <div className="reviewFields">
             <label>Contact permission verified<select value={d.contact_permission} onChange={e=>update(item.id,{contact_permission:e.target.value})}>
               <option value="unknown">Not confirmed</option>
@@ -168,7 +169,7 @@ export default function CareIntakeReview() {
           <div className="reviewActions">
             <button type="button" className="reviewDismiss" disabled={!!busy} onClick={()=>decide(item,'dismissed')}>Dismiss</button>
             <button type="button" className="reviewDefer" disabled={!!busy} onClick={()=>decide(item,'deferred')}>Defer</button>
-            <button type="button" className="reviewApprove" disabled={!!busy||!allowed.length} onClick={()=>decide(item,'approved')}>{busy===item.id+':approved'?'Saving…':'Approve & assign'}</button>
+            <button type="button" className="reviewApprove" disabled={!!busy||!allowed.length||item.consent_status!=='granted'} onClick={()=>decide(item,'approved')}>{busy===item.id+':approved'?'Saving…':'Approve & assign'}</button>
           </div>
         </article>;
       })
@@ -192,7 +193,7 @@ export default function CareIntakeReview() {
       input,select{width:100%;min-width:0;min-height:34px;border:1px solid var(--ny-border-subtle);border-radius:8px;background:#0B1326;color:var(--ny-text);padding:6px;font:inherit;font-size:10px}
       .reviewSearch{display:flex;gap:6px}.reviewSearch input{flex:1}.reviewSearch button{border:1px solid var(--ny-border-subtle);border-radius:8px;background:rgba(255,255,255,.04);color:var(--ny-text);padding:0 9px;font-size:10px}
       .reviewMatch{width:100%;margin-top:4px;text-align:left;min-height:32px;border:1px solid var(--ny-border-subtle);border-radius:8px;background:rgba(255,255,255,.03);color:var(--ny-text);font-size:10px;padding:6px}
-      .reviewLink small{display:block;margin-top:5px;color:var(--ny-text-muted);font-size:9px}
+      .reviewLink small{display:block;margin-top:5px;color:var(--ny-text-muted);font-size:9px}.reviewConsent{color:var(--ny-text-muted);font-size:9px;line-height:1.4}
       .reviewShowAll{justify-self:start;border:0;background:transparent;color:var(--ny-gold-soft);font-size:10px;padding:4px 0}
       .reviewActions{display:flex;justify-content:flex-end;gap:6px;flex-wrap:wrap}
       .reviewActions button{min-height:34px;padding:0 10px;border-radius:9px;font-size:9px}

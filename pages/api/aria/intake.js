@@ -42,6 +42,7 @@ const validPrivacyForRole = (privacyClass, role, actorId, eventActorId) => {
 };
 
 async function persistNoContact(client, organizationId, personId, actorId, actorRole, intakeEvent, privacyClass, consentStatus) {
+  await client.query("SELECT pg_advisory_xact_lock(hashtextextended('nyeocare:daily-queue:'||$1,0))", [organizationId]);
   await client.query(
     'SELECT pg_advisory_xact_lock(hashtextextended($1,0))',
     ['nyeocare:do-not-contact:' + organizationId + ':' + personId]

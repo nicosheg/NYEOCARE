@@ -67,7 +67,7 @@ export default withOrg(async function handler(req, res) {
     const privacyClass = ['standard','sensitive','restricted'].includes(row.action_metadata?.privacy_class) ? row.action_metadata.privacy_class : 'standard';
     const consentStatus = ['unknown','granted','declined','withdrawn','not_required'].includes(row.action_metadata?.consent_status) ? row.action_metadata.consent_status : 'unknown';
     const privacyReporterId = row.action_metadata?.privacy_reporter_id || null;
-    const contactPermission = row.action_metadata?.contact_permission || (row.action_metadata?.kind === 'manual_care_responsibility' ? 'unknown' : 'allowed');
+    const contactPermission = row.action_metadata?.contact_permission || (row.action_metadata?.source === 'care_intake_review' ? 'unknown' : 'allowed');
     const privateAction = privacyClass !== 'standard';
     const firstVisitRequired = row.action_metadata?.first_visit_required === true;
     const manualCare = row.action_metadata?.kind === 'manual_care_responsibility';
@@ -332,7 +332,7 @@ export default withOrg(async function handler(req, res) {
          SET status='dismissed',completed_at=COALESCE(q.completed_at,NOW()),updated_at=NOW()
          FROM aria_actions a
          WHERE q.organization_id=a.organization_id AND q.source_id=a.id::text
-           AND q.task_kind='follow_up' AND q.status IN('pending','deferred')
+           AND q.status IN('pending','deferred')
            AND a.organization_id=$1 AND a.person_id=$2 AND a.status='cancelled'
            AND upper(a.type)=ANY($3::text[])`,
         [req.org.id,row.person_id,contactTypes]

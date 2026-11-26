@@ -8,6 +8,7 @@ import{getDailyQueue}from'../../lib/dailyQueue';
 
 const clean=value=>String(value||'').replace(/\s+/g,' ').trim();
 const datePattern=/^\d{4}-\d{2}-\d{2}$/;
+const uuidPattern=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const operatorRoles=['owner','admin','leader','worker','user'];
 
 export default withAdmin(async function handler(req,res){
@@ -22,8 +23,8 @@ export default withAdmin(async function handler(req,res){
  const dueDate=clean(req.body?.due_date);
  const priority=['low','medium','high'].includes(String(req.body?.priority||'').toLowerCase())?String(req.body.priority).toLowerCase():'medium';
  const suppliedKey=clean(req.body?.idempotency_key);
- const idempotencyKey=/^[0-9a-f-]{36}$/i.test(suppliedKey)?suppliedKey:crypto.randomUUID();
- if(!personId||!assigneeId||!title||!datePattern.test(dueDate)){
+ const idempotencyKey=uuidPattern.test(suppliedKey)?suppliedKey:crypto.randomUUID();
+ if(!uuidPattern.test(personId)||!uuidPattern.test(assigneeId)||!title||!datePattern.test(dueDate)){
   return res.status(400).json({error:'Person, task, owner and due date are required.'});
  }
  const dueMs=Date.parse(dueDate+'T00:00:00Z');
@@ -64,7 +65,7 @@ export default withAdmin(async function handler(req,res){
    await client.query('ROLLBACK');
    return res.status(400).json({error:'Choose a due date within the next 30 days.'});
   }
-  const message=description||title;
+  const message=description;
   const actionKey='human-care:'+idempotencyKey;
   action=await planActionFromObservation({
    organizationId:orgId,
@@ -75,7 +76,7 @@ export default withAdmin(async function handler(req,res){
    actionMetadata:{
     kind:'manual_care_responsibility',
     title,
-    summary:message,
+    summary:description||null,
     message,
     reason:'A leader recorded a real care need.',
     knowledge:'This responsibility was created by a human, not inferred from attendance.',

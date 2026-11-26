@@ -13,7 +13,10 @@ const OUTCOMES = {
   no_contact_details: { label: 'No usable contact details', feedbackType: 'new_information', sentiment: 'neutral' },
   already_connected: { label: 'Already connected by a person', feedbackType: 'other', sentiment: 'positive' },
   not_first_visit: { label: 'Confirmed this was not a first-time visit', feedbackType: 'other', sentiment: 'neutral' },
-  do_not_contact: { label: 'Person asked not to be contacted', feedbackType: 'new_information', sentiment: 'neutral' }
+  do_not_contact: { label: 'Person asked not to be contacted', feedbackType: 'new_information', sentiment: 'neutral' },
+  completed: { label: 'Responsibility completed as agreed', feedbackType: 'other', sentiment: 'neutral' },
+  unable_to_complete: { label: 'Responsibility could not be completed', feedbackType: 'new_information', sentiment: 'neutral' },
+  person_declined: { label: 'Person declined the help or next step', feedbackType: 'new_information', sentiment: 'neutral' }
 };
 
 export default withOrg(async function handler(req, res) {
@@ -62,6 +65,7 @@ export default withOrg(async function handler(req, res) {
       return res.status(404).json({ error: 'This follow-up is no longer assigned to you.' });
     }
     const firstVisitRequired = row.action_metadata?.first_visit_required === true;
+    const manualCare = row.action_metadata?.kind === 'manual_care_responsibility';
     const routineKinds = new Set([
       'manual_care_responsibility',
       'care_first_check_in',
@@ -77,12 +81,18 @@ export default withOrg(async function handler(req, res) {
       'met_in_person', 'message_sent', 'reached', 'no_response',
       'no_contact_details', 'already_connected', 'do_not_contact'
     ]);
+    const manualCareOutcomes = new Set([...routineOutcomes, 'completed', 'unable_to_complete', 'person_declined']);
+    const allowedOutcomes = firstVisitRequired ? firstVisitOutcomes : manualCare ? manualCareOutcomes : routineOutcomes;
     if (!['proposed', 'approved'].includes(row.action_status) ||
         (firstVisitRequired && row.action_metadata?.kind !== 'first_session_check_in') ||
         (!firstVisitRequired && !routineKinds.has(String(row.action_metadata?.kind || ''))) ||
-        (firstVisitRequired ? !firstVisitOutcomes.has(outcome) : !routineOutcomes.has(outcome))) {
+        !allowedOutcomes.has(outcome)) {
       await client.query('ROLLBACK');
       return res.status(409).json({ error: 'This is not an open follow-up task that can be completed with that outcome.' });
+    }
+    if (manualCare && ['unable_to_complete', 'person_declined'].includes(outcome) && note.length < 5) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Add a short note explaining what prevented the next step or what the person declined.' });
     }
     if (outcome === 'message_sent' && !communicationId && !messageContent) {
       await client.query('ROLLBACK');
@@ -90,8 +100,11 @@ export default withOrg(async function handler(req, res) {
     }
     personId = row.person_id;
     const context = {
-      source: firstVisitRequired ? 'required_first_visit_follow_up' : 'routine_follow_up_outcome',
+      source: firstVisitRequired ? 'required_first_visit_follow_up' : manualCare ? 'human_care_responsibility_outcome' : 'routine_follow_up_outcome',
       first_visit_required: firstVisitRequired,
+      responsibility_title: manualCare ? row.action_metadata?.title || null : null,
+      due_date: manualCare ? row.action_metadata?.due_date || null : null,
+      completed_successfully: outcome === 'completed' || ['met_in_person','message_sent','reached','already_connected'].includes(outcome),
       contact_channel: contactChannel,
       communication_id: communicationId,
       outcome,
@@ -210,7 +223,7 @@ export default withOrg(async function handler(req, res) {
     await client.query(
       `INSERT INTO timeline_events(people_id,event_type,title,description,metadata,source,occurred_at,created_at)
        VALUES($1,$2,$3,$4,$5::jsonb,'human',NOW(),NOW())`,
-      [row.person_id, firstVisitRequired ? 'first_visit_follow_up' : 'follow_up_outcome', firstVisitRequired ? 'First-visit follow-up' : 'Follow-up outcome', option.label + (note ? ': ' + note : ''), JSON.stringify(context)]
+      [row.person_id, firstVisitRequired ? 'first_visit_follow_up' : manualCare ? 'care_responsibility_outcome' : 'follow_up_outcome', firstVisitRequired ? 'First-visit follow-up' : manualCare ? 'Care responsibility outcome' : 'Follow-up outcome', option.label + (note ? ': ' + note : ''), JSON.stringify(context)]
     );
 
     if (outcome === 'do_not_contact') {
@@ -229,7 +242,9 @@ export default withOrg(async function handler(req, res) {
 
     const storedOutcome = {
       required_first_visit_follow_up: firstVisitRequired,
+      manual_care_responsibility: manualCare,
       follow_up_completed: true,
+      completed_successfully: context.completed_successfully,
       result: outcome,
       label: option.label,
       note,
@@ -265,7 +280,7 @@ export default withOrg(async function handler(req, res) {
     event = await emitAriaEvent({
       organizationId: req.org.id,
       personId: row.person_id,
-      type: 'CARE_FEEDBACK',
+      type: 'CARE_OUTCOME_RECORDED',
       source: 'human',
       actorId: req.user.id,
       actorRole: req.user.role,
@@ -280,7 +295,7 @@ export default withOrg(async function handler(req, res) {
         outcome: { outcome, action_id: row.action_id, feedback_id: feedback.id },
         follow_up_context: context
       },
-      eventKey: (firstVisitRequired ? 'first-visit-follow-up:' : 'follow-up-outcome:') + row.action_id
+      eventKey: 'care-outcome:' + row.action_id
     }, client);
 
     await client.query('COMMIT');

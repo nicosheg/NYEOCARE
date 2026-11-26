@@ -2,6 +2,7 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const migration=fs.readFileSync('supabase/migrations/20261126100000_disable_legacy_attendance_absence_actions.sql','utf8');
+const retireRemaining=fs.readFileSync('supabase/migrations/20261126103000_retire_remaining_automatic_attendance_care.sql','utf8');
 const processor=fs.readFileSync('lib/aria/attendanceProcessor.js','utf8');
 const queue=fs.readFileSync('lib/dailyQueue.js','utf8');
 const actionable=fs.readFileSync('lib/aria/actionableObservationTypes.js','utf8');
@@ -26,11 +27,15 @@ assert.ok(migration.includes("status IN ('proposed', 'approved')")&&
   'cleanup must be restricted to open, unsent proposals and dismiss only their pending queue rows');
 assert.ok(migration.includes('FROM public.aria_observations o')&&
   migration.includes("o.type = 'UNUSUAL_ABSENCE'")&&
-  migration.includes("o.status = 'resolved'"),
+  migration.includes("SET status = 'resolved'")&&migration.includes('resolved_at = COALESCE(o.resolved_at, NOW())'),
   'invalid legacy observations must be resolved without deleting attendance or person history');
+assert.ok(retireRemaining.includes("action_metadata->>'kind' IN('attendance_absence_check_in','returned_after_absence')")&&
+  retireRemaining.includes("status IN('proposed','approved')")&&retireRemaining.includes("status='dismissed'")&&
+  retireRemaining.includes("status='cancelled'"),
+  'all remaining automatic absence and return outreach proposals must be retired without deleting observations or sent outcomes');
 assert.ok(processor.includes('ATTENDANCE_CARE_FOLLOW_UP_ENABLED = false'),
   'the JavaScript guard must remain aligned with the database worker guard');
-assert.ok(!actionable.includes("'UNUSUAL_ABSENCE'"),
+assert.ok(!actionable.includes("'UNUSUAL_ABSENCE'")&&!actionable.includes("'ATTENDANCE_NOT_OBSERVED'"),
   'legacy unusual-absence observations must not independently re-enter the human queue');
 assert.ok(queue.includes('ACTIONABLE_OBSERVATION_TYPES'),
   'the canonical queue must continue to use the shared actionable-observation registry');

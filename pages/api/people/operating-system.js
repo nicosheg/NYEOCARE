@@ -31,7 +31,7 @@ try{
 const resource=String(req.query.resource||'profile');
 if(resource==='profile'){
 if(!req.query.person_id)return res.status(400).json({error:'person_id is required'});
-const data=await getPerson360(orgId,String(req.query.person_id));
+const data=await getPerson360(orgId,String(req.query.person_id),{role:req.user?.role,actorId:req.user?.id});
 return data?res.status(200).json(data):res.status(404).json({error:'Person not found'});
 }
 if(resource==='groups')return res.status(200).json(await getGroups(orgId,{type:req.query.type,active:req.query.active}));

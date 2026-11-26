@@ -3316,7 +3316,7 @@ Regression coverage: `test:legacy-attendance-care` protects the database worker 
 
 - Intake retries for an unchanged payload reuse the same idempotency key. A changed payload gets a new key. The database uniqueness of `(organization_id,event_key)` suppresses replay of that event.
 - A given intake can create at most one canonical responsibility because its action key is stable (`care-intake:<intake-event-id>`); the Daily Queue remains a projection of that action.
-- Similar-looking reports are not automatically merged or discarded. Repeated reports can represent new evidence or an ongoing need. Preserve each independently submitted report; surface relationships for human review rather than fuzzy-deduplicating by person/category alone.
+- Similar-looking reports are not automatically merged or discarded. Repeated reports can represent new evidence or an ongoing need. Preserve each independently submitted report. The current Phase 1 UI does not yet surface semantic duplicate candidates; do not claim semantic duplicate detection is complete or fuzzy-deduplicate by person/category alone.
 - Regression coverage must prove retry-key stability, changed-payload key rotation, one-action-per-intake, no-contact fail-closed behavior, tenant isolation and private-data exclusion from shared timelines and ARIA intelligence.
 
 ### Production acceptance still outstanding

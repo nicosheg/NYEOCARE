@@ -1,5 +1,6 @@
 // components/WorkToday.js
 import OperatorSupportRequest from './OperatorSupportRequest';
+import CareIntakeCapture from './CareIntakeCapture';
 
 const kindLabel=item=>{
  if(item?.task_kind==='follow_up')return'FOLLOW-UP';
@@ -19,6 +20,7 @@ export default function WorkToday({data,role,onOpenItem,onOpenCareOversight,onOp
    <div className="workHeading"><span className="workEyebrow">ARIA TODAY</span><h2 id="work-today-heading">What needs you?</h2><p>{count?count+' '+(count===1?'thing':'things')+' ready for today.':'Your day is clear for now.'}</p></div>
    {['owner','admin'].includes(role)&&<button className="oversightLink" onClick={onOpenCareOversight}>Team care <span>↗</span></button>}
   </header>
+  <CareIntakeCapture/>
   {items.length>0?<div className="workList">
    {items.slice(0,3).map((item,index)=>{
     const title=item.title||'A responsibility needs attention';

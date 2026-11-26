@@ -80,6 +80,12 @@ jobs:
           node --check lib/aria/recommendationEngine.js
           node --check lib/aria/draftEngine.js
           node --check lib/aria/communicationOutcome.js
+          node --check lib/aria/contactPreference.js
+          node --check lib/aria/temporalEngine.js
+          node --check lib/aria/attendanceIntelligence.js
+          node --check lib/aria/feedbackEngine.js
+          node --check pages/api/care-feedback.js
+          node --check pages/api/daily-queue/complete-follow-up.js
           node --check lib/aria/careEngine.js
           node --check pages/api/person/journey.js
           node --check lib/dailyQueue.js

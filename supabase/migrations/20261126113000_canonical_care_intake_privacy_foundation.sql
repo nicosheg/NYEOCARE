@@ -81,4 +81,377 @@ BEGIN
 END;
 $$;
 
+
+-- RLS is part of the privacy boundary, not merely a UI concern.
+CREATE OR REPLACE FUNCTION public.can_access_care_privacy(
+  p_organization_id text,
+  p_privacy_class text,
+  p_reporter_id text
+)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path TO pg_catalog, public
+AS $
+  SELECT
+    COALESCE(p_privacy_class, 'standard') = 'standard'
+    OR EXISTS (
+      SELECT 1
+      FROM public.users u
+      WHERE u.organization_id = p_organization_id
+        AND u.supabase_user_id = auth.uid()
+        AND u.active = true
+        AND (
+          u.id::text = p_reporter_id
+          OR (
+            p_privacy_class = 'sensitive'
+            AND u.role IN ('owner','admin','leader')
+          )
+          OR (
+            p_privacy_class = 'restricted'
+            AND u.role IN ('owner','admin')
+          )
+        )
+    );
+$;
+
+REVOKE ALL ON FUNCTION public.can_access_care_privacy(text,text,text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.can_access_care_privacy(text,text,text) TO authenticated, anon;
+
+-- Preserve existing standard-record behavior while limiting private records.
+DROP POLICY IF EXISTS care_feedback_actor_or_admin_select ON public.care_feedback;
+CREATE POLICY care_feedback_actor_or_admin_select
+ON public.care_feedback
+FOR SELECT TO authenticated
+USING (
+  organization_id = current_user_org_id()
+  AND (
+    (
+      COALESCE(context->>'privacy_class','standard')='standard'
+      AND (
+        is_admin()
+        OR actor_id IN (
+          SELECT u.id FROM public.users u
+          WHERE u.organization_id=current_user_org_id()
+            AND u.supabase_user_id=auth.uid()
+            AND u.active=true
+        )
+      )
+    )
+    OR (
+      COALESCE(context->>'privacy_class','standard')<>'standard'
+      AND public.can_access_care_privacy(
+        organization_id,
+        context->>'privacy_class',
+        context->>'privacy_reporter_id'
+      )
+    )
+  )
+);
+
+DROP POLICY IF EXISTS care_feedback_actor_or_admin_update ON public.care_feedback;
+CREATE POLICY care_feedback_actor_or_admin_update
+ON public.care_feedback
+FOR UPDATE TO authenticated
+USING (
+  organization_id = current_user_org_id()
+  AND (
+    (
+      COALESCE(context->>'privacy_class','standard')='standard'
+      AND (
+        is_admin()
+        OR actor_id IN (
+          SELECT u.id FROM public.users u
+          WHERE u.organization_id=current_user_org_id()
+            AND u.supabase_user_id=auth.uid()
+            AND u.active=true
+        )
+      )
+    )
+    OR (
+      COALESCE(context->>'privacy_class','standard')<>'standard'
+      AND public.can_access_care_privacy(
+        organization_id,
+        context->>'privacy_class',
+        context->>'privacy_reporter_id'
+      )
+    )
+  )
+)
+WITH CHECK (
+  organization_id = current_user_org_id()
+  AND public.can_access_care_privacy(
+    organization_id,
+    context->>'privacy_class',
+    context->>'privacy_reporter_id'
+  )
+);
+
+DROP POLICY IF EXISTS care_feedback_insert ON public.care_feedback;
+CREATE POLICY care_feedback_insert
+ON public.care_feedback
+FOR INSERT TO authenticated
+WITH CHECK (
+  organization_id IN (
+    SELECT u.organization_id FROM public.users u
+    WHERE u.supabase_user_id=auth.uid() AND u.active=true
+  )
+  AND actor_id IN (
+    SELECT u.id FROM public.users u
+    WHERE u.organization_id=care_feedback.organization_id
+      AND u.supabase_user_id=auth.uid() AND u.active=true
+  )
+  AND public.can_access_care_privacy(
+    organization_id,
+    context->>'privacy_class',
+    context->>'privacy_reporter_id'
+  )
+);
+
+DROP POLICY IF EXISTS person_communications_org_select ON public.person_communications;
+CREATE POLICY person_communications_org_select
+ON public.person_communications
+FOR SELECT TO authenticated
+USING (
+  organization_id=current_user_org_id()
+  AND public.can_access_care_privacy(
+    organization_id,
+    metadata->>'privacy_class',
+    metadata->>'privacy_reporter_id'
+  )
+);
+
+DROP POLICY IF EXISTS person_communications_org_insert ON public.person_communications;
+CREATE POLICY person_communications_org_insert
+ON public.person_communications
+FOR INSERT TO authenticated
+WITH CHECK (
+  organization_id=current_user_org_id()
+  AND public.can_access_care_privacy(
+    organization_id,
+    metadata->>'privacy_class',
+    metadata->>'privacy_reporter_id'
+  )
+);
+
+DROP POLICY IF EXISTS person_communications_org_update ON public.person_communications;
+CREATE POLICY person_communications_org_update
+ON public.person_communications
+FOR UPDATE TO authenticated
+USING (
+  organization_id=current_user_org_id()
+  AND public.can_access_care_privacy(
+    organization_id,
+    metadata->>'privacy_class',
+    metadata->>'privacy_reporter_id'
+  )
+)
+WITH CHECK (
+  organization_id=current_user_org_id()
+  AND public.can_access_care_privacy(
+    organization_id,
+    metadata->>'privacy_class',
+    metadata->>'privacy_reporter_id'
+  )
+);
+
+DROP POLICY IF EXISTS person_communications_org_delete ON public.person_communications;
+CREATE POLICY person_communications_org_delete
+ON public.person_communications
+FOR DELETE TO authenticated
+USING (
+  organization_id=current_user_org_id()
+  AND public.can_access_care_privacy(
+    organization_id,
+    metadata->>'privacy_class',
+    metadata->>'privacy_reporter_id'
+  )
+);
+
+DROP POLICY IF EXISTS timeline_events_select_same_organization ON public.timeline_events;
+CREATE POLICY timeline_events_select_same_organization
+ON public.timeline_events
+FOR SELECT TO public
+USING (
+  EXISTS (
+    SELECT 1 FROM public.people p
+    WHERE p.id=timeline_events.people_id
+      AND p.organization_id=current_user_organization_id()
+  )
+  AND public.can_access_care_privacy(
+    (
+      SELECT p.organization_id::text
+      FROM public.people p
+      WHERE p.id=timeline_events.people_id
+      LIMIT 1
+    ),
+    metadata->>'privacy_class',
+    metadata->>'privacy_reporter_id'
+  )
+);
+
+DROP POLICY IF EXISTS timeline_events_insert_same_organization ON public.timeline_events;
+CREATE POLICY timeline_events_insert_same_organization
+ON public.timeline_events
+FOR INSERT TO public
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM public.people p
+    WHERE p.id=timeline_events.people_id
+      AND p.organization_id=current_user_organization_id()
+  )
+  AND public.can_access_care_privacy(
+    (
+      SELECT p.organization_id::text
+      FROM public.people p
+      WHERE p.id=timeline_events.people_id
+      LIMIT 1
+    ),
+    metadata->>'privacy_class',
+    metadata->>'privacy_reporter_id'
+  )
+);
+
+DROP POLICY IF EXISTS timeline_events_update_same_organization ON public.timeline_events;
+CREATE POLICY timeline_events_update_same_organization
+ON public.timeline_events
+FOR UPDATE TO public
+USING (
+  EXISTS (
+    SELECT 1 FROM public.people p
+    WHERE p.id=timeline_events.people_id
+      AND p.organization_id=current_user_organization_id()
+  )
+  AND public.can_access_care_privacy(
+    (
+      SELECT p.organization_id::text FROM public.people p
+      WHERE p.id=timeline_events.people_id LIMIT 1
+    ),
+    metadata->>'privacy_class',
+    metadata->>'privacy_reporter_id'
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM public.people p
+    WHERE p.id=timeline_events.people_id
+      AND p.organization_id=current_user_organization_id()
+  )
+  AND public.can_access_care_privacy(
+    (
+      SELECT p.organization_id::text FROM public.people p
+      WHERE p.id=timeline_events.people_id LIMIT 1
+    ),
+    metadata->>'privacy_class',
+    metadata->>'privacy_reporter_id'
+  )
+);
+
+DROP POLICY IF EXISTS timeline_events_delete_same_organization ON public.timeline_events;
+CREATE POLICY timeline_events_delete_same_organization
+ON public.timeline_events
+FOR DELETE TO public
+USING (
+  EXISTS (
+    SELECT 1 FROM public.people p
+    WHERE p.id=timeline_events.people_id
+      AND p.organization_id=current_user_organization_id()
+  )
+  AND public.can_access_care_privacy(
+    (
+      SELECT p.organization_id::text FROM public.people p
+      WHERE p.id=timeline_events.people_id LIMIT 1
+    ),
+    metadata->>'privacy_class',
+    metadata->>'privacy_reporter_id'
+  )
+);
+
+CREATE OR REPLACE FUNCTION public.protect_communication_privacy_metadata()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path TO pg_catalog
+AS $
+BEGIN
+  IF COALESCE(OLD.metadata->>'privacy_class','standard')
+       IS DISTINCT FROM COALESCE(NEW.metadata->>'privacy_class','standard')
+     OR OLD.metadata->>'privacy_reporter_id'
+       IS DISTINCT FROM NEW.metadata->>'privacy_reporter_id'
+     OR OLD.metadata->>'consent_status'
+       IS DISTINCT FROM NEW.metadata->>'consent_status'
+  THEN
+    RAISE EXCEPTION 'Care communication privacy metadata is immutable';
+  END IF;
+  RETURN NEW;
+END;
+$;
+
+DROP TRIGGER IF EXISTS protect_person_communication_privacy_trigger ON public.person_communications;
+CREATE TRIGGER protect_person_communication_privacy_trigger
+BEFORE UPDATE ON public.person_communications
+FOR EACH ROW EXECUTE FUNCTION public.protect_communication_privacy_metadata();
+
+DROP TRIGGER IF EXISTS protect_timeline_privacy_trigger ON public.timeline_events;
+CREATE TRIGGER protect_timeline_privacy_trigger
+BEFORE UPDATE ON public.timeline_events
+FOR EACH ROW EXECUTE FUNCTION public.protect_communication_privacy_metadata();
+
+CREATE OR REPLACE FUNCTION public.block_outbound_when_do_not_contact()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO pg_catalog, public
+AS $
+DECLARE
+  blocked boolean := false;
+BEGIN
+  IF NEW.direction <> 'outbound' THEN
+    RETURN NEW;
+  END IF;
+
+  -- Metadata-only updates to an already-recorded historical contact are safe.
+  IF TG_OP='UPDATE'
+     AND NEW.status IS NOT DISTINCT FROM OLD.status
+     AND NEW.content IS NOT DISTINCT FROM OLD.content
+     AND NEW.direction IS NOT DISTINCT FROM OLD.direction
+     AND NEW.person_id IS NOT DISTINCT FROM OLD.person_id
+     AND NEW.organization_id IS NOT DISTINCT FROM OLD.organization_id
+  THEN
+    RETURN NEW;
+  END IF;
+
+  -- Cancelling an unsent draft is always allowed.
+  IF NEW.status='cancelled' THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.status IN ('draft','sent','delivered','read','completed') THEN
+    SELECT EXISTS (
+      SELECT 1
+      FROM public.aria_care_contexts c
+      WHERE c.organization_id=NEW.organization_id
+        AND c.person_id=NEW.person_id
+        AND c.kind='other'
+        AND c.metadata->>'do_not_contact'='true'
+        AND (c.ends_on IS NULL OR c.ends_on>=CURRENT_DATE)
+    ) INTO blocked;
+
+    IF blocked THEN
+      RAISE EXCEPTION 'Outbound communication blocked: this person has a do-not-contact restriction'
+        USING ERRCODE='23514';
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$;
+
+DROP TRIGGER IF EXISTS block_outbound_when_do_not_contact_trigger ON public.person_communications;
+CREATE TRIGGER block_outbound_when_do_not_contact_trigger
+BEFORE INSERT OR UPDATE OF direction,status,content,person_id,organization_id
+ON public.person_communications
+FOR EACH ROW EXECUTE FUNCTION public.block_outbound_when_do_not_contact();
+
+
 COMMIT;

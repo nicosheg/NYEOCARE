@@ -29,6 +29,8 @@ const peopleMutationEngine=read('lib/aria/peopleMutationEngine.js');
 
 expect(queue.includes("m?.kind==='manual_care_responsibility'?'follow_up':'action'")&&!queue.includes("m?.kind==='attendance_absence_check_in'")&&!queue.includes("m?.kind==='returned_after_absence'"),'Only explicit first-visit and human-created care actions may enter the follow-up lane; legacy attendance actions are retired.');
 expect(!queue.includes("const first=String(o.type||'')==='UNUSUAL_ABSENCE'")&&queue.includes("task_kind:'action',source_id:String(o.id)"),'Observations never turn themselves into follow-up responsibilities; a human decision is required.');
+const careQueue=read('pages/api/care-queue.js');
+expect(careQueue.includes('o.type=ANY($2::text[])')&&careQueue.includes('ACTIONABLE_OBSERVATION_TYPES'),'The person care queue must not surface non-actionable attendance observations as care tasks.');
 expect(queue.includes("AND (a.person_id IS NULL OR p.status='active')"),'Home actions must exclude archived or missing people records.');
 expect(queue.includes("AND (o.person_id IS NULL OR p.status='active')"),'Home observations must exclude archived or missing people records.');
 expect(queue.includes("WHERE organization_id=$1 AND status IN('pending','deferred')"),'Queue reconciliation must include overdue work.');

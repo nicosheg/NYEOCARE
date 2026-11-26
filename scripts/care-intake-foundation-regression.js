@@ -4,6 +4,8 @@ const fs = require('node:fs');
 const read = path => fs.readFileSync(path, 'utf8');
 
 const migration = read('supabase/migrations/20261126113000_canonical_care_intake_privacy_foundation.sql');
+const privacyFunctionMoveMigration = read('supabase/migrations/20261126120000_harden_care_privacy_function_exposure.sql');
+const privatePrivacyGuardMigration = read('supabase/migrations/20261126124500_use_private_definer_care_privacy_guard.sql');
 const intake = read('pages/api/aria/intake.js');
 const review = read('pages/api/aria/intake-review.js');
 const emitter = read('lib/aria/eventEmitter.js');
@@ -197,5 +199,22 @@ assert.ok(directorEngine.includes("e.privacy_class='standard'") &&
 assert.ok(universalWorkspace.includes("COALESCE(t.metadata->>'privacy_class','standard')='standard'") &&
   universalWorkspace.includes("COALESCE(pc.metadata->>'privacy_class','standard')='standard'"),
   'workspace activity and communication snapshot must exclude private care records');
+
+
+assert.ok(privacyFunctionMoveMigration.includes('CREATE SCHEMA IF NOT EXISTS private') &&
+  privacyFunctionMoveMigration.includes('ALTER FUNCTION public.can_access_care_privacy(text,text,text) SET SCHEMA private') &&
+  privacyFunctionMoveMigration.includes('ALTER FUNCTION public.block_outbound_when_do_not_contact() SET SCHEMA private') &&
+  privacyFunctionMoveMigration.includes('ALTER POLICY timeline_events_select_same_organization') &&
+  privacyFunctionMoveMigration.includes('TO authenticated') &&
+  !privacyFunctionMoveMigration.includes('GRANT EXECUTE ON FUNCTION private.block_outbound_when_do_not_contact() TO authenticated'),
+  'care privacy and trigger functions must be isolated in the private schema and timeline RLS must exclude anonymous users');
+assert.ok(privatePrivacyGuardMigration.includes('SECURITY DEFINER') &&
+  privatePrivacyGuardMigration.includes('SET search_path = \'\'') &&
+  privatePrivacyGuardMigration.includes('auth.uid() IS NOT NULL') &&
+  privatePrivacyGuardMigration.includes('FROM public.users') &&
+  privatePrivacyGuardMigration.includes('REVOKE ALL ON FUNCTION private.can_access_care_privacy(text,text,text) FROM anon') &&
+  privatePrivacyGuardMigration.includes('GRANT EXECUTE ON FUNCTION private.can_access_care_privacy(text,text,text) TO authenticated') &&
+  !privatePrivacyGuardMigration.includes('public.can_access_care_privacy'),
+  'the RLS helper may use SECURITY DEFINER only in non-exposed private schema, with an auth.uid guard and authenticated-only execution');
 
 console.log('[CARE INTAKE FOUNDATION] canonical intake, human review, provenance, privacy, no-contact serialization and no-duplicate architecture passed.');

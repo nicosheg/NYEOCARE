@@ -3343,3 +3343,11 @@ Regression coverage: `test:legacy-attendance-care` protects the database worker 
 - Conversation import surfaces on Person Journey and Community require explicit consent, idempotency and an explicit confidentiality selection. They record private evidence and do not auto-extract into shared timeline items.
 - A note is not permission to contact. Context-note events set contact permission to unknown and must not create outreach, an action or a queue item.
 
+## 75. NOVEMBER 27, 2026 — ONE CARE INTAKE WRITER AND ARIA CHAT
+
+- `lib/aria/careIntakeService.js` is the shared transaction-bound writer for consented identified-person reports from the care-intake form, conversation import, ARIA chat and ARIA workspace private context notes. It checks active tenant-scoped person identity, attested consent, category privacy minimums, stable idempotency and a payload fingerprint, then appends one immutable `CARE_INTAKE_RECORDED` event with actor, provenance and consent capture.
+- ARIA chat exposes `record_care_intake` as an explicit-only capability. The operator must clearly ask ARIA to save the report, identify one person, supply the actual report and explicitly confirm the person's agreement to storage. The capability never infers consent, contact permission or a responsibility. A report defaults to `contact_permission='unknown'`; it creates no `aria_actions`, message, call, visit or daily queue item. Human review remains the only path to an assigned care responsibility.
+- The capability requires a stable UUID idempotency key; replays with identical content return the existing event, while changed-content replays are rejected. The private context-note path uses the same writer and category `context_note`, which is sensitive by default and bypasses the leader review queue without creating a responsibility.
+- The intake API retains a constrained fallback writer for anonymous/non-consented reports and do-not-contact requests that have different data-minimization or cancellation side effects. This fallback must preserve the same event schema, privacy boundaries and payload-bound idempotency.
+- No event processor may copy sensitive/restricted intake bodies into organization-wide observations, memory, shared summaries or learning. ARIA retrieves these events only through the actor-aware role-scoped resolver.
+

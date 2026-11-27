@@ -164,7 +164,10 @@ export default withAdmin(async function handler(req, res) {
         consentStatus: 'granted',
         contactPermission: 'unknown',
         idempotencyKey,
-        additionalIntakeMetadata: { requested_action_title: title }
+        additionalIntakeMetadata: {
+          requested_action_title: title,
+          responsibility_fingerprint: fingerprint
+        }
       });
       intakeEvent = intakeResult.event;
       duplicate = intakeResult.duplicate;

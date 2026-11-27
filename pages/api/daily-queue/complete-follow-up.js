@@ -1,7 +1,6 @@
 // pages/api/daily-queue/complete-follow-up.js
 import pool from '../../../lib/db';
 import { withOrg } from '../../../lib/apiHelpers';
-import { emitAriaEvent } from '../../../lib/aria/eventEmitter';
 import { processAriaEvent } from '../../../lib/aria/eventProcessor';
 import { learnFromFeedback } from '../../../lib/aria/learningEngine';
 import { getRecordedContactPermission } from '../../../lib/aria/contactPreference';
@@ -164,7 +163,8 @@ export default withOrg(async function handler(req, res) {
       note: safeNote,
       context,
       outcomeActionType: 'follow_up',
-      outcomeScore: null
+      outcomeScore: null,
+      outcomeValue: outcome
     });
     feedback = feedbackRecord.feedback;
     outcome = feedbackRecord.outcome;

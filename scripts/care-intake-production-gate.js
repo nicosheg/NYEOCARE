@@ -40,6 +40,7 @@ const files = {
   careMigration: read('supabase/migrations/20261126080910_canonical_care_intake_privacy_foundation.sql'),
   moveMigration: read('supabase/migrations/20261126093944_harden_care_privacy_function_exposure.sql'),
   guardMigration: read('supabase/migrations/20261126094045_use_private_definer_care_privacy_guard.sql'),
+  legacyNotesMigration: read('supabase/migrations/20261127160000_restrict_legacy_person_journey_notes.sql'),
   spec: read('NYEO_SPEC.md')
 };
 
@@ -97,6 +98,7 @@ verify('context notes stay out of the leader intake-review queue while reviewabl
 verify('Person Journey and Community write private context rather than shared timeline notes', files.personPage.includes("category:'context_note'") && files.communityPage.includes("category: 'context_note'") && files.communityTab.includes("category: 'context_note'") && files.communityPage.includes('noteConsent') && files.communityTab.includes('noteConsent'));
 verify('ARIA workspace notes require consent and use the canonical private evidence service', files.universalWorkspace.includes("if(op==='add_note')") && files.universalWorkspace.includes('parameters.consent_confirmed!==true') && files.universalWorkspace.includes("category:'context_note'") && files.universalWorkspace.includes('recordCareIntake({') && files.intakeService.includes("requires_human_review: category !== 'context_note'"));
 verify('shared timeline adapters reject direct pastoral notes', files.timelineApi.includes("['note','pastoral_note'].includes") && files.peopleOperatingSystem.includes("['note','pastoral_note'].includes") && files.peopleOperatingApi.includes('Person notes must be recorded through private ARIA care intake') && files.journeyWriter.includes("['note','pastoral_note'].includes"));
+verify('legacy shared Person Journey notes are retained but restricted to owners/admins', files.legacyNotesMigration.includes("event_type IN ('note','pastoral_note')") && files.legacyNotesMigration.includes("'privacy_class','restricted'") && files.legacyNotesMigration.includes('DROP TRIGGER IF EXISTS protect_timeline_privacy_trigger') && files.legacyNotesMigration.includes('CREATE TRIGGER protect_timeline_privacy_trigger') && files.legacyNotesMigration.includes('legacy_private_care_note'));
 verify('Person Journey returns authorized context notes from the privacy-filtered event query', files.journey.includes("e.privacy_class='sensitive'") && files.journey.includes("e.privacy_class='restricted'") && files.personPage.includes("careNotes:(a.aria_events||[]).filter(e=>e.type==='CARE_INTAKE_RECORDED'&&e.metadata?.intake?.category==='context_note')"));
 verify('Community conversation import requires consent and confidentiality', files.communityPage.includes('consent_confirmed: true') && files.communityTab.includes('consent_confirmed: true') && files.communityPage.includes('privacy_class: convPrivacyClass') && files.communityTab.includes('privacy_class: convPrivacyClass'));
 

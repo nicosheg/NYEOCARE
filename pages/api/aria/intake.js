@@ -29,7 +29,8 @@ const CATEGORY_MINIMUM = {
   relationship_request: 'sensitive',
   complaint: 'restricted',
   check_in: 'sensitive',
-  general: 'sensitive'
+  general: 'sensitive',
+  context_note: 'sensitive'
 };
 const CONTACT_ACTION_TYPES = ['SEND_MESSAGE', 'CARE_FOLLOW_UP', 'FOLLOW_UP', 'CHECK_IN', 'CALL', 'VISIT', 'CARE_CONTACT'];
 
@@ -170,6 +171,7 @@ async function listIntake(req, res) {
      ) r ON true
      WHERE e.organization_id=$1
        AND e.type='CARE_INTAKE_RECORDED'
+       AND COALESCE((e.metadata #>> '{intake,requires_human_review}')::boolean,true)=true
        AND (
          e.privacy_class='standard'
          OR (e.privacy_class='sensitive' AND (e.actor_id=$2 OR $3::text IN('owner','admin','leader')))
@@ -289,7 +291,7 @@ async function createIntake(req, res) {
           summary,
           channel,
           contact_permission: contactPermission,
-          requires_human_review: true,
+          requires_human_review: category !== 'context_note',
           details_withheld: !detailsPermitted
         },
         provenance: {

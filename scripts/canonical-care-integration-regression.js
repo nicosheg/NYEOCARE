@@ -135,6 +135,13 @@ verify(
     intakeService.includes('nyeocare:care-intake:')
 );
 verify(
+  'global event worker recovers expired processing leases after a crashed worker',
+  processor.includes("processing_status='processing'") &&
+    processor.includes("processing_started_at<NOW()-INTERVAL '5 minutes'") &&
+    processor.includes('processing_attempts<8') &&
+    processor.includes('processPendingAriaEvents')
+);
+verify(
   'ARIA chat requires explicit operator instruction, named person, explicit consent and a stable key',
   registry.includes('record_care_intake:') &&
     capability.includes("case'record_care_intake'") &&

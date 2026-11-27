@@ -112,7 +112,7 @@ verify(
     universalWorkspace.includes('recordCareFeedback({') &&
     !universalWorkspace.includes('INSERT INTO care_feedback') &&
     feedbackEngine.includes('INSERT INTO intelligence_outcomes') &&
-    feedbackEngine.includes("type:'CARE_FEEDBACK'") &&
+    feedbackEngine.includes("eventType='CARE_FEEDBACK'") &&
     feedbackEngine.includes("await client.query('BEGIN')") &&
     feedbackEngine.includes("await client.query('COMMIT')") &&
     feedbackEngine.includes("await client.query('ROLLBACK')") &&

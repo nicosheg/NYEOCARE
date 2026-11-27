@@ -169,6 +169,8 @@ verify(
   intakeApi.includes('recordCareIntake({') &&
     intakeService.includes("'context_note'") &&
     intakeService.includes("context_note: 'sensitive'") &&
+    intakeService.includes('if (PRIVACY_RANK[minimum] > PRIVACY_RANK[privacyClass]) privacyClass = minimum') &&
+    !intakeService.includes("if (category === 'context_note') privacyClass = 'sensitive'") &&
     intakeService.includes("requires_human_review: category !== 'context_note'") &&
     intakeApi.includes('review_required: result.reviewRequired') &&
     intakeService.includes("category === 'context_note' && personId && consentStatus !== 'granted'")

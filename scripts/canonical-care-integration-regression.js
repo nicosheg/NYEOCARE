@@ -164,7 +164,7 @@ verify(
     processor.includes('let the caller roll it back and the durable worker retry later') &&
     processor.includes('processing_attempts=processing_attempts+1') &&
     processor.includes('processing_attempts+1>=8') &&
-    processor.indexOf("await db.query('ROLLBACK').catch(()=>{});") < processor.indexOf('UPDATE aria_events SET processing_status=CASE WHEN processing_attempts>=8')
+    processor.indexOf("await db.query('ROLLBACK').catch(()=>{});") < processor.indexOf('UPDATE aria_events SET processing_attempts=processing_attempts+1')
 );
 verify(
   'global event worker recovers expired processing leases after a crashed worker',

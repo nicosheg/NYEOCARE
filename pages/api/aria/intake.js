@@ -1,6 +1,7 @@
 // pages/api/aria/intake.js
 import crypto from 'node:crypto';
 import pool from '../../../lib/db';
+import crypto from 'node:crypto';
 import { withOrg } from '../../../lib/apiHelpers';
 import { emitAriaEvent } from '../../../lib/aria/eventEmitter';
 import { isOrganizationOperator } from '../../../lib/attendance/access';
@@ -275,44 +276,61 @@ async function createIntake(req, res) {
     }
 
     const eventKey = 'care-intake:' + idempotencyKey;
-    storedEvent = await emitAriaEvent({
-      organizationId,
+    const fingerprint = crypto.createHash('sha256').update(JSON.stringify({
       personId: personId || null,
-      type: 'CARE_INTAKE_RECORDED',
-      source: 'care_intake',
-      actorId: req.user.id,
-      actorRole: req.user.role,
-      evidenceKind: 'human_report',
-      verificationStatus: 'reported',
-      confidence: 0.9,
-      privacyClass,
+      category,
+      statement,
+      summary,
+      channel,
+      contactPermission,
       consentStatus,
-      eventKey,
-      metadata: {
-        intake: {
-          category,
-          statement,
-          summary,
-          channel,
-          contact_permission: contactPermission,
-          requires_human_review: category !== 'context_note',
-          details_withheld: !detailsPermitted
-        },
-        provenance: {
-          reporter_user_id: req.user.id,
-          reporter_role: req.user.role,
-          captured_by: 'authenticated_operator'
-        }
-      }
-    }, client);
+      privacyClass,
+      actorId: req.user.id
+    })).digest('hex');
+    const existing = (await client.query(
+      'SELECT * FROM aria_events WHERE organization_id=$1 AND event_key=$2 AND type=$3 LIMIT 1 FOR UPDATE',
+      [organizationId, eventKey, 'CARE_INTAKE_RECORDED']
+    )).rows[0] || null;
 
-    if (!storedEvent) {
+    if (existing) {
+      if (existing.metadata?.request_fingerprint !== fingerprint) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ error: 'This request key was already used for different care details. Reopen the form to start a new request.' });
+      }
+      storedEvent = existing;
       duplicate = true;
-      const existing = await client.query(
-        'SELECT * FROM aria_events WHERE organization_id=$1 AND event_key=$2 LIMIT 1',
-        [organizationId, eventKey]
-      );
-      storedEvent = existing.rows[0] || null;
+    } else {
+      storedEvent = await emitAriaEvent({
+        organizationId,
+        personId: personId || null,
+        type: 'CARE_INTAKE_RECORDED',
+        source: 'care_intake',
+        actorId: req.user.id,
+        actorRole: req.user.role,
+        evidenceKind: 'human_report',
+        verificationStatus: 'reported',
+        confidence: 0.9,
+        privacyClass,
+        consentStatus,
+        eventKey,
+        metadata: {
+          request_fingerprint: fingerprint,
+          intake: {
+            category,
+            statement,
+            summary,
+            channel,
+            contact_permission: contactPermission,
+            requires_human_review: category !== 'context_note',
+            details_withheld: !detailsPermitted
+          },
+          provenance: {
+            reporter_user_id: req.user.id,
+            reporter_role: req.user.role,
+            captured_by: 'authenticated_operator'
+          }
+        }
+      }, client);
     }
     if (!storedEvent) throw new Error('The care signal could not be persisted.');
 

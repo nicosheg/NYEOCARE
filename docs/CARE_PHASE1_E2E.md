@@ -190,3 +190,9 @@ A READY deployment by itself is not E2E acceptance. Keep the final status as ver
 - `createCareFeedbackRowsInTransaction` and `linkCareFeedbackEventInTransaction` in `lib/aria/feedbackEngine.js` are the only core feedback/outcome row writers. Both the general feedback API, ARIA workspace, first-visit attendance welcome and follow-up completion use them; attendance and follow-up retain their own larger transactions to coordinate attendance/contact records, action status and queue projection atomically.
 - Every persisted feedback and outcome pair is linked to its immutable source ARIA event through `source_event_id` before commit. Private feedback is excluded from shared timeline writes and shared learning.
 - Event-processing failures roll back partial work before retry state is written. The failed attempt counter is then incremented outside the rolled-back transaction, so the eight-attempt ceiling actually applies.
+## Release isolation gate
+
+- Do not deploy a branch preview while its Preview environment resolves to the live NYEOCARE Supabase project or production service-role key.
+- Create or provision a separate QA database, then set Preview-only DATABASE_URL, Supabase URL, anon key and service-role key to that QA project before enabling write-path verification.
+- Run intake, human review, responsibility creation, follow-up completion, no-contact suppression, private-context visibility and event-worker recovery scenarios against QA identities only. Never seed or mutate Havilah production records to test these flows.
+- Production event-worker activation is a separate release step: configure Vercel Production CRON_SECRET, the matching GitHub Actions secret NYEOCARE_CRON_SECRET, and repository variable NYEOCARE_ENABLE_EVENT_WORKER=true only after the endpoint and secret rotation are verified.

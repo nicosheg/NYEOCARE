@@ -141,11 +141,12 @@ verify(
 );
 verify(
   'follow-up outcome feedback and intelligence records link back to the immutable ARIA event',
-  followUp.includes('UPDATE care_feedback') &&
-    followUp.includes('SET source_event_id=$1,updated_at=NOW()') &&
-    followUp.includes('UPDATE intelligence_outcomes') &&
-    followUp.includes('SET source_event_id=$1') &&
-    followUp.includes('[event.id, feedback.id, req.org.id]')
+  followUp.includes('createCareFeedbackRowsInTransaction({') &&
+    followUp.includes('linkCareFeedbackEventInTransaction({') &&
+    !followUp.includes('INSERT INTO care_feedback') &&
+    !followUp.includes('INSERT INTO intelligence_outcomes') &&
+    feedbackEngine.includes('export async function createCareFeedbackRowsInTransaction') &&
+    feedbackEngine.includes('export async function linkCareFeedbackEventInTransaction')
 );
 verify(
   'event processor rolls back failed work before persisting a retryable failure state',

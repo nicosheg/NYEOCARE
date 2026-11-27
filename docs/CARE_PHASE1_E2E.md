@@ -35,6 +35,14 @@ CARE_PRODUCTION_GATE_DATABASE_URL='YOUR_READ_ONLY_DATABASE_URL' npm run test:car
 
 The live audit runs inside BEGIN READ ONLY and checks the production indexes, immutable event trigger, private helper privileges, RLS, no-contact trigger, duplicate responsibilities, consent/narrative violations and known private-event leakage paths. It prints counts only; it does not read out care narratives or change records. Never put a database password in source control, a chat message, or a command history that other people can read.
 
+## One intake writer for forms, chat, imports and private notes
+
+`lib/aria/careIntakeService.js` is the shared, transaction-bound writer used by consented identified-person care forms, imported conversations, ARIA chat's `record_care_intake` capability and ARIA workspace private notes. It checks the active person in the tenant, requires operator-attested consent, enforces the category privacy minimum, uses a stable event key and payload fingerprint, and appends one immutable `CARE_INTAKE_RECORDED` event with provenance. The caller owns the transaction so it can atomically append other domain-specific events when needed.
+
+ARIA chat does not infer consent or contact permission. A chat report requires an explicit operator instruction to save the report, one named person, the original report text, the person's explicit agreement to storage, a confidentiality classification and a UUID idempotency key. Contact permission defaults to unknown. It creates evidence only, not an assigned responsibility, message, call, visit or queue item. An authorized human reviews it through the existing intake-review flow.
+
+The intake API retains a narrow fallback path for anonymous or non-consented reports and explicit do-not-contact requests, because those have separate consent-withholding or outbound-cancellation side effects. These fallback events still use `CARE_INTAKE_RECORDED` and must remain private when details are not permitted. Reusing an idempotency key with different content must fail with HTTP 409.
+
 ## Server-owned ARIA event processing
 
 The application now has one organization-independent worker entry point at `POST /api/aria/process-events`. A scheduled GitHub Actions workflow claims up to 100 due events per run. The endpoint retains the existing event-claim, retry and dead-letter rules; the private-event processor guard remains in place.

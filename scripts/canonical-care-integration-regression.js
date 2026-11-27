@@ -137,7 +137,8 @@ verify(
 );
 verify(
   'conversation imports require consent and idempotency and write one private canonical event',
-  conversationImport.includes("type: 'CARE_INTAKE_RECORDED'") &&
+  conversationImport.includes('recordCareIntake({') &&
+    intakeService.includes("type: 'CARE_INTAKE_RECORDED'") &&
     conversationImport.includes('body.consent_confirmed !== true') &&
     conversationImport.includes('UUID.test(idempotencyKey)') &&
     conversationImport.includes("privacyClass,") &&

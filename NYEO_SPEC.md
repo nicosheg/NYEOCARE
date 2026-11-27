@@ -3356,7 +3356,7 @@ Regression coverage: `test:legacy-attendance-care` protects the database worker 
 
 ## Shared feedback and event lifecycle
 
-All ordinary feedback writes, including ARIA workspace feedback and the dedicated care-feedback API, use `createCareFeedbackRowsInTransaction` followed by `linkCareFeedbackEventInTransaction`. Follow-up completion uses the same two functions inside its larger transaction so communication, outcome, responsibility and queue state commit together. Both feedback and intelligence outcome rows link back to the immutable ARIA event.
+All feedback writes, including ARIA workspace feedback, the dedicated care-feedback API, first-visit attendance welcome and follow-up completion, use `createCareFeedbackRowsInTransaction` followed by `linkCareFeedbackEventInTransaction`. Follow-up completion uses the same two functions inside its larger transaction so communication, outcome, responsibility and queue state commit together. Both feedback and intelligence outcome rows link back to the immutable ARIA event.
 
 
 Worker failure handling rolls back failed event processing before recording the failure state in a clean transaction. The failed attempt count is persisted after rollback; the worker stops after eight attempts and terminalizes expired leases as `dead`.

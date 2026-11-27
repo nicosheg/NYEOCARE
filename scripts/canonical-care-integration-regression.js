@@ -130,7 +130,8 @@ verify(
   'shared intake writer binds idempotency to the exact tenant, person, actor, content and privacy payload',
   intakeService.includes("createHash('sha256')") &&
     intakeService.includes('request_fingerprint: fingerprint') &&
-    intakeService.includes("event.metadata?.request_fingerprint !== fingerprint") &&
+    intakeService.includes('source: clean(source || \'aria\', 80)') &&
+    intakeService.includes('event.metadata?.request_fingerprint !== fingerprint') &&
     intakeService.includes('nyeocare:care-intake:')
 );
 verify(

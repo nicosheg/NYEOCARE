@@ -1,5 +1,6 @@
 // pages/api/aria/intake.js
 import crypto from 'node:crypto';
+import { recordCareIntake } from '../../../lib/aria/careIntakeService';
 import pool from '../../../lib/db';
 import crypto from 'node:crypto';
 import { withOrg } from '../../../lib/apiHelpers';
@@ -275,64 +276,85 @@ async function createIntake(req, res) {
       }
     }
 
-    const eventKey = 'care-intake:' + idempotencyKey;
-    const fingerprint = crypto.createHash('sha256').update(JSON.stringify({
-      personId: personId || null,
-      category,
-      statement,
-      summary,
-      channel,
-      contactPermission,
-      consentStatus,
-      privacyClass,
-      actorId: req.user.id
-    })).digest('hex');
-    const existing = (await client.query(
-      'SELECT * FROM aria_events WHERE organization_id=$1 AND event_key=$2 AND type=$3 LIMIT 1 FOR UPDATE',
-      [organizationId, eventKey, 'CARE_INTAKE_RECORDED']
-    )).rows[0] || null;
-
-    if (existing) {
-      if (existing.metadata?.request_fingerprint !== fingerprint) {
-        await client.query('ROLLBACK');
-        return res.status(409).json({ error: 'This request key was already used for different care details. Reopen the form to start a new request.' });
-      }
-      storedEvent = existing;
-      duplicate = true;
-    } else {
-      storedEvent = await emitAriaEvent({
+    if (personId && consentStatus === 'granted' && contactPermission !== 'do_not_contact' && (statement || summary)) {
+      const result = await recordCareIntake({
+        client,
         organizationId,
-        personId: personId || null,
-        type: 'CARE_INTAKE_RECORDED',
-        source: 'care_intake',
+        personId,
         actorId: req.user.id,
         actorRole: req.user.role,
-        evidenceKind: 'human_report',
-        verificationStatus: 'reported',
-        confidence: 0.9,
+        source: 'care_intake',
+        category,
+        statement: statement || summary,
+        summary,
+        channel,
         privacyClass,
+        consentConfirmed: true,
+        contactPermission,
+        idempotencyKey
+      });
+      storedEvent = result.event;
+      duplicate = result.duplicate;
+    } else {
+      const eventKey = 'care-intake:' + idempotencyKey;
+      const fingerprint = crypto.createHash('sha256').update(JSON.stringify({
+        personId: personId || null,
+        category,
+        statement,
+        summary,
+        channel,
+        contactPermission,
         consentStatus,
-        eventKey,
-        metadata: {
-          request_fingerprint: fingerprint,
-          intake: {
-            category,
-            statement,
-            summary,
-            channel,
-            contact_permission: contactPermission,
-            requires_human_review: category !== 'context_note',
-            details_withheld: !detailsPermitted
-          },
-          provenance: {
-            reporter_user_id: req.user.id,
-            reporter_role: req.user.role,
-            captured_by: 'authenticated_operator'
-          }
+        privacyClass,
+        actorId: req.user.id
+      })).digest('hex');
+      const existing = (await client.query(
+        'SELECT * FROM aria_events WHERE organization_id=$1 AND event_key=$2 AND type=$3 LIMIT 1 FOR UPDATE',
+        [organizationId, eventKey, 'CARE_INTAKE_RECORDED']
+      )).rows[0] || null;
+  
+      if (existing) {
+        if (existing.metadata?.request_fingerprint !== fingerprint) {
+          await client.query('ROLLBACK');
+          return res.status(409).json({ error: 'This request key was already used for different care details. Reopen the form to start a new request.' });
         }
-      }, client);
+        storedEvent = existing;
+        duplicate = true;
+      } else {
+        storedEvent = await emitAriaEvent({
+          organizationId,
+          personId: personId || null,
+          type: 'CARE_INTAKE_RECORDED',
+          source: 'care_intake',
+          actorId: req.user.id,
+          actorRole: req.user.role,
+          evidenceKind: 'human_report',
+          verificationStatus: 'reported',
+          confidence: 0.9,
+          privacyClass,
+          consentStatus,
+          eventKey,
+          metadata: {
+            request_fingerprint: fingerprint,
+            intake: {
+              category,
+              statement,
+              summary,
+              channel,
+              contact_permission: contactPermission,
+              requires_human_review: category !== 'context_note',
+              details_withheld: !detailsPermitted
+            },
+            provenance: {
+              reporter_user_id: req.user.id,
+              reporter_role: req.user.role,
+              captured_by: 'authenticated_operator'
+            }
+          }
+        }, client);
+      }
+      if (!storedEvent) throw new Error('The care signal could not be persisted.');
     }
-    if (!storedEvent) throw new Error('The care signal could not be persisted.');
 
     const savedPermission = storedEvent.metadata?.intake?.contact_permission;
     if (storedEvent.person_id && savedPermission === 'do_not_contact') {

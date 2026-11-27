@@ -1,0 +1,126 @@
+// scripts/canonical-care-integration-regression.js
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+
+const read = path => fs.readFileSync(path, 'utf8');
+const manual = read('pages/api/care-responsibilities.js');
+const review = read('pages/api/aria/intake-review.js');
+const writer = read('lib/aria/careResponsibility.js');
+const intake = read('pages/api/aria/intake.js');
+const capability = read('lib/aria/capabilityEngine.js');
+const registry = read('lib/aria/capabilityRegistry.js');
+const processor = read('lib/aria/eventProcessor.js');
+const conversationImport = read('pages/api/conversation/import.js');
+const personJourney = read('pages/api/person/journey.js');
+const personPage = read('pages/person/[id].js');
+const processApi = read('pages/api/aria/process-events.js');
+const workerWorkflow = read('.github/workflows/aria-event-worker.yml');
+const phaseRunbook = read('docs/CARE_PHASE1_E2E.md');
+
+let passed = 0;
+const verify = (name, condition) => {
+  assert.ok(condition, '[CANONICAL CARE INTEGRATION] ' + name);
+  passed += 1;
+  console.log('PASS ' + name);
+};
+
+verify(
+  'intake review and Person Journey share one care action writer',
+  review.includes('createCareResponsibility') && manual.includes('createCareResponsibility') &&
+    writer.includes('export async function createCareResponsibility')
+);
+verify(
+  'private action cards never copy private narrative into action summaries or messages',
+  writer.includes('summary: isPrivate ? null') && writer.includes('message: isPrivate ? null') &&
+    writer.includes('source_intake_event_id: intakeEvent.id')
+);
+verify(
+  'Person Journey writes immutable intake and explicit approval events',
+  manual.includes("type: 'CARE_INTAKE_RECORDED'") &&
+    manual.includes("type: 'CARE_INTAKE_REVIEWED'") &&
+    manual.includes("decision: 'approved'")
+);
+verify(
+  'manual responsibility creation requires an explicit consent attestation',
+  manual.includes('body.consent_confirmed !== true') &&
+    manual.includes("consentStatus: 'granted'") &&
+    manual.includes("method: 'operator_attestation'")
+);
+verify(
+  'manual responsibility writes require stable idempotency and reject changed-payload replays',
+  manual.includes('uuidPattern.test(idempotencyKey)') &&
+    manual.includes("eventKey = 'manual-care-intake:' + idempotencyKey") &&
+    manual.includes('request_fingerprint') &&
+    manual.includes('already used for different care details')
+);
+verify(
+  'category minimums cannot be downgraded below restricted care',
+  manual.includes("restrictedCategories.has(category)") &&
+    manual.includes("requestedPrivacy === 'restricted'") &&
+    manual.includes("privacyClass === 'restricted' ? ['owner', 'admin']")
+);
+verify(
+  'manual narrative is stored only inside the classified intake event',
+  manual.includes('statement: description || null') &&
+    writer.includes('const isPrivate = privacyClass !==') &&
+    writer.includes('summary: isPrivate ? null') &&
+    !manual.includes('actionMetadata: {')
+);
+verify(
+  'ARIA private care reads validate active actor and apply reporter/role boundaries',
+  capability.includes('async function authorizedCareIntakes') &&
+    capability.includes('requireActor(organizationId,actorId)') &&
+    capability.includes("e.actor_id=$3::uuid OR $4::text IN('owner','admin','leader')") &&
+    capability.includes("e.actor_id=$3::uuid OR $4::text IN('owner','admin')")
+);
+verify(
+  'ARIA person context and evidence return the same scoped care records',
+  capability.includes('care_intakes:careIntakes') &&
+    capability.includes('personContext(organizationId,personId,actorId)') &&
+    capability.includes('personEvidenceContext(organizationId,personId,actorId)') &&
+    registry.includes('authorized private care records')
+);
+verify(
+  'private care remains excluded from shared observation and memory processing',
+  processor.includes("if(event.privacy_class&&event.privacy_class!=='standard')return null")
+);
+verify(
+  'conversation imports require consent and idempotency and write one private canonical event',
+  conversationImport.includes("type: 'CARE_INTAKE_RECORDED'") &&
+    conversationImport.includes('body.consent_confirmed !== true') &&
+    conversationImport.includes('uuidPattern.test(idempotencyKey)') &&
+    conversationImport.includes("privacyClass,") &&
+    !conversationImport.includes('INSERT INTO timeline_events') &&
+    !conversationImport.includes('INSERT INTO person_communications') &&
+    !conversationImport.includes('GROQ_API_KEY')
+);
+verify(
+  'Person Journey conversation transcripts are limited to their creator or owner/admin',
+  personJourney.includes('c.user_id=$4::uuid OR $3::text IN(\'owner\',\'admin\')')
+);
+verify(
+  'Person Journey UI requires consent and displays care confidentiality controls',
+  personPage.includes('careConsentConfirmed') &&
+    personPage.includes('conversationConsent') &&
+    personPage.includes('conversationPrivacyClass') &&
+    personPage.includes('consent_confirmed:conversationConsent')
+);
+verify(
+  'cron worker processes one shared event queue rather than looping a capped organization list',
+  processApi.includes('processPendingAriaEvents({limit})') &&
+    !processApi.includes('SELECT id FROM organizations')
+);
+verify(
+  'scheduled runner is opt-in, protected by a shared secret and invokes the authenticated worker route',
+  workerWorkflow.includes('cron: "*/5 * * * *"') &&
+    workerWorkflow.includes("vars.NYEOCARE_ENABLE_EVENT_WORKER == 'true'") &&
+    workerWorkflow.includes('secrets.NYEOCARE_CRON_SECRET') &&
+    workerWorkflow.includes('/api/aria/process-events?limit=100')
+);
+verify(
+  'runbook explicitly prevents live Havilah write-tests and documents worker activation',
+  phaseRunbook.includes('Do not seed fake people or care reports in Havilah production') &&
+    phaseRunbook.includes('NYEOCARE_CRON_SECRET')
+);
+
+console.log('[CANONICAL CARE INTEGRATION] ' + passed + ' cross-system source contracts passed.');

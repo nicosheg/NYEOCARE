@@ -10,6 +10,7 @@ const privacyFunctionMoveMigration = read('supabase/migrations/20261126093944_ha
 const privatePrivacyGuardMigration = read('supabase/migrations/20261126094045_use_private_definer_care_privacy_guard.sql');
 const intake = read('pages/api/aria/intake.js');
 const review = read('pages/api/aria/intake-review.js');
+const careWriter = read('lib/aria/careResponsibility.js');
 const emitter = read('lib/aria/eventEmitter.js');
 const processor = read('lib/aria/eventProcessor.js');
 const recommendation = read('lib/aria/recommendationEngine.js');
@@ -92,11 +93,12 @@ assert.ok(intake.includes('isOrganizationOperator(req.user?.role)') &&
 
 assert.ok(review.includes("'approved', 'dismissed', 'deferred'") &&
   review.includes("'CARE_INTAKE_REVIEWED'") &&
-  review.includes('planActionFromObservation') &&
-  review.includes("actionType: 'CARE_FOLLOW_UP'") &&
-  review.includes("kind: 'manual_care_responsibility'") &&
+  review.includes('createCareResponsibility') &&
+  careWriter.includes('planActionFromObservation') &&
+  careWriter.includes("actionType: 'CARE_FOLLOW_UP'") &&
+  careWriter.includes("kind: 'manual_care_responsibility'") &&
   review.includes('getDailyQueue'),
-  'human review must append a decision and reuse the canonical action and queue');
+  'human review must append a decision through the shared action writer and reuse the canonical queue');
 assert.ok(review.includes('resolved_person_id') &&
   review.includes('linked_person_id') &&
   review.includes('identity_linked_by'),

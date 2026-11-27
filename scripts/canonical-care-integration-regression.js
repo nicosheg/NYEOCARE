@@ -135,6 +135,14 @@ verify(
     intakeService.includes('nyeocare:care-intake:')
 );
 verify(
+  'follow-up outcome feedback and intelligence records link back to the immutable ARIA event',
+  followUp.includes('UPDATE care_feedback') &&
+    followUp.includes('SET source_event_id=$1,updated_at=NOW()') &&
+    followUp.includes('UPDATE intelligence_outcomes') &&
+    followUp.includes('SET source_event_id=$1') &&
+    followUp.includes('[event.id, feedback.id, req.org.id]')
+);
+verify(
   'global event worker recovers expired processing leases after a crashed worker',
   processor.includes("processing_status='processing'") &&
     processor.includes("processing_started_at<NOW()-INTERVAL '5 minutes'") &&

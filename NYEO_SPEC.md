@@ -3335,3 +3335,11 @@ Regression coverage: `test:legacy-attendance-care` protects the database worker 
 - `POST /api/aria/process-events` processes the shared due-event queue when called with the Vercel `CRON_SECRET`. A GitHub Actions workflow is available on a five-minute schedule, but remains disabled until the Production Vercel environment secret, matching GitHub Actions secret `NYEOCARE_CRON_SECRET`, and repository variable `NYEOCARE_ENABLE_EVENT_WORKER=true` are configured. The schedule is best-effort, not a real-time guarantee. The foreground auto-sync remains an accelerator, not the durability mechanism.
 - No new care table or database schema migration is introduced by this integration. The implementation branch must pass the canonical-care integration regression, existing Phase 1 gates, the complete CI suite and a production build before merge. Role-based write E2E still requires an isolated QA database; never seed Havilah production merely to test immutable care evidence.
 
+## 74. NOVEMBER 27, 2026 — PERSON NOTES ARE PRIVATE CARE EVIDENCE
+
+- Person Journey notes, Community pastoral notes and ARIA workspace `add_note` use the canonical `CARE_INTAKE_RECORDED` event with category `context_note`. They are evidence/context, not responsibilities, and do not enter the leader review queue.
+- Context notes are sensitive by default, require explicit consent before the narrative is stored, preserve reporter and provenance, and are exposed only through the same actor-scoped read path as other private care events. The Person Journey displays these notes only from its role-filtered `aria_events` result.
+- The generic timeline is a presentation/read projection for operational history, not a safe place for arbitrary pastoral text. Direct `NOTE` / `PASTORAL_NOTE` writes through `/api/timeline`, the People Operating System note resource, `addTimelineEvent`, and `recordJourneyEvent` are rejected. Callers must use private canonical care intake instead.
+- Conversation import surfaces on Person Journey and Community require explicit consent, idempotency and an explicit confidentiality selection. They record private evidence and do not auto-extract into shared timeline items.
+- A note is not permission to contact. Context-note events set contact permission to unknown and must not create outreach, an action or a queue item.
+

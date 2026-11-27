@@ -2,7 +2,7 @@
 import pool from '../../../lib/db';
 import { withOrg } from '../../../lib/apiHelpers';
 import { emitAriaEvent } from '../../../lib/aria/eventEmitter';
-import { planActionFromObservation } from '../../../lib/aria/recommendationEngine';
+import { createCareResponsibility } from '../../../lib/aria/careResponsibility';
 import { getDailyQueue } from '../../../lib/dailyQueue';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -242,56 +242,21 @@ async function handler(req, res) {
         if(!preferenceEvent)throw new Error('The verified contact preference could not be recorded.');
       }
 
-      action = await planActionFromObservation({
+      action = await createCareResponsibility({
+        client,
         organizationId,
         personId: linkedPersonId,
-        actionType: 'CARE_FOLLOW_UP',
+        intakeEvent: intake,
+        assigneeId: assignee.id,
+        dueDate,
         priority,
-        actionKey: 'care-intake:' + intakeEventId,
-        actionMetadata: {
-          kind: 'manual_care_responsibility',
-          title: intake.privacy_class === 'standard' ? title : (intake.privacy_class === 'restricted' ? 'Review restricted care signal' : 'Review confidential care signal'),
-          summary: intake.privacy_class === 'standard' ? (description || null) : null,
-          message: intake.privacy_class === 'standard' ? (description || null) : null,
-          reason: intake.privacy_class === 'standard'
-            ? (reason || 'A human reviewed a care signal and approved a next step.')
-            : 'An authorized leader approved a private care signal. Review its details through the permission-scoped care record.',
-          suggestion: intake.privacy_class === 'standard'
-            ? 'Complete the agreed next step and record what actually happened.'
-            : 'Open the private care record using your authorized access, then complete the agreed next step without copying sensitive details into general notes.',
-          privacy_class: intake.privacy_class || 'sensitive',
-          privacy_reporter_id: intake.actor_id || null,
-          privacy_required_role: intake.privacy_class === 'restricted' ? 'admin' : (intake.privacy_class === 'sensitive' ? 'leader' : 'operator'),
-          consent_status: intake.consent_status || 'unknown',
-          contact_permission: contactPermission,
-          contact_permission_verified_by: contactPermission==='allowed'?req.user.id:null,
-          assigned_user_id: assignee.id,
-          due_date: dueDate,
-          responsibility_created_by: req.user.id,
-          responsibility_created_by_role: role,
-          source: 'care_intake_review',
-          source_intake_event_id: intakeEventId,
-          requires_human_approval: true
-        }
-      }, client);
-
-      if (!action) {
-        action = (await client.query(
-          'SELECT * FROM aria_actions WHERE organization_id=$1 AND action_key=$2 LIMIT 1 FOR UPDATE',
-          [organizationId, 'care-intake:' + intakeEventId]
-        )).rows[0] || null;
-      }
-      if (!action) throw Object.assign(new Error('The approved care responsibility could not be created.'), { status: 409 });
-
-      const approved = await client.query(
-        `UPDATE aria_actions
-         SET status='approved',approved_by=$3,approved_at=COALESCE(approved_at,NOW()),
-             updated_at=NOW()
-         WHERE id=$1 AND organization_id=$2 AND status IN('proposed','approved')
-         RETURNING *`,
-        [action.id, organizationId, req.user.id]
-      );
-      action = approved.rows[0] || action;
+        title,
+        summary: description,
+        createdBy: req.user.id,
+        createdByRole: role,
+        source: 'care_intake_review',
+        contactPermission
+      });
       actionId = action.id;
     }
 

@@ -7,6 +7,22 @@ const read = file => fs.readFileSync(path.join(process.cwd(), file), 'utf8');
 const files = {
   intake: read('pages/api/aria/intake.js'),
   review: read('pages/api/aria/intake-review.js'),
+  manualCare: read('pages/api/care-responsibilities.js'),
+  careWriter: read('lib/aria/careResponsibility.js'),
+  intakeService: read('lib/aria/careIntakeService.js'),
+  conversationImport: read('pages/api/conversation/import.js'),
+  capability: read('lib/aria/capabilityEngine.js'),
+  registry: read('lib/aria/capabilityRegistry.js'),
+  processApi: read('pages/api/aria/process-events.js'),
+  workerWorkflow: read('.github/workflows/aria-event-worker.yml'),
+  timelineApi: read('pages/api/timeline.js'),
+  peopleOperatingSystem: read('lib/peopleOperatingSystem.js'),
+  peopleOperatingApi: read('pages/api/people/operating-system.js'),
+  journeyWriter: read('lib/aria/personJourney.js'),
+  universalWorkspace: read('lib/aria/universalWorkspace.js'),
+  communityPage: read('pages/community.js'),
+  communityTab: read('components/CommunityTab.js'),
+  personPage: read('pages/person/[id].js'),
   emitter: read('lib/aria/eventEmitter.js'),
   processor: read('lib/aria/eventProcessor.js'),
   contact: read('lib/aria/contactPreference.js'),
@@ -14,6 +30,8 @@ const files = {
   draft: read('lib/aria/draftEngine.js'),
   communication: read('lib/aria/communicationOutcome.js'),
   followUp: read('pages/api/daily-queue/complete-follow-up.js'),
+  feedbackEngine: read('lib/aria/feedbackEngine.js'),
+  firstVisit: read('pages/api/attendance/first-visit-welcome.js'),
   journey: read('pages/api/person/journey.js'),
   timeline: read('pages/api/timeline.js'),
   capture: read('components/CareIntakeCapture.js'),
@@ -22,6 +40,7 @@ const files = {
   careMigration: read('supabase/migrations/20261126080910_canonical_care_intake_privacy_foundation.sql'),
   moveMigration: read('supabase/migrations/20261126093944_harden_care_privacy_function_exposure.sql'),
   guardMigration: read('supabase/migrations/20261126094045_use_private_definer_care_privacy_guard.sql'),
+  legacyNotesMigration: read('supabase/migrations/20261127160000_restrict_legacy_person_journey_notes.sql'),
   spec: read('NYEO_SPEC.md')
 };
 
@@ -34,23 +53,23 @@ const verify = (name, condition) => {
 
 const observationMap = files.processor.split('const OBSERVATION_MAP={')[1]?.split('};')[0] || '';
 
-verify('canonical intake writes one immutable CARE_INTAKE_RECORDED event', files.intake.includes("'CARE_INTAKE_RECORDED'") && files.intake.includes("source: 'care_intake'") && files.intake.includes('eventKey') && files.emitter.includes('ON CONFLICT(organization_id,event_key) DO NOTHING'));
+verify('all care intake routes use one immutable canonical event writer', files.intake.includes('recordCareIntake({') && files.manualCare.includes('recordCareIntake({') && files.conversationImport.includes('recordCareIntake({') && files.intakeService.includes("type: 'CARE_INTAKE_RECORDED'") && files.intakeService.includes("const eventKey = 'care-intake:' + idempotencyKey") && files.emitter.includes('ON CONFLICT(organization_id,event_key) DO NOTHING'));
 verify('intake cannot create an action, responsibility or message', !files.intake.includes('planActionFromObservation') && !files.intake.includes('INSERT INTO aria_actions') && files.intake.includes('care_responsibility_created: false'));
-verify('intake preserves human reporter and evidence provenance', files.intake.includes("evidenceKind: 'human_report'") && files.intake.includes("verificationStatus: 'reported'") && files.intake.includes('reporter_user_id') && files.intake.includes('captured_by'));
-verify('all care categories enforce minimum confidentiality', files.intake.includes('CATEGORY_MINIMUM') && files.intake.includes("prayer_request: 'restricted'") && files.intake.includes("personal_need: 'restricted'") && files.intake.includes("complaint: 'restricted'") && files.intake.includes("first_visit: 'sensitive'"));
-verify('unknown, declined and withdrawn consent withhold narrative details', files.intake.includes("consentStatus === 'granted'") && files.intake.includes("consentStatus === 'declined'") && files.intake.includes("consentStatus === 'withdrawn'") && files.intake.includes('detailsPermitted ? statementInput || null : null'));
-verify('intake is tenant-scoped and requires an authorized operator', files.intake.includes('isOrganizationOperator(req.user?.role)') && files.intake.includes('const organizationId = req.org.id') && files.intake.includes('organization_id=$2'));
-verify('intake replay uses stable idempotency and a database uniqueness boundary', files.intake.includes('nyeocare:care-intake:') && files.emitter.includes('ON CONFLICT(organization_id,event_key) DO NOTHING') && files.capture.includes('submissionRef.current.fingerprint !== fingerprint'));
+verify('canonical intake preserves authenticated reporter and evidence provenance', files.intakeService.includes("evidenceKind: 'human_report'") && files.intakeService.includes("verificationStatus: 'reported'") && files.intakeService.includes('reporter_user_id') && files.intakeService.includes('captured_by') && files.intakeService.includes('active=true') && files.intakeService.includes("['owner', 'admin', 'leader', 'worker', 'user'].includes(role)"));
+verify('all care categories enforce minimum confidentiality in the shared writer', files.intakeService.includes('CATEGORY_MINIMUM') && files.intakeService.includes("prayer_request: 'restricted'") && files.intakeService.includes("personal_need: 'restricted'") && files.intakeService.includes("complaint: 'restricted'") && files.intakeService.includes("first_visit: 'sensitive'"));
+verify('unknown, declined and withdrawn consent withhold narrative details in every intake channel', files.intakeService.includes("consentStatus === 'granted'") && files.intakeService.includes("['declined', 'withdrawn']") && files.intakeService.includes('detailsPermitted ? statement || null : null') && files.intakeService.includes('details_withheld: !detailsPermitted'));
+verify('intake entry point and canonical writer enforce tenant and active-actor scope', files.intake.includes('isOrganizationOperator(req.user?.role)') && files.intake.includes('organizationId: req.org.id') && files.intakeService.includes('organization_id=$2') && files.intakeService.includes('active=true'));
+verify('all intake channels share payload-bound idempotency and a database uniqueness boundary', files.intakeService.includes('nyeocare:care-intake:') && files.intakeService.includes('request_fingerprint: fingerprint') && files.intakeService.includes('source: clean(source || \'aria\', 80)') && files.intakeService.includes('let event =') && files.intakeService.includes('event.metadata?.request_fingerprint !== fingerprint') && files.emitter.includes('ON CONFLICT(organization_id,event_key) DO NOTHING') && files.capture.includes('submissionRef.current.fingerprint !== fingerprint'));
 verify('human review is leader-gated and independently audited', files.review.includes("['owner', 'admin', 'leader']") && files.review.includes("'CARE_INTAKE_REVIEWED'") && files.review.includes('eventKey: duplicateKey'));
 verify('review serializes competing decisions and prevents a second decision', files.review.includes('nyeocare:care-intake-review:') && files.review.includes('FOR SHARE') && files.review.includes('This care signal already has a recorded decision'));
-verify('only explicit approval creates a named, dated care responsibility', files.review.includes("decision === 'approved'") && files.review.includes("actionType: 'CARE_FOLLOW_UP'") && files.review.includes("kind: 'manual_care_responsibility'") && files.review.includes('assigned_user_id') && files.review.includes('due_date'));
+verify('only explicit approval creates a named, dated care responsibility through the shared writer', files.review.includes("decision === 'approved'") && files.review.includes('createCareResponsibility') && files.careWriter.includes("kind: 'manual_care_responsibility'") && files.careWriter.includes('assigned_user_id: assigneeId') && files.careWriter.includes('due_date: dueDate'));
 verify('identifiable care responsibility requires explicit consent', files.review.includes("String(intake.consent_status || 'unknown').toLowerCase() !== 'granted'"));
 verify('restricted and sensitive responsibilities cannot be assigned to unauthorized roles', files.review.includes("intake.privacy_class === 'restricted'") && files.review.includes("intake.privacy_class === 'sensitive'") && files.review.includes('assignee.role'));
-verify('one stable action key prevents duplicate responsibilities per intake', files.review.includes("'care-intake:' + intakeEventId") && files.review.includes("action_key=$2") && files.review.includes("SELECT * FROM aria_actions"));
+verify('one stable action key prevents duplicate responsibilities per intake', files.careWriter.includes("'care-intake:' + intakeEvent.id") && files.careWriter.includes("action_key=$2") && files.review.includes('createCareResponsibility'));
 verify('queue remains a projection of canonical aria_actions', files.review.includes('getDailyQueue') && !files.review.includes('CREATE TABLE'));
 verify('no-contact restriction is checked before any permission allowance', files.contact.indexOf("if(restriction.rows.length)return 'do_not_contact'") >= 0 && files.contact.indexOf("if(restriction.rows.length)return 'do_not_contact'") < files.contact.indexOf("if(actionMetadata?.contact_permission==='allowed'"));
 verify('no-contact suppresses drafts and outbound communication outcomes', files.draft.includes('getRecordedContactPermission') && files.draft.includes('No outreach draft can be created') && files.communication.includes('getRecordedContactPermission') && files.communication.includes("permission!=='allowed'"));
-verify('no-contact outcome and queue changes are retained transactionally', files.intake.includes('persistNoContact') && files.intake.includes('UPDATE person_communications') && files.intake.includes('UPDATE aria_actions') && files.intake.includes('UPDATE aria_daily_queue_items'));
+verify('intake and follow-up share one transaction-bound no-contact enforcement service', files.intakeService.includes('export async function persistDoNotContact') && files.intakeService.includes('COMMUNICATION_PREFERENCE_CHANGED') && files.intakeService.includes('UPDATE person_communications') && files.intakeService.includes('UPDATE aria_actions') && files.intakeService.includes('UPDATE aria_daily_queue_items') && files.intake.includes('recordCareIntake({') && files.followUp.includes('persistDoNotContact(client') && !files.followUp.includes('INSERT INTO aria_care_contexts') && !files.followUp.includes("type:'COMMUNICATION_PREFERENCE_CHANGED'"));
 verify('database trigger blocks outbound messages after no-contact', files.careMigration.includes('block_outbound_when_do_not_contact_trigger') && files.careMigration.includes('Outbound communication blocked'));
 verify('event history blocks deletion and evidence/provenance mutation', files.eventMigration.includes('protect_aria_event_history_trigger') && files.eventMigration.includes('ARIA historical events are immutable') && files.careMigration.includes('OLD.privacy_class IS DISTINCT FROM NEW.privacy_class') && files.careMigration.includes('OLD.consent_status IS DISTINCT FROM NEW.consent_status'));
 verify('private care never becomes a shared ARIA observation or memory', files.processor.includes("if(event.privacy_class&&event.privacy_class!=='standard')return null") && !observationMap.includes('CARE_INTAKE_RECORDED'));
@@ -60,6 +79,29 @@ verify('private RLS helper is isolated outside the exposed public schema', files
 verify('private helper is authenticated-only, guarded and search-path hardened', files.guardMigration.includes('SECURITY DEFINER') && files.guardMigration.includes("SET search_path = ''") && files.guardMigration.includes('auth.uid() IS NOT NULL') && files.guardMigration.includes('REVOKE ALL ON FUNCTION private.can_access_care_privacy(text,text,text) FROM anon'));
 verify('Phase 1 creates no parallel care, case or task table', !/CREATE\s+TABLE/i.test(files.careMigration) && files.spec.includes('Do not create care-intake, care-case, or second task tables.'));
 verify('similar-looking reports remain separate; only request replay is deduplicated', files.spec.includes('Similar-looking reports are not automatically merged or discarded') && files.spec.includes('semantic duplicate candidates'));
+
+verify('Person Journey manual care uses canonical intake, explicit review approval and shared responsibility writer', files.manualCare.includes('recordCareIntake({') && files.manualCare.includes("type: 'CARE_INTAKE_REVIEWED'") && files.manualCare.includes('createCareResponsibility') && files.intakeService.includes("type: 'CARE_INTAKE_RECORDED'"));
+verify('manual care consent, privacy and replay checks are enforced by the shared writer', files.manualCare.includes('consentConfirmed: true') && files.manualCare.includes("consentStatus: 'granted'") && files.intakeService.includes('request_fingerprint: fingerprint') && files.intakeService.includes('A UUID idempotency key is required'));
+verify('sensitive action text is withheld from shared action metadata', files.careWriter.includes('summary: isPrivate ? null') && files.careWriter.includes('message: isPrivate ? null'));
+verify('ARIA person context exposes only role-scoped private care events', files.capability.includes('authorizedCareIntakes') && files.capability.includes('requireActor(organizationId,actorId)') && files.capability.includes("e.actor_id=$3::uuid OR $4::text IN('owner','admin','leader')") && files.capability.includes("e.actor_id=$3::uuid OR $4::text IN('owner','admin')"));
+verify('person journey ARIA transcripts are not exposed to unrelated operators', files.journey.includes("c.user_id=$4::uuid OR $3::text IN('owner','admin')"));
+verify('conversation import cannot write transcript content into ordinary shared history', files.conversationImport.includes('recordCareIntake({') && files.intakeService.includes("type: 'CARE_INTAKE_RECORDED'") && files.conversationImport.includes('body.consent_confirmed !== true') && !files.conversationImport.includes('INSERT INTO timeline_events') && !files.conversationImport.includes('INSERT INTO person_communications'));
+verify('ARIA workspace feedback cannot bypass the canonical feedback lifecycle', files.universalWorkspace.includes("import { recordCareFeedback } from './feedbackEngine'") && files.universalWorkspace.includes('recordCareFeedback({') && !files.universalWorkspace.includes('INSERT INTO care_feedback'));
+verify('global ARIA queue can be invoked by an authenticated server worker', files.processApi.includes('processPendingAriaEvents({limit})') && files.processApi.includes('cronAuthorized'));
+verify('first-visit welcome writes feedback and outcome through the shared persistence service', files.firstVisit.includes('createCareFeedbackRowsInTransaction({') && files.firstVisit.includes('linkCareFeedbackEventInTransaction({') && !files.firstVisit.includes('INSERT INTO care_feedback') && !files.firstVisit.includes('INSERT INTO intelligence_outcomes') && files.feedbackEngine.includes('export async function createCareFeedbackRowsInTransaction'));
+verify('follow-up feedback and outcome projections reference their immutable source event', files.followUp.includes('createCareFeedbackRowsInTransaction({') && files.followUp.includes('linkCareFeedbackEventInTransaction({') && files.followUp.includes('outcomeValue: outcome') && !files.followUp.includes('INSERT INTO care_feedback') && !files.followUp.includes('INSERT INTO intelligence_outcomes') && files.feedbackEngine.includes('export async function createCareFeedbackRowsInTransaction') && files.feedbackEngine.includes('export async function linkCareFeedbackEventInTransaction'));
+verify('event failure handling rolls back before writing retry state and never queries an aborted caller transaction', files.processor.includes("await db.query('ROLLBACK').catch(()=>{});") && files.processor.includes('processing_attempts=processing_attempts+1') && files.processor.includes('processing_attempts+1>=8') && files.processor.includes('if(!owns)') && files.processor.indexOf("await db.query('ROLLBACK').catch(()=>{});") < files.processor.indexOf('UPDATE aria_events SET processing_attempts=processing_attempts+1'));
+verify('event worker retries expired processing leases after a crashed worker', files.processor.includes("processing_status='processing'") && files.processor.includes("processing_started_at<NOW()-INTERVAL '5 minutes'") && files.processor.includes('processing_attempts<8') && files.processor.includes("processing_status='dead'") && files.processor.includes('Worker lease expired after the maximum processing attempts'));
+verify('scheduled worker is gated until matching GitHub and Vercel secrets are configured', files.workerWorkflow.includes('NYEOCARE_ENABLE_EVENT_WORKER') && files.workerWorkflow.includes('NYEOCARE_CRON_SECRET') && files.spec.includes('NYEOCARE_CRON_SECRET'));
+verify('private context notes are first-class sensitive evidence, not assigned care responsibilities', files.intakeService.includes("'context_note'") && files.intakeService.includes("context_note: 'sensitive'") && files.intakeService.includes('if (PRIVACY_RANK[minimum] > PRIVACY_RANK[privacyClass]) privacyClass = minimum') && !files.intakeService.includes("if (category === 'context_note') privacyClass = 'sensitive'") && files.intakeService.includes("requires_human_review: category !== 'context_note'") && files.intakeService.includes("category === 'context_note' && personId && consentStatus !== 'granted'"));
+verify('context notes stay out of the leader intake-review queue while reviewable intake remains visible', files.intake.includes("COALESCE((e.metadata #>> '{intake,requires_human_review}')::boolean,true)=true") && files.intakeService.includes('requires_human_review: category !== \'context_note\'') && files.intake.includes('review_required: result.reviewRequired'));
+verify('Person Journey and Community write private context rather than shared timeline notes', files.personPage.includes("category:'context_note'") && files.communityPage.includes("category: 'context_note'") && files.communityTab.includes("category: 'context_note'") && files.communityPage.includes('noteConsent') && files.communityTab.includes('noteConsent'));
+verify('ARIA workspace notes require consent and use the canonical private evidence service', files.universalWorkspace.includes("if(op==='add_note')") && files.universalWorkspace.includes('parameters.consent_confirmed!==true') && files.universalWorkspace.includes("category:'context_note'") && files.universalWorkspace.includes('recordCareIntake({') && files.intakeService.includes("requires_human_review: category !== 'context_note'"));
+verify('shared timeline adapters reject direct pastoral notes', files.timelineApi.includes("['note','pastoral_note'].includes") && files.peopleOperatingSystem.includes("['note','pastoral_note'].includes") && files.peopleOperatingApi.includes('Person notes must be recorded through private ARIA care intake') && files.journeyWriter.includes("['note','pastoral_note'].includes"));
+verify('legacy shared Person Journey notes are retained but restricted to owners/admins', /event_type IN\s*\(\s*'note'\s*,\s*'pastoral_note'\s*\)/.test(files.legacyNotesMigration) && /privacy_class'\s*,\s*'restricted'/.test(files.legacyNotesMigration) && files.legacyNotesMigration.includes('DROP TRIGGER IF EXISTS protect_timeline_privacy_trigger') && files.legacyNotesMigration.includes('CREATE TRIGGER protect_timeline_privacy_trigger') && files.legacyNotesMigration.includes('legacy_private_care_note'));
+verify('Person Journey returns authorized context notes from the privacy-filtered event query', files.journey.includes("e.privacy_class='sensitive'") && files.journey.includes("e.privacy_class='restricted'") && files.personPage.includes("careNotes:(a.aria_events||[]).filter(e=>e.type==='CARE_INTAKE_RECORDED'&&e.metadata?.intake?.category==='context_note')"));
+verify('Community conversation import requires consent and confidentiality', files.communityPage.includes('consent_confirmed: true') && files.communityTab.includes('consent_confirmed: true') && files.communityPage.includes('privacy_class: convPrivacyClass') && files.communityTab.includes('privacy_class: convPrivacyClass'));
+
 
 console.log('[CARE PRODUCTION GATE] ' + passed + ' source-contract checks passed.');
 

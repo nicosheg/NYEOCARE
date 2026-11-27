@@ -9,7 +9,9 @@ const migration = read('supabase/migrations/20261126080910_canonical_care_intake
 const privacyFunctionMoveMigration = read('supabase/migrations/20261126093944_harden_care_privacy_function_exposure.sql');
 const privatePrivacyGuardMigration = read('supabase/migrations/20261126094045_use_private_definer_care_privacy_guard.sql');
 const intake = read('pages/api/aria/intake.js');
+const intakeService = read('lib/aria/careIntakeService.js');
 const review = read('pages/api/aria/intake-review.js');
+const careWriter = read('lib/aria/careResponsibility.js');
 const emitter = read('lib/aria/eventEmitter.js');
 const processor = read('lib/aria/eventProcessor.js');
 const recommendation = read('lib/aria/recommendationEngine.js');
@@ -23,6 +25,7 @@ const contactPreference = read('lib/aria/contactPreference.js');
 const temporal = read('lib/aria/temporalEngine.js');
 const attendanceIntelligence = read('lib/aria/attendanceIntelligence.js');
 const feedbackEngine = read('lib/aria/feedbackEngine.js');
+const followUpApi = read('pages/api/daily-queue/complete-follow-up.js');
 const followUp = read('pages/api/daily-queue/complete-follow-up.js');
 const capture = read('components/CareIntakeCapture.js');
 const reviewUi = read('components/CareIntakeReview.js');
@@ -63,12 +66,15 @@ assert.ok(migration.includes('can_access_care_privacy') &&
   migration.includes('block_outbound_when_do_not_contact_trigger'),
   'database RLS and triggers must enforce confidentiality and no-contact beyond application UI');
 
-assert.ok(intake.includes("'CARE_INTAKE_RECORDED'") &&
-  intake.includes("source: 'care_intake'") &&
-  intake.includes("evidenceKind: 'human_report'") &&
-  intake.includes("verificationStatus: 'reported'") &&
-  intake.includes('eventKey'),
-  'intake must preserve source, reporter provenance, evidence type and an idempotent event key');
+assert.ok(intake.includes('recordCareIntake({') &&
+  intakeService.includes("type: 'CARE_INTAKE_RECORDED'") &&
+  intakeService.includes("source: clean(source || 'aria', 80)") &&
+  intakeService.includes("evidenceKind: 'human_report'") &&
+  intakeService.includes("verificationStatus: 'reported'") &&
+  intakeService.includes("const eventKey = 'care-intake:' + idempotencyKey") &&
+  intakeService.includes('reporter_user_id') &&
+  intakeService.includes('request_fingerprint: fingerprint'),
+  'every intake channel must preserve source, reporter provenance, evidence type and payload-bound idempotency in one shared writer');
 assert.ok(intake.includes('care_responsibility_created: false') &&
   !intake.includes('planActionFromObservation') &&
   !intake.includes('INSERT INTO aria_actions'),
@@ -78,12 +84,14 @@ assert.ok(intake.includes('prayer_request') && intake.includes('personal_need') 
   intake.includes('complaint') && intake.includes('first_visit') &&
   intake.includes('contact_permission') && intake.includes('consent_status') && intake.includes('review_operators') && intake.includes("r.defer_until::date<=$6::date"),
   'intake must support core care signal categories and consent/contact preferences');
-assert.ok(intake.includes("detailsPermitted ? statementInput || null : null") &&
-  intake.includes("if (storedEvent.person_id && savedPermission === 'do_not_contact')") &&
-  intake.includes("UPDATE person_communications") &&
-  intake.includes("UPDATE aria_actions") &&
-  intake.includes("UPDATE aria_daily_queue_items"),
-  'declined consent must withhold narrative and a no-contact request must suppress drafts, actions and queue items');
+assert.ok(intakeService.includes("const detailsPermitted = consentStatus === 'granted'") &&
+  intakeService.includes("const storedStatement = detailsPermitted ? statement || null : null") &&
+  intakeService.includes('details_withheld: !detailsPermitted') &&
+  intakeService.includes('export async function persistDoNotContact') &&
+  intakeService.includes('UPDATE person_communications') &&
+  intakeService.includes('UPDATE aria_actions') &&
+  intakeService.includes('UPDATE aria_daily_queue_items'),
+  'consent minimization and no-contact suppression must be enforced by the same transaction-bound service');
 assert.ok(intake.includes('isOrganizationOperator(req.user?.role)') &&
   intake.includes("e.privacy_class='standard'") &&
   intake.includes("e.privacy_class='sensitive'") &&
@@ -92,11 +100,12 @@ assert.ok(intake.includes('isOrganizationOperator(req.user?.role)') &&
 
 assert.ok(review.includes("'approved', 'dismissed', 'deferred'") &&
   review.includes("'CARE_INTAKE_REVIEWED'") &&
-  review.includes('planActionFromObservation') &&
-  review.includes("actionType: 'CARE_FOLLOW_UP'") &&
-  review.includes("kind: 'manual_care_responsibility'") &&
+  review.includes('createCareResponsibility') &&
+  careWriter.includes('planActionFromObservation') &&
+  careWriter.includes("actionType: 'CARE_FOLLOW_UP'") &&
+  careWriter.includes("kind: 'manual_care_responsibility'") &&
   review.includes('getDailyQueue'),
-  'human review must append a decision and reuse the canonical action and queue');
+  'human review must append a decision through the shared action writer and reuse the canonical queue');
 assert.ok(review.includes('resolved_person_id') &&
   review.includes('linked_person_id') &&
   review.includes('identity_linked_by'),
@@ -140,8 +149,10 @@ assert.ok(contactPreference.includes("if(restriction.rows.length)return 'do_not_
 assert.ok(followUp.includes('getRecordedContactPermission') &&
   followUp.includes('contactOutcomes') &&
   followUp.includes('const safeNote = privateAction ?') &&
-  followUp.includes('COMMUNICATION_PREFERENCE_CHANGED'),
-  'follow-up completion must enforce contact permission, redact private notes and persist no-contact changes');
+  followUp.includes('persistDoNotContact(client') &&
+  !followUp.includes("type:'COMMUNICATION_PREFERENCE_CHANGED'") &&
+  intakeService.includes("type: 'COMMUNICATION_PREFERENCE_CHANGED'"),
+  'follow-up completion must enforce contact permission, redact private notes and use the canonical no-contact writer');
 assert.ok(journey.includes("e.privacy_class='standard'") &&
   journey.includes("e.privacy_class='sensitive'") &&
   journey.includes("e.privacy_class='restricted'") &&
@@ -150,6 +161,14 @@ assert.ok(journey.includes("e.privacy_class='standard'") &&
 assert.ok(universal.includes("e.privacy_class='standard'") &&
   universal.includes("'CARE_INTAKE_RECORDED','CARE_INTAKE_REVIEWED','COMMUNICATION_PREFERENCE_CHANGED'"),
   'organization-wide activity must never expose private intake');
+assert.ok(universalWorkspace.includes("import { recordCareFeedback } from './feedbackEngine'") &&
+  universalWorkspace.includes('recordCareFeedback({') &&
+  !universalWorkspace.includes('INSERT INTO care_feedback') &&
+  feedbackEngine.includes('INSERT INTO intelligence_outcomes') &&
+  feedbackEngine.includes("eventType='CARE_FEEDBACK'") &&
+  feedbackEngine.includes('export async function createCareFeedbackRowsInTransaction') &&
+  feedbackEngine.includes('export async function linkCareFeedbackEventInTransaction'),
+  'ARIA workspace feedback must use the canonical feedback, outcome and event lifecycle');
 assert.ok(careEngine.includes('pg_advisory_xact_lock') &&
   careEngine.includes('blockedIds') &&
   careEngine.includes('nyeocare:do-not-contact:'),
@@ -168,7 +187,14 @@ assert.ok(attendanceIntelligence.includes("COALESCE(io.evidence->>'privacy_class
   attendanceIntelligence.includes("COALESCE(c.context->>'privacy_class','standard')='standard'"),
   'private care outcomes must not influence shared attendance relationship scores');
 assert.ok(feedbackEngine.includes("COALESCE(context->>'privacy_class','standard')='standard'") &&
-  feedbackEngine.includes("if(privacyClass==='standard')await learnFromFeedback"),
+  feedbackEngine.includes("if(record.privacyClass==='standard'){") &&
+  feedbackEngine.includes('try{\n   await learnFromFeedback') &&
+  feedbackEngine.includes("const allowed=privacyClass==='standard'||") &&
+  followUpApi.includes('createCareFeedbackRowsInTransaction({') &&
+  followUpApi.includes('linkCareFeedbackEventInTransaction({') &&
+  !followUpApi.includes('INSERT INTO care_feedback') &&
+  !followUpApi.includes('INSERT INTO intelligence_outcomes') &&
+  feedbackEngine.includes('if(!allowed)throw Object.assign(new Error(\'You cannot add feedback to this private care record.\')'),
   'private care feedback must be role-scoped and excluded from shared learning');
 assert.ok(capture.includes('consent_status') && capture.includes('contact_permission') &&
   capture.includes('Signal saved for human review. No task or message was created.'),

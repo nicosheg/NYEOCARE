@@ -239,6 +239,7 @@ return res.status(200).json(await transitionLifecycle(orgId,personId,b.stage_id,
 
 if(resource==='note'){
 if(req.method==='DELETE')return res.status(400).json({error:'Notes are not deleted through this endpoint'});
+return res.status(409).json({error:'Person notes must be recorded through private ARIA care intake with explicit consent.'});
 if(!personId)return res.status(400).json({error:'person_id is required'});
 const event=await addTimelineEvent(orgId,personId,{event_type:b.event_type||'NOTE',title:b.title||'Note',description:b.description||'',metadata:b.metadata,source:b.source||'human',occurred_at:b.occurred_at});
 return res.status(201).json(event);

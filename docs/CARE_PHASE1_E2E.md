@@ -35,6 +35,42 @@ CARE_PRODUCTION_GATE_DATABASE_URL='YOUR_READ_ONLY_DATABASE_URL' npm run test:car
 
 The live audit runs inside BEGIN READ ONLY and checks the production indexes, immutable event trigger, private helper privileges, RLS, no-contact trigger, duplicate responsibilities, consent/narrative violations and known private-event leakage paths. It prints counts only; it does not read out care narratives or change records. Never put a database password in source control, a chat message, or a command history that other people can read.
 
+## One intake writer for forms, chat, imports and private notes
+
+`lib/aria/careIntakeService.js` is the shared, transaction-bound writer used by consented identified-person care forms, imported conversations, ARIA chat's `record_care_intake` capability and ARIA workspace private notes. It checks the active person in the tenant, requires operator-attested consent, enforces the category privacy minimum, uses a stable event key and payload fingerprint, and appends one immutable `CARE_INTAKE_RECORDED` event with provenance. The caller owns the transaction so it can atomically append other domain-specific events when needed.
+
+ARIA chat does not infer consent or contact permission. A chat report requires an explicit operator instruction to save the report, one named person, the original report text, the person's explicit agreement to storage, a confidentiality classification and a UUID idempotency key. Contact permission defaults to unknown. It creates evidence only, not an assigned responsibility, message, call, visit or queue item. An authorized human reviews it through the existing intake-review flow.
+
+The intake API retains a narrow fallback path for anonymous or non-consented reports and explicit do-not-contact requests, because those have separate consent-withholding or outbound-cancellation side effects. These fallback events still use `CARE_INTAKE_RECORDED` and must remain private when details are not permitted. Reusing an idempotency key with different content must fail with HTTP 409.
+
+## Server-owned ARIA event processing
+
+The application now has one organization-independent worker entry point at `POST /api/aria/process-events`. A scheduled GitHub Actions workflow claims up to 100 due events per run. The endpoint retains the existing event-claim, retry and dead-letter rules; the private-event processor guard remains in place.
+
+The workflow is **opt-in and inactive until configured**. Do not treat the existence of the workflow file as proof that background processing is running.
+
+1. In the Vercel project, add `CRON_SECRET` to the **Production** environment. Generate a fresh 32-byte random value locally (for example, `openssl rand -hex 32`). Do not paste it into source control or this runbook.
+2. In GitHub repository Settings → Secrets and variables → Actions → Secrets, add `NYEOCARE_CRON_SECRET` with the exact same value.
+3. In GitHub repository Settings → Secrets and variables → Actions → Variables, add `NYEOCARE_ENABLE_EVENT_WORKER` with value `true`.
+4. Redeploy the Production deployment so the Vercel Function receives the new environment variable.
+5. Run the **NYEOCARE ARIA Event Worker** workflow once with workflow_dispatch. Confirm the response reports `ok: true`, then verify the scheduled workflow continues to run. The GitHub schedule is best-effort scheduling, not a real-time delivery guarantee.
+
+The workflow calls only the production worker endpoint and sends the secret in the Authorization header. The job is skipped when the repository variable is absent or not `true`. If the secret is absent or mismatched, the endpoint must return unauthorized; never weaken the endpoint to make the schedule pass.
+
+## Private person context notes
+
+Person Journey **Add note**, Community **Add pastoral note**, and ARIA workspace `add_note` are now private `CARE_INTAKE_RECORDED` evidence with category `context_note`. The category is always at least sensitive, requires explicit consent, preserves the reporter and evidence provenance, and is visible only to the reporter and authorized care leaders/admins. Context notes do not create responsibilities and are excluded from the intake-review queue; they remain visible in the Person Journey's Private care context section to operators whose role permits access.
+
+The old `POST /api/timeline` note path, the old People Operating System note route, and generic `addTimelineEvent` / `recordJourneyEvent` note calls now reject note-shaped writes. Other operational timeline events such as lifecycle changes and confirmed manual communication events remain separate timeline projections.
+
+A forward-only compatibility migration, `20261127160000_restrict_legacy_person_journey_notes.sql`, reclassifies pre-existing `note` and `pastoral_note` timeline rows that still default to `standard` as `restricted`. It preserves the historical rows and their content, but does not invent a reporter identity; these legacy rows are therefore visible only to owners/admins under the existing privacy policy. The migration temporarily replaces the timeline privacy-metadata guard inside one transaction so the one-time reclassification can occur, then reinstates the guard before commit.
+
+## Canonical Person Journey care and conversation imports
+
+The Person Journey **Add care** action uses the same shared responsibility writer as intake review. It writes one private `CARE_INTAKE_RECORDED` event, one explicit `CARE_INTAKE_REVIEWED` approval, one `aria_actions` responsibility and the existing queue projection. It requires the operator to attest that the person agreed to the recording; category minimums can elevate privacy to restricted. Sensitive narrative stays in the private event, not in shared action summary/message fields.
+
+Conversation import is evidence capture, not a communication sent by NYEOCARE. It requires consent and a stable idempotency key, defaults to restricted privacy, and stores one canonical private care event. It no longer writes the same transcript into both `person_communications` and `timeline_events`, and it does not run external AI extraction into shared timeline records. ARIA's person-context/evidence capabilities retrieve the private event only for an authorized reporter or role. Person Journey ARIA conversation transcripts are limited to their owner and owner/admin viewers.
+
 ## Required E2E environment
 
 A real role-boundary E2E test needs at least four distinct authenticated accounts in the same test organization:
@@ -122,6 +158,7 @@ Expected:
 - Active no-contact wins over any stale or client-supplied allowed value.
 - Existing unsent outbound drafts are cancelled.
 - Contact-oriented actions and pending queue projections are cancelled.
+- Intake and follow-up no-contact outcomes invoke the same transaction-bound `persistDoNotContact` function; only the current responsibility being completed is excluded from cancellation.
 - New outbound communication is blocked by the database trigger.
 - Historical sent messages remain historical; they are not rewritten as unsent.
 - There is no ordinary UI action that silently reactivates contact.
@@ -140,6 +177,7 @@ Expected:
 
 A Phase 1 release is accepted only when all are true:
 
+- The durable ARIA worker reclaims `processing` events whose worker lease expired after five minutes; after the eighth failed attempt, the row is terminalized as `dead` instead of remaining stuck.
 - The automated care-foundation and production-gate checks pass.
 - CI build passes.
 - The Vercel production deployment is READY for the exact main commit.
@@ -150,3 +188,13 @@ A Phase 1 release is accepted only when all are true:
 - No duplicate responsibility, no-contact bypass or consent violation is observed.
 
 A READY deployment by itself is not E2E acceptance. Keep the final status as verification-pending until the role-based write scenarios have actually run.
+
+- `createCareFeedbackRowsInTransaction` and `linkCareFeedbackEventInTransaction` in `lib/aria/feedbackEngine.js` are the only core feedback/outcome row writers. Both the general feedback API, ARIA workspace, first-visit attendance welcome and follow-up completion use them; attendance and follow-up retain their own larger transactions to coordinate attendance/contact records, action status and queue projection atomically.
+- Every persisted feedback and outcome pair is linked to its immutable source ARIA event through `source_event_id` before commit. Private feedback is excluded from shared timeline writes and shared learning.
+- Event-processing failures roll back partial work before retry state is written. The failed attempt counter is then incremented outside the rolled-back transaction, so the eight-attempt ceiling actually applies.
+## Release isolation gate
+
+- Do not deploy a branch preview while its Preview environment resolves to the live NYEOCARE Supabase project or production service-role key.
+- Create or provision a separate QA database, then set Preview-only DATABASE_URL, Supabase URL, anon key and service-role key to that QA project before enabling write-path verification.
+- Run intake, human review, responsibility creation, follow-up completion, no-contact suppression, private-context visibility and event-worker recovery scenarios against QA identities only. Never seed or mutate Havilah production records to test these flows.
+- Production event-worker activation is a separate release step: configure Vercel Production CRON_SECRET, the matching GitHub Actions secret NYEOCARE_CRON_SECRET, and repository variable NYEOCARE_ENABLE_EVENT_WORKER=true only after the endpoint and secret rotation are verified.

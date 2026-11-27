@@ -20,6 +20,7 @@ const profile = read('components/ChurchProfileTab.js');
 const home = read('pages/index.js');
 const attendanceModal = read('components/AttendanceModal.js');
 const inAttendanceWelcome = read('pages/api/attendance/first-visit-welcome.js');
+const feedbackEngine = read('lib/aria/feedbackEngine.js');
 const attendancePeople = read('pages/api/attendance/people.js');
 const attendanceFieldRoster = read('pages/api/attendance/field-roster.js');
 const homeBootstrap = read('pages/api/home/bootstrap.js');
@@ -89,8 +90,12 @@ assert.ok(attendancePeople.includes('AS first_visit_candidate') &&
 assert.ok(inAttendanceWelcome.includes("current.session_status!=='active'") &&
   inAttendanceWelcome.includes("JOIN session_users su ON su.session_id=s.id AND su.user_id=$4") &&
   inAttendanceWelcome.includes("current.marked_present!==true") &&
-  inAttendanceWelcome.includes("INSERT INTO care_feedback") &&
-  inAttendanceWelcome.includes("INSERT INTO intelligence_outcomes") &&
+  inAttendanceWelcome.includes('createCareFeedbackRowsInTransaction({') &&
+  inAttendanceWelcome.includes('linkCareFeedbackEventInTransaction({') &&
+  !inAttendanceWelcome.includes("INSERT INTO care_feedback") &&
+  !inAttendanceWelcome.includes("INSERT INTO intelligence_outcomes") &&
+  feedbackEngine.includes('export async function createCareFeedbackRowsInTransaction') &&
+  feedbackEngine.includes('export async function linkCareFeedbackEventInTransaction') &&
   inAttendanceWelcome.includes("INSERT INTO timeline_events") &&
   inAttendanceWelcome.includes("first-visit-welcome-during-attendance:"),
   'in-person first-visit disposition must be scoped to a live attended visitor, auditable, idempotent and learned by ARIA');

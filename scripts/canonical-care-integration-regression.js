@@ -46,23 +46,24 @@ verify(
     writer.includes('source_intake_event_id: intakeEvent.id')
 );
 verify(
-  'Person Journey writes immutable intake and explicit approval events',
-  manual.includes("type: 'CARE_INTAKE_RECORDED'") &&
+  'Person Journey manual responsibility uses canonical intake and explicit approval events',
+  manual.includes('recordCareIntake({') &&
     manual.includes("type: 'CARE_INTAKE_REVIEWED'") &&
-    manual.includes("decision: 'approved'")
+    manual.includes("decision: 'approved'") && intakeService.includes("type: 'CARE_INTAKE_RECORDED'")
 );
 verify(
-  'manual responsibility creation requires an explicit consent attestation',
-  manual.includes('body.consent_confirmed !== true') &&
+  'manual responsibility creation shares explicit consent validation with every other intake channel',
+  manual.includes('consentConfirmed: true') &&
     manual.includes("consentStatus: 'granted'") &&
-    manual.includes("method: 'operator_attestation'")
+    intakeService.includes("method: consentStatus === 'granted' ? 'operator_attestation'")
 );
 verify(
   'manual responsibility writes require stable idempotency and reject changed-payload replays',
   manual.includes('uuidPattern.test(idempotencyKey)') &&
-    manual.includes("eventKey = 'manual-care-intake:' + idempotencyKey") &&
-    manual.includes('request_fingerprint') &&
-    manual.includes('already used for different care details')
+    manual.includes('recordCareIntake({') &&
+    intakeService.includes("const eventKey = 'care-intake:' + idempotencyKey") &&
+    intakeService.includes('request_fingerprint: fingerprint') &&
+    intakeService.includes('request key was already used for different care details')
 );
 verify(
   'category minimums cannot be downgraded below restricted care',
@@ -72,7 +73,7 @@ verify(
 );
 verify(
   'manual narrative is stored only inside the classified intake event',
-  manual.includes('statement: description || null') &&
+  manual.includes('statement: description || title') &&
     writer.includes('const isPrivate = privacyClass !==') &&
     writer.includes('summary: isPrivate ? null') &&
     !manual.includes('actionMetadata: {')
@@ -98,6 +99,7 @@ verify(
 verify(
   'care forms, conversation imports, ARIA chat and ARIA private notes share one intake writer',
   intake.includes('recordCareIntake') &&
+    manual.includes('recordCareIntake') &&
     conversationImport.includes('recordCareIntake') &&
     capability.includes('recordCareIntake') &&
     universalWorkspace.includes('recordCareIntake') &&
@@ -132,8 +134,8 @@ verify(
   intakeService.includes("prayer_request: 'restricted'") &&
     intakeService.includes("personal_need: 'restricted'") &&
     intakeService.includes("complaint: 'restricted'") &&
-    intakeService.includes("contactPermission = 'unknown'") &&
-    intakeService.includes('A care-recording consent is not contact permission')
+    intakeService.includes("contactPermission = clean(contactPermission || 'unknown'") &&
+    intakeService.includes('Contact permission must be unknown, allowed or do_not_contact')
 );
 verify(
   'conversation imports require consent and idempotency and write one private canonical event',
@@ -152,12 +154,12 @@ verify(
 );
 verify(
   'context notes are canonical sensitive evidence and never enter the leader review queue',
-  intakeApi.includes("'context_note'") &&
-    intakeApi.includes("context_note: 'sensitive'") &&
-    intakeApi.includes("category !== 'context_note'") &&
-    intakeApi.includes("requires_human_review: storedEvent.metadata?.intake?.requires_human_review !== false") &&
-    intakeApi.includes("requires_human_review}')::boolean,true)=true") &&
-    intakeApi.includes("category === 'context_note' && personId && consentStatus !== 'granted'")
+  intakeApi.includes('recordCareIntake({') &&
+    intakeService.includes("'context_note'") &&
+    intakeService.includes("context_note: 'sensitive'") &&
+    intakeService.includes("requires_human_review: category !== 'context_note'") &&
+    intakeApi.includes('review_required: result.reviewRequired') &&
+    intakeService.includes("category === 'context_note' && personId && consentStatus !== 'granted'")
 );
 verify(
   'Person Journey and Community pastoral notes use private intake with consent and stable keys',

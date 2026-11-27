@@ -68,9 +68,14 @@ jobs:
       - run: npm run test:operator-adoption
       - run: npm run test:legacy-attendance-care
       - run: npm run test:canonical-care-workspace
+      - run: npm run test:canonical-care-integration
       - name: Syntax-check canonical care entry points
         run: |
           node --check pages/api/care-responsibilities.js
+          node --check pages/api/conversation/import.js
+          node --check lib/aria/careResponsibility.js
+          node --check lib/aria/capabilityEngine.js
+          node --check pages/api/aria/process-events.js
           node --check pages/api/aria/intake.js
           node --check pages/api/aria/intake-review.js
           node --check pages/api/person/journey.js

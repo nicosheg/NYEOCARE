@@ -8,6 +8,7 @@ const work=read('components/WorkToday.js');
 const panel=read('components/CareLeadershipPanel.js');
 const legacyRoute=read('pages/care-oversight.js');
 const createApi=read('pages/api/care-responsibilities.js');
+const careWriter=read('lib/aria/careResponsibility.js');
 const journeyApi=read('pages/api/person/journey.js');
 const person=read('pages/person/[id].js');
 const queue=read('lib/dailyQueue.js');
@@ -33,22 +34,22 @@ assert.ok(panel.includes('Help requests')&&panel.includes('Needs coordination')&
 assert.ok(!panel.includes('ten-minute leadership ritual')&&!panel.includes('WEEKLY OPERATOR PULSE'),
  'the canonical panel must avoid the previous wall-of-text and secondary adoption sections');
 
-assert.ok(createApi.includes('withAdmin')&&createApi.includes("status='active'")&&createApi.includes('organization_id=$2')&&createApi.includes('role=ANY($3::text[])'),
+assert.ok(createApi.includes('withAdmin')&&createApi.includes("status='active'")&&createApi.includes('organization_id=$2')&&createApi.includes('SELECT id,role FROM users'),
  'creating a care responsibility must be leader-only and validate the person and assignee inside the tenant');
-assert.ok(createApi.includes("kind:'manual_care_responsibility'")&&createApi.includes('assigned_user_id:assignee.id')&&createApi.includes('due_date:dueDate'),
+assert.ok(careWriter.includes("kind: 'manual_care_responsibility'")&&careWriter.includes('assigned_user_id: assigneeId')&&careWriter.includes('due_date: dueDate'),
  'human care assignments must be explicit ARIA actions with a stable owner and due date');
-assert.ok(createApi.includes("actionKey='human-care:'+idempotencyKey")&&createApi.includes('action_key=$2')&&createApi.includes("pg_advisory_xact_lock"),
+assert.ok(createApi.includes("eventKey = 'manual-care-intake:' + idempotencyKey")&&createApi.includes("actionKeyPrefix = 'care-intake:'")&&createApi.includes("pg_advisory_xact_lock")&&createApi.includes('request_fingerprint'),
  'duplicate submits must be idempotent and serialized');
-assert.ok(createApi.includes("type:'CARE_CONTEXT_RECORDED'")&&createApi.includes("source:'human_care_plan'")&&createApi.includes('getDailyQueue'),
+assert.ok(createApi.includes("type: 'CARE_INTAKE_RECORDED'")&&createApi.includes("type: 'CARE_INTAKE_REVIEWED'")&&createApi.includes('createCareResponsibility')&&createApi.includes('getDailyQueue'),
  'human-created care must enter the ARIA event stream and canonical queue rather than a parallel task table');
-assert.ok(createApi.includes('uuidPattern.test(personId)')&&createApi.includes('const message=description;')&&journeyApi.includes("AS time_zone")&&person.includes('organizationToday(p?.time_zone)')&&person.includes('makeIdempotencyKey'),
+assert.ok(createApi.includes('uuidPattern.test(personId)')&&createApi.includes("body.consent_confirmed !== true")&&createApi.includes('category')&&journeyApi.includes("AS time_zone")&&person.includes('organizationToday(p?.time_zone)')&&person.includes('makeIdempotencyKey'),
  'care assignment must validate real identifiers, avoid duplicated text and use the organization-local date');
 assert.ok(createApi.includes("Choose a due date within the next 30 days."),
  'manual due dates must stay within the queue scheduling horizon');
 
 assert.ok(journeyApi.includes("can_create_care_responsibility")&&journeyApi.includes("role IN('owner','admin','leader','worker','user')"),
  'only owners/admins can see the active operator directory for creating a care responsibility');
-assert.ok(person.includes('Add care')&&person.includes('/api/care-responsibilities')&&person.includes('careRequestKey')&&person.includes('Assign responsibility'),
+assert.ok(person.includes('Add care')&&person.includes('/api/care-responsibilities')&&person.includes('careRequestKey')&&person.includes('Assign responsibility')&&person.includes('careConsentConfirmed')&&person.includes('effectiveCarePrivacy'),
  'leaders must be able to create and assign the real next step from the person profile');
 
 assert.ok(queue.includes("m?.kind==='manual_care_responsibility'?'follow_up'")&&queue.includes('fixed_assignee_id:m?.kind===\'manual_care_responsibility\'')&&queue.includes('preferred_queue_date:m?.kind===\'manual_care_responsibility\''),

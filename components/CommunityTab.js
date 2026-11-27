@@ -73,6 +73,8 @@ export default function CommunityTab() {
   const [selected, setSelected] = useState(null);
   const [addingNote, setAddingNote] = useState(false);
   const [noteText, setNoteText] = useState('');
+  const [noteConsent, setNoteConsent] = useState(false);
+  const [noteRequestKey, setNoteRequestKey] = useState('');
   const [importingConv, setImportingConv] = useState(false);
   const [convText, setConvText] = useState('');
   const [showPicker, setShowPicker] = useState(false);
@@ -352,24 +354,21 @@ export default function CommunityTab() {
   };
 
   const saveNote = async () => {
-    if (!noteText.trim() || !accessToken) return;
-    await fetch('/api/timeline', {
+    if (!noteText.trim() || !accessToken || !noteConsent || !noteRequestKey) return;
+    const response = await fetch('/api/aria/intake', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`,
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
       body: JSON.stringify({
-        person_id: selected.id,
-        event_type: 'note',
-        channel: 'manual',
-        description: noteText.trim(),
-        metadata: { type: 'pastoral_note' },
+        person_id: selected.id, category: 'context_note', statement: noteText.trim(),
+        summary: noteText.trim().slice(0, 260), consent_status: 'granted',
+        privacy_class: 'sensitive', channel: 'operator_note', contact_permission: 'unknown',
+        idempotency_key: noteRequestKey,
       }),
     });
-    setNoteText(''); setAddingNote(false); setMsg('Note saved'); setTimeout(() => setMsg(''), 3000);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.success) { setMsg('Note not saved: ' + (data.error || 'Please try again.')); return; }
+    setNoteText(''); setNoteConsent(false); setAddingNote(false); setMsg('Private note saved'); setTimeout(() => setMsg(''), 3000);
   };
-
   const importConversation = async () => {
     if (!convText.trim() || !accessToken) return;
     const res = await fetch('/api/conversation/import', {
@@ -598,7 +597,7 @@ export default function CommunityTab() {
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
                           <button onClick={(e) => { e.stopPropagation(); generateDraft(person.id); }} className="fiducia-button fiducia-button-primary" style={{ padding: '6px 12px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{ICONS.mail} Draft & Send WhatsApp</span></button>
                           <Link href={`/person/${person.id}`} className="fiducia-button fiducia-button-secondary" style={{ padding: '6px 12px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>Journey →</Link>
-                          <button onClick={(e) => { e.stopPropagation(); setAddingNote(true); }} className="fiducia-button fiducia-button-ghost" style={{ padding: '6px 12px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{ICONS.note} Add pastoral note</span></button>
+                          <button onClick={(e) => { e.stopPropagation(); setNoteText(''); setNoteConsent(false); setNoteRequestKey(window.crypto?.randomUUID?.() || 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r=Math.random()*16|0; return (c==='x'?r:(r&3|8)).toString(16); })); setAddingNote(true); }} className="fiducia-button fiducia-button-ghost" style={{ padding: '6px 12px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{ICONS.note} Add pastoral note</span></button>
                           <button onClick={(e) => { e.stopPropagation(); setImportingConv(true); }} className="fiducia-button fiducia-button-ghost" style={{ padding: '6px 12px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{ICONS.importIcon} Import Conversation</span></button>
                         </div>
                         <div style={{ display: 'flex', gap: 8 }}>
@@ -614,8 +613,9 @@ export default function CommunityTab() {
                           {[{ icon: ICONS.prayer, label: 'Asked for prayer' }, { icon: ICONS.heart, label: 'First-time visitor' }, { icon: ICONS.smile, label: 'Shared good news' }, { icon: ICONS.sick, label: 'Sick or recovering' }, { icon: ICONS.family, label: 'Family situation' }, { icon: ICONS.work, label: 'Work or school' }, { icon: ICONS.other, label: 'Other' }].map(prompt => (<button key={prompt.label} onClick={(e) => { e.stopPropagation(); setNoteText(prompt.label + ': '); }} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: '#D4AF37', borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}><span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{prompt.icon} {prompt.label}</span></button>))}
                         </div>
                         <textarea value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Add more details..." rows={3} style={{ width: '100%', padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.03)', color: '#fff', resize: 'vertical', outline: 'none', marginBottom: 8 }} />
+                        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, color: 'rgba(255,255,255,0.65)', fontSize: 12, margin: '8px 0' }}><input type="checkbox" checked={noteConsent} onChange={e => setNoteConsent(e.target.checked)} /> I confirm the person agreed for this context to be recorded for their care.</label>
                         <div style={{ display: 'flex', gap: 8 }}>
-                          <button onClick={(e) => { e.stopPropagation(); saveNote(); }} className="fiducia-button fiducia-button-primary" style={{ padding: '6px 12px', fontSize: 13 }}>Save</button>
+                          <button disabled={!noteText.trim() || !noteConsent} onClick={(e) => { e.stopPropagation(); saveNote(); }} className="fiducia-button fiducia-button-primary" style={{ padding: '6px 12px', fontSize: 13 }}>Save</button>
                           <button onClick={(e) => { e.stopPropagation(); setAddingNote(false); setNoteText(''); }} className="fiducia-button fiducia-button-ghost" style={{ padding: '6px 12px', fontSize: 13 }}>Cancel</button>
                         </div>
                       </div>

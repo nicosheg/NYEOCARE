@@ -9,6 +9,7 @@ const panel=read('components/CareLeadershipPanel.js');
 const legacyRoute=read('pages/care-oversight.js');
 const createApi=read('pages/api/care-responsibilities.js');
 const careWriter=read('lib/aria/careResponsibility.js');
+const careIntakeService=read('lib/aria/careIntakeService.js');
 const journeyApi=read('pages/api/person/journey.js');
 const person=read('pages/person/[id].js');
 const queue=read('lib/dailyQueue.js');
@@ -38,10 +39,10 @@ assert.ok(createApi.includes('withAdmin')&&createApi.includes("COALESCE(status,'
  'creating a care responsibility must be owner/admin-only and validate consent, person and assignee inside the tenant');
 assert.ok(careWriter.includes("kind: 'manual_care_responsibility'")&&careWriter.includes('assigned_user_id: assigneeId')&&careWriter.includes('due_date: dueDate'),
  'human care assignments must be explicit ARIA actions with a stable owner and due date');
-assert.ok(createApi.includes("eventKey = 'manual-care-intake:' + idempotencyKey")&&createApi.includes("actionKeyPrefix = 'care-intake:'")&&createApi.includes("pg_advisory_xact_lock")&&createApi.includes('request_fingerprint'),
- 'duplicate submits must be idempotent and serialized');
-assert.ok(createApi.includes("type: 'CARE_INTAKE_RECORDED'")&&createApi.includes("type: 'CARE_INTAKE_REVIEWED'")&&createApi.includes('createCareResponsibility')&&createApi.includes('getDailyQueue'),
- 'human-created care must enter the ARIA event stream and canonical queue rather than a parallel task table');
+assert.ok(createApi.includes('recordCareIntake({')&&createApi.includes('responsibility_fingerprint: fingerprint')&&createApi.includes('actionKeyPrefix = \'care-intake:\'')&&createApi.includes('pg_advisory_xact_lock')&&createApi.includes('uuidPattern.test(idempotencyKey)')&&careIntakeService.includes('event.metadata?.request_fingerprint !== fingerprint'),
+ 'manual responsibility retries must share canonical payload-bound intake idempotency and a stable action key');
+assert.ok(createApi.includes('recordCareIntake({')&&careIntakeService.includes("type: 'CARE_INTAKE_RECORDED'")&&createApi.includes("type: 'CARE_INTAKE_REVIEWED'")&&createApi.includes('createCareResponsibility')&&createApi.includes('getDailyQueue'),
+ 'human-created care must enter the canonical ARIA intake stream, then the existing responsibility action and queue');
 assert.ok(createApi.includes('uuidPattern.test(personId)')&&createApi.includes("body.consent_confirmed !== true")&&createApi.includes('category')&&journeyApi.includes("AS time_zone")&&person.includes('organizationToday(p?.time_zone)')&&person.includes('makeIdempotencyKey'),
  'care assignment must validate real identifiers, avoid duplicated text and use the organization-local date');
 assert.ok(createApi.includes("Choose a due date within the next 30 days."),

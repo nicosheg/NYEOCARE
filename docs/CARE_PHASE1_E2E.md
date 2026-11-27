@@ -63,6 +63,8 @@ Person Journey **Add note**, Community **Add pastoral note**, and ARIA workspace
 
 The old `POST /api/timeline` note path, the old People Operating System note route, and generic `addTimelineEvent` / `recordJourneyEvent` note calls now reject note-shaped writes. Other operational timeline events such as lifecycle changes and confirmed manual communication events remain separate timeline projections.
 
+A forward-only compatibility migration, `20261127160000_restrict_legacy_person_journey_notes.sql`, reclassifies pre-existing `note` and `pastoral_note` timeline rows that still default to `standard` as `restricted`. It preserves the historical rows and their content, but does not invent a reporter identity; these legacy rows are therefore visible only to owners/admins under the existing privacy policy. The migration temporarily replaces the timeline privacy-metadata guard inside one transaction so the one-time reclassification can occur, then reinstates the guard before commit.
+
 ## Canonical Person Journey care and conversation imports
 
 The Person Journey **Add care** action uses the same shared responsibility writer as intake review. It writes one private `CARE_INTAKE_RECORDED` event, one explicit `CARE_INTAKE_REVIEWED` approval, one `aria_actions` responsibility and the existing queue projection. It requires the operator to attest that the person agreed to the recording; category minimums can elevate privacy to restricted. Sensitive narrative stays in the private event, not in shared action summary/message fields.

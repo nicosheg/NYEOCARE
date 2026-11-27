@@ -34,8 +34,8 @@ assert.ok(panel.includes('Help requests')&&panel.includes('Needs coordination')&
 assert.ok(!panel.includes('ten-minute leadership ritual')&&!panel.includes('WEEKLY OPERATOR PULSE'),
  'the canonical panel must avoid the previous wall-of-text and secondary adoption sections');
 
-assert.ok(createApi.includes('withAdmin')&&createApi.includes("status='active'")&&createApi.includes('organization_id=$2')&&createApi.includes('SELECT id,role FROM users'),
- 'creating a care responsibility must be leader-only and validate the person and assignee inside the tenant');
+assert.ok(createApi.includes('withAdmin')&&createApi.includes("COALESCE(status,'active')='active'")&&createApi.includes('organization_id=$2')&&createApi.includes('SELECT id,role FROM users')&&createApi.includes('body.consent_confirmed !== true'),
+ 'creating a care responsibility must be owner/admin-only and validate consent, person and assignee inside the tenant');
 assert.ok(careWriter.includes("kind: 'manual_care_responsibility'")&&careWriter.includes('assigned_user_id: assigneeId')&&careWriter.includes('due_date: dueDate'),
  'human care assignments must be explicit ARIA actions with a stable owner and due date');
 assert.ok(createApi.includes("eventKey = 'manual-care-intake:' + idempotencyKey")&&createApi.includes("actionKeyPrefix = 'care-intake:'")&&createApi.includes("pg_advisory_xact_lock")&&createApi.includes('request_fingerprint'),
@@ -50,7 +50,7 @@ assert.ok(createApi.includes("Choose a due date within the next 30 days."),
 assert.ok(journeyApi.includes("can_create_care_responsibility")&&journeyApi.includes("role IN('owner','admin','leader','worker','user')"),
  'only owners/admins can see the active operator directory for creating a care responsibility');
 assert.ok(person.includes('Add care')&&person.includes('/api/care-responsibilities')&&person.includes('careRequestKey')&&person.includes('Assign responsibility')&&person.includes('careConsentConfirmed')&&person.includes('effectiveCarePrivacy'),
- 'leaders must be able to create and assign the real next step from the person profile');
+ 'authorized owners/admins can create and assign the real next step from the person profile');
 
 assert.ok(queue.includes("m?.kind==='manual_care_responsibility'?'follow_up'")&&queue.includes('fixed_assignee_id:m?.kind===\'manual_care_responsibility\'')&&queue.includes('preferred_queue_date:m?.kind===\'manual_care_responsibility\''),
  'human-created responsibilities must use the canonical follow-up queue, fixed owner and requested date');

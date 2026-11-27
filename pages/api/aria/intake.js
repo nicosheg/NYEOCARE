@@ -229,6 +229,9 @@ async function createIntake(req, res) {
   if (personId && consentStatus === 'not_required') {
     return res.status(400).json({ error: 'Identified-person care records cannot be marked as consent-not-required.' });
   }
+  if (category === 'context_note' && personId && consentStatus !== 'granted') {
+    return res.status(409).json({ error: 'Explicit consent is required before recording private person context.' });
+  }
 
   const statementInput = clean(body.statement, 1800);
   const summaryInput = clean(body.summary, 260);

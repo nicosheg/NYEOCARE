@@ -20,13 +20,8 @@ export default async function handler(req,res){
   }
   const limit=Math.min(Math.max(parseInt(req.query?.limit,10)||25,1),100);
   if(cron){
-   const orgs=await pool.query('SELECT id FROM organizations ORDER BY id LIMIT 50');
-   let found=0,succeeded=0,failed=0;
-   for(const org of orgs.rows){
-    const result=await processPendingAriaEvents({organizationId:org.id,limit});
-    found+=result.found;succeeded+=result.succeeded;failed+=result.failed;
-   }
-   return res.status(200).json({ok:true,mode:'cron',organizations:orgs.rows.length,found,succeeded,failed});
+   const result=await processPendingAriaEvents({limit});
+   return res.status(200).json({ok:true,mode:'cron',...result});
   }
   const result=await processPendingAriaEvents({organizationId,limit});
   return res.status(200).json({ok:true,mode:'organization',organizationId,...result});

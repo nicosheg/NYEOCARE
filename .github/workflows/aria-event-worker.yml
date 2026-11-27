@@ -1,0 +1,38 @@
+# .github/workflows/aria-event-worker.yml
+name: NYEOCARE ARIA Event Worker
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nyeocare-aria-event-worker
+  cancel-in-progress: false
+
+jobs:
+  process-events:
+    if: ${{ vars.NYEOCARE_ENABLE_EVENT_WORKER == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Process durable ARIA events
+        env:
+          NYEOCARE_CRON_SECRET: ${{ secrets.NYEOCARE_CRON_SECRET }}
+          BASE_URL: https://nyeocare.vercel.app
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$NYEOCARE_CRON_SECRET" ]; then
+            echo "::error::NYEOCARE_CRON_SECRET is missing from GitHub Actions secrets."
+            exit 1
+          fi
+          response="$(curl --silent --show-error --fail --retry 1 --retry-delay 2 --max-time 40 \
+            --request POST \
+            --header "Authorization: Bearer $NYEOCARE_CRON_SECRET" \
+            "$BASE_URL/api/aria/process-events?limit=100")"
+          echo "$response"
+          printf '%s' "$response" | grep -Eq '"ok"[[:space:]]*:[[:space:]]*true'

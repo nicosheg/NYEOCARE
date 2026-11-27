@@ -4,6 +4,7 @@ import pool from '../../lib/db';
 import { withAdmin } from '../../lib/apiHelpers';
 import { emitAriaEvent } from '../../lib/aria/eventEmitter';
 import { createCareResponsibility } from '../../lib/aria/careResponsibility';
+import { recordCareIntake } from '../../lib/aria/careIntakeService';
 import { getDailyQueue } from '../../lib/dailyQueue';
 
 const clean = (value, max = 600) => String(value ?? '').replace(/\u0000/g, '').trim().slice(0, max);
@@ -147,46 +148,26 @@ export default withAdmin(async function handler(req, res) {
         return res.status(409).json({ error: 'This person has asked not to be contacted. Resolve the contact preference before creating a care responsibility.' });
       }
 
-      intakeEvent = await emitAriaEvent({
+      const intakeResult = await recordCareIntake({
+        client,
         organizationId,
         personId,
-        type: 'CARE_INTAKE_RECORDED',
         actorId,
         actorRole,
         source: 'person_journey_care',
-        evidenceKind: 'human_report',
-        verificationStatus: 'reported',
-        confidence: 1,
+        category,
+        statement: description || title,
+        summary: description || title,
+        channel: 'operator_note',
         privacyClass,
+        consentConfirmed: true,
         consentStatus: 'granted',
-        eventKey,
-        metadata: {
-          request_fingerprint: fingerprint,
-          intake: {
-            category,
-            statement: description || null,
-            summary: description || title,
-            requested_action_title: title,
-            reporter_user_id: actorId,
-            captured_by: actorId,
-            contact_permission: 'unknown',
-            channel: 'person_journey',
-            consent_capture: {
-              confirmed: true,
-              method: 'operator_attestation',
-              confirmed_by: actorId,
-              confirmed_at: new Date().toISOString()
-            }
-          }
-        }
-      }, client);
-      if (!intakeEvent) {
-        intakeEvent = (await client.query(
-          "SELECT * FROM aria_events WHERE organization_id=$1 AND event_key=$2 AND type='CARE_INTAKE_RECORDED' LIMIT 1 FOR UPDATE",
-          [organizationId, eventKey]
-        )).rows[0] || null;
-      }
-      if (!intakeEvent) throw new Error('The care intake evidence could not be saved.');
+        contactPermission: 'unknown',
+        idempotencyKey,
+        additionalIntakeMetadata: { requested_action_title: title }
+      });
+      intakeEvent = intakeResult.event;
+      duplicate = intakeResult.duplicate;
     }
 
     const existingAction = (await client.query(

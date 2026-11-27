@@ -9,6 +9,7 @@ const migration = read('supabase/migrations/20261126080910_canonical_care_intake
 const privacyFunctionMoveMigration = read('supabase/migrations/20261126093944_harden_care_privacy_function_exposure.sql');
 const privatePrivacyGuardMigration = read('supabase/migrations/20261126094045_use_private_definer_care_privacy_guard.sql');
 const intake = read('pages/api/aria/intake.js');
+const intakeService = read('lib/aria/careIntakeService.js');
 const review = read('pages/api/aria/intake-review.js');
 const careWriter = read('lib/aria/careResponsibility.js');
 const emitter = read('lib/aria/eventEmitter.js');
@@ -64,12 +65,15 @@ assert.ok(migration.includes('can_access_care_privacy') &&
   migration.includes('block_outbound_when_do_not_contact_trigger'),
   'database RLS and triggers must enforce confidentiality and no-contact beyond application UI');
 
-assert.ok(intake.includes("'CARE_INTAKE_RECORDED'") &&
-  intake.includes("source: 'care_intake'") &&
-  intake.includes("evidenceKind: 'human_report'") &&
-  intake.includes("verificationStatus: 'reported'") &&
-  intake.includes('eventKey'),
-  'intake must preserve source, reporter provenance, evidence type and an idempotent event key');
+assert.ok(intake.includes('recordCareIntake({') &&
+  intakeService.includes("type: 'CARE_INTAKE_RECORDED'") &&
+  intakeService.includes("source: clean(source || 'aria', 80)") &&
+  intakeService.includes("evidenceKind: 'human_report'") &&
+  intakeService.includes("verificationStatus: 'reported'") &&
+  intakeService.includes("const eventKey = 'care-intake:' + idempotencyKey") &&
+  intakeService.includes('reporter_user_id') &&
+  intakeService.includes('request_fingerprint: fingerprint'),
+  'every intake channel must preserve source, reporter provenance, evidence type and payload-bound idempotency in one shared writer');
 assert.ok(intake.includes('care_responsibility_created: false') &&
   !intake.includes('planActionFromObservation') &&
   !intake.includes('INSERT INTO aria_actions'),
@@ -79,12 +83,14 @@ assert.ok(intake.includes('prayer_request') && intake.includes('personal_need') 
   intake.includes('complaint') && intake.includes('first_visit') &&
   intake.includes('contact_permission') && intake.includes('consent_status') && intake.includes('review_operators') && intake.includes("r.defer_until::date<=$6::date"),
   'intake must support core care signal categories and consent/contact preferences');
-assert.ok(intake.includes("detailsPermitted ? statementInput || null : null") &&
-  intake.includes("if (storedEvent.person_id && savedPermission === 'do_not_contact')") &&
-  intake.includes("UPDATE person_communications") &&
-  intake.includes("UPDATE aria_actions") &&
-  intake.includes("UPDATE aria_daily_queue_items"),
-  'declined consent must withhold narrative and a no-contact request must suppress drafts, actions and queue items');
+assert.ok(intakeService.includes("const detailsPermitted = consentStatus === 'granted'") &&
+  intakeService.includes("const storedStatement = detailsPermitted ? statement || null : null") &&
+  intakeService.includes('details_withheld: !detailsPermitted') &&
+  intakeService.includes('export async function persistDoNotContact') &&
+  intakeService.includes('UPDATE person_communications') &&
+  intakeService.includes('UPDATE aria_actions') &&
+  intakeService.includes('UPDATE aria_daily_queue_items'),
+  'consent minimization and no-contact suppression must be enforced by the same transaction-bound service');
 assert.ok(intake.includes('isOrganizationOperator(req.user?.role)') &&
   intake.includes("e.privacy_class='standard'") &&
   intake.includes("e.privacy_class='sensitive'") &&
@@ -142,8 +148,10 @@ assert.ok(contactPreference.includes("if(restriction.rows.length)return 'do_not_
 assert.ok(followUp.includes('getRecordedContactPermission') &&
   followUp.includes('contactOutcomes') &&
   followUp.includes('const safeNote = privateAction ?') &&
-  followUp.includes('COMMUNICATION_PREFERENCE_CHANGED'),
-  'follow-up completion must enforce contact permission, redact private notes and persist no-contact changes');
+  followUp.includes('persistDoNotContact(client') &&
+  !followUp.includes("type:'COMMUNICATION_PREFERENCE_CHANGED'") &&
+  intakeService.includes("type: 'COMMUNICATION_PREFERENCE_CHANGED'"),
+  'follow-up completion must enforce contact permission, redact private notes and use the canonical no-contact writer');
 assert.ok(journey.includes("e.privacy_class='standard'") &&
   journey.includes("e.privacy_class='sensitive'") &&
   journey.includes("e.privacy_class='restricted'") &&

@@ -25,6 +25,7 @@ const contactPreference = read('lib/aria/contactPreference.js');
 const temporal = read('lib/aria/temporalEngine.js');
 const attendanceIntelligence = read('lib/aria/attendanceIntelligence.js');
 const feedbackEngine = read('lib/aria/feedbackEngine.js');
+const followUpApi = read('pages/api/daily-queue/complete-follow-up.js');
 const followUp = read('pages/api/daily-queue/complete-follow-up.js');
 const capture = read('components/CareIntakeCapture.js');
 const reviewUi = read('components/CareIntakeReview.js');
@@ -187,6 +188,10 @@ assert.ok(feedbackEngine.includes("COALESCE(context->>'privacy_class','standard'
   feedbackEngine.includes("if(privacyClass==='standard'){") &&
   feedbackEngine.includes('try{\n   await learnFromFeedback') &&
   feedbackEngine.includes("const allowed=privacyClass==='standard'||") &&
+  followUpApi.includes('createCareFeedbackRowsInTransaction({') &&
+  followUpApi.includes('linkCareFeedbackEventInTransaction({') &&
+  !followUpApi.includes('INSERT INTO care_feedback') &&
+  !followUpApi.includes('INSERT INTO intelligence_outcomes') &&
   feedbackEngine.includes('if(!allowed)throw Object.assign(new Error(\'You cannot add feedback to this private care record.\')'),
   'private care feedback must be role-scoped and excluded from shared learning');
 assert.ok(capture.includes('consent_status') && capture.includes('contact_permission') &&

@@ -12,6 +12,14 @@ const registry = read('lib/aria/capabilityRegistry.js');
 const processor = read('lib/aria/eventProcessor.js');
 const conversationImport = read('pages/api/conversation/import.js');
 const personJourney = read('pages/api/person/journey.js');
+const intakeApi = read('pages/api/aria/intake.js');
+const timelineApi = read('pages/api/timeline.js');
+const operatingSystem = read('lib/peopleOperatingSystem.js');
+const operatingSystemApi = read('pages/api/people/operating-system.js');
+const journeyWriter = read('lib/aria/personJourney.js');
+const universalWorkspace = read('lib/aria/universalWorkspace.js');
+const communityPage = read('pages/community.js');
+const communityTab = read('components/CommunityTab.js');
 const personPage = read('pages/person/[id].js');
 const processApi = read('pages/api/aria/process-events.js');
 const workerWorkflow = read('.github/workflows/aria-event-worker.yml');
@@ -97,6 +105,54 @@ verify(
 verify(
   'Person Journey conversation transcripts are limited to their creator or owner/admin',
   personJourney.includes('c.user_id=$4::uuid OR $3::text IN(\'owner\',\'admin\')')
+);
+verify(
+  'context notes are canonical sensitive evidence and never enter the leader review queue',
+  intakeApi.includes("'context_note'") &&
+    intakeApi.includes("context_note: 'sensitive'") &&
+    intakeApi.includes("category !== 'context_note'") &&
+    intakeApi.includes("requires_human_review: storedEvent.metadata?.intake?.requires_human_review !== false") &&
+    intakeApi.includes("requires_human_review}')::boolean,true)=true") &&
+    intakeApi.includes("category === 'context_note' && personId && consentStatus !== 'granted'")
+);
+verify(
+  'Person Journey and Community pastoral notes use private intake with consent and stable keys',
+  personPage.includes("category:'context_note'") &&
+    communityPage.includes("category: 'context_note'") &&
+    communityTab.includes("category: 'context_note'") &&
+    communityPage.includes('noteConsent') && communityTab.includes('noteConsent')
+);
+verify(
+  'ARIA workspace add_note cannot write to a shared timeline',
+  universalWorkspace.includes("if(op==='add_note')") &&
+    universalWorkspace.includes("parameters.consent_confirmed!==true") &&
+    universalWorkspace.includes("type:'CARE_INTAKE_RECORDED'") &&
+    universalWorkspace.includes("category:'context_note'") &&
+    universalWorkspace.includes('requires_human_review:false') &&
+    !universalWorkspace.includes("event_type:'NOTE'")
+);
+verify(
+  'legacy note writes are rejected at every shared timeline adapter',
+  timelineApi.includes("['note','pastoral_note'].includes") &&
+    operatingSystem.includes("['note','pastoral_note'].includes") &&
+    operatingSystemApi.includes('Person notes must be recorded through private ARIA care intake') &&
+    journeyWriter.includes("['note','pastoral_note'].includes")
+);
+verify(
+  'Person Journey displays only authorized context notes returned through its privacy-filtered event query',
+  personJourney.includes("e.privacy_class='sensitive'") &&
+    personJourney.includes("e.privacy_class='restricted'") &&
+    personPage.includes("careNotes:(a.aria_events||[]).filter(e=>e.type==='CARE_INTAKE_RECORDED'&&e.metadata?.intake?.category==='context_note')") &&
+    personPage.includes('Private care context')
+);
+verify(
+  'Community conversation import UI sends consent, confidentiality and idempotency',
+  communityPage.includes('convConsent') &&
+    communityTab.includes('convConsent') &&
+    communityPage.includes('consent_confirmed: true') &&
+    communityTab.includes('consent_confirmed: true') &&
+    communityPage.includes('privacy_class: convPrivacyClass') &&
+    communityTab.includes('privacy_class: convPrivacyClass')
 );
 verify(
   'Person Journey UI requires consent and displays care confidentiality controls',

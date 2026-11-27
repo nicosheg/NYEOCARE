@@ -139,6 +139,8 @@ verify(
   processor.includes("processing_status='processing'") &&
     processor.includes("processing_started_at<NOW()-INTERVAL '5 minutes'") &&
     processor.includes('processing_attempts<8') &&
+    processor.includes("processing_status='dead'") &&
+    processor.includes('Worker lease expired after the maximum processing attempts') &&
     processor.includes('processPendingAriaEvents')
 );
 verify(

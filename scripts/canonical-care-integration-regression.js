@@ -151,6 +151,8 @@ verify(
   'event processor rolls back failed work before persisting a retryable failure state',
   processor.includes("await db.query('ROLLBACK').catch(()=>{});") &&
     processor.includes('let the caller roll it back and the durable worker retry later') &&
+    processor.includes('processing_attempts=processing_attempts+1') &&
+    processor.includes('processing_attempts+1>=8') &&
     processor.indexOf("await db.query('ROLLBACK').catch(()=>{});") < processor.indexOf('UPDATE aria_events SET processing_status=CASE WHEN processing_attempts>=8')
 );
 verify(

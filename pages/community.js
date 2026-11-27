@@ -77,6 +77,9 @@ export default function CommunityPage() {
   const [noteRequestKey, setNoteRequestKey] = useState('');
   const [importingConv, setImportingConv] = useState(false);
   const [convText, setConvText] = useState('');
+  const [convConsent, setConvConsent] = useState(false);
+  const [convPrivacyClass, setConvPrivacyClass] = useState('restricted');
+  const [convRequestKey, setConvRequestKey] = useState('');
   const [showPicker, setShowPicker] = useState(false);
   const [pickerTarget, setPickerTarget] = useState(null);
   const [editingId, setEditingId] = useState(null);
@@ -346,21 +349,17 @@ export default function CommunityPage() {
     setNoteText(''); setNoteConsent(false); setAddingNote(false); setMsg('Private note saved'); setTimeout(() => setMsg(''), 3000);
   };
   const importConversation = async () => {
-    if (!convText.trim() || !accessToken) return;
+    if (!convText.trim() || !accessToken || !convConsent || !convRequestKey) return;
     const res = await fetch('/api/conversation/import', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({ person_id: selected.id, text: convText.trim() }),
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
+      body: JSON.stringify({ person_id: selected.id, text: convText.trim(), consent_confirmed: true, privacy_class: convPrivacyClass, idempotency_key: convRequestKey }),
     });
-    const data = await res.json();
-    if (data.success) { setConvText(''); setImportingConv(false); setMsg(`Conversation imported – ${data.extracted} key events extracted`); }
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.success) { setConvText(''); setConvConsent(false); setImportingConv(false); setMsg(data.message || 'Conversation recorded privately for authorized care review.'); }
     else { setMsg('Error: ' + (data.error || 'Import failed')); }
     setTimeout(() => setMsg(''), 3000);
   };
-
   const resolveReview = async (item, action, targetId = null) => {
     if (!accessToken) return;
     try {
@@ -578,7 +577,7 @@ export default function CommunityPage() {
                           <button onClick={(e) => { e.stopPropagation(); generateDraft(person.id); }} className="fiducia-button fiducia-button-primary" style={actionBtnStyle}><span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{ICONS.mail} Draft & Send WhatsApp</span></button>
                           <Link href={`/person/${person.id}`} className="fiducia-button fiducia-button-secondary" style={actionBtnStyle}>Journey →</Link>
                           <button onClick={(e) => { e.stopPropagation(); setNoteText(''); setNoteConsent(false); setNoteRequestKey(window.crypto?.randomUUID?.() || 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r=Math.random()*16|0; return (c==='x'?r:(r&3|8)).toString(16); })); setAddingNote(true); }} className="fiducia-button fiducia-button-ghost" style={actionBtnStyle}><span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{ICONS.note} Add pastoral note</span></button>
-                          <button onClick={(e) => { e.stopPropagation(); setImportingConv(true); }} className="fiducia-button fiducia-button-ghost" style={actionBtnStyle}><span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{ICONS.importIcon} Import Conversation</span></button>
+                          <button onClick={(e) => { e.stopPropagation(); setConvText(''); setConvConsent(false); setConvPrivacyClass('restricted'); setConvRequestKey(window.crypto?.randomUUID?.() || 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r=Math.random()*16|0; return (c==='x'?r:(r&3|8)).toString(16); })); setImportingConv(true); }} className="fiducia-button fiducia-button-ghost" style={actionBtnStyle}><span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{ICONS.importIcon} Import Conversation</span></button>
                         </div>
                         <div style={{ display: 'flex', gap: 8 }}>
                           <button onClick={(e) => deletePerson(person.id, e)} className="fiducia-button fiducia-button-ghost" style={actionBtnStyle}><span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{ICONS.trash} Remove</span></button>
@@ -603,11 +602,13 @@ export default function CommunityPage() {
 
                     {importingConv && selected?.id === person.id && (
                       <div style={{ marginTop: 12, background: 'rgba(20,25,40,0.9)', borderRadius: 12, padding: 12, border: '1px solid rgba(255,255,255,0.05)' }} onClick={stopProp}>
-                        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', marginBottom: 8 }}>Paste your WhatsApp, SMS, or notes conversation here.</p>
+                        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', marginBottom: 8 }}>Paste the conversation as confidential care evidence. The person must agree to its storage.</p>
                         <textarea value={convText} onChange={e => setConvText(e.target.value)} placeholder="Paste conversation..." rows={4} style={textareaStyle} />
+                        <select value={convPrivacyClass} onChange={e => setConvPrivacyClass(e.target.value)} style={{ width: '100%', padding: 8, margin: '8px 0', background: 'rgba(255,255,255,0.03)', color: '#fff', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8 }}><option value="restricted">Highly confidential · owners/admins</option><option value="sensitive">Confidential · care leaders/admins</option></select>
+                        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, color: 'rgba(255,255,255,0.65)', fontSize: 12, margin: '8px 0' }}><input type="checkbox" checked={convConsent} onChange={e => setConvConsent(e.target.checked)} /> I confirm the person agreed for this conversation to be recorded for their care.</label>
                         <div style={{ display: 'flex', gap: 8 }}>
-                          <button onClick={(e) => { e.stopPropagation(); importConversation(); }} className="fiducia-button fiducia-button-primary" style={{ padding: '6px 12px', fontSize: 13 }}>Parse & Save</button>
-                          <button onClick={(e) => { e.stopPropagation(); setImportingConv(false); setConvText(''); }} className="fiducia-button fiducia-button-ghost" style={{ padding: '6px 12px', fontSize: 13 }}>Cancel</button>
+                          <button disabled={!convText.trim() || !convConsent} onClick={(e) => { e.stopPropagation(); importConversation(); }} className="fiducia-button fiducia-button-primary" style={{ padding: '6px 12px', fontSize: 13 }}>Record privately</button>
+                          <button onClick={(e) => { e.stopPropagation(); setImportingConv(false); setConvText(''); setConvConsent(false); }} className="fiducia-button fiducia-button-ghost" style={{ padding: '6px 12px', fontSize: 13 }}>Cancel</button>
                         </div>
                       </div>
                     )}

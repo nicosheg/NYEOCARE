@@ -35,6 +35,7 @@ async function handler(req,res){
  if(req.method==='POST'){
   const{person_id,event_type,title,description,metadata,source,occurred_at}=req.body||{};
   if(!person_id||!event_type)return res.status(400).json({error:'person_id and event_type are required'});
+  if(['note','pastoral_note'].includes(String(event_type).trim().toLowerCase()))return res.status(409).json({error:'Person notes must be recorded through private ARIA care intake with explicit consent; shared timeline notes are disabled.'});
   try{
    const person=await pool.query(`SELECT id FROM people WHERE id=$1 AND organization_id=$2 LIMIT 1`,[person_id,orgId]);
    if(!person.rows.length)return res.status(404).json({error:'Person not found'});

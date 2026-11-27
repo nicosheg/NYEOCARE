@@ -14,6 +14,14 @@ const files = {
   registry: read('lib/aria/capabilityRegistry.js'),
   processApi: read('pages/api/aria/process-events.js'),
   workerWorkflow: read('.github/workflows/aria-event-worker.yml'),
+  timelineApi: read('pages/api/timeline.js'),
+  peopleOperatingSystem: read('lib/peopleOperatingSystem.js'),
+  peopleOperatingApi: read('pages/api/people/operating-system.js'),
+  journeyWriter: read('lib/aria/personJourney.js'),
+  universalWorkspace: read('lib/aria/universalWorkspace.js'),
+  communityPage: read('pages/community.js'),
+  communityTab: read('components/CommunityTab.js'),
+  personPage: read('pages/person/[id].js'),
   emitter: read('lib/aria/eventEmitter.js'),
   processor: read('lib/aria/eventProcessor.js'),
   contact: read('lib/aria/contactPreference.js'),
@@ -76,6 +84,14 @@ verify('person journey ARIA transcripts are not exposed to unrelated operators',
 verify('conversation import cannot write transcript content into ordinary shared history', files.conversationImport.includes("type: 'CARE_INTAKE_RECORDED'") && files.conversationImport.includes('body.consent_confirmed !== true') && !files.conversationImport.includes('INSERT INTO timeline_events') && !files.conversationImport.includes('INSERT INTO person_communications'));
 verify('global ARIA queue can be invoked by an authenticated server worker', files.processApi.includes('processPendingAriaEvents({limit})') && files.processApi.includes('cronAuthorized'));
 verify('scheduled worker is gated until matching GitHub and Vercel secrets are configured', files.workerWorkflow.includes('NYEOCARE_ENABLE_EVENT_WORKER') && files.workerWorkflow.includes('NYEOCARE_CRON_SECRET') && files.spec.includes('NYEOCARE_CRON_SECRET'));
+verify('private context notes are a first-class sensitive evidence category, not care responsibilities', files.intake.includes("'context_note'") && files.intake.includes("context_note: 'sensitive'") && files.intake.includes("requires_human_review: category !== 'context_note'") && files.intake.includes("category === 'context_note' && personId && consentStatus !== 'granted'"));
+verify('context notes stay out of the leader intake-review queue', files.intake.includes("COALESCE((e.metadata #>> '{intake,requires_human_review}')::boolean,true)=true") && files.intake.includes("review_required: storedEvent.metadata?.intake?.requires_human_review !== false"));
+verify('Person Journey and Community write private context rather than shared timeline notes', files.personPage.includes("category:'context_note'") && files.communityPage.includes("category: 'context_note'") && files.communityTab.includes("category: 'context_note'") && files.communityPage.includes('noteConsent') && files.communityTab.includes('noteConsent'));
+verify('ARIA workspace notes require consent and append one canonical private evidence event', files.universalWorkspace.includes("parameters.consent_confirmed!==true") && files.universalWorkspace.includes("type:'CARE_INTAKE_RECORDED'") && files.universalWorkspace.includes("category:'context_note'") && files.universalWorkspace.includes('requires_human_review:false'));
+verify('shared timeline adapters reject direct pastoral notes', files.timelineApi.includes("['note','pastoral_note'].includes") && files.peopleOperatingSystem.includes("['note','pastoral_note'].includes") && files.peopleOperatingApi.includes('Person notes must be recorded through private ARIA care intake') && files.journeyWriter.includes("['note','pastoral_note'].includes"));
+verify('Person Journey returns authorized context notes from the privacy-filtered event query', files.journey.includes("e.privacy_class='sensitive'") && files.journey.includes("e.privacy_class='restricted'") && files.personPage.includes("careNotes:(a.aria_events||[]).filter(e=>e.type==='CARE_INTAKE_RECORDED'&&e.metadata?.intake?.category==='context_note')"));
+verify('Community conversation import requires consent and confidentiality', files.communityPage.includes('consent_confirmed: true') && files.communityTab.includes('consent_confirmed: true') && files.communityPage.includes('privacy_class: convPrivacyClass') && files.communityTab.includes('privacy_class: convPrivacyClass'));
+
 
 console.log('[CARE PRODUCTION GATE] ' + passed + ' source-contract checks passed.');
 

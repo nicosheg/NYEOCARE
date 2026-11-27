@@ -186,7 +186,8 @@ assert.ok(attendanceIntelligence.includes("COALESCE(io.evidence->>'privacy_class
 assert.ok(feedbackEngine.includes("COALESCE(context->>'privacy_class','standard')='standard'") &&
   feedbackEngine.includes("if(privacyClass==='standard'){") &&
   feedbackEngine.includes('try{\n   await learnFromFeedback') &&
-  feedbackEngine.includes('privacyClass!==\'standard\''),
+  feedbackEngine.includes("const allowed=privacyClass==='standard'||") &&
+  feedbackEngine.includes('if(!allowed)throw Object.assign(new Error(\'You cannot add feedback to this private care record.\')'),
   'private care feedback must be role-scoped and excluded from shared learning');
 assert.ok(capture.includes('consent_status') && capture.includes('contact_permission') &&
   capture.includes('Signal saved for human review. No task or message was created.'),

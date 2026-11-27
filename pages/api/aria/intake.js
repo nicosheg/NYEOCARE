@@ -14,7 +14,8 @@ const CATEGORIES = new Set([
   'relationship_request',
   'complaint',
   'check_in',
-  'general'
+  'general',
+  'context_note'
 ]);
 const CHANNELS = new Set(['in_person', 'phone', 'whatsapp', 'email', 'form', 'operator_note', 'other']);
 const CONSENT = new Set(['unknown', 'granted', 'declined', 'withdrawn', 'not_required']);

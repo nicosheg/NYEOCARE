@@ -345,7 +345,7 @@ async function createIntake(req, res) {
     privacy_class: storedEvent.privacy_class,
     consent_status: storedEvent.consent_status,
     contact_restriction_saved: storedEvent.metadata?.intake?.contact_permission === 'do_not_contact',
-    review_required: true,
+    review_required: storedEvent.metadata?.intake?.requires_human_review !== false,
     care_responsibility_created: false
   });
 }

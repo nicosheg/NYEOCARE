@@ -63,6 +63,8 @@ verify(
     manual.includes('recordCareIntake({') &&
     intakeService.includes("const eventKey = 'care-intake:' + idempotencyKey") &&
     intakeService.includes('request_fingerprint: fingerprint') &&
+    intakeService.includes('responsibility_fingerprint') &&
+    manual.includes('responsibility_fingerprint: fingerprint') &&
     intakeService.includes('request key was already used for different care details')
 );
 verify(
@@ -109,7 +111,7 @@ verify(
   'shared intake writer binds idempotency to the exact tenant, person, actor, content and privacy payload',
   intakeService.includes("createHash('sha256')") &&
     intakeService.includes('request_fingerprint: fingerprint') &&
-    intakeService.includes("existing.metadata?.request_fingerprint !== fingerprint") &&
+    intakeService.includes("event.metadata?.request_fingerprint !== fingerprint") &&
     intakeService.includes('nyeocare:care-intake:')
 );
 verify(

@@ -187,7 +187,7 @@ assert.ok(attendanceIntelligence.includes("COALESCE(io.evidence->>'privacy_class
   attendanceIntelligence.includes("COALESCE(c.context->>'privacy_class','standard')='standard'"),
   'private care outcomes must not influence shared attendance relationship scores');
 assert.ok(feedbackEngine.includes("COALESCE(context->>'privacy_class','standard')='standard'") &&
-  feedbackEngine.includes("if(privacyClass==='standard'){") &&
+  feedbackEngine.includes("if(record.privacyClass==='standard'){") &&
   feedbackEngine.includes('try{\n   await learnFromFeedback') &&
   feedbackEngine.includes("const allowed=privacyClass==='standard'||") &&
   followUpApi.includes('createCareFeedbackRowsInTransaction({') &&

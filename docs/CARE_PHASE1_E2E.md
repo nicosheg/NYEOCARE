@@ -35,6 +35,26 @@ CARE_PRODUCTION_GATE_DATABASE_URL='YOUR_READ_ONLY_DATABASE_URL' npm run test:car
 
 The live audit runs inside BEGIN READ ONLY and checks the production indexes, immutable event trigger, private helper privileges, RLS, no-contact trigger, duplicate responsibilities, consent/narrative violations and known private-event leakage paths. It prints counts only; it does not read out care narratives or change records. Never put a database password in source control, a chat message, or a command history that other people can read.
 
+## Server-owned ARIA event processing
+
+The application now has one organization-independent worker entry point at `POST /api/aria/process-events`. A scheduled GitHub Actions workflow claims up to 100 due events per run. The endpoint retains the existing event-claim, retry and dead-letter rules; the private-event processor guard remains in place.
+
+The workflow is **opt-in and inactive until configured**. Do not treat the existence of the workflow file as proof that background processing is running.
+
+1. In the Vercel project, add `CRON_SECRET` to the **Production** environment. Generate a fresh 32-byte random value locally (for example, `openssl rand -hex 32`). Do not paste it into source control or this runbook.
+2. In GitHub repository Settings → Secrets and variables → Actions → Secrets, add `NYEOCARE_CRON_SECRET` with the exact same value.
+3. In GitHub repository Settings → Secrets and variables → Actions → Variables, add `NYEOCARE_ENABLE_EVENT_WORKER` with value `true`.
+4. Redeploy the Production deployment so the Vercel Function receives the new environment variable.
+5. Run the **NYEOCARE ARIA Event Worker** workflow once with workflow_dispatch. Confirm the response reports `ok: true`, then verify the scheduled workflow continues to run. The GitHub schedule is best-effort scheduling, not a real-time delivery guarantee.
+
+The workflow calls only the production worker endpoint and sends the secret in the Authorization header. The job is skipped when the repository variable is absent or not `true`. If the secret is absent or mismatched, the endpoint must return unauthorized; never weaken the endpoint to make the schedule pass.
+
+## Canonical Person Journey care and conversation imports
+
+The Person Journey **Add care** action uses the same shared responsibility writer as intake review. It writes one private `CARE_INTAKE_RECORDED` event, one explicit `CARE_INTAKE_REVIEWED` approval, one `aria_actions` responsibility and the existing queue projection. It requires the operator to attest that the person agreed to the recording; category minimums can elevate privacy to restricted. Sensitive narrative stays in the private event, not in shared action summary/message fields.
+
+Conversation import is evidence capture, not a communication sent by NYEOCARE. It requires consent and a stable idempotency key, defaults to restricted privacy, and stores one canonical private care event. It no longer writes the same transcript into both `person_communications` and `timeline_events`, and it does not run external AI extraction into shared timeline records. ARIA's person-context/evidence capabilities retrieve the private event only for an authorized reporter or role. Person Journey ARIA conversation transcripts are limited to their owner and owner/admin viewers.
+
 ## Required E2E environment
 
 A real role-boundary E2E test needs at least four distinct authenticated accounts in the same test organization:

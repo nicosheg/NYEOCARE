@@ -200,13 +200,15 @@ verify(
     communityPage.includes('noteConsent') && communityTab.includes('noteConsent')
 );
 verify(
-  'ARIA workspace add_note cannot write to a shared timeline',
+  'ARIA workspace add_note uses the canonical private intake service and cannot write to a shared timeline',
   universalWorkspace.includes("if(op==='add_note')") &&
     universalWorkspace.includes("parameters.consent_confirmed!==true") &&
-    universalWorkspace.includes("type:'CARE_INTAKE_RECORDED'") &&
+    universalWorkspace.includes('recordCareIntake({') &&
     universalWorkspace.includes("category:'context_note'") &&
-    universalWorkspace.includes('requires_human_review:false') &&
-    !universalWorkspace.includes("event_type:'NOTE'")
+    intakeService.includes("type: 'CARE_INTAKE_RECORDED'") &&
+    intakeService.includes("requires_human_review: category !== 'context_note'") &&
+    !universalWorkspace.includes("event_type:'NOTE'") &&
+    !universalWorkspace.includes('INSERT INTO timeline_events')
 );
 verify(
   'legacy note writes are rejected at every shared timeline adapter',

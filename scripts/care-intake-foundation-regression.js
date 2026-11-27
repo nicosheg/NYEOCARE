@@ -184,7 +184,9 @@ assert.ok(attendanceIntelligence.includes("COALESCE(io.evidence->>'privacy_class
   attendanceIntelligence.includes("COALESCE(c.context->>'privacy_class','standard')='standard'"),
   'private care outcomes must not influence shared attendance relationship scores');
 assert.ok(feedbackEngine.includes("COALESCE(context->>'privacy_class','standard')='standard'") &&
-  feedbackEngine.includes("if(privacyClass==='standard')await learnFromFeedback"),
+  feedbackEngine.includes("if(privacyClass==='standard'){") &&
+  feedbackEngine.includes('try{\n   await learnFromFeedback') &&
+  feedbackEngine.includes('privacyClass!==\'standard\''),
   'private care feedback must be role-scoped and excluded from shared learning');
 assert.ok(capture.includes('consent_status') && capture.includes('contact_permission') &&
   capture.includes('Signal saved for human review. No task or message was created.'),

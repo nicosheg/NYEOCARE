@@ -175,6 +175,7 @@ Expected:
 
 A Phase 1 release is accepted only when all are true:
 
+- The durable ARIA worker reclaims `processing` events whose worker lease expired after five minutes; after the eighth failed attempt, the row is terminalized as `dead` instead of remaining stuck.
 - The automated care-foundation and production-gate checks pass.
 - CI build passes.
 - The Vercel production deployment is READY for the exact main commit.

@@ -335,6 +335,21 @@ export default withOrg(async function handler(req, res) {
       eventKey: 'care-outcome:' + row.action_id
     }, client);
 
+    if (event?.id) {
+      await client.query(
+        `UPDATE care_feedback
+         SET source_event_id=$1,updated_at=NOW()
+         WHERE id=$2 AND organization_id=$3`,
+        [event.id, feedback.id, req.org.id]
+      );
+      await client.query(
+        `UPDATE intelligence_outcomes
+         SET source_event_id=$1
+         WHERE feedback_id=$2 AND organization_id=$3`,
+        [event.id, feedback.id, req.org.id]
+      );
+    }
+
     await client.query('COMMIT');
 
     // A failed background learning refresh must not undo the operator's recorded outcome.

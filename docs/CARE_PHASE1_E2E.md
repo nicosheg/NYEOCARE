@@ -186,3 +186,7 @@ A Phase 1 release is accepted only when all are true:
 - No duplicate responsibility, no-contact bypass or consent violation is observed.
 
 A READY deployment by itself is not E2E acceptance. Keep the final status as verification-pending until the role-based write scenarios have actually run.
+
+- `createCareFeedbackRowsInTransaction` and `linkCareFeedbackEventInTransaction` in `lib/aria/feedbackEngine.js` are the only core feedback/outcome row writers. Both the general feedback API and follow-up completion use them; follow-up keeps its own transaction to close contact records, action status and queue projection atomically.
+- Every persisted feedback and outcome pair is linked to its immutable source ARIA event through `source_event_id` before commit. Private feedback is excluded from shared timeline writes and shared learning.
+- Event-processing failures roll back partial work before retry state is written. The failed attempt counter is then incremented outside the rolled-back transaction, so the eight-attempt ceiling actually applies.

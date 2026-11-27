@@ -30,6 +30,7 @@ const files = {
   draft: read('lib/aria/draftEngine.js'),
   communication: read('lib/aria/communicationOutcome.js'),
   followUp: read('pages/api/daily-queue/complete-follow-up.js'),
+  feedbackEngine: read('lib/aria/feedbackEngine.js'),
   firstVisit: read('pages/api/attendance/first-visit-welcome.js'),
   journey: read('pages/api/person/journey.js'),
   timeline: read('pages/api/timeline.js'),

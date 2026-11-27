@@ -6,6 +6,7 @@ import { processAriaEvent } from '../../../lib/aria/eventProcessor';
 import { learnFromFeedback } from '../../../lib/aria/learningEngine';
 import { getRecordedContactPermission } from '../../../lib/aria/contactPreference';
 import { persistDoNotContact } from '../../../lib/aria/careIntakeService';
+import { createCareFeedbackRowsInTransaction, linkCareFeedbackEventInTransaction } from '../../../lib/aria/feedbackEngine';
 
 const OUTCOMES = {
   met_in_person: { label: 'Welcomed in person', feedbackType: 'other', sentiment: 'positive' },
@@ -151,22 +152,22 @@ export default withOrg(async function handler(req, res) {
       note: safeNote
     };
 
-    feedback = (await client.query(
-      `INSERT INTO care_feedback(
-        organization_id,person_id,action_id,actor_id,feedback_type,sentiment,note,context,
-        observed_at,evidence_kind,verification_status,confidence,created_at,updated_at
-      ) VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,NOW(),'human_report','reported',1,NOW(),NOW())
-      RETURNING id,feedback_type,sentiment,observed_at`,
-      [req.org.id, row.person_id, row.action_id, req.user.id, option.feedbackType, option.sentiment, safeNote, JSON.stringify(context)]
-    )).rows[0];
-
-    await client.query(
-      `INSERT INTO intelligence_outcomes(
-        organization_id,person_id,action_id,action_type,outcome,outcome_score,evidence,actor_id,
-        feedback_id,observed_at,evidence_kind,verification_status,confidence,created_at
-      ) VALUES($1,$2,$3,'follow_up',$4,NULL,$5::jsonb,$6,$7,NOW(),'human_report','reported',1,NOW())`,
-      [req.org.id, row.person_id, row.action_id, outcome, JSON.stringify(context), req.user.id, feedback.id]
-    );
+    const feedbackRecord = await createCareFeedbackRowsInTransaction({
+      client,
+      organizationId: req.org.id,
+      personId: row.person_id,
+      actionId: row.action_id,
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      feedbackType: option.feedbackType,
+      sentiment: option.sentiment,
+      note: safeNote,
+      context,
+      outcomeActionType: 'follow_up',
+      outcomeScore: null
+    });
+    feedback = feedbackRecord.feedback;
+    outcome = feedbackRecord.outcome;
 
     let communication = null;
     if (outcome === 'message_sent') {
@@ -310,45 +311,28 @@ export default withOrg(async function handler(req, res) {
 
 
 
-    event = await emitAriaEvent({
-      organizationId: req.org.id,
-      personId: row.person_id,
-      type: 'CARE_OUTCOME_RECORDED',
+    const linkedFeedback = await linkCareFeedbackEventInTransaction({
+      client,
+      record: {
+        ...feedbackRecord,
+        safeContext: context,
+        note: safeNote
+      },
+      eventType: 'CARE_OUTCOME_RECORDED',
       source: 'human',
-      actorId: req.user.id,
-      actorRole: req.user.role,
-      evidenceKind: 'human_report',
-      verificationStatus: 'reported',
-      confidence: 1,
-      privacyClass,
-      consentStatus,
-      metadata: {
-        feedback_id: feedback.id,
-        feedback_type: option.feedbackType,
-        sentiment: option.sentiment,
-        statement: privateAction ? option.label : (note || option.label),
+      statement: privateAction ? option.label : (note || option.label),
+      eventMetadata: {
         privacy_class: privacyClass,
         privacy_reporter_id: privacyReporterId,
         outcome: { outcome, action_id: row.action_id, feedback_id: feedback.id },
         follow_up_context: context
       },
-      eventKey: 'care-outcome:' + row.action_id
-    }, client);
-
-    if (event?.id) {
-      await client.query(
-        `UPDATE care_feedback
-         SET source_event_id=$1,updated_at=NOW()
-         WHERE id=$2 AND organization_id=$3`,
-        [event.id, feedback.id, req.org.id]
-      );
-      await client.query(
-        `UPDATE intelligence_outcomes
-         SET source_event_id=$1
-         WHERE feedback_id=$2 AND organization_id=$3`,
-        [event.id, feedback.id, req.org.id]
-      );
-    }
+      eventKey: 'care-outcome:' + row.action_id,
+      writeTimeline: false
+    });
+    feedback = linkedFeedback.feedback;
+    outcome = linkedFeedback.outcome;
+    event = linkedFeedback.event;
 
     await client.query('COMMIT');
 

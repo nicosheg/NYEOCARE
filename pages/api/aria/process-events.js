@@ -1,6 +1,5 @@
 // pages/api/aria/process-events.js
 import{getCurrentCareUser}from'../../../lib/auth';
-import pool from'../../../lib/db';
 import{processPendingAriaEvents}from'../../../lib/aria/eventProcessor';
 
 function cronAuthorized(req){

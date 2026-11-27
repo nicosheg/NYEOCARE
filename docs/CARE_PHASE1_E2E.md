@@ -49,6 +49,12 @@ The workflow is **opt-in and inactive until configured**. Do not treat the exist
 
 The workflow calls only the production worker endpoint and sends the secret in the Authorization header. The job is skipped when the repository variable is absent or not `true`. If the secret is absent or mismatched, the endpoint must return unauthorized; never weaken the endpoint to make the schedule pass.
 
+## Private person context notes
+
+Person Journey **Add note**, Community **Add pastoral note**, and ARIA workspace `add_note` are now private `CARE_INTAKE_RECORDED` evidence with category `context_note`. The category is always at least sensitive, requires explicit consent, preserves the reporter and evidence provenance, and is visible only to the reporter and authorized care leaders/admins. Context notes do not create responsibilities and are excluded from the intake-review queue; they remain visible in the Person Journey's Private care context section to operators whose role permits access.
+
+The old `POST /api/timeline` note path, the old People Operating System note route, and generic `addTimelineEvent` / `recordJourneyEvent` note calls now reject note-shaped writes. Other operational timeline events such as lifecycle changes and confirmed manual communication events remain separate timeline projections.
+
 ## Canonical Person Journey care and conversation imports
 
 The Person Journey **Add care** action uses the same shared responsibility writer as intake review. It writes one private `CARE_INTAKE_RECORDED` event, one explicit `CARE_INTAKE_REVIEWED` approval, one `aria_actions` responsibility and the existing queue projection. It requires the operator to attest that the person agreed to the recording; category minimums can elevate privacy to restricted. Sensitive narrative stays in the private event, not in shared action summary/message fields.

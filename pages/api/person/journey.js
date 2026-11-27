@@ -163,7 +163,7 @@ SELECT
      COALESCE((SELECT json_agg(json_build_object('id',m.id,'role',m.role,'content',m.content,'metadata',m.metadata,'created_at',m.created_at) ORDER BY m.created_at)
                FROM aria_messages m WHERE m.conversation_id=c.id),'[]'::json) AS messages
    FROM aria_conversations c
-   WHERE c.organization_id=$1 AND c.person_id=$2
+   WHERE c.organization_id=$1 AND c.person_id=$2\n      AND (c.user_id=$4::uuid OR $3::text IN('owner','admin'))
    ORDER BY c.updated_at DESC LIMIT 20
  )x),'[]'::json) AS conversations,
  COALESCE((SELECT json_agg(x) FROM(

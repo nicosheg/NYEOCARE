@@ -3,7 +3,7 @@
 // This is a disposition record only: it never sends a message.
 import pool from '../../../lib/db';
 import { withOrg } from '../../../lib/apiHelpers';
-import { emitAriaEvent } from '../../../lib/aria/eventEmitter';
+import { createCareFeedbackRowsInTransaction, linkCareFeedbackEventInTransaction } from '../../../lib/aria/feedbackEngine';
 import { processAriaEvent } from '../../../lib/aria/eventProcessor';
 import { learnFromFeedback } from '../../../lib/aria/learningEngine';
 
@@ -107,49 +107,42 @@ export default withOrg(async function handler(req,res){
       disposition_timing:'during_attendance',
       human_reported:true
     };
-    feedback=(await client.query(
-      `INSERT INTO care_feedback(
-        organization_id,person_id,action_id,actor_id,feedback_type,sentiment,note,context,
-        observed_at,evidence_kind,verification_status,confidence,created_at,updated_at
-       ) VALUES($1,$2,NULL,$3,'other','positive',$4,$5::jsonb,NOW(),'human_report','reported',1,NOW(),NOW())
-       RETURNING id,feedback_type,sentiment,observed_at`,
-      [orgId,personId,userId,'Welcomed in person during attendance.',JSON.stringify(context)]
-    )).rows[0];
-
-    await client.query(
-      `INSERT INTO intelligence_outcomes(
-        organization_id,person_id,action_id,action_type,outcome,outcome_score,evidence,actor_id,
-        feedback_id,observed_at,evidence_kind,verification_status,confidence,created_at
-       ) VALUES($1,$2,NULL,'follow_up','met_in_person',NULL,$3::jsonb,$4,$5,NOW(),'human_report','reported',1,NOW())`,
-      [orgId,personId,JSON.stringify(context),userId,feedback.id]
-    );
+    const feedbackRecord = await createCareFeedbackRowsInTransaction({
+      client,
+      organizationId:orgId,
+      personId,
+      actionId:null,
+      actorId:userId,
+      actorRole:req.user.role,
+      feedbackType:'other',
+      sentiment:'positive',
+      note:'Welcomed in person during attendance.',
+      context,
+      outcomeActionType:'follow_up',
+      outcomeScore:null,
+      outcomeValue:'met_in_person'
+    });
+    const linkedFeedback = await linkCareFeedbackEventInTransaction({
+      client,
+      record:feedbackRecord,
+      eventType:'CARE_FEEDBACK',
+      source:'human',
+      statement:'Welcomed in person during attendance.',
+      eventMetadata:{
+        outcome:{outcome:'met_in_person',feedback_id:feedbackRecord.feedback.id},
+        follow_up_context:context
+      },
+      eventKey:'first-visit-welcome-during-attendance:'+sessionId+':'+personId,
+      writeTimeline:false
+    });
+    feedback=linkedFeedback.feedback;
+    event=linkedFeedback.event;
 
     await client.query(
       `INSERT INTO timeline_events(people_id,event_type,title,description,metadata,source,occurred_at,created_at)
        VALUES($1,'first_visit_welcome','Welcomed in person','Welcomed in person during attendance.',$2::jsonb,'human',NOW(),NOW())`,
       [personId,JSON.stringify(context)]
     );
-
-    event=await emitAriaEvent({
-      organizationId:orgId,
-      personId,
-      type:'CARE_FEEDBACK',
-      source:'human',
-      actorId:userId,
-      actorRole:req.user.role,
-      evidenceKind:'human_report',
-      verificationStatus:'reported',
-      confidence:1,
-      metadata:{
-        feedback_id:feedback.id,
-        feedback_type:'other',
-        sentiment:'positive',
-        statement:'Welcomed in person during attendance.',
-        outcome:{outcome:'met_in_person',feedback_id:feedback.id},
-        follow_up_context:context
-      },
-      eventKey:'first-visit-welcome-during-attendance:'+sessionId+':'+personId
-    },client);
 
     await client.query('COMMIT');
 

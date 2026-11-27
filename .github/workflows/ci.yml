@@ -76,6 +76,11 @@ jobs:
           node --check lib/aria/careResponsibility.js
           node --check lib/aria/capabilityEngine.js
           node --check pages/api/aria/process-events.js
+          node --check pages/api/timeline.js
+          node --check pages/api/people/operating-system.js
+          node --check lib/peopleOperatingSystem.js
+          node --check lib/aria/personJourney.js
+          node --check lib/aria/universalWorkspace.js
           node --check pages/api/aria/intake.js
           node --check pages/api/aria/intake-review.js
           node --check pages/api/person/journey.js

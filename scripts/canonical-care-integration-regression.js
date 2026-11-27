@@ -22,6 +22,7 @@ const operatingSystem = read('lib/peopleOperatingSystem.js');
 const operatingSystemApi = read('pages/api/people/operating-system.js');
 const journeyWriter = read('lib/aria/personJourney.js');
 const universalWorkspace = read('lib/aria/universalWorkspace.js');
+const feedbackEngine = read('lib/aria/feedbackEngine.js');
 const communityPage = read('pages/community.js');
 const communityTab = read('components/CommunityTab.js');
 const personPage = read('pages/person/[id].js');
@@ -103,6 +104,14 @@ verify(
     followUp.includes('persistDoNotContact(client') &&
     !followUp.includes('INSERT INTO aria_care_contexts') &&
     !followUp.includes("type:'COMMUNICATION_PREFERENCE_CHANGED'")
+);
+verify(
+  'ARIA workspace feedback uses the canonical feedback-to-outcome and event lifecycle',
+  universalWorkspace.includes("import { recordCareFeedback } from './feedbackEngine'") &&
+    universalWorkspace.includes('recordCareFeedback({') &&
+    !universalWorkspace.includes('INSERT INTO care_feedback') &&
+    feedbackEngine.includes('INSERT INTO intelligence_outcomes') &&
+    feedbackEngine.includes("type:'CARE_FEEDBACK'")
 );
 verify(
   'private care remains excluded from shared observation and memory processing',

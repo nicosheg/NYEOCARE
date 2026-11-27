@@ -111,7 +111,12 @@ verify(
     universalWorkspace.includes('recordCareFeedback({') &&
     !universalWorkspace.includes('INSERT INTO care_feedback') &&
     feedbackEngine.includes('INSERT INTO intelligence_outcomes') &&
-    feedbackEngine.includes("type:'CARE_FEEDBACK'")
+    feedbackEngine.includes("type:'CARE_FEEDBACK'") &&
+    feedbackEngine.includes("await client.query('BEGIN')") &&
+    feedbackEngine.includes("await client.query('COMMIT')") &&
+    feedbackEngine.includes("await client.query('ROLLBACK')") &&
+    feedbackEngine.includes('The care feedback event could not be linked safely.') &&
+    feedbackEngine.includes('SET source_event_id=$1,updated_at=NOW()')
 );
 verify(
   'private care remains excluded from shared observation and memory processing',

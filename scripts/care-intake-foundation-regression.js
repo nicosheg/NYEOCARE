@@ -165,7 +165,9 @@ assert.ok(universalWorkspace.includes("import { recordCareFeedback } from './fee
   universalWorkspace.includes('recordCareFeedback({') &&
   !universalWorkspace.includes('INSERT INTO care_feedback') &&
   feedbackEngine.includes('INSERT INTO intelligence_outcomes') &&
-  feedbackEngine.includes("type:'CARE_FEEDBACK'"),
+  feedbackEngine.includes("eventType='CARE_FEEDBACK'") &&
+  feedbackEngine.includes('export async function createCareFeedbackRowsInTransaction') &&
+  feedbackEngine.includes('export async function linkCareFeedbackEventInTransaction'),
   'ARIA workspace feedback must use the canonical feedback, outcome and event lifecycle');
 assert.ok(careEngine.includes('pg_advisory_xact_lock') &&
   careEngine.includes('blockedIds') &&

@@ -8,6 +8,7 @@ const review = read('pages/api/aria/intake-review.js');
 const writer = read('lib/aria/careResponsibility.js');
 const intake = read('pages/api/aria/intake.js');
 const intakeService = read('lib/aria/careIntakeService.js');
+const followUp = read('pages/api/daily-queue/complete-follow-up.js');
 const commandEngine = read('lib/aria/commandEngine.js');
 const conversationEngine = read('lib/aria/conversationEngine.js');
 const capability = read('lib/aria/capabilityEngine.js');
@@ -93,6 +94,15 @@ verify(
     capability.includes('personContext(organizationId,personId,actorId)') &&
     capability.includes('personEvidenceContext(organizationId,personId,actorId)') &&
     registry.includes('authorized private care records')
+);
+verify(
+  'intake and follow-up no-contact decisions use the same preference, cancellation and queue transaction',
+  intakeService.includes('export async function persistDoNotContact') &&
+    intakeService.includes('UPDATE person_communications') &&
+    intakeService.includes('UPDATE aria_actions') &&
+    followUp.includes('persistDoNotContact(client') &&
+    !followUp.includes('INSERT INTO aria_care_contexts') &&
+    !followUp.includes("type:'COMMUNICATION_PREFERENCE_CHANGED'")
 );
 verify(
   'private care remains excluded from shared observation and memory processing',

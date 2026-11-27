@@ -156,6 +156,7 @@ Expected:
 - Active no-contact wins over any stale or client-supplied allowed value.
 - Existing unsent outbound drafts are cancelled.
 - Contact-oriented actions and pending queue projections are cancelled.
+- Intake and follow-up no-contact outcomes invoke the same transaction-bound `persistDoNotContact` function; only the current responsibility being completed is excluded from cancellation.
 - New outbound communication is blocked by the database trigger.
 - Historical sent messages remain historical; they are not rewritten as unsent.
 - There is no ordinary UI action that silently reactivates contact.

@@ -7,6 +7,9 @@ const manual = read('pages/api/care-responsibilities.js');
 const review = read('pages/api/aria/intake-review.js');
 const writer = read('lib/aria/careResponsibility.js');
 const intake = read('pages/api/aria/intake.js');
+const intakeService = read('lib/aria/careIntakeService.js');
+const commandEngine = read('lib/aria/commandEngine.js');
+const conversationEngine = read('lib/aria/conversationEngine.js');
 const capability = read('lib/aria/capabilityEngine.js');
 const registry = read('lib/aria/capabilityRegistry.js');
 const processor = read('lib/aria/eventProcessor.js');
@@ -91,6 +94,46 @@ verify(
 verify(
   'private care remains excluded from shared observation and memory processing',
   processor.includes("if(event.privacy_class&&event.privacy_class!=='standard')return null")
+);
+verify(
+  'care forms, conversation imports, ARIA chat and ARIA private notes share one intake writer',
+  intake.includes('recordCareIntake') &&
+    conversationImport.includes('recordCareIntake') &&
+    capability.includes('recordCareIntake') &&
+    universalWorkspace.includes('recordCareIntake') &&
+    intakeService.includes('export async function recordCareIntake')
+);
+verify(
+  'shared intake writer binds idempotency to the exact tenant, person, actor, content and privacy payload',
+  intakeService.includes("createHash('sha256')") &&
+    intakeService.includes('request_fingerprint: fingerprint') &&
+    intakeService.includes("existing.metadata?.request_fingerprint !== fingerprint") &&
+    intakeService.includes('nyeocare:care-intake:')
+);
+verify(
+  'ARIA chat requires explicit operator instruction, named person, explicit consent and a stable key',
+  registry.includes('record_care_intake:') &&
+    capability.includes("case'record_care_intake'") &&
+    capability.includes('parameters.explicit!==true') &&
+    capability.includes('parameters.consent_confirmed!==true') &&
+    capability.includes('parameters.idempotency_key') &&
+    commandEngine.includes('record_care_intake') &&
+    commandEngine.includes('never infer consent')
+);
+verify(
+  'ARIA chat records evidence only and never creates contact or a responsibility',
+  capability.includes("contactPermission:parameters.contact_permission||'unknown'") &&
+    capability.includes('care_responsibility_created:false') &&
+    capability.includes('No responsibility has been assigned') &&
+    conversationEngine.includes("item.capability==='record_care_intake'")
+);
+verify(
+  'shared intake writer applies confidentiality minimums and keeps contact permission independent',
+  intakeService.includes("prayer_request: 'restricted'") &&
+    intakeService.includes("personal_need: 'restricted'") &&
+    intakeService.includes("complaint: 'restricted'") &&
+    intakeService.includes("contactPermission = 'unknown'") &&
+    intakeService.includes('A care-recording consent is not contact permission')
 );
 verify(
   'conversation imports require consent and idempotency and write one private canonical event',

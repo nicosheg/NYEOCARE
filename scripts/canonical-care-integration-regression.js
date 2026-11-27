@@ -9,6 +9,7 @@ const writer = read('lib/aria/careResponsibility.js');
 const intake = read('pages/api/aria/intake.js');
 const intakeService = read('lib/aria/careIntakeService.js');
 const followUp = read('pages/api/daily-queue/complete-follow-up.js');
+const firstVisit = read('pages/api/attendance/first-visit-welcome.js');
 const commandEngine = read('lib/aria/commandEngine.js');
 const conversationEngine = read('lib/aria/conversationEngine.js');
 const capability = read('lib/aria/capabilityEngine.js');
@@ -138,6 +139,14 @@ verify(
     intakeService.includes('source: clean(source || \'aria\', 80)') &&
     intakeService.includes('event.metadata?.request_fingerprint !== fingerprint') &&
     intakeService.includes('nyeocare:care-intake:')
+);
+verify(
+  'first-visit welcome uses the shared feedback and outcome persistence lifecycle',
+  firstVisit.includes('createCareFeedbackRowsInTransaction({') &&
+    firstVisit.includes('linkCareFeedbackEventInTransaction({') &&
+    !firstVisit.includes('INSERT INTO care_feedback') &&
+    !firstVisit.includes('INSERT INTO intelligence_outcomes') &&
+    firstVisit.includes("outcomeValue:'met_in_person'")
 );
 verify(
   'follow-up outcome feedback and intelligence records link back to the immutable ARIA event',

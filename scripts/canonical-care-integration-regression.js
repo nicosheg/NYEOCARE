@@ -143,6 +143,7 @@ verify(
   'follow-up outcome feedback and intelligence records link back to the immutable ARIA event',
   followUp.includes('createCareFeedbackRowsInTransaction({') &&
     followUp.includes('linkCareFeedbackEventInTransaction({') &&
+    followUp.includes('outcomeValue: outcome') &&
     !followUp.includes('INSERT INTO care_feedback') &&
     !followUp.includes('INSERT INTO intelligence_outcomes') &&
     feedbackEngine.includes('export async function createCareFeedbackRowsInTransaction') &&

@@ -160,6 +160,12 @@ assert.ok(journey.includes("e.privacy_class='standard'") &&
 assert.ok(universal.includes("e.privacy_class='standard'") &&
   universal.includes("'CARE_INTAKE_RECORDED','CARE_INTAKE_REVIEWED','COMMUNICATION_PREFERENCE_CHANGED'"),
   'organization-wide activity must never expose private intake');
+assert.ok(universalWorkspace.includes("import { recordCareFeedback } from './feedbackEngine'") &&
+  universalWorkspace.includes('recordCareFeedback({') &&
+  !universalWorkspace.includes('INSERT INTO care_feedback') &&
+  feedbackEngine.includes('INSERT INTO intelligence_outcomes') &&
+  feedbackEngine.includes("type:'CARE_FEEDBACK'"),
+  'ARIA workspace feedback must use the canonical feedback, outcome and event lifecycle');
 assert.ok(careEngine.includes('pg_advisory_xact_lock') &&
   careEngine.includes('blockedIds') &&
   careEngine.includes('nyeocare:do-not-contact:'),

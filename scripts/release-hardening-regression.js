@@ -21,8 +21,15 @@ assert.match(client, /previewBlockedFetch/);
 assert.match(client, /Production Supabase access is blocked/);
 assert.match(client, /supabaseAdmin = !previewRequiresIsolation/);
 assert.doesNotMatch(client, /throw new Error\(\s*'NYEOCARE Preview requires its own isolated staging Supabase URL/);
-assert.match(db, /VERCEL_ENV/);
-assert.match(db, /NYEOCARE_PREVIEW_DATABASE_ISOLATED!=='true'/);
+
+assert.match(db, /previewDatabaseBlocked/);
+assert.match(db, /createPreviewBlockedPool/);
+assert.match(db, /NYEOCARE_PREVIEW_DATABASE_ISOLATION_REQUIRED/);
+assert.match(db, /query:\s*\(\.\.\.args\)/);
+assert.match(db, /connect:\s*callback/);
+assert.match(db, /pool = previewDatabaseBlocked/);
+assert.doesNotMatch(db, /if\s*\(deploymentEnvironment\s*===\s*'preview'[\s\S]{0,200}throw new Error/);
+
 assert.match(worker, /timingSafeEqual/);
 assert.match(worker, /processPendingAriaEvents\(\{organizationId,limit\}\)/);
 assert.doesNotMatch(worker, /LIMIT 50/);
@@ -32,4 +39,4 @@ assert.match(health, /aria_worker/);
 assert.match(ci, /NYEOCARE_VERCEL_GIT_DEPLOYMENT_ENABLED/);
 assert.match(ci, /d\.aria_worker!==\"ok\"/);
 
-console.log('[RELEASE HARDENING] Preview build isolation, cron authentication, global event processing and truthful worker health checks passed.');
+console.log('[RELEASE HARDENING] Preview build isolation, controlled database blocking, cron authentication, global event processing and truthful worker health checks passed.');

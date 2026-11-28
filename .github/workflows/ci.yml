@@ -1,5 +1,5 @@
 name: NYEOCARE CI
-# Vercel Git integration deploys main; CI tests, builds, then verifies the deployed commit.
+# CI tests and builds every change. Production verification is opt-in because Vercel Git deployment is currently disabled.
 
 on:
   push:
@@ -95,7 +95,7 @@ jobs:
         run: npm run build
       # The Vercel Git integration deploys pushes to main. Do not create a second deployment here.
       - name: Verify Git-integrated Vercel production deployment
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.NYEOCARE_VERCEL_GIT_DEPLOYMENT_ENABLED == 'true'
         env:
           EXPECTED_BUILD_ID: ${{ github.sha }}
         run: |
@@ -105,7 +105,7 @@ jobs:
             response="$(curl --silent --show-error --fail --max-time 15 "$health_url" 2>/dev/null || true)"
             actual_build_id=""
             if [[ -n "$response" ]]; then
-              actual_build_id="$(node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); if(d.status!=="ok"||d.database!=="ok"||(d.queue!=="ok"&&d.queue!=="busy")||d.workers!=="ok"||d.build_id!==process.env.EXPECTED_BUILD_ID) process.exit(1); console.log(d.build_id);' <<<"$response" 2>/dev/null || true)"
+              actual_build_id="$(node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); if(d.status!=="ok"||d.database!=="ok"||(d.queue!=="ok"&&d.queue!=="busy")||d.workers!=="ok"||d.aria_worker!=="ok"||d.build_id!==process.env.EXPECTED_BUILD_ID) process.exit(1); console.log(d.build_id);' <<<"$response" 2>/dev/null || true)"
             fi
             if [[ "$actual_build_id" == "$EXPECTED_BUILD_ID" ]]; then
               echo "Production health verified for commit $actual_build_id."

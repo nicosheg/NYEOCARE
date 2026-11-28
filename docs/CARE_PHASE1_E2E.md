@@ -150,3 +150,85 @@ A Phase 1 release is accepted only when all are true:
 - No duplicate responsibility, no-contact bypass or consent violation is observed.
 
 A READY deployment by itself is not E2E acceptance. Keep the final status as verification-pending until the role-based write scenarios have actually run.
+
+
+## Release hardening — Preview isolation and independent ARIA processing
+
+### Preview isolation is fail-closed
+
+The Next.js build exposes the Vercel deployment environment to the browser client. A Vercel Preview must use its own Supabase project and publishable key; the canonical production project is explicitly rejected. Server-side database access also refuses to start in Preview until:
+
+- `DATABASE_URL` points to an isolated staging database.
+- `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` belong to that same staging project.
+- `NYEOCARE_PREVIEW_DATABASE_ISOLATED=true` is set only after an operator has verified those connections.
+
+The current Vercel project shares several Production and Preview environment variables. Do not set the isolation flag until you have replaced the Preview values with staging credentials. A Preview URL is not a staging boundary by itself.
+
+### Independent ARIA event worker
+
+The ARIA processor endpoint now processes a global oldest-first batch across all organizations. It no longer stops after the first 50 organizations. Cron authentication uses a constant-time comparison and still requires a non-empty `CRON_SECRET`.
+
+The production health endpoint reports attendance workers and the ARIA worker separately. The ARIA worker is healthy only when the named active Supabase Cron job has completed successfully recently **and** a recent successful HTTP response from the worker endpoint is present in `net._http_response`. Until then, health is intentionally degraded instead of treating attendance workers as proof that ARIA is processing events.
+
+To activate the worker after staging is isolated:
+
+1. Enable the Supabase `pg_net` extension from Database → Extensions. The active database currently has `pg_cron` and Vault but not `pg_net`.
+2. Set a strong `CRON_SECRET` in Vercel Production environment variables. Do not add it to Preview while Preview still points at Production.
+3. Store the exact same secret in Supabase Vault under `nyeocare_aria_worker_cron_secret`.
+4. In the **isolated staging database first**, create the schedule:
+
+```sql
+SELECT cron.schedule(
+  'nyeocare-aria-event-worker',
+  '* * * * *',
+  $$
+  SELECT net.http_post(
+    url := 'https://nyeocare.vercel.app/api/aria/process-events?limit=10',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer ' || (
+        SELECT decrypted_secret
+        FROM vault.decrypted_secrets
+        WHERE name = 'nyeocare_aria_worker_cron_secret'
+        LIMIT 1
+      )
+    ),
+    body := '{}'::jsonb,
+    timeout_milliseconds := 25000
+  ) AS request_id;
+  $$
+);
+```
+
+5. Verify `cron.job` shows the job active, `cron.job_run_details` shows recent successful executions, and `net._http_response` shows HTTP 200 responses containing `"mode":"cron"`. The health endpoint must then return `aria_worker: "ok"`.
+
+Useful staging verification query:
+
+```sql
+SELECT id, status_code, created, content
+FROM net._http_response
+WHERE content LIKE '%"mode":"cron"%'
+ORDER BY created DESC
+LIMIT 10;
+```
+
+Do not run the schedule SQL against Production until the same steps pass in isolated staging. The Production project currently has no ARIA worker schedule and no `CRON_SECRET`; both remain release blockers until deliberately configured and tested.
+
+### CI deployment verification
+
+CI no longer fails a code/build run merely because Vercel Git deployment is disabled. Production deployment verification only runs when the repository variable `NYEOCARE_VERCEL_GIT_DEPLOYMENT_ENABLED=true` is explicitly enabled. When enabled, the check requires the exact commit build ID, database, queue, attendance workers, and ARIA worker to be healthy. A green code/build run without that production check is not a production release approval.
+
+
+## Remaining release blockers after code hardening
+
+These items are deliberately not applied to the live database or Vercel Production by this change:
+
+1. **Migration history reconciliation:** the current repository does not contain all versions in the remote migration ledger, and Supabase Preview reports missing remote migration versions. Restore/resolve that ledger against the actual schema before adding or replaying any migration.
+2. **Trigger-function search path:** `public.tg_touch_operator_experience_pulses()` still needs a forward-only migration setting `search_path = ''` and qualifying `pg_catalog.now()`. Do not edit its already-applied historical migration.
+3. **Auth leaked-password protection:** enable it in Supabase Auth password security after owner review.
+4. **Staging variables:** Vercel Preview currently shares Supabase/database variables with Production. Replace every Preview target with the separate staging project's URL, publishable key, database connection and server key before setting `NYEOCARE_PREVIEW_DATABASE_ISOLATED=true`.
+5. **Independent scheduler secrets/extensions:** `pg_net` is not installed and no `CRON_SECRET` exists in Vercel. Install/configure these in staging first, store the same secret in Supabase Vault, and run the scheduled worker before expecting `aria_worker: "ok"`.
+6. **Role-based write E2E:** create synthetic users for worker, unrelated worker, leader, owner/admin and a second organization; execute the intake-to-outcome and retry/network tests from the original runbook. No production care records are suitable test fixtures.
+7. **Dependency lockfile:** this repository currently has no package lockfile. Adopt a lockfile only after running the repository install and full test suite with a known npm version; CI should then use `npm ci`.
+
+The branch hardening does not claim these gates are complete. They remain explicit release blockers.

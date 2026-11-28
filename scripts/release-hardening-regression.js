@@ -18,7 +18,7 @@ assert.match(client, /deploymentEnvironment === 'preview'/);
 assert.match(client, /targetsCanonicalProduction/);
 assert.match(client, /Production Supabase fallback is blocked/);
 assert.match(db, /VERCEL_ENV/);
-assert.match(db, /NYEOCARE_PREVIEW_DATABASE_ISOLATED !== 'true'/);
+assert.match(db, /NYEOCARE_PREVIEW_DATABASE_ISOLATED!=='true'/);
 assert.match(worker, /timingSafeEqual/);
 assert.match(worker, /processPendingAriaEvents\(\{organizationId,limit\}\)/);
 assert.doesNotMatch(worker, /LIMIT 50/);

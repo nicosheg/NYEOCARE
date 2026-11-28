@@ -232,3 +232,8 @@ These items are deliberately not applied to the live database or Vercel Producti
 7. **Dependency lockfile:** this repository currently has no package lockfile. Adopt a lockfile only after running the repository install and full test suite with a known npm version; CI should then use `npm ci`.
 
 The branch hardening does not claim these gates are complete. They remain explicit release blockers.
+
+
+8. **Remaining database performance advisor items:** after migration history is reconciled, add covering indexes for `aria_internal_messages.support_acknowledged_by` and `operator_experience_pulses.operator_user_id`, and review the `care_feedback` RLS init-plan warnings in staging. Do not drop the 73 advisor-reported unused indexes based on one snapshot; first inspect query usage and workload. The three RLS-enabled/no-policy tables are server-only deny-by-default tables and must not be given broad client policies just to silence the linter.
+
+These performance fixes are not applied because they require forward migrations and staging measurements.

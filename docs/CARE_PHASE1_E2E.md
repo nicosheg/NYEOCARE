@@ -217,3 +217,18 @@ Do not run the schedule SQL against Production until the same steps pass in isol
 ### CI deployment verification
 
 CI no longer fails a code/build run merely because Vercel Git deployment is disabled. Production deployment verification only runs when the repository variable `NYEOCARE_VERCEL_GIT_DEPLOYMENT_ENABLED=true` is explicitly enabled. When enabled, the check requires the exact commit build ID, database, queue, attendance workers, and ARIA worker to be healthy. A green code/build run without that production check is not a production release approval.
+
+
+## Remaining release blockers after code hardening
+
+These items are deliberately not applied to the live database or Vercel Production by this change:
+
+1. **Migration history reconciliation:** the current repository does not contain all versions in the remote migration ledger, and Supabase Preview reports missing remote migration versions. Restore/resolve that ledger against the actual schema before adding or replaying any migration.
+2. **Trigger-function search path:** `public.tg_touch_operator_experience_pulses()` still needs a forward-only migration setting `search_path = ''` and qualifying `pg_catalog.now()`. Do not edit its already-applied historical migration.
+3. **Auth leaked-password protection:** enable it in Supabase Auth password security after owner review.
+4. **Staging variables:** Vercel Preview currently shares Supabase/database variables with Production. Replace every Preview target with the separate staging project's URL, publishable key, database connection and server key before setting `NYEOCARE_PREVIEW_DATABASE_ISOLATED=true`.
+5. **Independent scheduler secrets/extensions:** `pg_net` is not installed and no `CRON_SECRET` exists in Vercel. Install/configure these in staging first, store the same secret in Supabase Vault, and run the scheduled worker before expecting `aria_worker: "ok"`.
+6. **Role-based write E2E:** create synthetic users for worker, unrelated worker, leader, owner/admin and a second organization; execute the intake-to-outcome and retry/network tests from the original runbook. No production care records are suitable test fixtures.
+7. **Dependency lockfile:** this repository currently has no package lockfile. Adopt a lockfile only after running the repository install and full test suite with a known npm version; CI should then use `npm ci`.
+
+The branch hardening does not claim these gates are complete. They remain explicit release blockers.

@@ -94,7 +94,7 @@ jobs:
       - run: npm run test:field-mode
       - name: Build application
         run: npm run build
-      # The Vercel Git integration deploys pushes to main. Do not create a second deployment here.
+      # Run only after the repository variable explicitly enables Vercel Git production deployments.
       - name: Verify Git-integrated Vercel production deployment
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.NYEOCARE_VERCEL_GIT_DEPLOYMENT_ENABLED == 'true'
         env:

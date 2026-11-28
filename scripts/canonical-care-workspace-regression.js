@@ -6,6 +6,7 @@ const read=path=>fs.readFileSync(path,'utf8');
 const home=read('pages/index.js');
 const work=read('components/WorkToday.js');
 const panel=read('components/CareLeadershipPanel.js');
+const intakeReview=read('components/CareIntakeReview.js');
 const legacyRoute=read('pages/care-oversight.js');
 const createApi=read('pages/api/care-responsibilities.js');
 const journeyApi=read('pages/api/person/journey.js');
@@ -28,6 +29,8 @@ assert.ok(legacyRoute.includes("router.replace('/?briefing=team')")&&!legacyRout
 
 assert.ok(panel.includes("fetch('/api/care-oversight'")&&panel.includes("fetch('/api/care-oversight/acknowledge'")&&panel.includes("fetch('/api/care-oversight/reassign'")&&panel.includes("action:'set_champion'"),
  'leadership actions must reuse existing secured support, reassignment and champion endpoints');
+assert.ok(panel.includes("import CareIntakeReview from './CareIntakeReview';")&&intakeReview.includes('export default function CareIntakeReview'),
+ 'Team care must import the canonical care-signal review component before rendering it');
 assert.ok(panel.includes('Help requests')&&panel.includes('Needs coordination')&&panel.includes('Team workload')&&panel.includes('Support contact'),
  'the unified panel must preserve the core human coordination functions');
 assert.ok(!panel.includes('ten-minute leadership ritual')&&!panel.includes('WEEKLY OPERATOR PULSE'),

@@ -47,6 +47,7 @@ jobs:
       - run: npm run test:follow-up-policy
       - run: npm run test:care-intake-foundation
       - run: npm run test:care-production-gate
+      - run: npm run test:release-hardening
       - run: npm run test:identity-evidence
       - run: npm run test:scan-review
       - run: npm run test:aria-internal-messaging
@@ -116,3 +117,6 @@ jobs:
           done
           echo "Production did not become healthy on expected commit $EXPECTED_BUILD_ID."
           exit 1
+      - name: Explain skipped production verification
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.NYEOCARE_VERCEL_GIT_DEPLOYMENT_ENABLED != 'true'
+        run: echo "Production verification skipped: Vercel Git deployment is disabled. This CI result covers tests and build only."
